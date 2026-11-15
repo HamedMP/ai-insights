@@ -1,0 +1,30 @@
+{
+  "name": "hindsight",
+  "displayName": "Hindsight",
+  "version": "0.0.1",
+  "description": "Look back at how you work with AI coding agents. Local insights and actionable tips from your Claude Code, Codex, Cursor, Pi and OpenCode history.",
+  "author": {
+    "name": "Matrix OS"
+  },
+  "homepage": "https://github.com/hamedmp/hindsight",
+  "repository": "https://github.com/hamedmp/hindsight",
+  "license": "MIT",
+  "keywords": [
+    "insights",
+    "history",
+    "usage",
+    "cost",
+    "claude-code",
+    "codex",
+    "mcp",
+    "agent-skills"
+  ],
+  "category": "developer-tools",
+  "tags": [
+    "insights",
+    "history",
+    "mcp"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./mcp.json"
+}

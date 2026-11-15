@@ -1,0 +1,45 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "hindsight",
+  "version": "0.0.1",
+  "description": "Look back at how you work with AI coding agents. Local insights and actionable tips from your Claude Code, Codex, Cursor, Pi and OpenCode history.",
+  "author": {
+    "name": "Matrix OS",
+    "url": "https://matrix-os.com"
+  },
+  "homepage": "https://github.com/hamedmp/hindsight",
+  "repository": "https://github.com/hamedmp/hindsight",
+  "license": "MIT",
+  "keywords": [
+    "insights",
+    "history",
+    "usage",
+    "cost",
+    "claude-code",
+    "codex",
+    "mcp",
+    "agent-skills"
+  ],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Hindsight",
+        "shortDescription": "Learn from your agent history",
+        "longDescription": "Reads your local Claude Code and Codex history, finds what slows you down and what it costs, and writes a private HTML report with tips. The analysis runs in your own agent; nothing is uploaded.",
+        "developerName": "Matrix OS",
+        "category": "Developer Tools",
+        "capabilities": [
+          "Interactive",
+          "Read",
+          "Write"
+        ],
+        "websiteURL": "https://github.com/hamedmp/hindsight",
+        "defaultPrompt": [
+          "Run hindsight on my agent history.",
+          "What slows me down when I work with agents?",
+          "Turn my hindsight findings into CLAUDE.md edits."
+        ]
+      }
+    }
+  }
+}

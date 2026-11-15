@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "hindsight": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@matrix-os/hindsight",
+        "mcp"
+      ]
+    }
+  }
+}
