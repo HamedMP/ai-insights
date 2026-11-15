@@ -63,7 +63,7 @@ export function pixelHero(days: DayValue[]): SafeHtml | null {
   const bands = Math.ceil(weeks / 27);
   const perBand = Math.ceil(weeks / bands);
   const rows = bands * 7 + (bands - 1);
-  const cell = Math.max(8, Math.min(44, Math.floor(460 / perBand), Math.floor(330 / rows)));
+  const cell = Math.max(8, Math.min(46, Math.floor(440 / perBand), Math.floor(320 / rows)));
   const gap = Math.max(2, Math.round(cell * 0.16));
   const size = cell - gap;
   const level = levels(days.map((entry) => entry.value));
@@ -84,7 +84,7 @@ export function pixelHero(days: DayValue[]): SafeHtml | null {
   const width = perBand * cell - gap;
   const height = rows * cell - gap;
   const active = days.filter((entry) => entry.value > 0).length;
-  return html`<figure class="hero-art"><svg class="px-hero" viewBox="0 0 ${width} ${height}" role="img" aria-label="${`${plural(active, "active day")} out of ${plural(days.length, "day")}, one square per day`}">${raw(groups.join(""))}</svg>
+  return html`<figure class="hero-art"><svg class="px-hero" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" aria-label="${`${plural(active, "active day")} out of ${plural(days.length, "day")}, one square per day`}">${raw(groups.join(""))}</svg>
 <figcaption class="micro">One square per day · brighter means more sessions</figcaption></figure>`;
 }
 
@@ -188,7 +188,7 @@ export function weekStacks(totals: number[]): SafeHtml | null {
     for (let row = 0; row < pixels; row += 1) {
       rects.push(`<rect x="${x}" y="${height - (row + 1) * cell}" width="${cell - gap}" height="${cell - gap}"/>`);
     }
-    const cls = index === busiest ? "p4" : index >= 5 ? "p1" : "p2";
+    const cls = index === busiest ? "p4" : index >= 5 ? "p2" : "p3";
     return html`<g class="${cls}" style="--w:${index}"><title>${["Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays", "Sundays"][index]}: ${plural(total, "session")}</title>${raw(rects.join(""))}</g><text class="lbl" x="${x + (cell - gap) / 2}" y="${height + 16}" text-anchor="middle">${DAY_LETTERS[index]}</text>`.value;
   });
   const width = 6 * colWidth + 8 + cell - gap;
@@ -280,7 +280,7 @@ export function dotColumns(id: string, buckets: Array<{ key: string; count: numb
 }
 
 /** Every session as a square; lit squares ran alongside another session. */
-export function sessionField(sessions: number, involved: number, maxConcurrent: number): SafeHtml | null {
+export function sessionField(sessions: number, involved: number, maxConcurrent: number, overlapEvents = 0): SafeHtml | null {
   const total = count(sessions);
   if (total < 2) return null;
   const perCell = Math.max(1, Math.ceil(total / 300));
@@ -293,15 +293,18 @@ export function sessionField(sessions: number, involved: number, maxConcurrent: 
     rects.push(`<rect class="${index < lit ? "p4" : "p0"}" x="${(index % columns) * cell}" y="${Math.floor(index / columns) * cell}" width="11" height="11" style="--i:${index % 40}"/>`);
   }
   const height = Math.ceil(cells / columns) * cell;
+  // Few sessions get bigger squares; hundreds keep 14px cells.
+  const scale = cells <= 80 ? 2 : cells <= 200 ? 1.5 : 1.2;
   const tower = Math.min(24, count(maxConcurrent));
   const towerRects: string[] = [];
   for (let k = 0; k < tower; k += 1) towerRects.push(`<rect class="p5" x="0" y="${(tower - k - 1) * 14}" width="40" height="11" style="--i:${k}"/>`);
   return html`<div class="parallel-viz">
-<figure class="viz field"><svg data-chart="parallel" viewBox="0 0 ${columns * cell - 3} ${height - 3}" role="img" aria-label="${`${formatInt(involved)} of ${formatInt(total)} sessions overlapped with another`}">${raw(rects.join(""))}</svg>
+<figure class="viz field"><svg data-chart="parallel" viewBox="0 0 ${columns * cell - 3} ${height - 3}" width="${Math.round((columns * cell - 3) * scale)}" height="${Math.round((height - 3) * scale)}" role="img" aria-label="${`${formatInt(involved)} of ${formatInt(total)} sessions overlapped with another`}">${raw(rects.join(""))}</svg>
 <figcaption class="micro">${perCell === 1 ? "One square per session" : `One square per ${formatInt(perCell)} sessions`} · lit squares overlapped with another session</figcaption></figure>
 ${tower > 0
     ? html`<figure class="viz tower"><svg viewBox="0 0 40 ${tower * 14 - 3}" role="img" aria-label="${`At most ${formatInt(maxConcurrent)} sessions ran at the same time`}">${raw(towerRects.join(""))}</svg><figcaption class="micro"><b>${formatInt(maxConcurrent)}</b> at once, at the peak</figcaption></figure>`
     : null}
+<dl class="facts parallel-facts"><dt>Sessions that overlapped</dt><dd>${formatInt(Math.min(count(involved), total))} <span>of ${formatInt(total)}</span></dd><dt>Times sessions overlapped</dt><dd>${formatInt(overlapEvents)}</dd><dt>Most at once</dt><dd>${formatInt(maxConcurrent)}</dd></dl>
 </div>`;
 }
 
@@ -396,3 +399,37 @@ export function frictionMap(id: string, islands: Island[]): SafeHtml | null {
   })}<p class="micro islands-key">1 square = ${plural(unit, "error")}</p></div>`;
 }
 
+
+/**
+ * Short histories: each day is a column of pixels, one square per few sessions.
+ * Reads better than a calendar when there are only a few weeks to show.
+ */
+export function dayStacks(id: string, days: DayValue[]): SafeHtml | null {
+  const max = Math.max(0, ...days.map((entry) => entry.value));
+  if (days.length === 0 || max <= 0) return null;
+  const maxRows = 8;
+  const unit = Math.max(1, Math.ceil(max / maxRows));
+  const cell = Math.max(10, Math.min(28, Math.floor(1040 / days.length)));
+  const size = cell - Math.max(2, Math.round(cell * 0.18));
+  const height = maxRows * cell;
+  const level = levels(days.map((entry) => entry.value));
+  const columns = days.map((entry, index) => {
+    const pixels = entry.value > 0 ? Math.max(1, Math.ceil(entry.value / unit)) : 0;
+    const x = index * cell;
+    const rects: string[] = [];
+    if (pixels === 0) rects.push(`<rect class="p0" x="${x}" y="${height - size}" width="${size}" height="${size}"/>`);
+    for (let row = 0; row < pixels; row += 1) rects.push(`<rect x="${x}" y="${height - (row + 1) * cell + (cell - size)}" width="${size}" height="${size}"/>`);
+    const tip = entry.tooltip ?? `${formatDay(entry.day, { weekday: "short", month: "short", day: "numeric" })}: ${plural(entry.value, "session")}`;
+    return html`<g class="p${Math.max(2, level(entry.value))}" style="--w:${index}"><title>${tip}</title>${raw(rects.join(""))}</g>`.value;
+  });
+  const width = days.length * cell - (cell - size);
+  const labels: Array<{ index: number; text: string }> = [];
+  days.forEach((entry, index) => {
+    const isMonday = weekday(entry.day) === 0;
+    const isMonthStart = formatDay(entry.day, { day: "numeric" }) === "1";
+    if (days.length <= 45 ? isMonday : isMonthStart) labels.push({ index, text: formatDay(entry.day, days.length <= 45 ? { month: "short", day: "numeric" } : { month: "short" }) });
+  });
+  return html`<figure class="viz day-stacks"><div class="stack-wrap" style="width:${width}px"><svg data-chart="${id}" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" aria-label="${`Sessions per day over ${plural(days.length, "day")}`}">${raw(columns.join(""))}</svg>
+<div class="stack-axis" aria-hidden="true">${labels.map((label) => html`<span style="left:${pctText((label.index * cell) / width)}">${label.text}</span>`)}</div></div>
+<figcaption class="micro">Sessions per day · 1 square = ${plural(unit, "session")}${days.length <= 45 ? " · labels mark Mondays" : ""}</figcaption></figure>`;
+}

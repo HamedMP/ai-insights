@@ -39,6 +39,7 @@ export interface Story {
   parallel: Line | null;
   where: Line | null;
   tokens: Line | null;
+  cost: Line | null;
   friction: Line | null;
   history: Line | null;
 }
@@ -181,7 +182,7 @@ function numbers(report: Report): HookNumber[] {
     out.push({
       value: `${gap ? "≈ " : ""}${formatUsd(usd)}`,
       label: gap ? `For the ${pct(gap.pricedShare)} of requests with a known price` : "At API list prices",
-      ...(gap ? { note: `${pct(gap.unpricedShare)} unpriced${gap.models.length > 0 ? `: ${unpricedModelsText(gap.models)}` : ""}` } : {}),
+      ...(gap ? { note: `${pct(gap.unpricedShare)} unpriced${gap.models.length > 0 ? `: ${unpricedModelsText(gap.models, 2)}` : ""}` } : {}),
     });
   } else {
     out.push({ value: formatCompact(usage.tokens), label: "Tokens" });
@@ -309,14 +310,17 @@ function tokensLine(report: Report): Line | null {
   const rate = typeof usage.cacheHitRate === "number" && Number.isFinite(usage.cacheHitRate) ? usage.cacheHitRate : null;
   line.push(rate !== null ? s("; ") : s("."));
   if (rate !== null) line.push(b(pct(rate)), s(" of their input came from cache."));
-  const usd = typeof usage.estimatedUsd === "number" && Number.isFinite(usage.estimatedUsd) ? usage.estimatedUsd : null;
-  const gap = pricingGap(report);
-  if (usd !== null && gap) {
-    line.push(s(" At API list prices, the "), b(pct(gap.pricedShare)), s(" of requests with a known price come to about "), b(formatUsd(usd)), s("; the rest use models with no known price."));
-  } else if (usd !== null) {
-    line.push(s(" At API list prices that is about "), b(formatUsd(usd)), s("."));
-  }
   return line;
+}
+
+function costLine(report: Report): Line | null {
+  const usd = typeof report.usage.estimatedUsd === "number" && Number.isFinite(report.usage.estimatedUsd) ? report.usage.estimatedUsd : null;
+  if (usd === null || count(report.usage.tokens) === 0) return null;
+  const gap = pricingGap(report);
+  if (gap) {
+    return [s("At API list prices, the "), b(pct(gap.pricedShare)), s(" of requests with a known price come to about "), b(formatUsd(usd)), s("; the rest use models with no known price.")];
+  }
+  return [s("At API list prices, that comes to about "), b(formatUsd(usd)), s(".")];
 }
 
 export function problemFindings(report: Report): Finding[] {
@@ -366,6 +370,7 @@ export function buildStory(report: Report, _zone: string): Story {
     parallel: parallelLine(report),
     where: whereLine(report),
     tokens: tokensLine(report),
+    cost: costLine(report),
     friction: frictionLine(report),
     history: historyLine(report),
   };

@@ -3,8 +3,16 @@ import { renderReport } from "../../src/render/index.js";
 import type { Report } from "../../src/schema/types.js";
 import { makeDeterministicReport, makeEmptyReport, makeHostileReport, makeReport, makeYearReport } from "./fixtures.js";
 
-const FULL_SECTIONS = ["overview", "coverage", "work", "activity", "usage", "wins", "friction", "suggestions", "features", "horizon", "matrix"];
-const DETERMINISTIC_SECTIONS = ["overview", "coverage", "insights-prompt", "activity", "usage", "friction", "suggestions", "features", "matrix"];
+const FULL_SECTIONS = ["overview", "rhythm", "delegation", "parallel", "coverage", "usage", "story", "friction", "improve", "closing"];
+const DETERMINISTIC_SECTIONS = ["overview", "rhythm", "delegation", "parallel", "coverage", "usage", "insights-prompt", "friction", "improve", "closing"];
+const EMPTY_SECTIONS = ["overview", "coverage", "insights-prompt", "closing"];
+
+/** One section's markup; sections never nest. */
+function section(html: string, id: string): string {
+  const start = html.indexOf(`<section id="${id}"`);
+  if (start < 0) return "";
+  return html.slice(start, html.indexOf("</section>", start));
+}
 
 function sectionIds(html: string): string[] {
   return [...html.matchAll(/<section[^>]*\bid="([^"]+)"/g)].map((match) => match[1]!);
@@ -184,7 +192,7 @@ describe("full report with facets and narrative", () => {
   const report = makeReport();
   const html = renderReport(report);
 
-  it("renders every section in order", () => {
+  it("tells the story in chapters, in order, ending with what to improve and the closing pair", () => {
     expect(sectionIds(html)).toEqual(FULL_SECTIONS);
   });
 
@@ -192,10 +200,20 @@ describe("full report with facets and narrative", () => {
     expect(html).not.toContain('id="insights-prompt"');
   });
 
-  it("leads with the narrative headline and the date range", () => {
-    const header = html.slice(html.indexOf('id="overview"'), html.indexOf('id="coverage"'));
-    expect(header).toContain("You mostly ship product features");
-    expect(header).toMatch(/<h1>[A-Z][a-z]{2} \d{1,2} – Nov \d{1,2}, 2026<\/h1>/);
+  it("opens with a headline finding about the person, its numbers and the agent's read", () => {
+    const hook = section(html, "overview");
+    expect(hook).toMatch(/<h1 class="headline[^"]*"[^>]*>Your agents put in <em>[\d.,]+ h of work<\/em> in <em>[\d.,]+ h<\/em> of yours\.<\/h1>/);
+    expect(hook.match(/class="number"/g)).toHaveLength(4);
+    expect(hook).toContain("Hours with AI at work");
+    expect(hook).toContain("agent-hours across sessions");
+    expect(hook).toContain("You mostly ship product features");
+    expect(hook).toContain('class="px-hero"');
+  });
+
+  it("opens every chapter with one plain sentence that emphasises its number", () => {
+    for (const id of FULL_SECTIONS.filter((id) => !["overview", "closing"].includes(id))) {
+      expect(section(html, id)).toMatch(/<p class="statement"><?[^<]*(?:<em>[^<]*\d[^<]*<\/em>)/);
+    }
   });
 
   it("shows narrative work areas, wins, frictions and horizon items", () => {
@@ -204,39 +222,67 @@ describe("full report with facets and narrative", () => {
     }
   });
 
-  it("draws the activity charts the brief asks for", () => {
-    const activity = html.slice(html.indexOf('id="activity"'), html.indexOf('id="usage"'));
-    for (const chart of ["heatmap", "hours", "daily-sessions", "harness", "languages", "tools", "response-times", "parallel", "projects"]) {
-      expect(activity).toContain(`data-chart="${chart}"`);
-    }
+  it("draws a visual made for each chapter's message", () => {
+    expect(section(html, "rhythm")).toContain('data-chart="hours"');
+    expect(section(html, "rhythm")).toContain('data-chart="weekdays"');
+    expect(section(html, "rhythm")).toContain('data-chart="calendar"');
+    for (const chart of ["delegation", "tool-mix", "response-times"]) expect(section(html, "delegation")).toContain(`data-chart="${chart}"`);
+    expect(section(html, "parallel")).toContain('data-chart="parallel"');
+    for (const chart of ["harness", "projects", "languages"]) expect(section(html, "coverage")).toContain(`data-chart="${chart}"`);
+    for (const chart of ["token-flow", "daily-tokens", "models"]) expect(section(html, "usage")).toContain(`data-chart="${chart}"`);
+    expect(section(html, "friction")).toContain('data-chart="friction-map"');
   });
 
-  it("labels chart axes so a screenshot stands on its own", () => {
+  it("labels its visuals so a screenshot stands on its own", () => {
     expect(html).toContain("Hour of day");
-    expect(html).toContain("Sessions");
+    expect(html).toContain("Sessions by weekday");
+    expect(html).toContain("One square per");
   });
 
-  it("states that costs are estimates at API list prices and counts unpriced requests", () => {
-    const usage = html.slice(html.indexOf('id="usage"'), html.indexOf('id="wins"'));
+  it("contrasts the person's hours with summed agent-hours", () => {
+    const parallel = section(html, "parallel");
+    expect(parallel).toContain("your hours with AI at work");
+    expect(parallel).toContain("agent-hours, summed across sessions");
+  });
+
+  it("states that costs are estimates at API list prices and names the unpriced share and models", () => {
+    const usage = section(html, "usage");
     expect(usage).toContain("estimated at API list prices");
+    expect(usage).toMatch(/\d+% of requests \([\d,]+\) have no known price/);
     expect(usage).toContain("local-experimental-model");
-    expect(usage).toMatch(/unpriced|no known price/i);
-    expect(usage).toContain('data-chart="daily-tokens"');
-    expect(usage).toContain("Cache hit rate");
+    expect(usage).toContain("Read from cache");
+    expect(section(html, "overview")).toMatch(/\d+% unpriced: local-experimental-model/);
   });
 
-  it("shows facet charts in the wins and friction sections", () => {
-    expect(html).toContain('data-chart="outcomes"');
-    expect(html).toContain('data-chart="frictions"');
+  it("shows facet charts in the story and friction chapters", () => {
+    expect(section(html, "story")).toContain('data-chart="outcomes"');
+    expect(section(html, "friction")).toContain('data-chart="frictions"');
     expect(html).toContain("Buggy code");
   });
 
   it("lists findings with their evidence, capped with a count of the rest", () => {
-    const friction = html.slice(html.indexOf('id="friction"'), html.indexOf('id="suggestions"'));
+    const friction = section(html, "friction");
     expect(friction).toContain("keeps failing in the same way");
     expect(friction).toContain("failed 6 times in a row");
     expect(friction).toContain("a1b2c3d4-0001");
     expect(friction).toMatch(/and 2 more/);
+  });
+
+  it("ends a chapter with one concrete thing to try, pointing at its rank", () => {
+    const friction = section(html, "friction");
+    expect(friction).toContain('class="tip reveal"');
+    expect(friction).toContain("Tell the agent how tests run here");
+    expect(friction).toContain('href="#action-1"');
+  });
+
+  it("ranks the top three actions with why and the exact text to act on", () => {
+    const improve = section(html, "improve");
+    for (const rank of [1, 2, 3]) expect(improve).toContain(`id="action-${rank}"`);
+    const first = improve.slice(improve.indexOf('id="action-1"'), improve.indexOf('id="action-2"'));
+    expect(first).toContain("Tell the agent how tests run here");
+    expect(first).toContain("Why");
+    expect(first).toContain("pnpm exec vitest run path/to/file.test.ts");
+    expect(first).toMatch(/data-copy="copy-\d+"/);
   });
 
   it("puts every instruction text in a copyable block with a copy button", () => {
@@ -244,13 +290,13 @@ describe("full report with facets and narrative", () => {
     expect(blocks.length).toBeGreaterThanOrEqual(2);
     for (const id of blocks) expect(html).toContain(`data-copy="${id}"`);
     expect(html).toContain("Record project conventions once");
-    expect(html).toContain("pnpm exec vitest run path/to/file.test.ts");
   });
 
-  it("lists feature and plugin suggestions under features to try", () => {
-    const features = html.slice(html.indexOf('id="features"'), html.indexOf('id="horizon"'));
-    expect(features).toContain("Try plan mode for multi-step work");
-    expect(features).toContain("Install a test-runner plugin");
+  it("keeps feature and plugin suggestions in the ranked list with their links", () => {
+    const improve = section(html, "improve");
+    expect(improve).toContain("Try plan mode for multi-step work");
+    expect(improve).toContain("Install a test-runner plugin");
+    expect(improve).toContain('href="https://example.org/plugins/test-runner"');
   });
 
   it("shortens home directories in project paths so screenshots do not show usernames", () => {
@@ -259,47 +305,54 @@ describe("full report with facets and narrative", () => {
     expect(html).not.toContain("/Users/dev/");
   });
 
-  it("puts the disk-usage finding under features to try with its size, not among the problems", () => {
-    const features = html.slice(html.indexOf('id="features"'), html.indexOf('id="horizon"'));
-    const friction = html.slice(html.indexOf('id="friction"'), html.indexOf('id="suggestions"'));
-    expect(features).toContain("Compress and save disk space");
-    expect(features).toContain("2.4 GB");
-    expect(features).toContain("agent history on disk");
-    expect(friction).not.toContain("Compress and save disk space");
-    expect(friction).not.toContain("Agent history takes");
+  it("closes with the disk-space card, its size shown, and not among the problems or the ranked actions", () => {
+    const closing = section(html, "closing");
+    expect(closing).toContain('id="packmem"');
+    expect(closing).toContain("Compress and save disk space");
+    expect(closing).toContain("2.4 GB");
+    expect(section(html, "friction")).not.toContain("Agent history takes");
+    expect(section(html, "improve")).not.toContain("Compress and save disk space");
   });
 
   it("shows how much disk each tool's history uses when the scan measured it", () => {
-    const coverage = html.slice(html.indexOf('id="coverage"'), html.indexOf('id="work"'));
+    const coverage = section(html, "coverage");
     expect(coverage).toContain("On disk");
     expect(coverage).toContain("2.1 GB");
   });
 
-  it("closes with one Matrix OS section and no short-history numbers when history is long", () => {
+  it("closes with one Matrix OS card and no short-history numbers when history is long", () => {
     expect(html.match(/matrix-os\.com/g)?.length).toBe(1);
-    const matrix = html.slice(html.indexOf('id="matrix"'));
+    const matrix = section(html, "closing").slice(section(html, "closing").indexOf('id="matrix"'));
+    expect(matrix).toContain("Store your conversations long term");
     expect(matrix).toContain("30 days");
     expect(matrix).not.toContain("days of history");
   });
 });
 
 describe("first run: deterministic analysis only", () => {
-  const html = renderReport(makeDeterministicReport());
+  const report = makeDeterministicReport();
+  const html = renderReport(report);
 
-  it("renders the deterministic sections and the insights prompt, in order", () => {
+  it("still reads as a complete story, with the insights prompt as one chapter", () => {
     expect(sectionIds(html)).toEqual(DETERMINISTIC_SECTIONS);
   });
 
   it("explains that running the insights skill in their own agent adds the qualitative analysis", () => {
-    const prompt = html.slice(html.indexOf('id="insights-prompt"'), html.indexOf('id="activity"'));
+    const prompt = section(html, "insights-prompt");
     expect(prompt).toMatch(/insights/i);
-    expect(prompt).toMatch(/your own agent|your agent/i);
+    expect(prompt).toMatch(/your own agent/i);
     expect(html.match(/id="insights-prompt"/g)).toHaveLength(1);
   });
 
-  it("leaves out narrative-only sections instead of rendering them empty", () => {
-    for (const id of ["work", "wins", "horizon"]) expect(html).not.toContain(`id="${id}"`);
+  it("leaves out narrative-only content instead of rendering it empty", () => {
+    expect(html).not.toContain('id="story"');
     expect(html).not.toContain('data-chart="outcomes"');
+    expect(html).not.toContain("Bigger moves");
+  });
+
+  it("labels summed time as agent-hours when wall-clock time was not measured", () => {
+    expect(section(html, "overview")).toContain("Agent-hours");
+    expect(section(html, "overview")).not.toContain("Hours with AI at work");
   });
 
   it("still shows finding suggestions without a narrative", () => {
@@ -307,40 +360,66 @@ describe("first run: deterministic analysis only", () => {
     expect(html).toContain("Try plan mode for multi-step work");
   });
 
-  it("shows the short-history numbers in the Matrix OS section", () => {
-    const matrix = html.slice(html.indexOf('id="matrix"'));
+  it("shows the short-history numbers in the Matrix OS card", () => {
+    const closing = section(html, "closing");
+    const matrix = closing.slice(closing.indexOf('id="matrix"'));
     expect(matrix).toContain("26");
     expect(matrix).toContain("days of history");
     expect(html.match(/matrix-os\.com/g)?.length).toBe(1);
   });
 
   it("does not repeat the short-history finding among the problems", () => {
-    const friction = html.slice(html.indexOf('id="friction"'), html.indexOf('id="suggestions"'));
-    expect(friction).not.toContain("Only 26 days of history");
+    expect(section(html, "friction")).not.toContain("Only 26 days of history");
   });
 
   it("marks harnesses that were not found", () => {
-    const coverage = html.slice(html.indexOf('id="coverage"'), html.indexOf('id="insights-prompt"'));
+    const coverage = section(html, "coverage");
     expect(coverage).toContain("Cursor");
     expect(coverage).toContain("Not found");
+  });
+
+  it("drops the disk-space card when there is no disk-usage finding", () => {
+    const lean = { ...report, findings: report.findings.filter((finding) => finding.kind !== "history_disk_usage") };
+    const out = renderReport(lean);
+    expect(out).not.toContain('id="packmem"');
+    expect(section(out, "closing")).toContain('id="matrix"');
   });
 });
 
 describe("empty history", () => {
   const html = renderReport(makeEmptyReport());
 
-  it("renders without broken charts when every array is empty", () => {
-    expect(sectionIds(html)).toEqual(DETERMINISTIC_SECTIONS);
+  it("renders a short, honest page without broken charts when every array is empty", () => {
+    expect(sectionIds(html)).toEqual(EMPTY_SECTIONS);
     expect(html).not.toContain("NaN");
     expect(html).not.toContain("Infinity");
     expect(html).not.toContain("undefined");
-    expect(html).toContain("No activity yet");
-    expect(html).not.toMatch(/<svg[^>]*data-chart="(?:hours|daily-sessions|daily-tokens)"/);
+    expect(html).toContain("did not find any coding-agent history");
+    expect(html).not.toMatch(/<svg[^>]*data-chart="(?:hours|calendar|daily-tokens)"/);
   });
 
-  it("shows an unknown cost as a dash, never $0", () => {
-    const usage = html.slice(html.indexOf('id="usage"'), html.indexOf('id="friction"'));
-    expect(usage).not.toContain("$0");
+  it("shows no cost at all rather than $0", () => {
+    expect(html).not.toContain("$0");
+  });
+});
+
+describe("motion, themes and print", () => {
+  const html = renderReport(makeReport());
+  const css = styleBlock(html);
+
+  it("animates only when the person has not asked for reduced motion, so content is visible by default", () => {
+    const gate = css.indexOf("@media (prefers-reduced-motion:no-preference)");
+    expect(gate).toBeGreaterThan(0);
+    expect(css.slice(0, gate)).not.toMatch(/animation:/);
+    expect(html).not.toMatch(/style="[^"]*opacity:\s*0/);
+  });
+
+  it("designs both themes and prints in the light one with motion off", () => {
+    expect(css).toContain("@media (prefers-color-scheme:light)");
+    expect(css).toMatch(/--bg:#0b0b0c/);
+    expect(css).toMatch(/--bg:#f3f0e8/);
+    expect(css).toMatch(/@media print\{\s*:root\{[^}]*--bg:#f3f0e8/);
+    expect(css).toMatch(/@media print\{[\s\S]*animation:none!important/);
   });
 });
 

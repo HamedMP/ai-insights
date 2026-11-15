@@ -7,7 +7,7 @@ const ZONE = "Europe/Berlin";
 
 function allLines(report: Report): string[] {
   const story = buildStory(report, ZONE);
-  return [story.headline, story.subline, story.hours, story.week, story.delegation, story.parallel, story.where, story.tokens, story.friction, story.history]
+  return [story.headline, story.subline, story.hours, story.week, story.delegation, story.parallel, story.where, story.tokens, story.cost, story.friction, story.history]
     .filter((line) => line !== null)
     .map((line) => lineText(line!));
 }
@@ -21,7 +21,7 @@ describe("story lines on rich data", () => {
   });
 
   it("speaks to the person in second person and states a number in every line", () => {
-    for (const text of allLines(report)) {
+    for (const text of allLines(report).filter((line) => !line.startsWith("At API list prices"))) {
       expect(text).toMatch(/\b(You|Your|you|your)\b/);
       expect(text).toMatch(/\d/);
     }
@@ -56,10 +56,12 @@ describe("story lines on rich data", () => {
     expect(where).toMatch(/Claude Code \(\d+%\) and Codex \(\d+%\)/);
   });
 
-  it("states the cache share and prices only the share of requests it can price", () => {
-    expect(lineText(story.tokens!)).toMatch(
-      /^Your agents moved [\d.]+[KMB] tokens; \d+% of their input came from cache\. At API list prices, the \d+% of requests with a known price come to about \$[\d,]+; the rest use models with no known price\.$/,
-    );
+  it("states the token volume with its cache share", () => {
+    expect(lineText(story.tokens!)).toMatch(/^Your agents moved [\d.]+[KMB] tokens; \d+% of their input came from cache\.$/);
+  });
+
+  it("prices only the share of requests it can price, and says the rest has no known price", () => {
+    expect(lineText(story.cost!)).toMatch(/^At API list prices, the \d+% of requests with a known price come to about \$[\d,]+; the rest use models with no known price\.$/);
   });
 
   it("puts a share on failed tool calls and counts the patterns worth fixing", () => {
@@ -130,9 +132,9 @@ describe("story lines on sparse and single-harness data", () => {
   it("leaves the cost out instead of calling unpriced usage free", () => {
     const unpriced = makeDeterministicReport();
     unpriced.usage.estimatedUsd = null;
-    const text = lineText(buildStory(unpriced, ZONE).tokens!);
-    expect(text).not.toContain("$");
-    expect(text).not.toMatch(/free|\$0/);
+    const story = buildStory(unpriced, ZONE);
+    expect(story.cost).toBeNull();
+    expect(lineText(story.tokens!)).not.toMatch(/free|\$/);
   });
 
   it("does not claim a cache share it does not have", () => {
@@ -151,7 +153,7 @@ describe("story lines on empty data", () => {
   });
 
   it("has no line for any chapter whose data is missing", () => {
-    for (const key of ["subline", "hours", "week", "delegation", "parallel", "where", "tokens", "friction", "history"] as const) {
+    for (const key of ["subline", "hours", "week", "delegation", "parallel", "where", "tokens", "cost", "friction", "history"] as const) {
       expect(story[key]).toBeNull();
     }
   });
