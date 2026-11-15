@@ -11,6 +11,11 @@ Goal: the person leaves with a small number of concrete changes they reviewed an
 
 Call `hindsight_report` for the findings and the narrative. If there are no findings, or the narrative is missing and the person wants the full picture, suggest running the **hindsight** skill first. Rank what you have by severity, then by how much evidence backs it, and pick at most five to propose in this run.
 
+Leave out, before ranking:
+
+- Any suggestion whose text holds a placeholder or a one-off artifact: angle-bracket or `TODO`-style placeholders, temp paths such as `/tmp/…`, long hashes or random-looking ids. Text like that would be useless or harmful in an instructions file. If the finding behind it is real, you may write your own clean version of the change, but say that you did.
+- Any `instructions` proposal whose evidence comes from a single session. An instruction needs at least two sessions of evidence; one session is an anecdote. Mention it as an observation if it is striking, but do not propose a rule for it.
+
 ## Propose
 
 For each pick, show:
@@ -25,6 +30,7 @@ Then ask whether to apply it. Write only on a clear yes, and only the change the
 By suggestion type:
 
 - `instructions`: an addition to the agent instructions file. Ask which scope fits: the project where the evidence came from (its `CLAUDE.md` or `AGENTS.md`) or their global file (for example `~/.claude/CLAUDE.md` or `~/.codex/AGENTS.md`). Read the file first. Do not repeat a rule it already has; tighten the existing rule instead. Keep additions to a few lines, written as a rule with its reason.
+  If the file does not exist, say so and propose creating it: show the full new file (just the proposed rules, under a short heading) and the path it will be written to, and ask before creating it. Create the parent folder only if it is missing and they said yes. Do not create a different file instead, such as a rules folder, unless they ask for it.
 - `feature`: a harness feature to turn on (plan mode, a hook, a permission allowlist, a setting). Show the settings diff, or the steps if it is a UI toggle, and the link from the suggestion.
 - `plugin`: a plugin or MCP server to install. Say what it would fix and give the install command. Do not run it without a yes.
 - `model_choice`: a change in which model handles which kind of work. Show the config change if there is one; otherwise describe the habit.
