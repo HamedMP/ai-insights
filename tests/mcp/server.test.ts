@@ -436,9 +436,9 @@ describe("hindsight_excerpt: size", () => {
       }));
     const { json, text } = await call("hindsight_excerpt", { sessionId: "c1" });
     const total = json.turns.reduce((sum: number, turn: any) => sum + turn.text.length, 0);
-    expect(total).toBeLessThanOrEqual(4_000);
-    expect(total).toBeGreaterThan(2_500);
-    expect(text.length).toBeLessThan(6_500);
+    expect(text.length).toBeLessThanOrEqual(4_000);
+    expect(text.length).toBeGreaterThan(3_200);
+    expect(total).toBeGreaterThan(1_500);
   });
 
   it("spends the budget on what the person said, errors and the last reply before routine tool output", async () => {
@@ -464,8 +464,8 @@ describe("hindsight_excerpt: size", () => {
     const { json } = await call("hindsight_excerpt", { sessionId: "c1", maxTurns: 10, maxCharsPerTurn: 3_000 });
     const total = json.turns.reduce((sum: number, turn: any) => sum + turn.text.length, 0);
     expect(total).toBeGreaterThan(20_000);
-    const capped = await call("hindsight_excerpt", { sessionId: "c1", maxChars: 1_000 });
-    expect(capped.json.turns.reduce((sum: number, turn: any) => sum + turn.text.length, 0)).toBeLessThanOrEqual(1_000);
+    const capped = await call("hindsight_excerpt", { sessionId: "c1", maxChars: 1_500 });
+    expect(capped.text.length).toBeLessThanOrEqual(1_500);
   });
 });
 

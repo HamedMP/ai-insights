@@ -444,7 +444,9 @@ export function createServer(deps: ServerDeps): McpServer {
           .min(500)
           .max(40_000)
           .optional()
-          .describe(`Total text budget. Default ${DEFAULT_EXCERPT_CHARS}; when maxCharsPerTurn is given, maxTurns × maxCharsPerTurn if larger.`),
+          .describe(
+            `Size budget for the whole response. Default ${DEFAULT_EXCERPT_CHARS}; when maxCharsPerTurn is given, maxTurns × maxCharsPerTurn if larger.`,
+          ),
         around: z.string().max(40).optional().describe("ISO timestamp: keep the turns closest to it, e.g. a finding's evidence timestamp."),
       },
       annotations: { readOnlyHint: true, openWorldHint: false },
@@ -474,9 +476,8 @@ export function createServer(deps: ServerDeps): McpServer {
         // Sources redact already; doing it again here costs little and guards against a source bug.
         text: clean(String(turn.text ?? ""), maxCharsPerTurn),
       }));
-      const fitted = fitTurns(cleaned, budget);
       const hasFacet = (await deps.store.facetIds()).get(session.harness)?.has(session.id) ?? false;
-      return ok({
+      const header = {
         session: {
           sessionId: session.id,
           harness: session.harness,
@@ -498,9 +499,18 @@ export function createServer(deps: ServerDeps): McpServer {
           compactions: session.features.compactions,
           hasFacet,
         },
-        turns: fitted.turns,
-        ...(fitted.omitted > 0 ? { omittedToolTurns: fitted.omitted } : {}),
-      });
+      };
+      // The budget is for the whole response, so the JSON around the text counts too.
+      const build = (textBudget: number) => {
+        const fitted = fitTurns(cleaned, Math.max(200, textBudget));
+        const body = { ...header, turns: fitted.turns, ...(fitted.omitted > 0 ? { omittedToolTurns: fitted.omitted } : {}) };
+        return { body, size: JSON.stringify(body).length, text: fitted.turns.reduce((sum, turn) => sum + turn.text.length, 0) };
+      };
+      let attempt = build(budget - JSON.stringify({ ...header, turns: cleaned.map((turn) => ({ ...turn, text: "" })) }).length);
+      for (let tries = 0; tries < 3 && attempt.size > budget && attempt.text > 200; tries += 1) {
+        attempt = build(attempt.text - (attempt.size - budget));
+      }
+      return ok(attempt.body);
     }),
   );
 
