@@ -11,7 +11,7 @@ import { renderReport as realRenderReport } from "../render/index.js";
 import { HARNESSES, type Coverage, type Harness, type Report, type Source } from "../schema/types.js";
 import { sources as realSources } from "../sources/index.js";
 import { ensureDir, pathExists, writeFileAtomic } from "../store/fs.js";
-import { buildFromScan, headline, renderFromScan, type BuildReportFn, type RenderReportFn } from "../store/pipeline.js";
+import { buildFromScan, describeHeadline, headline, renderFromScan, type BuildReportFn, type RenderReportFn } from "../store/pipeline.js";
 import { harnessLabel, scan, totalBytes, type ScanOptions } from "../store/scan.js";
 import { parseSince, SINCE_HELP } from "../store/since.js";
 import { Store, resolveHome } from "../store/store.js";
@@ -154,8 +154,8 @@ function compact(value: number): string {
   return value.toLocaleString("en-US");
 }
 
-function usd(value: number): string {
-  return value >= 100 ? `$${Math.round(value).toLocaleString("en-US")}` : `$${value.toFixed(2)}`;
+function capitalise(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 /** Binary units, one decimal from KB up: "512 B", "3.4 MB". */
@@ -195,13 +195,12 @@ function coverageLines(coverage: Coverage[]): string[] {
 export function summaryLines(report: Report): string[] {
   const found = report.coverage.filter((entry) => entry.sessions > 0).map((entry) => entry.label);
   const activity = report.activity;
-  const hours = Math.round(activity.totalActiveMinutes / 60);
-  const cost = report.usage.estimatedUsd === null ? "" : `, about ${usd(report.usage.estimatedUsd)} at API list prices`;
+  const numbers = describeHeadline(report);
   const rank = { high: 0, medium: 1, low: 2, info: 3 } as const;
   const top = [...report.findings].sort((a, b) => rank[a.severity] - rank[b.severity])[0];
   return [
     `${plural(activity.sessions, "session")} across ${found.length > 0 ? found.join(" and ") : "no harness"}, ${day(report.range.from)} to ${day(report.range.to)}.`,
-    `${plural(hours, "active hour")} on ${plural(activity.activeDays, "day")}; ${compact(report.usage.tokens)} tokens${cost}.`,
+    `${numbers.time} on ${plural(activity.activeDays, "day")}; ${compact(report.usage.tokens)} tokens, ${numbers.cost}.`,
     top ? `Top finding: ${top.title}` : "No findings yet: more history makes for better tips.",
   ];
 }
@@ -226,11 +225,23 @@ async function commandRun(parsed: Parsed, deps: CliDeps, store: Store): Promise<
 async function commandScan(parsed: Parsed, deps: CliDeps, store: Store): Promise<number> {
   const result = await scan({ sources: deps.sources, store }, scanOptions(parsed));
   const numbers = headline(result.sessions);
+  let analysed: string | null = null;
+  if (result.sessions.length > 0) {
+    try {
+      const { report } = await buildFromScan(pipelineDeps(deps, store), result);
+      const described = describeHeadline(report);
+      // Without wall-clock time the line above already gives the agent-hours; only the cost is new.
+      analysed = described.activeHours === null ? `${capitalise(described.cost)}.` : `${described.time}; ${described.cost}.`;
+    } catch {
+      analysed = null;
+    }
+  }
   const lines = [
     "History found",
     ...coverageLines(result.coverage),
     "",
-    `${plural(numbers.sessions, "session")}, ${plural(numbers.userPrompts, "prompt")}, ${numbers.activeHours} active hours, ${compact(numbers.tokens)} tokens.`,
+    `${plural(numbers.sessions, "session")}, ${plural(numbers.userPrompts, "prompt")}, ${numbers.agentHours} agent-hours, ${compact(numbers.tokens)} tokens.`,
+    ...(analysed ? [analysed] : []),
     `Parsed ${result.stats.parsed}, reused ${result.stats.cached} from cache${result.stats.failed ? `, ${result.stats.failed} unreadable` : ""}.`,
   ];
   deps.stdout(`${lines.join("\n")}\n`);

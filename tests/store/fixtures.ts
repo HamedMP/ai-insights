@@ -126,11 +126,38 @@ export function validNarrative() {
   };
 }
 
-/** A stand-in for the analysis module: records what it was given and returns a minimal report. */
-export function fakeBuildReport(calls: BuildReportInput[] = []) {
+export interface FakeReportOptions {
+  /** Set to model a report from an analysis that measures wall-clock time. */
+  wallClockActiveMinutes?: number;
+  /** Requests whose model had no price, out of `requests`. */
+  unpriced?: number;
+  requests?: number;
+  estimatedUsd?: number | null;
+}
+
+const DAY_MS = 86_400_000;
+
+function isoDay(index: number): string {
+  return new Date(Date.UTC(2025, 9, 1) + index * DAY_MS).toISOString().slice(0, 10);
+}
+
+function counts(prefix: string, length: number): Array<{ key: string; count: number }> {
+  return Array.from({ length }, (_, index) => ({ key: `${prefix}-${index}`, count: 1_000 - index }));
+}
+
+/**
+ * A stand-in for the analysis module: records what it was given and returns a
+ * report as heavy as a busy year, so size limits are tested against realistic bulk.
+ */
+export function fakeBuildReport(calls: BuildReportInput[] = [], options: FakeReportOptions = {}) {
   return (input: BuildReportInput): Report => {
     calls.push(input);
-    const daily = Array.from({ length: 400 }, (_, index) => ({ day: `day-${index}`, sessions: 1, userMessages: 2, activeMinutes: 3 }));
+    const days = 400;
+    const daily = Array.from({ length: days }, (_, index) => ({ day: isoDay(index), sessions: 1, userMessages: 2, activeMinutes: 3 }));
+    const totals = { tokens: 1250, input: 100, cachedInput: 900, cacheWrite: 50, output: 200, requests: 1, estimatedUsd: 0.01, unpriced: 0 };
+    const requests = options.requests ?? 1;
+    const unpriced = options.unpriced ?? 0;
+    const facetCount = input.facets?.length ?? 0;
     return {
       version: 1,
       generatedAt: (input.now ?? new Date()).toISOString(),
@@ -142,24 +169,36 @@ export function fakeBuildReport(calls: BuildReportInput[] = []) {
         activeDays: 1,
         longestStreakDays: 1,
         totalActiveMinutes: input.sessions.reduce((sum, session) => sum + session.activeMinutes, 0),
+        ...(options.wallClockActiveMinutes !== undefined ? { wallClockActiveMinutes: options.wallClockActiveMinutes } : {}),
         userMessages: 3,
         assistantMessages: 5,
         linesAdded: 10,
         linesRemoved: 2,
         filesModified: 1,
         gitCommits: 1,
-        hourHistogram: new Array(24).fill(0),
+        hourHistogram: Array.from({ length: 24 }, (_, hour) => (hour === 10 ? 50 : hour === 15 ? 40 : hour)),
         daily,
-        byHarness: [],
-        projects: [],
-        languages: [],
-        tools: [],
-        toolCategories: [],
-        toolErrors: [],
-        responseTimeBuckets: [],
-        medianResponseTimeSec: null,
-        parallelSessions: { overlapEvents: 0, maxConcurrent: 1, sessionsInvolved: 0 },
-        features: { mcpServers: [], skills: [], slashCommands: [], sessionsWithSubagents: 0, sessionsWithPlanMode: 0, sessionsWithWeb: 0, compactions: 0 },
+        byHarness: [
+          { harness: "claude-code", sessions: 30, activeMinutes: 900 },
+          { harness: "codex", sessions: 20, activeMinutes: 600 },
+        ],
+        projects: Array.from({ length: 40 }, (_, index) => ({ projectPath: `/home/someone/code/project-${index}`, sessions: 40 - index, activeMinutes: 100 })),
+        languages: counts("lang", 30),
+        tools: counts("mcp__server__a_rather_long_tool_name", 120),
+        toolCategories: counts("category", 11),
+        toolErrors: counts("error", 9),
+        responseTimeBuckets: ["<10s", "10-30s", "30s-1m", "1-5m", "5-15m", ">15m"].map((key, index) => ({ key, count: index * 3 })),
+        medianResponseTimeSec: 42,
+        parallelSessions: { overlapEvents: 12, maxConcurrent: 11, sessionsInvolved: 20 },
+        features: {
+          mcpServers: counts("server", 25),
+          skills: counts("skill", 25),
+          slashCommands: counts("command", 25),
+          sessionsWithSubagents: 4,
+          sessionsWithPlanMode: 0,
+          sessionsWithWeb: 3,
+          compactions: 68,
+        },
       },
       usage: {
         tokens: 1250,
@@ -167,11 +206,18 @@ export function fakeBuildReport(calls: BuildReportInput[] = []) {
         cachedInput: 900,
         cacheWrite: 50,
         output: 200,
-        requests: 1,
-        estimatedUsd: 0.42,
-        unpriced: 0,
-        daily: [],
-        models: [],
+        requests,
+        estimatedUsd: options.estimatedUsd === undefined ? 0.42 : options.estimatedUsd,
+        unpriced,
+        daily: daily.map((entry) => ({ ...totals, day: entry.day })),
+        models: Array.from({ length: 14 }, (_, index) => ({
+          ...totals,
+          tokens: 1_000_000 - index,
+          harness: index % 2 === 0 ? ("claude-code" as const) : ("codex" as const),
+          model: `model-${index}`,
+          estimatedUsd: index < 2 && unpriced > 0 ? null : 1,
+          unpriced: index < 2 ? unpriced : 0,
+        })),
         cacheHitRate: 0.86,
         pricingVersion: "test",
       },
@@ -186,7 +232,19 @@ export function fakeBuildReport(calls: BuildReportInput[] = []) {
           evidence: [{ sessionId: input.sessions[0]?.id ?? "none", harness: "claude-code", note: "failed 4 times" }],
         },
       ],
-      facets: input.facets && input.facets.length > 0 ? { sessionsWithFacets: input.facets.length, goalCategories: [], sessionTypes: [], outcomes: [], helpfulness: [], satisfaction: [], frictions: [], successes: [] } : null,
+      facets:
+        facetCount > 0
+          ? {
+              sessionsWithFacets: facetCount,
+              goalCategories: counts("goal", 17),
+              sessionTypes: counts("type", 5),
+              outcomes: counts("outcome", 6),
+              helpfulness: counts("help", 5),
+              satisfaction: counts("sat", 5),
+              frictions: counts("friction", 12),
+              successes: counts("success", 8),
+            }
+          : null,
       narrative: input.narrative ?? null,
     };
   };

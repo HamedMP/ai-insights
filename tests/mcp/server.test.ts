@@ -2,7 +2,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { readFile } from "node:fs/promises";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { GOAL_CATEGORIES, OUTCOMES, type BuildReportInput, type Report } from "../../src/schema/types.js";
+import { DRIVERS, GOAL_CATEGORIES, OUTCOMES, type BuildReportInput, type Report, type Session, type TranscriptTurn } from "../../src/schema/types.js";
 import { createServer } from "../../src/mcp/server.js";
 import { MAX_OUTPUT_CHARS } from "../../src/mcp/bound.js";
 import { Store } from "../../src/store/store.js";
@@ -74,7 +74,8 @@ describe("tool listing", () => {
       expect(tool.description!.length).toBeGreaterThan(80);
     }
     const save = tools.find((tool) => tool.name === "hindsight_save_facets")!;
-    for (const value of [...GOAL_CATEGORIES, ...OUTCOMES]) expect(save.description).toContain(value);
+    for (const value of [...GOAL_CATEGORIES, ...OUTCOMES, ...DRIVERS]) expect(save.description).toContain(value);
+    expect(save.description).toContain("drivenBy");
   });
 });
 
@@ -135,11 +136,38 @@ describe("hindsight_report", () => {
     expect(json.findings[0].id).toBe("repeated_failed_command:pnpm test");
   });
 
-  it("keeps daily series to the requested number of recent days", async () => {
-    const { json, text } = await call("hindsight_report", { sections: ["activity"], days: 7 });
+  it("keeps today's full shape with detail: full, daily series cut to the requested recent days", async () => {
+    const { json, text } = await call("hindsight_report", { sections: ["activity", "usage"], detail: "full", days: 7 });
     expect(json.activity.daily).toHaveLength(7);
-    expect(json.activity.daily.at(-1).day).toBe("day-399");
+    expect(json.activity.daily.at(-1).day).toBe("2026-11-04");
+    expect(json.activity.tools.length).toBeGreaterThan(50);
+    expect(json.usage.daily).toHaveLength(7);
     expect(text.length).toBeLessThan(MAX_OUTPUT_CHARS);
+  });
+
+  it("returns a digest by default so facets, activity and usage together fit the narrative step", async () => {
+    await call("hindsight_save_facets", { facets: [validFacet("c1"), validFacet("c2")] });
+    const { json, text } = await call("hindsight_report", { sections: ["facets", "activity", "usage"] });
+    expect(text.length).toBeLessThanOrEqual(3_000);
+    expect(json.activity.daily).toBeUndefined();
+    expect(json.activity.weekly.length).toBeGreaterThan(0);
+    expect(json.activity.weekly.length).toBeLessThanOrEqual(12);
+    expect(json.activity.weekly.at(-1).week).toBe("2026-11-02");
+    expect(json.usage.weekly.at(-1).week).toBe("2026-11-02");
+    expect(Object.keys(json.activity.tools)).toHaveLength(8);
+    expect(json.activity.tools["mcp__server__a_rather_long_tool_name-0"]).toBe(1_000);
+    expect(json.facets.sessionsWithFacets).toBe(2);
+    expect(Object.keys(json.facets.goalCategories).length).toBeLessThanOrEqual(6);
+    expect(Object.keys(json.usage.models)).toHaveLength(5);
+    expect(json.usage.models["model-0"]).toEqual({ tokens: 1_000_000, usd: 1 });
+  });
+
+  it("puts honest headline numbers in the summary: wall-clock hours, agent-hours, and the unpriced share", async () => {
+    await client.close();
+    client = await connect({ buildReport: fakeBuildReport(buildCalls, { wallClockActiveMinutes: 30, estimatedUsd: 1_633, requests: 100, unpriced: 13 }) });
+    const { json } = await call("hindsight_report", { sections: ["summary"] });
+    expect(json.summary).toMatchObject({ activeHours: 0.5, agentHours: 1.3, cost: "about $1,633 for the requests we can price; 13% unpriced" });
+    expect(json.summary.unpricedShare).toBeCloseTo(0.13);
   });
 
   it("returns a short, safe error when the analysis fails", async () => {
@@ -173,7 +201,7 @@ describe("hindsight_sessions", () => {
   it("filters to sessions still missing facets", async () => {
     await call("hindsight_save_facets", { facets: [validFacet("c1")] });
     const { json } = await call("hindsight_sessions", { missingFacets: true });
-    expect(json.sessions.map((session: any) => session.sessionId)).toEqual(["c2", "x1"]);
+    expect(json.sessions.map((session: any) => session.sessionId).sort()).toEqual(["c2", "x1"]);
     const all = await call("hindsight_sessions");
     expect(all.json.sessions.find((session: any) => session.sessionId === "c1").hasFacet).toBe(true);
   });
@@ -270,5 +298,191 @@ describe("hindsight_save_narrative and hindsight_render", () => {
     const { isError, text } = await call("hindsight_render");
     expect(isError).toBe(true);
     expect(text).not.toContain("/home/someone");
+  });
+});
+
+const NOW = Date.parse("2026-11-15T12:00:00Z");
+
+/** `count` sessions for one harness, one per day going back from `newestDay` days before now. */
+function history(harness: "claude-code" | "codex", prefix: string, count: number, newestDay = 1, overrides: Partial<Session> = {}): Session[] {
+  return Array.from({ length: count }, (_, index) => {
+    const start = NOW - (newestDay + index) * 86_400_000;
+    return makeSession({
+      id: `${prefix}${index}`,
+      harness,
+      sourceMtimeMs: start + 3_600_000,
+      startTime: new Date(start).toISOString(),
+      endTime: new Date(start + 3_600_000).toISOString(),
+      ...overrides,
+    });
+  });
+}
+
+const ids = (json: any) => json.sessions.map((session: any) => session.sessionId);
+
+describe("hindsight_sessions: choosing which sessions get facets", () => {
+  it("spreads the missing-facet listing across harnesses and the whole time range by default", async () => {
+    claude.sessions = history("claude-code", "c", 20, 1);
+    codex.sessions = history("codex", "x", 4, 40);
+    const { json } = await call("hindsight_sessions", { missingFacets: true, limit: 6 });
+    expect(json.strategy).toBe("spread");
+    const picked: string[] = ids(json);
+    expect(picked).toHaveLength(6);
+    expect(picked.filter((id) => id.startsWith("x")).length).toBeGreaterThanOrEqual(1);
+    expect(picked.filter((id) => id.startsWith("c")).length).toBeGreaterThanOrEqual(4);
+    expect(picked).toContain("c0");
+    expect(picked).toContain("c19");
+  });
+
+  it("gives every harness with sessions at least one slot, even a small one", async () => {
+    claude.sessions = history("claude-code", "c", 50, 1);
+    codex.sessions = history("codex", "x", 1, 3);
+    const { json } = await call("hindsight_sessions", { missingFacets: true, limit: 3 });
+    expect(ids(json)).toContain("x0");
+  });
+
+  it("pages through the spread order without repeats", async () => {
+    claude.sessions = history("claude-code", "c", 10, 1);
+    codex.sessions = history("codex", "x", 5, 2);
+    const first = await call("hindsight_sessions", { missingFacets: true, limit: 4 });
+    const second = await call("hindsight_sessions", { missingFacets: true, limit: 4, offset: 4 });
+    const whole = await call("hindsight_sessions", { missingFacets: true, limit: 8 });
+    expect([...ids(first.json), ...ids(second.json)]).toEqual(ids(whole.json));
+    expect(new Set(ids(whole.json)).size).toBe(8);
+  });
+
+  it("still offers newest first on request, and lists newest first when not choosing facets", async () => {
+    claude.sessions = history("claude-code", "c", 10, 1);
+    codex.sessions = history("codex", "x", 5, 40);
+    const newest = await call("hindsight_sessions", { missingFacets: true, strategy: "newest", limit: 3 });
+    expect(newest.json.strategy).toBe("newest");
+    expect(ids(newest.json)).toEqual(["c0", "c1", "c2"]);
+    const plain = await call("hindsight_sessions", { limit: 3 });
+    expect(plain.json.strategy).toBe("newest");
+    expect(ids(plain.json)).toEqual(["c0", "c1", "c2"]);
+  });
+
+  it("skips sessions with fewer than two prompts by default when choosing facets, and says so", async () => {
+    claude.sessions = [...history("claude-code", "c", 2, 1), ...history("claude-code", "one", 1, 5, { userMessageCount: 1 })];
+    codex.sessions = [];
+    const { json } = await call("hindsight_sessions", { missingFacets: true });
+    expect(ids(json).sort()).toEqual(["c0", "c1"]);
+    expect(json.skipped.fewPrompts).toBe(1);
+    expect(json.skippedReasons.join(" ")).toContain("fewer than 2");
+    const all = await call("hindsight_sessions", { missingFacets: true, minUserMessages: 0 });
+    expect(ids(all.json)).toContain("one0");
+  });
+
+  it("marks sessions whose transcript changed in the last ten minutes as live and leaves them out of facet work", async () => {
+    const live = makeSession({ id: "running", sourceMtimeMs: NOW - 5 * 60_000, startTime: new Date(NOW - 3_600_000).toISOString() });
+    claude.sessions = [live, ...history("claude-code", "c", 2, 1)];
+    codex.sessions = [];
+    const listing = await call("hindsight_sessions", { missingFacets: true });
+    expect(ids(listing.json)).not.toContain("running");
+    expect(listing.json.skipped.live).toBe(1);
+    expect(listing.json.skippedReasons.join(" ")).toContain("still running");
+    const included = await call("hindsight_sessions", { missingFacets: true, includeLive: true });
+    expect(included.json.sessions.find((row: any) => row.sessionId === "running").live).toBe(true);
+    const plain = await call("hindsight_sessions");
+    expect(plain.json.sessions.find((row: any) => row.sessionId === "running").live).toBe(true);
+    expect(plain.json.sessions.find((row: any) => row.sessionId === "c0").live).toBe(false);
+  });
+
+  it("leaves out sessions that were only slash commands", async () => {
+    const slashOnly = makeSession({
+      id: "slash",
+      prompts: [
+        { timestamp: "2026-11-10T09:00:00.000Z", text: "/mcp" },
+        { timestamp: "2026-11-10T09:01:00.000Z", text: "  /insights" },
+      ],
+    });
+    claude.sessions = [slashOnly, ...history("claude-code", "c", 2, 1)];
+    codex.sessions = [];
+    const { json } = await call("hindsight_sessions", { missingFacets: true });
+    expect(ids(json)).not.toContain("slash");
+    expect(json.skipped.slashCommandOnly).toBe(1);
+    expect(json.skippedReasons.join(" ")).toContain("slash command");
+    const included = await call("hindsight_sessions", { missingFacets: true, includeSlashCommandOnly: true });
+    expect(ids(included.json)).toContain("slash");
+  });
+
+  it("flags sessions driven more by other agents than by the person", async () => {
+    claude.sessions = [
+      makeSession({ id: "driven", userMessageCount: 2, agentMessageCount: 7 }),
+      makeSession({ id: "human", sourcePath: "/fake/h.jsonl", userMessageCount: 5, agentMessageCount: 1 }),
+      makeSession({ id: "legacy", sourcePath: "/fake/l.jsonl" }),
+    ];
+    codex.sessions = [];
+    const { json } = await call("hindsight_sessions");
+    const row = (id: string) => json.sessions.find((session: any) => session.sessionId === id);
+    expect(row("driven").agentDriven).toBe(true);
+    expect(row("human").agentDriven).toBe(false);
+    expect(row("legacy").agentDriven).toBe(false);
+  });
+});
+
+function turns(count: number, make: (index: number) => TranscriptTurn): TranscriptTurn[] {
+  return Array.from({ length: count }, (_, index) => make(index));
+}
+
+describe("hindsight_excerpt: size", () => {
+  it("defaults to about 4,000 characters in total", async () => {
+    claude.excerpt = async () =>
+      turns(60, (index) => ({
+        timestamp: new Date(NOW + index * 1000).toISOString(),
+        role: index % 3 === 0 ? "user" : index % 3 === 1 ? "assistant" : "tool",
+        text: `${index} `.padEnd(2_000, "word "),
+        ...(index % 3 === 2 ? { toolName: "Bash" } : {}),
+      }));
+    const { json, text } = await call("hindsight_excerpt", { sessionId: "c1" });
+    const total = json.turns.reduce((sum: number, turn: any) => sum + turn.text.length, 0);
+    expect(total).toBeLessThanOrEqual(4_000);
+    expect(total).toBeGreaterThan(2_500);
+    expect(text.length).toBeLessThan(6_500);
+  });
+
+  it("spends the budget on what the person said, errors and the last reply before routine tool output", async () => {
+    claude.excerpt = async () => [
+      { timestamp: "2026-11-15T10:00:00Z", role: "user", text: "please make the build green" },
+      ...turns(30, (index) => ({ timestamp: `2026-11-15T10:0${index % 10}:00Z`, role: "tool" as const, toolName: "Bash", text: "x".repeat(1_500) })),
+      { timestamp: "2026-11-15T10:20:00Z", role: "tool", toolName: "Bash", isError: true, text: "Error: tests failed in auth.spec" },
+      { timestamp: "2026-11-15T10:21:00Z", role: "agent", text: "Orchestrator note: rebase on main" },
+      { timestamp: "2026-11-15T10:30:00Z", role: "assistant", text: "All green now." },
+    ];
+    const { json } = await call("hindsight_excerpt", { sessionId: "c1", maxTurns: 80 });
+    const texts = json.turns.map((turn: any) => turn.text);
+    expect(texts).toContain("please make the build green");
+    expect(texts).toContain("Error: tests failed in auth.spec");
+    expect(texts).toContain("All green now.");
+    expect(json.turns.find((turn: any) => turn.role === "agent").text).toBe("Orchestrator note: rebase on main");
+    const total = texts.reduce((sum: number, value: string) => sum + value.length, 0);
+    expect(total).toBeLessThanOrEqual(4_000);
+  });
+
+  it("lets the caller ask for more", async () => {
+    claude.excerpt = async () => turns(10, (index) => ({ timestamp: `2026-11-15T10:0${index}:00Z`, role: "user", text: "y".repeat(3_000) }));
+    const { json } = await call("hindsight_excerpt", { sessionId: "c1", maxTurns: 10, maxCharsPerTurn: 3_000 });
+    const total = json.turns.reduce((sum: number, turn: any) => sum + turn.text.length, 0);
+    expect(total).toBeGreaterThan(20_000);
+    const capped = await call("hindsight_excerpt", { sessionId: "c1", maxChars: 1_000 });
+    expect(capped.json.turns.reduce((sum: number, turn: any) => sum + turn.text.length, 0)).toBeLessThanOrEqual(1_000);
+  });
+});
+
+describe("headline numbers", () => {
+  it("scan reports wall-clock hours, agent-hours and the unpriced share", async () => {
+    await client.close();
+    client = await connect({ buildReport: fakeBuildReport(buildCalls, { wallClockActiveMinutes: 30, estimatedUsd: 10, requests: 10, unpriced: 5 }) });
+    const { json } = await call("hindsight_scan");
+    expect(json.headline.agentHours).toBe(1.3);
+    expect(json.headline.activeHours).toBeUndefined();
+    expect(json.analysis).toMatchObject({ activeHours: 0.5, agentHours: 1.3, cost: "about $10.00 for the requests we can price; 50% unpriced" });
+  });
+
+  it("render returns the same honest headline", async () => {
+    await client.close();
+    client = await connect({ buildReport: fakeBuildReport(buildCalls, { estimatedUsd: 10, requests: 10, unpriced: 1 }) });
+    const { json } = await call("hindsight_render");
+    expect(json.headline).toMatchObject({ activeHours: null, agentHours: 1.3, time: "1.3 agent-hours", cost: "about $10.00 for the requests we can price; 10% unpriced" });
   });
 });

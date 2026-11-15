@@ -1,0 +1,87 @@
+import type { Harness, Session } from "../schema/types.js";
+
+/** A transcript written to this recently is probably a session that is still running. */
+export const LIVE_WINDOW_MS = 10 * 60 * 1000;
+
+export function isLive(mtimeMs: number, now: Date): boolean {
+  return Number.isFinite(mtimeMs) && now.getTime() - mtimeMs < LIVE_WINDOW_MS;
+}
+
+/** Every prompt was a slash command (`/mcp`, `/insights`): nothing the person asked the agent to do. */
+export function isSlashCommandOnly(session: Session): boolean {
+  return session.prompts.length > 0 && session.prompts.every((prompt) => prompt.text.trimStart().startsWith("/"));
+}
+
+/** Other agents spoke more than the person did, so the session was mostly steered by automation. */
+export function isAgentDriven(session: Session): boolean {
+  return (session.agentMessageCount ?? 0) > session.userMessageCount;
+}
+
+/**
+ * Chronological positions in an order where every prefix covers the range:
+ * newest, oldest, then midpoints at ever finer steps (van der Corput).
+ */
+export function spreadPositions(count: number): number[] {
+  if (count <= 0) return [];
+  if (count === 1) return [0];
+  const order: number[] = [0, count - 1];
+  const seen = new Set(order);
+  for (let denominator = 2; order.length < count && denominator <= count * 2; denominator *= 2) {
+    for (let numerator = 1; numerator < denominator; numerator += 2) {
+      const position = Math.round((numerator / denominator) * (count - 1));
+      if (!seen.has(position)) {
+        seen.add(position);
+        order.push(position);
+      }
+    }
+  }
+  for (let position = 0; position < count && order.length < count; position += 1) {
+    if (!seen.has(position)) order.push(position);
+  }
+  return order;
+}
+
+/**
+ * Orders sessions so that any prefix is a fair sample: every harness with
+ * sessions appears early, harnesses then get slots in proportion to their
+ * share, and within a harness picks spread across its whole time range. The
+ * order depends only on the input set, so offset paging stays consistent.
+ */
+export function spreadOrder(sessions: Session[]): Session[] {
+  const groups = new Map<Harness, Session[]>();
+  for (const session of sessions) {
+    const group = groups.get(session.harness) ?? [];
+    group.push(session);
+    groups.set(session.harness, group);
+  }
+  const queues = [...groups.entries()]
+    .map(([harness, group]) => {
+      const newestFirst = [...group].sort((a, b) => Date.parse(b.startTime) - Date.parse(a.startTime) || a.id.localeCompare(b.id));
+      return { harness, size: newestFirst.length, taken: 0, items: spreadPositions(newestFirst.length).map((index) => newestFirst[index]!) };
+    })
+    .sort((a, b) => b.size - a.size || a.harness.localeCompare(b.harness));
+
+  const total = sessions.length;
+  const out: Session[] = [];
+  for (const queue of queues) {
+    out.push(queue.items[0]!);
+    queue.taken = 1;
+  }
+  while (out.length < total) {
+    // Largest shortfall against a proportional share goes next.
+    let best: (typeof queues)[number] | null = null;
+    let bestDeficit = -Infinity;
+    for (const queue of queues) {
+      if (queue.taken >= queue.size) continue;
+      const deficit = (queue.size * (out.length + 1)) / total - queue.taken;
+      if (deficit > bestDeficit) {
+        best = queue;
+        bestDeficit = deficit;
+      }
+    }
+    if (!best) break;
+    out.push(best.items[best.taken]!);
+    best.taken += 1;
+  }
+  return out;
+}
