@@ -83,7 +83,8 @@ describe("hindsight_scan", () => {
     const { json, isError } = await call("hindsight_scan");
     expect(isError).toBe(false);
     expect(json.coverage).toHaveLength(5);
-    expect(json.coverage.find((entry: any) => entry.harness === "codex")).toMatchObject({ found: true, sessions: 1 });
+    expect(json.coverage.find((entry: any) => entry.harness === "codex")).toMatchObject({ found: true, sessions: 1, bytes: 100 });
+    expect(json.coverage.find((entry: any) => entry.harness === "claude-code")).toMatchObject({ bytes: 200 });
     expect(json.coverage.find((entry: any) => entry.harness === "pi")).toMatchObject({ found: false });
     expect(json.headline).toMatchObject({ sessions: 3, toolErrors: 3 });
     expect(json.facets).toEqual({ saved: 0, missing: 3 });

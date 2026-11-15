@@ -46,6 +46,15 @@ export function harnessLabel(harness: Harness, sources: Source[] = []): string {
   return sources.find((source) => source.harness === harness)?.label ?? FALLBACK_LABELS[harness];
 }
 
+/** Bytes on disk for a set of transcripts; a size a source could not measure counts as zero. */
+export function totalBytes(files: SessionFile[]): number {
+  let total = 0;
+  for (const file of files) {
+    if (Number.isFinite(file.sizeBytes) && file.sizeBytes > 0) total += file.sizeBytes;
+  }
+  return total;
+}
+
 async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
   const results = new Array<R>(items.length);
   let next = 0;
@@ -160,6 +169,8 @@ export async function scan(deps: ScanDeps, options: ScanOptions = {}): Promise<S
       label: harnessLabel(harness, deps.sources),
       found,
       files: harnessFiles.length,
+      // Every discovered transcript, including ones the session cap or an empty parse left out.
+      bytes: totalBytes(harnessFiles),
       sessions: harnessSessions.length,
       issues: (issues.get(harness) ?? 0) + harnessSessions.reduce((sum, session) => sum + (session.issues || 0), 0),
       oldest: starts[0] ?? null,
