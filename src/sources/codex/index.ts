@@ -1,9 +1,8 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { DiscoverOptions, ExcerptOptions, Session, SessionFile, Source, TranscriptTurn } from "../../schema/types.js";
-import { clean } from "../shared.js";
+import { scrub } from "../shared.js";
 import { expandRoots, rolloutIndex, rootForPath } from "./discover.js";
-import { shortenHome } from "./home.js";
 import { buildRollout, foldChild } from "./parse.js";
 import { chooseProject, MAX_EVIDENCE } from "./project.js";
 
@@ -48,23 +47,11 @@ async function parse(file: SessionFile): Promise<Session | null> {
     }
     if (family?.children.length) session.requests.sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
     session.projectPath = chooseProject(session.projectPath, evidence);
-    return shortenSession(session);
+    return session;
   } catch {
     // Parsers never throw; an unreadable rollout simply holds no session.
     return null;
   }
-}
-
-/** Paths, commands and prompts show the home directory as `~`. `sourcePath` stays absolute: the store reads it back. */
-function shortenSession(session: Session): Session {
-  if (session.projectPath) session.projectPath = shortenHome(session.projectPath);
-  for (const prompt of session.prompts) prompt.text = shortenHome(prompt.text);
-  for (const call of session.toolCalls) {
-    if (call.command) call.command = shortenHome(call.command);
-    if (call.filePath) call.filePath = shortenHome(call.filePath);
-  }
-  session.filesModified = [...new Set(session.filesModified.map(shortenHome))];
-  return session;
 }
 
 type Indexed = { turn: TranscriptTurn; index: number };
@@ -128,7 +115,7 @@ async function excerpt(file: SessionFile, options: ExcerptOptions = {}): Promise
   try {
     const built = await buildRollout(file.path, file.mtimeMs, { turnChars: maxChars });
     const turns = built.turns
-      .map((turn) => ({ ...turn, text: clean(shortenHome(turn.text), maxChars) }))
+      .map((turn) => ({ ...turn, text: scrub(turn.text, maxChars) }))
       .filter((turn) => turn.text.length > 0);
     return selectTurns(turns, maxTurns, options.around);
   } catch {

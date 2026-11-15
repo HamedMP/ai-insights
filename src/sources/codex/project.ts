@@ -1,8 +1,7 @@
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { expandHome } from "./home.js";
 
 /** A place the session did work, with how strongly it says "this is the project". */
 export interface ProjectEvidence {
@@ -17,18 +16,9 @@ const MIN_SHARE = 0.6;
 
 const roots = new Map<string, string | null>();
 
-/** A worktree's `.git` file points into `<main>/.git/worktrees/<name>`; the project is the main repository. */
-function worktreeMain(gitFile: string): string | null {
-  try {
-    const line = readFileSync(gitFile, "utf8").slice(0, 4096);
-    const match = /^gitdir:\s*(.+)$/m.exec(line);
-    if (!match) return null;
-    const target = resolve(dirname(gitFile), match[1]!.trim());
-    const cut = target.lastIndexOf("/.git/worktrees/");
-    return cut > 0 ? target.slice(0, cut) : null;
-  } catch {
-    return null;
-  }
+/** Paths a command wrote as `~/…`. */
+export function expandHome(path: string): string {
+  return path === "~" || path.startsWith("~/") ? homedir() + path.slice(1) : path;
 }
 
 /** Codex Desktop records command directories as `file://` URLs. */
@@ -53,7 +43,11 @@ function onThisMachine(path: string): string {
   return local !== path && existsSync(local) ? local : path;
 }
 
-/** The repository a directory belongs to, read from the local filesystem; null when there is none. */
+/**
+ * The checkout a directory belongs to (the folder holding `.git`, a directory or a worktree's file), read
+ * from the local filesystem; null when there is none. A worktree is its own checkout: Claude Code reports
+ * a session started in one by that path, so Codex does too and the two harnesses group alike.
+ */
 export function repoRoot(dir: string): string | null {
   if (!isAbsolute(dir)) return null;
   dir = onThisMachine(dir);
@@ -70,7 +64,7 @@ export function repoRoot(dir: string): string | null {
     const marker = join(current, ".git");
     try {
       const info = statSync(marker);
-      found = info.isDirectory() ? current : info.isFile() ? (worktreeMain(marker) ?? current) : null;
+      found = info.isDirectory() || info.isFile() ? current : null;
       if (found) break;
     } catch {
       // No .git here; keep walking up.

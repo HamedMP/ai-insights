@@ -61,12 +61,12 @@ describe("codex project attribution", () => {
     expect(session.projectPath).toBe(join(work, "app"));
   });
 
-  it("files a git worktree under the repository it belongs to", async () => {
+  it("files work in a git worktree under that checkout, as Claude Code does for a session started there", async () => {
     const worktree = join(work, "app-feature");
     mkdirSync(worktree, { recursive: true });
     writeFileSync(join(worktree, ".git"), `gitdir: ${join(work, "app", ".git", "worktrees", "app-feature")}\n`);
     const session = await parseOne([meta(uuid(1), { cwd: work }), ...userMessage("feature"), edit(join(worktree, "a.ts")), command(worktree, "pnpm build")]);
-    expect(session.projectPath).toBe(join(work, "app"));
+    expect(session.projectPath).toBe(worktree);
   });
 
   it("groups work in a plain folder below a parent cwd under that folder", async () => {
@@ -86,22 +86,29 @@ describe("codex project attribution", () => {
   });
 });
 
-describe("codex home directory shortening", () => {
-  it("shows the home directory as ~ in paths, commands and prompts", async () => {
+describe("codex home directories", () => {
+  it("shortens the home directory in free text but keeps structural paths absolute", async () => {
     const home = homedir();
+    const todo = join(home, "notes", "todo.md");
     const session = await parseOne([
       meta(uuid(1), { cwd: join(home, "hindsight-fixture-missing") }),
-      ...userMessage(`look at ${join(home, "notes", "todo.md")} please`),
-      ...userMessage(`printf 'a\\x00${home}/x'`),
-      ...shell("c1", `cat ${join(home, "notes", "todo.md")}`, 0),
-      event({ type: "item_completed", thread_id: uuid(1), turn_id: "t1", item: { type: "FileChange", id: "f", status: "completed", changes: { [join(home, "notes", "todo.md")]: { type: "add", content: "x\n" } } } }),
+      ...userMessage(`look at ${todo} please`),
+      event({
+        type: "item_completed",
+        thread_id: uuid(1),
+        turn_id: "t1",
+        item: { type: "CommandExecution", id: "c", command: ["/bin/bash", "-lc", `cat ${todo}`], parsed_cmd: [{ type: "read", cmd: `cat ${todo}`, name: "todo.md", path: todo }], status: "completed", exit_code: 0 },
+      }),
+      event({ type: "item_completed", thread_id: uuid(1), turn_id: "t1", item: { type: "FileChange", id: "f", status: "completed", changes: { [todo]: { type: "add", content: "x\n" } } } }),
     ]);
-    expect(session.projectPath).toBe("~/hindsight-fixture-missing");
-    expect(session.prompts[0]!.text).toBe("look at ~/notes/todo.md please");
-    expect(session.prompts[1]!.text).toBe("printf 'a\\x00~/x'");
-    expect(session.filesModified).toEqual(["~/notes/todo.md"]);
-    expect(JSON.stringify(session.toolCalls)).not.toContain(home + "/");
+    // The store, the coach and cross-harness grouping need real paths; the renderer shortens them for display.
+    expect(session.projectPath).toBe(join(home, "hindsight-fixture-missing"));
+    expect(session.filesModified).toEqual([todo]);
+    expect(session.toolCalls.map((call) => call.filePath)).toEqual([todo, todo]);
     expect(session.sourcePath.startsWith("/")).toBe(true);
+    // What a person or an agent reads is free text, and never carries the username.
+    expect(session.prompts[0]!.text).toBe("look at ~/notes/todo.md please");
+    expect(session.toolCalls[0]!.command).toBe("cat ~/notes/todo.md");
 
     const [file] = await codexSource.discover({ roots: [tree.sessions] });
     const turns = await codexSource.excerpt(file!);
