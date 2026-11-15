@@ -2,8 +2,8 @@
 
 Look back at how you work with AI coding agents. Hindsight reads your local Claude Code and Codex history and turns it into a private HTML report: where your time and tokens go, what keeps going wrong, and specific changes to try. Cursor, Pi and OpenCode history are planned.
 
-![Hindsight report screenshot](docs/screenshot.png)
-<!-- Screenshot placeholder: add docs/screenshot.png once the report renderer has landed. -->
+<!-- Screenshot placeholder: add a report screenshot here once the renderer has landed. -->
+_Screenshot coming soon._
 
 ## Install
 
