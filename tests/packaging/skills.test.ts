@@ -179,6 +179,31 @@ describe("skills", () => {
     expect(text).toMatch(/at least two sessions/i);
   });
 
+  it("every tool argument or field a skill names exists in the real MCP server", () => {
+    const server = readFileSync(join(ROOT, "src", "mcp", "server.ts"), "utf8");
+    // Facet, narrative and suggestion fields are the contract's, not the server's; the rest are harness settings.
+    const notServer = new Set([
+      "sessionId", "underlyingGoal", "goalCategories", "sessionType", "primarySuccess", "frictionDetail", "drivenBy",
+      "workAreas", "interactionStyle", "instructionText", "starterPrompt", "cleanupPeriodDays", "mcpServers",
+    ]);
+    for (const skill of skillDirs()) {
+      for (const span of codeSpans(read(skill))) {
+        const name = span.match(/^([a-z]+[A-Z][A-Za-z]*)$/)?.[1] ?? span.match(/^([a-z][A-Za-z]*): /)?.[1];
+        if (!name || notServer.has(name)) continue;
+        expect(server, `${skill} names ${name}`).toMatch(new RegExp(`\\b${name}\\b`));
+      }
+    }
+  });
+
+  it("the main skill uses the verified listing and report arguments", () => {
+    const text = read("hindsight");
+    for (const span of ['`strategy: "spread"`', "`minUserMessages`", "`skippedReasons`", '`detail: "full"`', "`agentDriven`", "`live`", "`agentHours`"]) {
+      expect(text, span).toContain(span);
+    }
+    // The excerpt tool's own default is the budget; the skill must not impose a second cap.
+    expect(text).not.toMatch(/10,000 characters/);
+  });
+
   it("the coach never writes without asking", () => {
     const text = read("hindsight-coach");
     expect(text).toMatch(/diff/i);
