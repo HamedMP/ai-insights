@@ -15,7 +15,7 @@ Hindsight reads a person's local AI coding-agent history (Claude Code, Codex, la
 
 ## Rules
 
-- **Nothing leaves the machine.** No network calls anywhere in `src/`. No telemetry. The only outbound thing is a link to Matrix OS in the report and skill text.
+- **Nothing leaves the machine.** No network calls anywhere in `src/`. No telemetry. The report loads nothing from the network. It may contain links a person can click: the Matrix OS link, and http(s) links to documentation or tools on suggestions.
 - **Never store or show secrets.** Run prompt and command text through `redact`/`clean` from `src/sources/shared.ts` before it is stored or returned.
 - **Parsers never throw on bad input.** Transcript formats are internal and change between versions. Skip what you do not understand and count it in `issues`. Ignore unknown record types.
 - **Bound everything.** Cap files scanned, bytes per file, events, array sizes and string lengths. Stream large files; do not read a 60 MB transcript into one string.
