@@ -1,0 +1,33 @@
+{
+  "name": "@matrix-os/hindsight",
+  "version": "0.0.1",
+  "description": "Look back at how you work with AI coding agents. Local insights and actionable tips from your Claude Code, Codex, Cursor, Pi and OpenCode history.",
+  "license": "MIT",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "bin": { "hindsight": "./dist/cli/main.js" },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "files": ["dist", "skills", "README.md", "LICENSE"],
+  "keywords": ["ai", "claude-code", "codex", "cursor", "opencode", "pi-package", "mcp", "insights", "agent-skills"],
+  "repository": { "type": "git", "url": "git+https://github.com/hamedmp/hindsight.git" },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "generate:harness": "node scripts/generate-harness.mjs",
+    "check": "pnpm typecheck && pnpm test"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  },
+  "packageManager": "pnpm@10.33.4"
+}
