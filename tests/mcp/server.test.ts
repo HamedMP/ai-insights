@@ -112,6 +112,15 @@ describe("hindsight_scan", () => {
 });
 
 describe("hindsight_report", () => {
+  it("serves every section the skills ask for, including the facet aggregate and narrative", async () => {
+    await call("hindsight_save_facets", { facets: [validFacet("c1")] });
+    await call("hindsight_save_narrative", { narrative: validNarrative() });
+    const { json } = await call("hindsight_report", { sections: ["findings", "activity", "usage", "facets", "narrative"] });
+    expect(Object.keys(json).sort()).toEqual(["activity", "facets", "findings", "narrative", "usage"]);
+    expect(json.facets.sessionsWithFacets).toBe(1);
+    expect(json.narrative.headline).toBe(validNarrative().headline);
+  });
+
   it("returns only the requested sections", async () => {
     const { json } = await call("hindsight_report", { sections: ["usage"] });
     expect(Object.keys(json)).toEqual(["usage"]);
@@ -146,25 +155,26 @@ describe("hindsight_sessions", () => {
   it("lists sessions newest first with paging", async () => {
     const first = await call("hindsight_sessions", { limit: 2 });
     expect(first.json.total).toBe(3);
-    expect(first.json.sessions.map((session: any) => session.id)).toEqual(["c1", "c2"]);
+    expect(first.json.sessions.map((session: any) => session.sessionId)).toEqual(["c1", "c2"]);
+    expect(first.json.sessions[0]).toMatchObject({ sessionId: "c1", harness: "claude-code" });
     expect(first.json.nextOffset).toBe(2);
     const second = await call("hindsight_sessions", { limit: 2, offset: 2 });
-    expect(second.json.sessions.map((session: any) => session.id)).toEqual(["x1"]);
+    expect(second.json.sessions.map((session: any) => session.sessionId)).toEqual(["x1"]);
     expect(second.json.nextOffset).toBeNull();
   });
 
   it("shows a short project name rather than a full home path", async () => {
     const { json } = await call("hindsight_sessions");
-    const c2 = json.sessions.find((session: any) => session.id === "c2");
+    const c2 = json.sessions.find((session: any) => session.sessionId === "c2");
     expect(c2.project).toBe("code/secret-app");
   });
 
   it("filters to sessions still missing facets", async () => {
     await call("hindsight_save_facets", { facets: [validFacet("c1")] });
     const { json } = await call("hindsight_sessions", { missingFacets: true });
-    expect(json.sessions.map((session: any) => session.id)).toEqual(["c2", "x1"]);
+    expect(json.sessions.map((session: any) => session.sessionId)).toEqual(["c2", "x1"]);
     const all = await call("hindsight_sessions");
-    expect(all.json.sessions.find((session: any) => session.id === "c1").hasFacet).toBe(true);
+    expect(all.json.sessions.find((session: any) => session.sessionId === "c1").hasFacet).toBe(true);
   });
 });
 
@@ -173,7 +183,7 @@ describe("hindsight_excerpt", () => {
     const { json, isError } = await call("hindsight_excerpt", { sessionId: "c2", maxCharsPerTurn: 200 });
     expect(isError).toBe(false);
     expect(claude.excerptCalls[0]!.path).toBe("/fake/claude-code/c2.jsonl");
-    expect(json.session.id).toBe("c2");
+    expect(json.session).toMatchObject({ sessionId: "c2", harness: "claude-code" });
     expect(json.turns[0].text).not.toContain("sk-abcdefghijklmnopqrstuvwxyz123456");
     expect(json.turns[2].text.length).toBeLessThanOrEqual(200);
     expect(json.turns[2]).toMatchObject({ role: "tool", toolName: "Bash", isError: true });

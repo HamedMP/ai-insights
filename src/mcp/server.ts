@@ -322,7 +322,7 @@ export function createServer(deps: ServerDeps): McpServer {
         offset,
         nextOffset: offset + page.length < matching.length ? offset + page.length : null,
         sessions: page.map((session) => ({
-          id: session.id,
+          sessionId: session.id,
           harness: session.harness,
           project: shortProject(session.projectPath),
           start: session.startTime,
@@ -371,7 +371,7 @@ export function createServer(deps: ServerDeps): McpServer {
       const hasFacet = (await deps.store.facetIds()).get(session.harness)?.has(session.id) ?? false;
       return ok({
         session: {
-          id: session.id,
+          sessionId: session.id,
           harness: session.harness,
           project: shortProject(session.projectPath),
           start: session.startTime,
