@@ -227,6 +227,7 @@ export function createServer(deps: ServerDeps): McpServer {
           found: entry.found,
           sessions: entry.sessions,
           files: entry.files,
+          bytes: entry.bytes ?? 0,
           issues: entry.issues,
           oldest: entry.oldest,
           newest: entry.newest,

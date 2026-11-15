@@ -29,6 +29,36 @@ describe("scan", () => {
     expect(byHarness.cursor).toMatchObject({ found: false, label: "Cursor" });
   });
 
+  it("measures history size per harness from every discovered transcript, not only the parsed ones", async () => {
+    const claude = fakeSource("claude-code", [makeSession({ id: "c1", sourceMtimeMs: 10 }), makeSession({ id: "c2", sourceMtimeMs: 9 })]);
+    const codex = fakeSource("codex", [makeSession({ id: "x1", harness: "codex", sourceMtimeMs: 2 }), makeSession({ id: "x2", harness: "codex", sourceMtimeMs: 1 })]);
+    const claudeDiscover = claude.discover;
+    // A transcript the source discovers but that parses to no session still takes space on disk.
+    claude.discover = async (options) => [
+      ...(await claudeDiscover(options)).map((file) => ({ ...file, sizeBytes: 1_000 })),
+      { harness: "claude-code" as const, path: "/fake/claude-code/empty.jsonl", mtimeMs: 8, sizeBytes: 500 },
+    ];
+    const codexDiscover = codex.discover;
+    codex.discover = async (options) => (await codexDiscover(options)).map((file) => ({ ...file, sizeBytes: 4_000 }));
+
+    // The overall cap leaves both codex transcripts unparsed.
+    const result = await scan({ sources: [claude, codex], store }, { maxSessions: 3 });
+    const byHarness = Object.fromEntries(result.coverage.map((entry) => [entry.harness, entry]));
+    expect(result.sessions.map((session) => session.id).sort()).toEqual(["c1", "c2"]);
+    expect(codex.parseCalls).toEqual([]);
+    expect(byHarness["claude-code"]!.bytes).toBe(2_500);
+    expect(byHarness.codex!.bytes).toBe(8_000);
+    expect(byHarness.cursor!.bytes).toBe(0);
+  });
+
+  it("ignores nonsense file sizes from a source when measuring history", async () => {
+    const claude = fakeSource("claude-code", [makeSession({ id: "a" }), makeSession({ id: "b", sourceMtimeMs: 2 })]);
+    const original = claude.discover;
+    claude.discover = async (options) => (await original(options)).map((file, index) => ({ ...file, sizeBytes: index === 0 ? Number.NaN : -5 }));
+    const result = await scan({ sources: [claude], store });
+    expect(result.coverage[0]!.bytes).toBe(0);
+  });
+
   it("reuses the cache on the second run and re-parses only changed transcripts", async () => {
     const sessions = [makeSession({ id: "a" }), makeSession({ id: "b", sourceMtimeMs: 2_000 })];
     const source = fakeSource("claude-code", sessions);

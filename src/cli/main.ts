@@ -12,7 +12,7 @@ import { HARNESSES, type Coverage, type Harness, type Report, type Source } from
 import { sources as realSources } from "../sources/index.js";
 import { ensureDir, pathExists, writeFileAtomic } from "../store/fs.js";
 import { buildFromScan, headline, renderFromScan, type BuildReportFn, type RenderReportFn } from "../store/pipeline.js";
-import { harnessLabel, scan, type ScanOptions } from "../store/scan.js";
+import { harnessLabel, scan, totalBytes, type ScanOptions } from "../store/scan.js";
 import { parseSince, SINCE_HELP } from "../store/since.js";
 import { Store, resolveHome } from "../store/store.js";
 
@@ -158,6 +158,19 @@ function usd(value: number): string {
   return value >= 100 ? `$${Math.round(value).toLocaleString("en-US")}` : `$${value.toFixed(2)}`;
 }
 
+/** Binary units, one decimal from KB up: "512 B", "3.4 MB". */
+export function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  return unit === 0 ? `${Math.round(value)} B` : `${value.toFixed(1)} ${units[unit]}`;
+}
+
 function day(iso: string | null): string {
   return iso ? iso.slice(0, 10) : "?";
 }
@@ -173,7 +186,8 @@ function coverageLines(coverage: Coverage[]): string[] {
     if (!entry.found) return `  ${label}  not found`;
     if (entry.sessions === 0) return `  ${label}  found, no sessions in this window`;
     const issues = entry.issues > 0 ? `, ${plural(entry.issues, "unreadable record")}` : "";
-    return `  ${label}  ${plural(entry.sessions, "session").padEnd(14)} ${day(entry.oldest)} to ${day(entry.newest)}${issues}`;
+    const size = entry.bytes ? `  ${formatBytes(entry.bytes)}` : "";
+    return `  ${label}  ${plural(entry.sessions, "session").padEnd(14)} ${day(entry.oldest)} to ${day(entry.newest)}${size}${issues}`;
   });
 }
 
@@ -272,7 +286,7 @@ async function commandDoctor(deps: CliDeps, store: Store): Promise<number> {
       ? "could not list transcripts"
       : files.length === 0
         ? "no history found"
-        : `${plural(files.length, "transcript")}, ${new Date(oldest).toISOString().slice(0, 10)} to ${new Date(newest).toISOString().slice(0, 10)}`;
+        : `${plural(files.length, "transcript")} (${formatBytes(totalBytes(files))}), ${new Date(oldest).toISOString().slice(0, 10)} to ${new Date(newest).toISOString().slice(0, 10)}`;
     lines.push(`${label}: ${status}`);
     for (const root of roots) lines.push(`  ${(await pathExists(root)) ? "found  " : "missing"} ${root}`);
     if (roots.length === 0) lines.push("  (no default location on this machine)");

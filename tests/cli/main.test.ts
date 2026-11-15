@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { run, type CliDeps } from "../../src/cli/main.js";
+import { formatBytes, run, type CliDeps } from "../../src/cli/main.js";
 import type { ServerDeps } from "../../src/mcp/server.js";
 import { packageVersion } from "../../src/mcp/version.js";
 import { Store } from "../../src/store/store.js";
@@ -99,6 +99,14 @@ describe("hindsight scan", () => {
     expect(out).toContain("2 sessions, 6 prompts");
   });
 
+  it("shows how much history each harness holds on disk as a human size", async () => {
+    const big = fakeSource("claude-code", [makeSession({ id: "c1" })]);
+    const original = big.discover;
+    big.discover = async (options) => (await original(options)).map((file) => ({ ...file, sizeBytes: 3 * 1024 * 1024 }));
+    await run(["scan"], deps({ sources: [big] }));
+    expect(out).toMatch(/Claude Code\s+1 session .*3\.0 MB/);
+  });
+
   it("applies --since and says history exists outside the window", async () => {
     await run(["scan", "--since", "30d"], deps());
     expect(out).toMatch(/Codex\s+found, no sessions in this window/);
@@ -140,11 +148,22 @@ describe("hindsight mcp", () => {
 describe("hindsight doctor", () => {
   it("shows each harness, where it looked, and the store", async () => {
     expect(await run(["doctor"], deps())).toBe(0);
-    expect(out).toContain("Claude Code: 1 transcript");
+    expect(out).toContain("Claude Code: 1 transcript (100 B)");
     expect(out).toContain("missing /fake/claude-code");
     expect(out).toContain("Cursor: not supported yet");
     expect(out).toContain(`Store: ${home}`);
     expect(out).toContain("writable");
+  });
+});
+
+describe("formatBytes", () => {
+  it("reads like a file manager would show it", () => {
+    expect(formatBytes(0)).toBe("0 B");
+    expect(formatBytes(512)).toBe("512 B");
+    expect(formatBytes(1536)).toBe("1.5 KB");
+    expect(formatBytes(296 * 1024 * 1024)).toBe("296.0 MB");
+    expect(formatBytes(3 * 1024 ** 4)).toBe("3.0 TB");
+    expect(formatBytes(Number.NaN)).toBe("0 B");
   });
 });
 
