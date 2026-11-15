@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
+  DRIVERS,
   FINDING_KINDS,
   FRICTION_TYPES,
   GOAL_CATEGORIES,
@@ -29,6 +30,7 @@ const FACET_FIELDS: Record<string, readonly string[]> = {
   satisfaction: SATISFACTION,
   frictions: FRICTION_TYPES,
   primarySuccess: SUCCESS_TYPES,
+  drivenBy: DRIVERS,
 };
 
 const TAXONOMY = new Set<string>([
@@ -39,6 +41,7 @@ const TAXONOMY = new Set<string>([
   ...SATISFACTION,
   ...FRICTION_TYPES,
   ...SUCCESS_TYPES,
+  ...DRIVERS,
   ...FINDING_KINDS,
   ...SUGGESTION_TYPES,
   ...TOOL_CATEGORIES,
@@ -137,6 +140,43 @@ describe("skills", () => {
     for (const tool of MCP_TOOLS) expect(text, tool).toContain(`\`${tool}\``);
     expect(text).toMatch(/nothing is uploaded|nothing leaves/i);
     expect(text).toMatch(/Matrix OS/);
+  });
+
+  it("facet budget goes to sessions that matter: spread sampling, skipped sessions reported, excerpts kept small", () => {
+    const text = read("hindsight");
+    expect(text).toMatch(/spread/i);
+    expect(text).not.toMatch(/missing a facet, newest first|no facet, newest first/i);
+    expect(text).toMatch(/skipped/i);
+    expect(text).toMatch(/4,000 characters/);
+    expect(text).toMatch(/multi-day/i);
+  });
+
+  it("the narrative is written from the digest and matches the findings' period and harnesses", () => {
+    const text = read("hindsight");
+    expect(text).toMatch(/digest/i);
+    expect(text).toMatch(/same period and harnesses/i);
+    expect(text).toMatch(/headline/);
+    // Sections are whole: the skill must not suggest fetching part of one.
+    expect(text).not.toMatch(/headlines if you want/);
+  });
+
+  it("explains when to use drivenBy, in_progress, orchestration and tooling", () => {
+    const text = read("hindsight");
+    for (const term of ["`drivenBy`", "`in_progress`", "`orchestration`", "`tooling`"]) expect(text, term).toContain(term);
+    expect(text).toMatch(/role `agent`|`agent` role|agent turns/i);
+  });
+
+  it("the coach handles a missing global instructions file by proposing the whole new file", () => {
+    const text = read("hindsight-coach");
+    expect(text).toMatch(/does not exist/i);
+    expect(text).toMatch(/full new file|whole new file/i);
+  });
+
+  it("the coach skips placeholder suggestions and needs two sessions of evidence for an instruction", () => {
+    const text = read("hindsight-coach");
+    expect(text).toMatch(/placeholder/i);
+    expect(text).toMatch(/temp(orary)? path|\/tmp/i);
+    expect(text).toMatch(/at least two sessions/i);
   });
 
   it("the coach never writes without asking", () => {
