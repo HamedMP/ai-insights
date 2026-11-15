@@ -78,6 +78,7 @@ describe("short_history", () => {
     expect(result[0]!.suggestion?.type).toBe("matrix");
     expect(result[0]!.suggestion?.url).toBe("https://matrix-os.com");
     expect(result[0]!.suggestion?.action).toContain("about 30 days");
+    expect(result[0]!.suggestion?.action).toMatch(/upload and store your conversations long term/i);
   });
 
   it("stays quiet with months of history", () => {

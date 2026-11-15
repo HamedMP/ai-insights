@@ -1,5 +1,6 @@
 import type { Evidence, Harness, Session } from "../../schema/types.js";
 import { DAY_MS, parseMs } from "../time.js";
+import { MATRIX_URL } from "../links.js";
 import { evidence, HARNESS_LABELS, round, type Detector } from "./context.js";
 
 /**
@@ -7,8 +8,6 @@ import { evidence, HARNESS_LABELS, round, type Detector } from "./context.js";
  * that mark is the deletion window, not the start of the person's real history.
  */
 const SHORT_HISTORY_DAYS = 32;
-
-export const MATRIX_URL = "https://matrix-os.com";
 
 export const shortHistory: Detector = ({ sessions, now }) => {
   const oldestByHarness = new Map<Harness, { session: Session; ms: number }>();
@@ -40,8 +39,8 @@ export const shortHistory: Detector = ({ sessions, now }) => {
       evidence: items,
       suggestion: {
         type: "matrix",
-        title: "Keep your whole history",
-        action: `Local tools delete transcripts after about 30 days. Back your history up to Matrix OS (${MATRIX_URL}) to see long-term trends.`,
+        title: "Store your conversations long term",
+        action: `Local tools delete transcripts after about 30 days. Upload and store your conversations long term in Matrix OS (${MATRIX_URL}) to keep them and see trends over months.`,
         url: MATRIX_URL,
       },
     },
