@@ -74,6 +74,21 @@ describe("claude source: session basics", () => {
     expect(session.issues).toBe(3);
   });
 
+  it("does not count history that a resumed session copied in from an earlier one", async () => {
+    const earlier = "99999999-2222-4333-8444-555555555555";
+    const session = await parse([
+      prompt(T(0), "old question", { sessionId: earlier }),
+      assistant(T(1), "msg_old", [toolUse("old", "Bash", { command: "ls" })], { extra: { sessionId: earlier } }),
+      prompt(T(50), "new question"),
+      assistant(T(51), "msg_new", [text("ok")]),
+    ]);
+    expect(session.id).toBe(SESSION);
+    expect(session.prompts.map((p) => p.text)).toEqual(["new question"]);
+    expect(session.toolCalls).toHaveLength(0);
+    expect(session.requests.map((r) => r.id)).toEqual(["claude:msg_new"]);
+    expect(session.startTime).toBe(T(50));
+  });
+
   it("skips a single enormous line rather than loading it", async () => {
     const { parseClaudeTranscript } = await import("../../../src/sources/claude/parse.js");
     const file = transcript([prompt(T(0), "x".repeat(5000)), prompt(T(1), "short one"), assistant(T(2), "msg_1", [text("ok")])]);

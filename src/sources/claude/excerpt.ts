@@ -2,6 +2,7 @@ import type { ExcerptOptions, SessionFile, TranscriptTurn } from "../../schema/t
 import { clean } from "../shared.js";
 import { classifyUserText, toolCategory } from "./classify.js";
 import { DEFAULT_LIMITS, readJsonl, type JsonlLimits } from "./jsonl.js";
+import { basename } from "node:path";
 import { isoTime, obj, str, toolResultText, userText } from "./parse.js";
 
 const DEFAULT_MAX_TURNS = 40;
@@ -87,10 +88,13 @@ export async function excerptClaudeTranscript(
     }
   };
 
+  const stem = basename(file.path, ".jsonl");
   for await (const row of readJsonl(file.path, limits)) {
     if (row.kind !== "record") continue;
     const record = row.value;
     if (record.isSidechain === true) continue;
+    // History copied in from an earlier session on resume belongs to that session's excerpt.
+    if (typeof record.sessionId === "string" && /^[0-9a-f-]{36}$/i.test(stem) && record.sessionId !== stem) continue;
     const time = isoTime(record.timestamp);
     if (!time) continue;
     const message = obj(record.message);

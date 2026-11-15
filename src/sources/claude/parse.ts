@@ -36,6 +36,7 @@ export const obj = (value: unknown): Obj =>
   value && typeof value === "object" && !Array.isArray(value) ? (value as Obj) : {};
 export const str = (value: unknown): string => (typeof value === "string" ? value : "");
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?(Z|[+-]\d{2}:\d{2})$/;
 export function isoTime(value: unknown): string | null {
   return typeof value === "string" && ISO.test(value) && Number.isFinite(Date.parse(value)) ? value : null;
@@ -562,8 +563,14 @@ class SessionBuilder {
 
 export async function parseClaudeTranscript(file: SessionFile, limits: JsonlLimits = DEFAULT_LIMITS): Promise<Session | null> {
   const builder = new SessionBuilder();
+  // Claude Code names the file after the session. Lines stamped with another
+  // session id are history copied in on resume; the original file counts them.
+  const stem = basename(file.path, ".jsonl");
+  const fileSession = UUID.test(stem) ? stem : null;
+  if (fileSession) builder.sessionId = fileSession;
   for await (const row of readJsonl(file.path, limits)) {
     if (row.kind === "issue") builder.issues += 1;
+    else if (fileSession && typeof row.value.sessionId === "string" && row.value.sessionId !== fileSession) continue;
     else builder.record(row.value, true);
   }
   // Subagent work is spend and edits made on this session's behalf, so its
