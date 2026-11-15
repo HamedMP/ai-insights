@@ -1,16 +1,40 @@
-import type { ExcerptOptions, SessionFile, TranscriptTurn } from "../../schema/types.js";
-import { clean } from "../shared.js";
-import { classifyUserText, toolCategory } from "./classify.js";
-import { DEFAULT_LIMITS, readJsonl, type JsonlLimits } from "./jsonl.js";
 import { basename } from "node:path";
-import { isoTime, obj, str, toolResultText, userText } from "./parse.js";
+import type { ExcerptOptions, SessionFile, TranscriptTurn } from "../../schema/types.js";
+import { scrub, toolCategory, type PromptKind } from "./classify.js";
+import { DEFAULT_LIMITS, readJsonl, type JsonlLimits } from "./jsonl.js";
+import { classifyQueuedCommand, classifyUserRecord, isoTime, obj, str, toolResultText } from "./parse.js";
 
 const DEFAULT_MAX_TURNS = 40;
 const DEFAULT_MAX_CHARS = 1_200;
 const HARD_MAX_TURNS = 500;
 const HARD_MAX_CHARS = 20_000;
-// Candidates kept while streaming; beyond this we thin evenly so memory stays bounded.
+/** A tool call is context, not content: one short line. */
+const TOOL_LINE_CHARS = 120;
+/** How much of the failing call is repeated in front of its error. */
+const ERROR_CONTEXT_CHARS = 80;
+// Candidates kept while streaming; beyond this the least useful tier is thinned so memory stays bounded.
 const MAX_CANDIDATES = 20_000;
+
+/**
+ * What survives when an excerpt has to be squeezed, most important first.
+ * A long session is thousands of tool calls; how it went lives in the
+ * person's prompts, the interruptions, what failed and how it ended.
+ */
+const TIER = {
+  anchor: 0, // the first prompt and the final answer
+  person: 1, // prompts and interruptions
+  failure: 2, // failed tool results
+  agent: 3, // messages from other agents or automations
+  answer: 4, // other assistant text
+  tool: 5, // tool calls
+} as const;
+type Tier = (typeof TIER)[keyof typeof TIER];
+
+interface Candidate {
+  turn: TranscriptTurn;
+  tier: Tier;
+  seq: number;
+}
 
 /** One line that says what a tool call did, without its output. */
 function toolSummary(name: string, input: Record<string, unknown>): string {
@@ -29,6 +53,8 @@ function toolSummary(name: string, input: Record<string, unknown>): string {
   return "";
 }
 
+const oneLine = (text: string, max: number) => scrub(text.replace(/\s+/g, " "), max);
+
 function pickEvenly<T>(items: T[], count: number): T[] {
   if (items.length <= count) return items;
   if (count <= 0) return [];
@@ -38,36 +64,43 @@ function pickEvenly<T>(items: T[], count: number): T[] {
   return picked;
 }
 
-/**
- * Spread evenly across the session, but give the person's own prompts up to
- * half the slots: they carry the goal and the corrections, and agent and tool
- * turns vastly outnumber them.
- */
-function spread(items: TranscriptTurn[], count: number): TranscriptTurn[] {
-  if (items.length <= count) return items;
-  const indexed = items.map((turn, index) => ({ turn, index }));
-  const users = indexed.filter(({ turn }) => turn.role === "user");
-  const others = indexed.filter(({ turn }) => turn.role !== "user");
-  const pickedUsers = pickEvenly(users, Math.min(users.length, Math.max(Math.ceil(count / 2), count - others.length)));
-  const pickedOthers = pickEvenly(others, count - pickedUsers.length);
-  return [...pickedUsers, ...pickedOthers].sort((a, b) => a.index - b.index).map(({ turn }) => turn);
+/** Fill the slots tier by tier; a tier that does not fit is spread evenly across the session. */
+function byPriority(candidates: Candidate[], count: number): Candidate[] {
+  const picked: Candidate[] = [];
+  for (let tier: number = TIER.anchor; tier <= TIER.tool && picked.length < count; tier += 1) {
+    const items = candidates.filter((candidate) => candidate.tier === tier);
+    picked.push(...pickEvenly(items, count - picked.length));
+  }
+  return picked.sort((a, b) => a.seq - b.seq);
 }
 
-function pickAround(items: TranscriptTurn[], count: number, around: string): TranscriptTurn[] {
+function nearest(candidates: Candidate[], count: number, around: string): Candidate[] {
   const target = Date.parse(around);
-  if (!Number.isFinite(target)) return pickEvenly(items, count);
-  return items
-    .map((turn, index) => ({ index, distance: Math.abs(Date.parse(turn.timestamp) - target) }))
-    .sort((a, b) => a.distance - b.distance || a.index - b.index)
+  if (!Number.isFinite(target)) return byPriority(candidates, count);
+  return candidates
+    .map((candidate) => ({ candidate, distance: Math.abs(Date.parse(candidate.turn.timestamp) - target) }))
+    .sort((a, b) => a.distance - b.distance || a.candidate.seq - b.candidate.seq)
     .slice(0, count)
-    .sort((a, b) => a.index - b.index)
-    .map(({ index }) => items[index]!);
+    .map(({ candidate }) => candidate)
+    .sort((a, b) => a.seq - b.seq);
+}
+
+/** Halve the least useful tier that still has more than one turn. */
+function thin(candidates: Candidate[]): Candidate[] {
+  for (let tier: number = TIER.tool; tier >= TIER.person; tier -= 1) {
+    const count = candidates.filter((candidate) => candidate.tier === tier).length;
+    if (count < 2) continue;
+    let index = 0;
+    return candidates.filter((candidate) => candidate.tier !== tier || index++ % 2 === 0);
+  }
+  return candidates;
 }
 
 /**
- * Redacted, truncated turns of the main conversation (subagent transcripts are
- * left out: the model pass judges the person's session, not delegated work).
- * Thinking blocks are never included.
+ * Redacted, truncated turns of the main conversation, home directories shown
+ * as `~`. Subagent transcripts are left out (the model pass judges the
+ * person's session, not delegated work), and so are thinking blocks and
+ * successful tool output.
  */
 export async function excerptClaudeTranscript(
   file: SessionFile,
@@ -78,23 +111,65 @@ export async function excerptClaudeTranscript(
   const maxChars = Math.max(1, Math.min(HARD_MAX_CHARS, Math.floor(options.maxCharsPerTurn ?? DEFAULT_MAX_CHARS)));
   if (maxTurns === 0) return [];
 
-  let turns: TranscriptTurn[] = [];
-  const toolNames = new Map<string, string>();
-  const push = (turn: TranscriptTurn): void => {
+  let candidates: Candidate[] = [];
+  let seq = 0;
+  let sawPrompt = false;
+  // Held back until a later answer replaces it, so the final answer is known when the stream ends.
+  let lastAnswer: Candidate | null = null;
+  const toolSummaries = new Map<string, { name: string; summary: string }>();
+
+  const push = (turn: TranscriptTurn, tier: Tier): void => {
     if (!turn.text) return;
-    turns.push(turn);
-    if (turns.length >= MAX_CANDIDATES) {
-      turns = pickEvenly(turns, MAX_CANDIDATES / 2);
+    const candidate: Candidate = { turn, tier, seq: seq++ };
+    if (turn.role === "assistant") {
+      if (lastAnswer) candidates.push(lastAnswer);
+      lastAnswer = candidate;
+    } else {
+      if (turn.role === "user" && !sawPrompt) {
+        sawPrompt = true;
+        candidate.tier = TIER.anchor;
+      }
+      candidates.push(candidate);
+    }
+    if (candidates.length >= MAX_CANDIDATES) {
+      while (candidates.length >= MAX_CANDIDATES / 2) {
+        const before = candidates.length;
+        candidates = thin(candidates);
+        if (candidates.length === before) break;
+      }
+    }
+  };
+
+  const typed = (kind: PromptKind, time: string, queued: boolean): void => {
+    switch (kind.kind) {
+      case "prompt":
+        push({ timestamp: time, role: "user", text: scrub(queued ? `[sent while the agent was working] ${kind.text}` : kind.text, maxChars) }, TIER.person);
+        break;
+      case "slash":
+        push({ timestamp: time, role: "user", text: scrub(`${kind.name} ${kind.args}`.trim(), maxChars) }, TIER.person);
+        break;
+      case "bash":
+        push({ timestamp: time, role: "user", text: scrub(`! ${kind.command}`, maxChars) }, TIER.person);
+        break;
+      case "interrupt":
+        push({ timestamp: time, role: "user", text: "[interrupted the agent]" }, TIER.person);
+        break;
+      case "agent":
+        push({ timestamp: time, role: "agent", text: scrub(kind.text, maxChars) }, TIER.agent);
+        break;
+      default:
+        break;
     }
   };
 
   const stem = basename(file.path, ".jsonl");
+  const stemIsSession = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(stem);
   for await (const row of readJsonl(file.path, limits)) {
     if (row.kind !== "record") continue;
     const record = row.value;
     if (record.isSidechain === true) continue;
     // History copied in from an earlier session on resume belongs to that session's excerpt.
-    if (typeof record.sessionId === "string" && /^[0-9a-f-]{36}$/i.test(stem) && record.sessionId !== stem) continue;
+    if (stemIsSession && typeof record.sessionId === "string" && record.sessionId !== stem) continue;
     const time = isoTime(record.timestamp);
     if (!time) continue;
     const message = obj(record.message);
@@ -104,13 +179,15 @@ export async function excerptClaudeTranscript(
       for (const block of message.content) {
         const b = obj(block);
         if (b.type === "text") {
-          push({ timestamp: time, role: "assistant", text: clean(str(b.text), maxChars) });
+          push({ timestamp: time, role: "assistant", text: scrub(str(b.text), maxChars) }, TIER.answer);
         } else if (b.type === "tool_use") {
           const name = str(b.name) || "unknown";
-          const summary = toolSummary(name, obj(b.input));
-          push({ timestamp: time, role: "tool", toolName: name, text: clean(summary || name, maxChars) });
           const id = str(b.id);
-          if (id && toolNames.size < MAX_CANDIDATES) toolNames.set(id, name);
+          // Claude Code writes some tool blocks twice (once rewritten); show the call once.
+          if (id && toolSummaries.has(id)) continue;
+          const summary = toolSummary(name, obj(b.input));
+          if (id && toolSummaries.size < MAX_CANDIDATES) toolSummaries.set(id, { name, summary });
+          push({ timestamp: time, role: "tool", toolName: name, text: oneLine(summary || name, Math.min(maxChars, TOOL_LINE_CHARS)) }, TIER.tool);
         }
       }
     } else if (record.type === "user") {
@@ -119,34 +196,28 @@ export async function excerptClaudeTranscript(
           const b = obj(block);
           if (b.type !== "tool_result" || b.is_error !== true) continue;
           // Only failures are shown: they explain friction, and successful output is noise (and often private).
-          push({
-            timestamp: time,
-            role: "tool",
-            toolName: toolNames.get(str(b.tool_use_id)) ?? "unknown",
-            isError: true,
-            text: clean(toolResultText(b.content), maxChars),
-          });
+          const call = toolSummaries.get(str(b.tool_use_id));
+          const context = call?.summary ? `${oneLine(call.summary, ERROR_CONTEXT_CHARS)} → ` : "";
+          push(
+            { timestamp: time, role: "tool", toolName: call?.name ?? "unknown", isError: true, text: scrub(`${context}${toolResultText(b.content)}`, maxChars) },
+            TIER.failure,
+          );
         }
       }
-      if (record.isMeta === true || record.isCompactSummary === true || record.isVisibleInTranscriptOnly === true) continue;
-      const origin = obj(record.origin);
-      if (typeof origin.kind === "string" && origin.kind !== "human") continue;
-      const { text, hasToolResult } = userText(message.content);
-      if (hasToolResult) continue;
-      const kind = classifyUserText(text);
-      const shown =
-        kind.kind === "prompt" ? kind.text : kind.kind === "slash" ? `${kind.name} ${kind.args}`.trim() : kind.kind === "bash" ? `! ${kind.command}` : kind.kind === "interrupt" ? "[interrupted]" : "";
-      if (shown) push({ timestamp: time, role: "user", text: clean(shown, maxChars) });
+      if (record.isCompactSummary === true) continue;
+      typed(classifyUserRecord(record), time, false);
     } else if (record.type === "attachment") {
       const attachment = obj(record.attachment);
-      if (attachment.type !== "queued_command" || attachment.commandMode !== "prompt" || attachment.isMeta === true) continue;
-      const origin = obj(attachment.origin);
-      if (typeof origin.kind === "string" && origin.kind !== "human") continue;
-      const prompt = attachment.prompt;
-      const kind = classifyUserText(typeof prompt === "string" ? prompt : userText(prompt).text);
-      if (kind.kind === "prompt") push({ timestamp: time, role: "user", text: clean(kind.text, maxChars) });
+      if (attachment.type !== "queued_command") continue;
+      typed(classifyQueuedCommand(attachment), isoTime(attachment.timestamp) ?? time, true);
     }
   }
+  const final = lastAnswer as Candidate | null;
+  if (final) {
+    final.tier = TIER.anchor;
+    candidates.push(final);
+  }
 
-  return options.around ? pickAround(turns, maxTurns, options.around) : spread(turns, maxTurns);
+  const picked = options.around ? nearest(candidates, maxTurns, options.around) : byPriority(candidates, maxTurns);
+  return picked.map((candidate) => candidate.turn);
 }

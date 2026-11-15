@@ -23,8 +23,8 @@ describe("claude source: excerpts for the model pass", () => {
       { timestamp: T(1), role: "assistant", text: "Running the deploy." },
       { timestamp: T(1), role: "tool", toolName: "Bash", text: "make deploy" },
       { timestamp: T(3), role: "tool", toolName: "Bash", text: "make test" },
-      { timestamp: T(4), role: "tool", toolName: "Bash", isError: true, text: "Exit code 2\nmake: *** No rule to make target" },
-      { timestamp: T(5), role: "user", text: "use the staging target" },
+      { timestamp: T(4), role: "tool", toolName: "Bash", isError: true, text: "make test → Exit code 2\nmake: *** No rule to make target" },
+      { timestamp: T(5), role: "user", text: "[sent while the agent was working] use the staging target" },
     ]);
     expect(JSON.stringify(turns)).not.toContain("private reasoning");
     expect(JSON.stringify(turns)).not.toContain("SECRET OUTPUT");
