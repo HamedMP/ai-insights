@@ -64,6 +64,23 @@ describe("hindsight (no command)", () => {
     expect(out).toContain("hindsight skill");
   });
 
+  it("calls summed session time agent-hours and uses wall-clock hours when the analysis has them", async () => {
+    await run([], deps());
+    expect(out.split("\n")[1]).toMatch(/^0\.8 agent-hours on 1 day;/);
+    out = "";
+    await run([], deps({ buildReport: fakeBuildReport([], { wallClockActiveMinutes: 30 }) }));
+    expect(out.split("\n")[1]).toMatch(/^0\.5 active hours \(0\.8 agent-hours across parallel sessions\) on 1 day;/);
+  });
+
+  it("says how much usage could not be priced next to the cost", async () => {
+    await run([], deps({ buildReport: fakeBuildReport([], { estimatedUsd: 1_633, requests: 100, unpriced: 13 }) }));
+    expect(out.split("\n")[1]).toContain("about $1,633 for the requests we can price; 13% unpriced.");
+    out = "";
+    await run([], deps({ buildReport: fakeBuildReport([], { estimatedUsd: null, requests: 5, unpriced: 5 }) }));
+    expect(out.split("\n")[1]).toContain("cost unknown: none of the requests could be priced");
+    expect(out.split("\n")[1]).not.toContain("$");
+  });
+
   it("opens the report only when asked", async () => {
     await run([], deps());
     expect(opened).toEqual([]);
@@ -96,7 +113,18 @@ describe("hindsight scan", () => {
     expect(out).toMatch(/Claude Code\s+1 session/);
     expect(out).toMatch(/Codex\s+1 session/);
     expect(out).toMatch(/Cursor\s+not found/);
-    expect(out).toContain("2 sessions, 6 prompts");
+    expect(out).toContain("2 sessions, 6 prompts, 0.8 agent-hours");
+    expect(out).not.toMatch(/\d active hours/);
+  });
+
+  it("adds wall-clock time and an honest cost when the analysis runs", async () => {
+    await run(["scan"], deps({ buildReport: fakeBuildReport([], { wallClockActiveMinutes: 30, estimatedUsd: 10, requests: 4, unpriced: 1 }) }));
+    expect(out).toContain("0.5 active hours (0.8 agent-hours across parallel sessions); about $10.00 for the requests we can price; 25% unpriced.");
+  });
+
+  it("still lists coverage when the analysis fails", async () => {
+    expect(await run(["scan"], deps({ buildReport: () => { throw new Error("nope"); } }))).toBe(0);
+    expect(out).toMatch(/Claude Code\s+1 session/);
   });
 
   it("shows how much history each harness holds on disk as a human size", async () => {

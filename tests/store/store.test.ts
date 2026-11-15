@@ -2,7 +2,7 @@ import { readdir, readFile, stat, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ZodError } from "zod";
-import { FRICTION_TYPES, GOAL_CATEGORIES } from "../../src/schema/types.js";
+import { DRIVERS, FRICTION_TYPES, GOAL_CATEGORIES, OUTCOMES } from "../../src/schema/types.js";
 import { describeIssues } from "../../src/store/schemas.js";
 import { KEEP_REPORT_COPIES, Store, resolveHome } from "../../src/store/store.js";
 import { parseSince } from "../../src/store/since.js";
@@ -98,6 +98,29 @@ describe("facets", () => {
     const message = describeIssues(error as ZodError);
     expect(message).toContain("goalCategories.1");
     for (const value of GOAL_CATEGORIES) expect(message).toContain(value);
+  });
+
+  it("accepts every goal category and outcome in the contract, including orchestration, tooling and in_progress", async () => {
+    expect(GOAL_CATEGORIES).toContain("orchestration");
+    expect(GOAL_CATEGORIES).toContain("tooling");
+    expect(OUTCOMES).toContain("in_progress");
+    for (const goal of GOAL_CATEGORIES) await expect(store.saveFacet({ ...validFacet("g"), goalCategories: [goal] })).resolves.toBeTruthy();
+    for (const outcome of OUTCOMES) await expect(store.saveFacet({ ...validFacet("o"), outcome })).resolves.toBeTruthy();
+  });
+
+  it("records who drove the session when the agent says so, and stays valid without it", async () => {
+    for (const drivenBy of DRIVERS) {
+      expect((await store.saveFacet({ ...validFacet("d"), drivenBy })).drivenBy).toBe(drivenBy);
+    }
+    expect(await store.readFacet("claude-code", "d")).toMatchObject({ drivenBy: DRIVERS.at(-1) });
+    const legacy = await store.saveFacet(validFacet("legacy"));
+    expect("drivenBy" in legacy).toBe(false);
+  });
+
+  it("rejects an unknown driver and lists the allowed ones", async () => {
+    const message = describeIssues((await store.saveFacet({ ...validFacet("d"), drivenBy: "robot" }).catch((caught: unknown) => caught)) as ZodError);
+    expect(message).toContain("drivenBy");
+    for (const value of DRIVERS) expect(message).toContain(value);
   });
 
   it("rejects unknown friction types and names the allowed ones", async () => {

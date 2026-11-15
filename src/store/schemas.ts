@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  DRIVERS,
   FRICTION_TYPES,
   GOAL_CATEGORIES,
   HARNESSES,
@@ -73,6 +74,7 @@ export const SessionFacetSchema = z.strictObject({
   frictions: FrictionsSchema,
   frictionDetail: redacted(1000),
   summary: shortText(1000),
+  drivenBy: oneOf(DRIVERS, "drivenBy").optional(),
 }) satisfies z.ZodType<SessionFacet, unknown>;
 
 const HttpUrlSchema = z

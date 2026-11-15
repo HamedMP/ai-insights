@@ -55,7 +55,8 @@ export async function renderFromScan(deps: PipelineDeps, result: ScanResult): Pr
 export interface Headline {
   sessions: number;
   userPrompts: number;
-  activeHours: number;
+  /** Summed over sessions, so parallel sessions add up. Not the person's time. */
+  agentHours: number;
   toolCalls: number;
   toolErrors: number;
   modelRequests: number;
@@ -92,12 +93,97 @@ export function headline(sessions: Session[]): Headline {
   return {
     sessions: sessions.length,
     userPrompts,
-    activeHours: Math.round((activeMinutes / 60) * 10) / 10,
+    agentHours: round1(activeMinutes / 60),
     toolCalls,
     toolErrors,
     modelRequests,
     tokens,
     firstSession: first === null ? null : new Date(first).toISOString(),
     lastSession: last === null ? null : new Date(last).toISOString(),
+  };
+}
+
+function round1(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
+function hoursText(hours: number): string {
+  return hours >= 10 ? Math.round(hours).toLocaleString("en-US") : String(round1(hours));
+}
+
+export function formatUsd(value: number): string {
+  return value >= 100 ? `$${Math.round(value).toLocaleString("en-US")}` : `$${value.toFixed(2)}`;
+}
+
+export interface ReportHeadline {
+  sessions: number;
+  activeDays: number;
+  /** Wall-clock hours with at least one session active; null when the analysis did not measure it. */
+  activeHours: number | null;
+  /** Summed session hours: parallel sessions add up. */
+  agentHours: number;
+  tokens: number;
+  estimatedUsd: number | null;
+  requests: number;
+  unpricedRequests: number;
+  /** 0..1 share of requests with no known price. */
+  unpricedShare: number;
+  /** Models behind most of the unpriced requests. */
+  unpricedModels: string[];
+  /** e.g. "about $1,633 for the requests we can price; 13% unpriced". Never a bare total when some usage is unpriced. */
+  cost: string;
+  /** e.g. "90 active hours (120 agent-hours across parallel sessions)". */
+  time: string;
+}
+
+/**
+ * The numbers people read first, phrased so they cannot mislead: time is
+ * wall-clock when measured and summed time is called agent-hours; cost always
+ * says how much could not be priced.
+ */
+export function describeHeadline(report: Report): ReportHeadline {
+  const activity = report.activity;
+  const usage = report.usage;
+  const agentHours = round1(activity.totalActiveMinutes / 60);
+  const wallClock = activity.wallClockActiveMinutes;
+  const activeHours = typeof wallClock === "number" && Number.isFinite(wallClock) ? round1(wallClock / 60) : null;
+  const requests = usage.requests || 0;
+  const unpriced = Math.min(usage.unpriced || 0, requests);
+  const unpricedShare = requests > 0 ? unpriced / requests : 0;
+  const unpricedModels = [...usage.models]
+    .filter((model) => model.unpriced > 0)
+    .sort((a, b) => b.unpriced - a.unpriced)
+    .slice(0, 3)
+    .map((model) => model.model);
+
+  let cost: string;
+  if (usage.estimatedUsd === null) {
+    cost = requests > 0 ? "cost unknown: none of the requests could be priced" : "no model requests to price";
+  } else if (unpriced === 0) {
+    cost = `about ${formatUsd(usage.estimatedUsd)} at API list prices`;
+  } else {
+    const percent = unpricedShare * 100;
+    const share = percent < 1 ? "<1%" : `${Math.round(percent)}%`;
+    cost = `about ${formatUsd(usage.estimatedUsd)} for the requests we can price; ${share} unpriced`;
+  }
+
+  const time =
+    activeHours === null
+      ? `${hoursText(agentHours)} agent-hours`
+      : `${hoursText(activeHours)} active hours (${hoursText(agentHours)} agent-hours across parallel sessions)`;
+
+  return {
+    sessions: activity.sessions,
+    activeDays: activity.activeDays,
+    activeHours,
+    agentHours,
+    tokens: usage.tokens,
+    estimatedUsd: usage.estimatedUsd,
+    requests,
+    unpricedRequests: unpriced,
+    unpricedShare,
+    unpricedModels,
+    cost,
+    time,
   };
 }
