@@ -1,7 +1,7 @@
 import type { Finding, Suggestion } from "../../schema/types.js";
 import { barList } from "../charts.js";
 import { card, copyBlock, rich, sectionHead, type RenderContext } from "../components.js";
-import { clip, count, formatDateTime, formatInt, formatUsd, num, plural } from "../format.js";
+import { bytesFor, clip, count, formatBytes, formatDateTime, formatInt, formatUsd, num, plural } from "../format.js";
 import { html, type SafeHtml } from "../html.js";
 import { harnessLabel, keyLabel, severityLabel, severityRank, suggestionLabel } from "../labels.js";
 import { countItems, narrativeFrictions } from "./narrative.js";
@@ -13,8 +13,11 @@ const MAX_CHIPS = 12;
 const MAX_TITLE = 160;
 const MAX_TEXT = 1600;
 
-/** Kinds shown elsewhere: unused features under features to try, short history in the closing section. */
-const NOT_A_PROBLEM = new Set(["unused_feature", "short_history"]);
+/** Findings that are an opportunity rather than a problem; they are shown under features to try. */
+const FEATURE_KINDS = new Set(["unused_feature", "history_disk_usage"]);
+/** Kinds shown outside the problem list: feature kinds, and short history in the closing section. */
+const NOT_A_PROBLEM = new Set([...FEATURE_KINDS, "short_history"]);
+const MAX_URL = 2000;
 const FEATURE_TYPES = new Set(["feature", "plugin"]);
 
 export interface SuggestionItem {
@@ -57,7 +60,7 @@ export function collectAdvice(context: RenderContext): Advice {
 
   for (const suggestion of context.report.narrative?.suggestions ?? []) add(suggestion, null);
   for (const finding of context.report.findings ?? []) {
-    if (finding.kind === "unused_feature" && !finding.suggestion) bareFeatureFindings.push(finding);
+    if (FEATURE_KINDS.has(finding.kind) && !finding.suggestion) bareFeatureFindings.push(finding);
     add(finding.suggestion, finding);
   }
   return { general, features, bareFeatureFindings, anchorForFinding };
@@ -66,7 +69,16 @@ export function collectAdvice(context: RenderContext): Advice {
 function metricText(finding: Finding): SafeHtml | null {
   const metric = finding.metric;
   if (!metric || !Number.isFinite(metric.value)) return null;
-  const value = /^usd$/i.test(String(metric.unit)) ? formatUsd(metric.value) : Number.isInteger(metric.value) ? formatInt(metric.value) : num(metric.value).toFixed(1);
+  const unit = String(metric.unit);
+  const bytes = bytesFor(metric.value, unit);
+  const value =
+    bytes !== null
+      ? formatBytes(bytes)
+      : /^usd$/i.test(unit)
+        ? formatUsd(metric.value)
+        : Number.isInteger(metric.value)
+          ? formatInt(metric.value)
+          : num(metric.value).toFixed(1);
   return html`<div class="metric"><b>${value}</b><span>${clip(String(metric.label || metric.unit || ""), 80)}</span></div>`;
 }
 
@@ -115,17 +127,37 @@ ${shown.length > 0
 </section>`;
 }
 
-function learnMore(url: string | undefined): SafeHtml | null {
-  if (typeof url !== "string" || !/^https?:\/\//i.test(url)) return null;
-  // Shown as text, not a link: the report's only outbound link is Matrix OS.
-  return html`<p class="learn">Learn more: <code>${clip(url.replace(/^https?:\/\//i, ""), 200)}</code></p>`;
+/**
+ * A suggestion's URL as a parsed http(s) URL, or null. Anything else (javascript:,
+ * data:, protocol-relative, credentials, garbage) is never rendered at all.
+ */
+export function safeLink(url: unknown): URL | null {
+  if (typeof url !== "string" || url.length > MAX_URL) return null;
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
+  if (parsed.username || parsed.password) return null;
+  return parsed;
 }
 
-function suggestionCard(context: RenderContext, item: SuggestionItem): SafeHtml {
+function learnMore(url: string | undefined): SafeHtml | null {
+  const link = safeLink(url);
+  if (!link) return null;
+  // The normalised href percent-encodes quotes and spaces; the html tag escapes it again anyway.
+  const label = clip(link.href.replace(/^https?:\/\//i, "").replace(/\/$/, ""), 120);
+  return html`<p class="learn">Learn more: <a href="${link.href}" target="_blank" rel="noopener noreferrer">${label}</a></p>`;
+}
+
+function suggestionCard(context: RenderContext, item: SuggestionItem, showMetric = false): SafeHtml {
   const { suggestion, finding } = item;
   return html`<article class="card suggestion" id="${item.anchor}">
 <div class="type">${suggestionLabel(String(suggestion.type))}</div>
 <h3>${rich(suggestion.title, MAX_TITLE)}</h3>
+${showMetric && finding ? html`<div style="margin-top:10px">${metricText(finding)}</div>` : null}
 <p class="muted" style="margin-top:8px">${rich(suggestion.action, MAX_TEXT)}</p>
 ${suggestion.instructionText ? copyBlock(context, suggestion.instructionText, `instructions: ${clip(suggestion.title, 80)}`) : null}
 ${learnMore(suggestion.url)}
@@ -166,8 +198,8 @@ ${card(html`<div class="card-head"><h3>What you use today</h3></div><div class="
 <dt>Context compactions</dt><dd>${formatInt(features?.compactions ?? 0)}</dd>
 </dl>${inUse.length > 0 ? html`<div class="stack">${inUse}</div>` : html`<p class="muted" style="margin-top:14px">No MCP servers, skills or slash commands used yet.</p>`}</div>`)}
 ${advice.features.length > 0 || advice.bareFeatureFindings.length > 0
-    ? html`<div class="grid two">${advice.features.map((item) => suggestionCard(context, item))}${advice.bareFeatureFindings.slice(0, MAX_SUGGESTIONS).map((finding) =>
-        card(html`<div class="type eyebrow">Feature</div><h3 style="margin-top:6px">${rich(finding.title, MAX_TITLE)}</h3><p class="muted" style="margin-top:8px">${rich(finding.detail, MAX_TEXT)}</p>`, "suggestion"),
+    ? html`<div class="grid two">${advice.features.map((item) => suggestionCard(context, item, true))}${advice.bareFeatureFindings.slice(0, MAX_SUGGESTIONS).map((finding) =>
+        card(html`<div class="type eyebrow">Feature</div><h3 style="margin-top:6px">${rich(finding.title, MAX_TITLE)}</h3>${metricText(finding)}<p class="muted" style="margin-top:8px">${rich(finding.detail, MAX_TEXT)}</p>`, "suggestion"),
       )}</div>`
     : html`<div class="chart-empty">Nothing new to try right now. You are using the main features already.</div>`}
 </div>

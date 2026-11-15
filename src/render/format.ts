@@ -147,3 +147,29 @@ export function humanize(key: string): string {
   const text = key.replace(/_/g, " ").trim();
   return text ? text.charAt(0).toUpperCase() + text.slice(1) : key;
 }
+
+const BYTE_UNITS: Record<string, number> = { b: 1, bytes: 1, kb: 1e3, mb: 1e6, gb: 1e9, tb: 1e12 };
+
+/** Bytes for a metric whose unit is a size ("MB", "GB", "bytes"), else null. */
+export function bytesFor(value: number, unit: string): number | null {
+  const scale = BYTE_UNITS[unit.trim().toLowerCase()];
+  return scale === undefined || !Number.isFinite(value) ? null : value * scale;
+}
+
+/** Decimal units, as disk tools report them: "2.4 GB", "512 MB". */
+export function formatBytes(bytes: number): string {
+  const b = count(bytes);
+  const units: Array<[number, string]> = [
+    [1e12, "TB"],
+    [1e9, "GB"],
+    [1e6, "MB"],
+    [1e3, "KB"],
+  ];
+  for (const [size, suffix] of units) {
+    if (b >= size) {
+      const scaled = b / size;
+      return `${trimZeros(scaled.toFixed(scaled >= 100 ? 0 : 1))} ${suffix}`;
+    }
+  }
+  return `${formatInt(b)} B`;
+}
