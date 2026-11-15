@@ -1,6 +1,6 @@
 import { isAbsolute, join } from "node:path";
 import type { ModelRequest, Session, SessionFeatures, ToolCall, TranscriptTurn, UserPrompt } from "../../schema/types.js";
-import { activeMinutes, clean, languageForPath, truncate } from "../shared.js";
+import { activeMinutes, languageForPath, scrub, truncate } from "../shared.js";
 import { normalise, readRecords, type RawRecord } from "./read.js";
 import { agentText, contentText, hasImage, isQuestionReply, promptText } from "./prompts.js";
 import { localPath, MAX_EVIDENCE, scriptDirs, type ProjectEvidence } from "./project.js";
@@ -104,7 +104,7 @@ class PromptTrack {
     if (this.prompts.length >= MAX_PROMPTS) return null;
     const slash = /^\/([\w:.-]+)/.exec(text.trimStart());
     if (slash && this.slashCommands.length < 200) this.slashCommands.push(slash[1]!);
-    const prompt: UserPrompt = { timestamp, text: clean(text, 2000) };
+    const prompt: UserPrompt = { timestamp, text: scrub(text, 2000) };
     if (interrupted) prompt.interrupted = true;
     this.prompts.push(prompt);
     return prompt;
@@ -400,7 +400,7 @@ export class RolloutBuilder {
     if (kind === "local_shell_call" || call.category === "shell") {
       const script = commandText(kind === "local_shell_call" ? obj(payload.action).command : (args.command ?? args.cmd ?? args.chars));
       if (script && name !== "write_stdin") {
-        call.command = clean(script, 300);
+        call.command = scrub(script, 300);
         entry.git = gitOperations(script);
         const skill = skillFromCommand(script);
         if (skill) {
@@ -563,7 +563,7 @@ export class RolloutBuilder {
         const script = commandText(item.command);
         const parsed = categoryForParsed(item.parsed_cmd);
         const call: ToolCall = { name: "exec_command", category: parsed.category, timestamp: at };
-        if (script) call.command = clean(script, 300);
+        if (script) call.command = scrub(script, 300);
         if (parsed.path) call.filePath = this.absolute(parsed.path);
         const output = [item.stderr, item.aggregated_output, item.stdout].find((value) => typeof value === "string" && value) as string | undefined;
         const error = shellError(item.exit_code, output ?? "", item.status);
