@@ -1,5 +1,5 @@
 import type { Session } from "../../schema/types.js";
-import { evidence, harnessesOf, MAX_EVIDENCE, percent, plural, round, type Detector } from "./context.js";
+import { evidence, harnessesOf, isAgentDriven, MAX_EVIDENCE, percent, plural, round, type Detector } from "./context.js";
 
 /** Below this many interruptions the rate is too noisy to mean anything. */
 const MIN_INTERRUPTIONS = 10;
@@ -15,6 +15,7 @@ export const frequentInterruptions: Detector = ({ sessions }) => {
   let interrupted = 0;
   const perSession: Array<{ session: Session; count: number; first: string }> = [];
   for (const session of sessions) {
+    if (isAgentDriven(session)) continue;
     let count = 0;
     let first = "";
     for (const prompt of session.prompts) {

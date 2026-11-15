@@ -1,5 +1,5 @@
 import type { Finding, Session } from "../../schema/types.js";
-import { commandKey, normalizeCommand } from "./commands.js";
+import { commandKey, hasTempPath, isRecognisable, normalizeCommand, readableCommand } from "./commands.js";
 import { evidence, harnessesOf, label, MAX_EVIDENCE, MAX_FINDINGS_PER_KIND, plural, type Detector } from "./context.js";
 
 /** Three identical failures in a row means the agent is retrying instead of diagnosing. */
@@ -14,6 +14,8 @@ const MIN_FAILURE_RATE = 0.5;
 const HIGH_STREAK = 8;
 const MEDIUM_STREAK = 5;
 
+/** A command that runs a temporary file must recur across sessions before it says anything about the setup. */
+const MIN_TEMP_SESSIONS = 2;
 /** Timeouts count too: re-running a command that hangs wastes the same turns. */
 const FAILURES = new Set(["command_failed", "timeout"]);
 
@@ -64,7 +66,11 @@ export const repeatedFailedCommand: Detector = ({ sessions }) => {
     const inARow = row.bestStreak >= MIN_STREAK && (row.sessions.size >= 2 || row.bestStreak >= LONE_STREAK);
     const acrossSessions = row.sessions.size >= MIN_SESSIONS && row.failures / row.runs >= MIN_FAILURE_RATE;
     if (!inARow && !acrossSessions) continue;
-    const command = label(row.display);
+    // A throwaway temp script failing in one session is a scratch experiment, not a habit to fix.
+    if (hasTempPath(row.display) && row.sessions.size < MIN_TEMP_SESSIONS) continue;
+    if (!isRecognisable(row.display)) continue;
+    const command = label(readableCommand(row.display));
+    const varies = command !== row.display;
     const ranked = [...row.sessions].sort((a, b) => b[1].failures - a[1].failures || a[1].firstAt.localeCompare(b[1].firstAt));
     const items = ranked.slice(0, MAX_EVIDENCE).map(([session, info]) =>
       session === row.bestStreakSession && row.bestStreak >= MIN_STREAK
@@ -76,8 +82,9 @@ export const repeatedFailedCommand: Detector = ({ sessions }) => {
     const parts = [`\`${command}\` failed ${plural(row.failures, "time")} out of ${plural(row.runs, "run")} across ${plural(row.sessions.size, "session")}.`];
     if (inARow) parts.push(`At worst it failed ${row.bestStreak} times in a row, which usually means the agent retried without changing anything.`);
     if (acrossSessions) parts.push("It fails in session after session, so the agent is probably missing a setup step or using the wrong command for this project.");
+    if (varies) parts.push("Arguments that change from run to run (numbers, ids, temporary files) are shown as \u2026.");
     findings.push({
-      id: `repeated_failed_command:${commandKey(command)}`,
+      id: `repeated_failed_command:${commandKey(row.display)}`,
       kind: "repeated_failed_command",
       severity,
       title: `\`${command}\` keeps failing`,

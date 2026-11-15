@@ -1,7 +1,7 @@
 import type { Finding, Session, UserPrompt } from "../../schema/types.js";
 import { median } from "../activity.js";
 import { parseMs } from "../time.js";
-import { evidence, harnessesOf, MAX_EVIDENCE, minutes, plural, round, type Detector } from "./context.js";
+import { evidence, harnessesOf, isAgentDriven, MAX_EVIDENCE, minutes, plural, round, type Detector } from "./context.js";
 
 /** The agent worked this long on its own before the person cut in: long enough to have gone far down a wrong path. */
 const SLOW_GAP_MIN = 10;
@@ -33,7 +33,8 @@ function corrections(session: Session): Correction[] {
 }
 
 export const slowCorrection: Detector = ({ sessions }) => {
-  const slow = sessions.flatMap(corrections).filter((item) => item.minutesBefore >= SLOW_GAP_MIN);
+  // When an orchestrator drives the session, its timing is not the person's habit.
+  const slow = sessions.filter((session) => !isAgentDriven(session)).flatMap(corrections).filter((item) => item.minutesBefore >= SLOW_GAP_MIN);
   const involved = new Set(slow.map((item) => item.session));
   if (slow.length < MIN_SLOW_CORRECTIONS || involved.size < MIN_SLOW_SESSIONS) return [];
   const typical = median(slow.map((item) => item.minutesBefore)) ?? 0;

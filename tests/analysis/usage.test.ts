@@ -75,6 +75,25 @@ describe("usage and cost", () => {
     expect(build([late], "UTC").usage.daily.map((row) => row.day)).toEqual(["2026-06-02"]);
   });
 
+  it("carries unpriced counts on each model row, so the share priced can be shown per model", () => {
+    const report = build([
+      session({
+        requests: [
+          request({ model: "claude-opus-5-5" }),
+          request({ model: "mystery-model-9" }),
+          request({ model: "mystery-model-9" }),
+          request({ model: "claude-sonnet-4-5-20250929", usage: { input: 250_000 } }),
+        ],
+      }),
+    ]);
+    const rows = Object.fromEntries(report.usage.models.map((row) => [row.model, row]));
+    expect(rows["mystery-model-9"]).toMatchObject({ requests: 2, unpriced: 2, estimatedUsd: null });
+    expect(rows["claude-opus-5-5"]).toMatchObject({ requests: 1, unpriced: 0 });
+    expect(rows["claude-sonnet-4-5-20250929"]).toMatchObject({ requests: 1, unpriced: 1, estimatedUsd: null });
+    expect(report.usage.models.reduce((sum, row) => sum + row.unpriced, 0)).toBe(report.usage.unpriced);
+    expect(report.usage.unpriced).toBe(3);
+  });
+
   it("reports no hit rate when there was no input at all", () => {
     expect(build([session({ requests: [] })]).usage.cacheHitRate).toBeNull();
   });

@@ -41,6 +41,43 @@ export function normalizeCommand(command: string): string {
   return text.slice(0, MAX_COMMAND_CHARS);
 }
 
+const PLACEHOLDER = /<(?:tmp|hash|id|time|n)>/;
+const PLACEHOLDERS = /<(?:tmp|hash|id|time|n)>/g;
+/** Programs that say nothing on their own: `node <temp file>` could be anything. */
+const INTERPRETERS = new Set(["node", "bash", "sh", "zsh", "fish", "python", "python3", "deno", "bun", "ruby", "perl", "php", "tsx", "ts-node", "npx", "uv", "uvx", "pnpm dlx", "source", "."]);
+
+/**
+ * The command as a person should read it: run-to-run values become "…" and output redirected
+ * to a temp file is dropped, so no placeholder, hash or temp path reaches the report.
+ */
+export function readableCommand(normalized: string): string {
+  return normalized
+    .replace(/\s*\d?>>?\s*<tmp>/g, "")
+    .replace(PLACEHOLDERS, "…")
+    .replace(/…(?:[\s/._-]*…)+/g, "…")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Whether a person would recognise the command: everything before the first run-to-run
+ * value must name something beyond an interpreter and flags, like `gh pr view` or a script path.
+ */
+export function isRecognisable(normalized: string): boolean {
+  const cut = normalized.search(PLACEHOLDER);
+  if (cut < 0) return normalized.trim().length > 0;
+  const words = normalized
+    .slice(0, cut)
+    .trim()
+    .split(/\s+/)
+    .filter((word) => word && !word.startsWith("-") && !INTERPRETERS.has(word));
+  return words.some((word) => word.length >= 2);
+}
+
+export function hasTempPath(normalized: string): boolean {
+  return normalized.includes("<tmp>");
+}
+
 /** Short stable key for a normalised command: readable prefix plus a hash of the whole thing. */
 export function commandKey(normalized: string, maxChars = 40): string {
   if (normalized.length <= maxChars) return normalized;

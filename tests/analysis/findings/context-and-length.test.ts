@@ -28,6 +28,11 @@ describe("long_sessions", () => {
     expect(result[0]!.severity).toBe("medium");
   });
 
+  it("judges length by active time, not by how long a session sat open", () => {
+    const sessions = sessionsOverDays(8, (index) => (index < 4 ? { durationMinutes: 5000, activeMinutes: 40 } : {}));
+    expect(findings("long_sessions", sessions)).toEqual([]);
+  });
+
   it("stays quiet on one marathon among normal sessions", () => {
     const sessions = sessionsOverDays(8, (index) => (index === 0 ? { activeMinutes: 400 } : {}));
     expect(findings("long_sessions", sessions)).toEqual([]);

@@ -16,7 +16,11 @@ export const longSessions: Detector = ({ sessions }) => {
   const items = [...long]
     .sort((a, b) => b.activeMinutes - a.activeMinutes || b.userMessageCount - a.userMessageCount || a.startTime.localeCompare(b.startTime))
     .slice(0, MAX_EVIDENCE)
-    .map((session) => evidence(session, `${minutes(session.activeMinutes)} active, ${plural(session.userMessageCount, "prompt")}`));
+    .map((session) => {
+      // Active time is what the threshold measures; wall-clock is shown only so a session left open for days reads correctly.
+      const open = session.durationMinutes >= 2 * session.activeMinutes && session.durationMinutes >= 24 * 60 ? `, open for ${Math.round(session.durationMinutes / 1440)} days` : "";
+      return evidence(session, `${minutes(session.activeMinutes)} of active work, ${plural(session.userMessageCount, "prompt")}${open}`);
+    });
   return [
     {
       id: "long_sessions",

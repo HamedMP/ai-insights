@@ -18,7 +18,15 @@ export interface Clock {
   day(timestamp: string): string | null;
   /** 0..23 in the report zone, or null for an unparseable timestamp. */
   hour(timestamp: string): number | null;
+  dayOfMs(ms: number): string;
+  /** The first instant after `ms` that falls on the next local day. */
+  nextMidnight(ms: number): number;
 }
+
+/** Every zone offset in use is a multiple of 15 minutes, so the local day and hour are constant within a 15-minute UTC slot. */
+const SLOT_MS = 15 * 60_000;
+/** Bounds the memo on very long histories; a year is about 35k slots. */
+const MAX_MEMO = 200_000;
 
 export function makeClock(timeZone: string): Clock {
   const formatter = new Intl.DateTimeFormat("en-CA", {
@@ -27,25 +35,51 @@ export function makeClock(timeZone: string): Clock {
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
     hourCycle: "h23",
   });
-  const parts = (timestamp: string) => {
-    const ms = Date.parse(timestamp);
-    if (!Number.isFinite(ms)) return null;
-    const out: Record<string, string> = {};
-    for (const part of formatter.formatToParts(new Date(ms))) out[part.type] = part.value;
-    return out;
+  const fields = (ms: number) => {
+    const out: Record<string, number> = {};
+    for (const part of formatter.formatToParts(new Date(ms))) if (part.type !== "literal") out[part.type] = Number(part.value);
+    return out as { year: number; month: number; day: number; hour: number; minute: number; second: number };
+  };
+  const memo = new Map<number, { day: string; hour: number }>();
+  const slot = (ms: number) => {
+    const key = Math.floor(ms / SLOT_MS);
+    let value = memo.get(key);
+    if (!value) {
+      const f = fields(key * SLOT_MS);
+      value = { day: `${f.year}-${String(f.month).padStart(2, "0")}-${String(f.day).padStart(2, "0")}`, hour: f.hour % 24 };
+      if (memo.size >= MAX_MEMO) memo.clear();
+      memo.set(key, value);
+    }
+    return value;
+  };
+  /** Local wall-clock time minus UTC, in ms, at instant `ms`. */
+  const offset = (ms: number) => {
+    const f = fields(ms);
+    return Date.UTC(f.year, f.month - 1, f.day, f.hour % 24, f.minute, f.second) - Math.floor(ms / 1000) * 1000;
   };
   return {
     day(timestamp) {
-      const p = parts(timestamp);
-      return p ? `${p.year}-${p.month}-${p.day}` : null;
+      const ms = Date.parse(timestamp);
+      return Number.isFinite(ms) ? slot(ms).day : null;
     },
     hour(timestamp) {
-      const p = parts(timestamp);
-      if (!p) return null;
-      const hour = Number(p.hour);
-      return Number.isInteger(hour) && hour >= 0 && hour < 24 ? hour : null;
+      const ms = Date.parse(timestamp);
+      return Number.isFinite(ms) ? slot(ms).hour : null;
+    },
+    dayOfMs(ms) {
+      return slot(ms).day;
+    },
+    nextMidnight(ms) {
+      const f = fields(ms);
+      const nextWall = Date.UTC(f.year, f.month - 1, f.day + 1);
+      // Re-read the offset at the candidate so a DST change during the day lands on the real midnight.
+      const guess = nextWall - offset(ms);
+      const exact = nextWall - offset(guess);
+      return exact > ms ? exact : ms + DAY_MS;
     },
   };
 }

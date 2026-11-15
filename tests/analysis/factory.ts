@@ -35,7 +35,7 @@ export function task(): string {
   return `${VERBS[n % VERBS.length]} ${NOUNS[Math.floor(n / VERBS.length) % NOUNS.length]} ${PLACES[Math.floor(n / (VERBS.length * NOUNS.length)) % PLACES.length]} module`;
 }
 
-export function request(overrides: Partial<ModelRequest> & { usage?: Partial<ModelRequest["usage"]> } = {}): ModelRequest {
+export function request(overrides: Omit<Partial<ModelRequest>, "usage"> & { usage?: Partial<ModelRequest["usage"]> } = {}): ModelRequest {
   counter += 1;
   const { usage, ...rest } = overrides;
   return {

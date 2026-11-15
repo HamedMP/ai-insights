@@ -31,6 +31,15 @@ export function evidence(session: Session, note: string, timestamp?: string): Ev
   return out;
 }
 
+/**
+ * True when other agents (an orchestrator, task notifications) sent more messages than the
+ * person typed. Such sessions say little about how the person steers an agent.
+ */
+export function isAgentDriven(session: Session): boolean {
+  const agent = session.agentMessageCount ?? 0;
+  return agent > 0 && agent > Math.max(session.userMessageCount, session.prompts.length);
+}
+
 export function harnessesOf(sessions: Iterable<Session>): Harness[] {
   return [...new Set([...sessions].map((session) => session.harness))].sort();
 }

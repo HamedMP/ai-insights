@@ -74,7 +74,72 @@ describe("activity", () => {
     expect(report.activity.parallelSessions).toEqual({ overlapEvents: 1, maxConcurrent: 2, sessionsInvolved: 2 });
   });
 
+  it("reports wall-clock active time as the union of sessions, so parallel work is not double counted", () => {
+    const busy = (id: string, from: string, to: string) => {
+      const calls = [];
+      for (let ms = Date.parse(from); ms <= Date.parse(to); ms += 5 * 60_000) calls.push(tool("read", { timestamp: new Date(ms).toISOString() }));
+      return session({ id, startTime: from, endTime: to, activeMinutes: (Date.parse(to) - Date.parse(from)) / 60_000, prompts: [], requests: [], toolCalls: calls });
+    };
+    const report = build([
+      busy("a", "2026-06-01T09:00:00.000Z", "2026-06-01T09:30:00.000Z"),
+      busy("b", "2026-06-01T09:05:00.000Z", "2026-06-01T09:15:00.000Z"),
+      busy("c", "2026-06-01T09:30:00.000Z", "2026-06-01T09:40:00.000Z"),
+    ]);
+    expect(report.activity.totalActiveMinutes).toBe(50);
+    expect(report.activity.wallClockActiveMinutes).toBe(40);
+    expect(report.activity.daily[0]!.activeMinutes).toBe(40);
+  });
+
+  it("never reports more than 24 hours of activity in a day", () => {
+    const allDay = (id: string) => {
+      const calls = [];
+      for (let ms = Date.parse("2026-06-01T00:00:00.000Z"); ms <= Date.parse("2026-06-02T00:00:00.000Z"); ms += 5 * 60_000) {
+        calls.push(tool("read", { timestamp: new Date(ms).toISOString() }));
+      }
+      return session({ id, startTime: "2026-06-01T00:00:00.000Z", endTime: "2026-06-02T00:00:00.000Z", activeMinutes: 1440, prompts: [], requests: [], toolCalls: calls });
+    };
+    const report = build([allDay("a"), allDay("b"), allDay("c")]);
+    expect(report.activity.totalActiveMinutes).toBe(4320);
+    expect(report.activity.wallClockActiveMinutes).toBe(1440);
+    for (const row of report.activity.daily) expect(row.activeMinutes).toBeLessThanOrEqual(1440);
+    expect(report.activity.daily.find((row) => row.day === "2026-06-01")?.activeMinutes).toBe(1440);
+  });
+
+  it("splits activity that crosses local midnight between both days, and counts the session on each", () => {
+    const calls = [];
+    // 23:30 to 00:30 in Tokyo (UTC+9)
+    for (let ms = Date.parse("2026-06-01T14:30:00.000Z"); ms <= Date.parse("2026-06-01T15:30:00.000Z"); ms += 5 * 60_000) {
+      calls.push(tool("read", { timestamp: new Date(ms).toISOString() }));
+    }
+    const report = build(
+      [session({ startTime: "2026-06-01T14:30:00.000Z", endTime: "2026-06-01T15:30:00.000Z", prompts: [], requests: [], toolCalls: calls })],
+      "Asia/Tokyo",
+    );
+    expect(report.activity.daily.map((row) => [row.day, row.sessions, row.activeMinutes])).toEqual([
+      ["2026-06-01", 1, 30],
+      ["2026-06-02", 1, 30],
+    ]);
+  });
+
+  it("counts a session on a later day where only its messages landed", () => {
+    const report = build([
+      session({
+        startTime: "2026-06-01T09:00:00.000Z",
+        endTime: "2026-06-03T09:05:00.000Z",
+        userMessageCount: 2,
+        prompts: [prompt("start the migration work", "2026-06-01T09:00:00.000Z"), prompt("pick it back up please", "2026-06-03T09:05:00.000Z")],
+        requests: [],
+        toolCalls: [],
+      }),
+    ]);
+    const third = report.activity.daily.find((row) => row.day === "2026-06-03");
+    expect(third).toMatchObject({ sessions: 1, userMessages: 1 });
+    expect(report.activity.daily.filter((row) => row.userMessages > 0 && row.sessions === 0)).toEqual([]);
+    expect(report.activity.activeDays).toBe(2);
+  });
+
   it("does not treat a session resumed the next day as running all night", () => {
+
     const resumed = session({
       id: "resumed",
       startTime: "2026-06-01T09:00:00Z",

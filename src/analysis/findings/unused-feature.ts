@@ -1,5 +1,5 @@
 import type { Evidence, Finding, Harness, Session, Suggestion } from "../../schema/types.js";
-import { evidence, harnessesOf, MAX_EVIDENCE, plural, type Detector } from "./context.js";
+import { evidence, harnessesOf, isAgentDriven, MAX_EVIDENCE, plural, type Detector } from "./context.js";
 
 /** "Never used" only means something once there is a decent amount of history to have used it in. */
 const MIN_SESSIONS = 10;
@@ -21,6 +21,8 @@ interface FeatureCheck {
   key: string;
   name: string;
   harnesses: Harness[];
+  /** Only judge sessions the person steered: work handed over by an orchestrator arrives already planned. */
+  personOnly?: boolean;
   used(session: Session): boolean;
   /** Why this session would have benefited, or null. */
   why(session: Session): Evidence | null;
@@ -57,6 +59,7 @@ const CHECKS: FeatureCheck[] = [
     key: "plan_mode",
     name: "plan mode",
     harnesses: ["claude-code"],
+    personOnly: true,
     used: (session) => session.features.planMode || count(session, (c) => c === "plan") > 0,
     why(session) {
       const lines = session.linesAdded + session.linesRemoved;
@@ -136,7 +139,7 @@ const CHECKS: FeatureCheck[] = [
 export const unusedFeature: Detector = ({ sessions }) => {
   const findings: Finding[] = [];
   for (const check of CHECKS) {
-    const eligible = sessions.filter((session) => check.harnesses.includes(session.harness));
+    const eligible = sessions.filter((session) => check.harnesses.includes(session.harness) && !(check.personOnly && isAgentDriven(session)));
     if (eligible.length < MIN_SESSIONS || eligible.some((session) => check.used(session))) continue;
     const reasons = eligible.flatMap((session) => {
       const item = check.why(session);
