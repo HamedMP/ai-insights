@@ -178,6 +178,8 @@ ul.examples li+li{margin-top:4px}
 .suggestion h3{margin-top:6px}
 .suggestion .from{font-size:var(--fs-xs);color:var(--muted);margin-top:12px}
 .learn{font-size:var(--fs-sm);color:var(--muted);margin-top:12px;overflow-wrap:anywhere}
+.learn a{text-underline-offset:2px}
+.learn a::after{content:" ↗";speak:never}
 .copy{position:relative;margin-top:16px}
 .copy pre{margin:0;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:16px 18px;padding-right:84px;font-size:var(--fs-xs);line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere;max-height:22rem;overflow:auto;color:var(--text)}
 .copy button{display:none;position:absolute;top:10px;right:10px;font:600 var(--fs-xs)/1 var(--font);color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:7px 11px;cursor:pointer}

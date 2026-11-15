@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderReport } from "../../src/render/index.js";
+import type { Report } from "../../src/schema/types.js";
 import { makeDeterministicReport, makeEmptyReport, makeHostileReport, makeReport, makeYearReport } from "./fixtures.js";
 
 const FULL_SECTIONS = ["overview", "coverage", "work", "activity", "usage", "wins", "friction", "suggestions", "features", "horizon", "matrix"];
@@ -23,14 +24,58 @@ function styleBlock(html: string): string {
   return html.slice(html.indexOf("<style>"), html.indexOf("</style>"));
 }
 
-/** Every place a document can pull in or point at another resource. */
-function externalReferences(html: string): string[] {
-  const refs: string[] = [];
-  for (const match of html.matchAll(/\b(?:href|src|srcset|action|formaction|poster|data|xlink:href)\s*=\s*"([^"]*)"/gi)) refs.push(match[1]!);
+interface Reference {
+  tag: string;
+  attr: string;
+  value: string;
+  /** The whole opening tag, to check target and rel on links. */
+  source: string;
+}
+
+function unescape(value: string): string {
+  return value.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+}
+
+/** Every place a document can pull in or point at another resource, except in-page anchors. */
+function externalReferences(html: string): Reference[] {
+  const refs: Reference[] = [];
+  for (const tag of html.matchAll(/<([a-zA-Z][\w:-]*)\b[^>]*>/g)) {
+    for (const attr of tag[0].matchAll(/\s(href|src|srcset|action|formaction|poster|data|xlink:href|background|cite|ping)\s*=\s*"([^"]*)"/gi)) {
+      refs.push({ tag: tag[1]!.toLowerCase(), attr: attr[1]!.toLowerCase(), value: unescape(attr[2]!), source: tag[0] });
+    }
+  }
   const css = styleBlock(html);
-  for (const match of css.matchAll(/url\(\s*([^)]*)\)/gi)) refs.push(match[1]!);
-  for (const match of css.matchAll(/@import\s+([^;]+)/gi)) refs.push(match[1]!);
-  return refs.filter((ref) => !ref.startsWith("#"));
+  for (const match of css.matchAll(/url\(\s*([^)]*)\)/gi)) refs.push({ tag: "style", attr: "url", value: match[1]!, source: match[0] });
+  for (const match of css.matchAll(/@import\s+([^;]+)/gi)) refs.push({ tag: "style", attr: "import", value: match[1]!, source: match[0] });
+  return refs.filter((ref) => !ref.value.startsWith("#"));
+}
+
+/** Normalised http(s) URLs the report's suggestions carry: the only links allowed besides Matrix OS. */
+function suggestionLinks(report: Report): Set<string> {
+  const urls = [...(report.narrative?.suggestions ?? []), ...report.findings.map((finding) => finding.suggestion)]
+    .map((suggestion) => suggestion?.url)
+    .filter((url): url is string => typeof url === "string");
+  const out = new Set<string>();
+  for (const url of urls) {
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol === "http:" || parsed.protocol === "https:") out.add(parsed.href);
+    } catch {
+      // Not a URL at all, so it can never be a link.
+    }
+  }
+  return out;
+}
+
+/** References that are neither the Matrix OS link nor a suggestion link rendered as a safe new-tab anchor. */
+function forbiddenReferences(html: string, report: Report): Reference[] {
+  const allowed = suggestionLinks(report);
+  return externalReferences(html).filter((ref) => {
+    if (ref.tag !== "a" || ref.attr !== "href") return true;
+    if (ref.value === "https://matrix-os.com") return false;
+    const safeTab = ref.source.includes('target="_blank"') && ref.source.includes('rel="noopener noreferrer"');
+    return !(safeTab && /^https?:\/\//.test(ref.value) && allowed.has(ref.value));
+  });
 }
 
 describe("renderReport output", () => {
@@ -46,12 +91,11 @@ describe("renderReport output", () => {
     expect(html.match(/<script\b/g)).toHaveLength(1);
   });
 
-  it("references nothing outside the file except the Matrix OS link, so it works offline and leaks nothing", () => {
+  it("loads nothing and links out only to Matrix OS and http(s) suggestion links, so it works offline and leaks nothing", () => {
     for (const report of [makeReport(), makeDeterministicReport(), makeHostileReport(), makeEmptyReport()]) {
       const html = renderReport(report);
-      const external = externalReferences(html);
-      expect(external.every((ref) => ref === "https://matrix-os.com")).toBe(true);
-      expect(external).toContain("https://matrix-os.com");
+      expect(forbiddenReferences(html, report)).toEqual([]);
+      expect(externalReferences(html).map((ref) => ref.value)).toContain("https://matrix-os.com");
       expect(html).not.toMatch(/<(?:link|img|iframe|object|embed|video|audio|source|base|form)\b/i);
       expect(html).not.toMatch(/\bfetch\(|XMLHttpRequest|WebSocket|EventSource|sendBeacon|import\(/);
     }
@@ -62,11 +106,25 @@ describe("renderReport output", () => {
     expect(html).toMatch(/<meta http-equiv="Content-Security-Policy" content="default-src 'none';[^"]*script-src 'sha256-[^']+'/);
   });
 
-  it("only links out to matrix-os.com, even when a suggestion carries its own URL", () => {
+  it("makes suggestion URLs real links that open in a new tab, labelled with the short URL", () => {
     const html = renderReport(makeReport());
-    const anchors = [...html.matchAll(/<a\b[^>]*href="([^"]*)"/g)].map((match) => match[1]!);
-    expect(anchors.filter((href) => !href.startsWith("#"))).toEqual(["https://matrix-os.com"]);
-    expect(html).toContain("docs.claude.com/en/docs/claude-code/common-workflows");
+    expect(html).toContain(
+      '<a href="https://docs.claude.com/en/docs/claude-code/common-workflows" target="_blank" rel="noopener noreferrer">docs.claude.com/en/docs/claude-code/common-workflows</a>',
+    );
+    expect(html).toContain('<a href="https://example.org/plugins/test-runner" target="_blank" rel="noopener noreferrer">example.org/plugins/test-runner</a>');
+  });
+
+  it("keeps the CSP closed: links need no allowance and the page still loads nothing", () => {
+    const html = renderReport(makeReport());
+    const csp = /http-equiv="Content-Security-Policy" content="([^"]+)"/.exec(html)![1]!;
+    expect(csp).toContain("default-src 'none'");
+    expect(csp).not.toMatch(/https?:|\*|connect-src|navigate-to/);
+  });
+
+  it("shows no learn-more line for a suggestion without a URL", () => {
+    const html = renderReport(makeReport());
+    const card = html.slice(html.indexOf("Compress and save disk space"));
+    expect(card.slice(0, card.indexOf("</article>"))).not.toContain("Learn more");
   });
 
   it("stays well under 1 MB for a year of daily data with many models, findings and projects", () => {
@@ -99,8 +157,17 @@ describe("escaping untrusted report text", () => {
     expect(html).toContain("&quot;&gt;&lt;img src=x onerror=alert(1)&gt;");
   });
 
-  it("does not turn a javascript: suggestion URL into a link", () => {
-    expect(html).not.toMatch(/href="javascript:/i);
+  it("never links a non-http(s) suggestion URL: javascript:, data:, vbscript:, protocol-relative or padded", () => {
+    const hrefs = [...html.matchAll(/<a\b[^>]*\shref="([^"]*)"/g)].map((match) => match[1]!);
+    for (const href of hrefs) expect(href).toMatch(/^(#|https?:\/\/)/);
+    expect(html).not.toMatch(/href="\s*(?:javascript|data|vbscript):/i);
+    expect(html).not.toContain('href="//');
+  });
+
+  it("links a hostile http(s) URL only in normalised form, so quotes cannot break out of the attribute", () => {
+    expect(html).toContain('href="https://ok.example/a%22%20onmouseover=%22alert(1)"');
+    expect(html).toContain('href="http://plain.example/docs"');
+    expect(eventHandlerAttributes(html)).toEqual([]);
   });
 
   it("falls back to UTC when the time zone is not a real zone", () => {
@@ -190,6 +257,22 @@ describe("full report with facets and narrative", () => {
     expect(html).toContain("~/code/storefront");
     expect(html).not.toContain("/home/dev/code/storefront");
     expect(html).not.toContain("/Users/dev/");
+  });
+
+  it("puts the disk-usage finding under features to try with its size, not among the problems", () => {
+    const features = html.slice(html.indexOf('id="features"'), html.indexOf('id="horizon"'));
+    const friction = html.slice(html.indexOf('id="friction"'), html.indexOf('id="suggestions"'));
+    expect(features).toContain("Compress and save disk space");
+    expect(features).toContain("2.4 GB");
+    expect(features).toContain("agent history on disk");
+    expect(friction).not.toContain("Compress and save disk space");
+    expect(friction).not.toContain("Agent history takes");
+  });
+
+  it("shows how much disk each tool's history uses when the scan measured it", () => {
+    const coverage = html.slice(html.indexOf('id="coverage"'), html.indexOf('id="work"'));
+    expect(coverage).toContain("On disk");
+    expect(coverage).toContain("2.1 GB");
   });
 
   it("closes with one Matrix OS section and no short-history numbers when history is long", () => {

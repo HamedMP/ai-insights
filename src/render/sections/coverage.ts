@@ -1,4 +1,4 @@
-import { count, formatDate, formatInt, parseInstant, plural } from "../format.js";
+import { count, formatBytes, formatDate, formatInt, parseInstant, plural } from "../format.js";
 import { html, type SafeHtml } from "../html.js";
 import { harnessLabel } from "../labels.js";
 import { sectionHead, type RenderContext } from "../components.js";
@@ -25,6 +25,7 @@ function coverageCard(context: RenderContext, entry: Coverage): SafeHtml {
 ${oldest ? html`<dt>Oldest</dt><dd>${oldest}</dd>` : null}
 ${newest ? html`<dt>Newest</dt><dd>${newest}</dd>` : null}
 ${days !== null ? html`<dt>History</dt><dd>${plural(days, "day")}</dd>` : null}
+${typeof entry.bytes === "number" && Number.isFinite(entry.bytes) && entry.bytes > 0 ? html`<dt>On disk</dt><dd>${formatBytes(entry.bytes)}</dd>` : null}
 ${count(entry.issues) > 0 ? html`<dt>Records skipped</dt><dd>${formatInt(entry.issues)}</dd>` : null}
 </dl></div>`;
 }

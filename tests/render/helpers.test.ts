@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { barList, calendarHeatmap, columnChart, monthTicks, niceScale, weekday } from "../../src/render/charts.js";
 import { createContext, rich } from "../../src/render/components.js";
-import { dayNumber, formatCompact, formatHours, formatPercent, formatUsd, safeTimeZone, shortenPath } from "../../src/render/format.js";
+import { safeLink } from "../../src/render/sections/advice.js";
+import { HOSTILE_URLS } from "./fixtures.js";
+import { bytesFor, dayNumber, formatBytes, formatCompact, formatHours, formatPercent, formatUsd, safeTimeZone, shortenPath } from "../../src/render/format.js";
 import { html, raw } from "../../src/render/html.js";
 import { makeReport } from "./fixtures.js";
 
@@ -72,6 +74,28 @@ describe("formatting", () => {
   it("rejects malformed day buckets", () => {
     expect(dayNumber("2026-11-14")).not.toBeNull();
     expect(dayNumber("14/11/2026")).toBeNull();
+  });
+});
+
+describe("suggestion links", () => {
+  it("accepts only http(s) URLs, so a hostile report cannot plant a script link", () => {
+    const accepted = HOSTILE_URLS.filter((url) => safeLink(url) !== null).map((url) => safeLink(url)!.href);
+    expect(accepted).toEqual(["https://ok.example/a%22%20onmouseover=%22alert(1)", "http://plain.example/docs"]);
+  });
+
+  it("rejects links with embedded credentials and absurdly long URLs", () => {
+    expect(safeLink("https://user:pass@example.org/")).toBeNull();
+    expect(safeLink(`https://example.org/${"a".repeat(3000)}`)).toBeNull();
+    expect(safeLink(undefined)).toBeNull();
+  });
+});
+
+describe("sizes", () => {
+  it("reads size metrics in any byte unit and shows them in decimal units", () => {
+    expect(formatBytes(bytesFor(2400, "MB")!)).toBe("2.4 GB");
+    expect(formatBytes(512_000_000)).toBe("512 MB");
+    expect(formatBytes(900)).toBe("900 B");
+    expect(bytesFor(3, "failures")).toBeNull();
   });
 });
 

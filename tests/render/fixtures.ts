@@ -152,6 +152,7 @@ function buildDeterministic(shape: ReportShape): Report {
       found: true,
       files: Math.round(sessions * claudeShare) + 4,
       sessions: Math.round(sessions * claudeShare),
+      bytes: 2_100_000_000,
       issues: 3,
       oldest: `${first}T08:12:00.000Z`,
       newest: `${last}T22:41:00.000Z`,
@@ -329,6 +330,21 @@ function buildDeterministic(shape: ReportShape): Report {
         { sessionId: "a1b2c3d4-0030", harness: "codex", note: "apply_patch rejected 5 times on the same file" },
         { sessionId: "a1b2c3d4-0031", harness: "claude-code", note: "Edit failed 3 times: old text not unique" },
       ],
+    },
+    {
+      id: "history_disk_usage",
+      kind: "history_disk_usage",
+      severity: "info",
+      title: "Agent history takes 2400 MB on disk",
+      detail: "Your agent transcripts take 2400 MB across Claude Code, Codex.",
+      harnesses: ["claude-code", "codex"],
+      metric: { value: 2400, unit: "MB", label: "agent history on disk" },
+      evidence: [{ sessionId: "a1b2c3d4-0050", harness: "claude-code", note: "Claude Code history takes 2100 MB on disk" }],
+      suggestion: {
+        type: "plugin",
+        title: "Compress and save disk space",
+        action: "Agent transcripts repeat a lot of text, so they compress very well. packmem compresses your agent history to save disk space without losing it.",
+      },
     },
     {
       id: "unused_feature:plan_mode",
@@ -545,6 +561,19 @@ export const HOSTILE = {
   textarea: "</textarea></pre></code><iframe src=\"https://evil.example\"></iframe>",
 };
 
+/** Suggestion URLs a hostile or broken report could carry; only the http(s) ones may become links. */
+export const HOSTILE_URLS = [
+  "javascript:alert(1)",
+  "JaVaScRiPt:alert(1)",
+  " javascript:alert(1)",
+  "data:text/html,<script>alert(1)</script>",
+  "vbscript:msgbox(1)",
+  "//evil.example/x",
+  "file:///etc/passwd",
+  "https://ok.example/a\" onmouseover=\"alert(1)",
+  "http://plain.example/docs",
+];
+
 /** A full report with hostile text in every string field the renderer shows. */
 export function makeHostileReport(): Report {
   const report = makeReport();
@@ -591,7 +620,10 @@ export function makeHostileReport(): Report {
       interactionStyle: all,
       wins: [{ title: HOSTILE.img, description: all }],
       frictions: [{ title: HOSTILE.svg, description: all, examples: [HOSTILE.script, HOSTILE.textarea] }],
-      suggestions: [{ type: "instructions", title: HOSTILE.style, action: all, instructionText: all, url: HOSTILE.link }],
+      suggestions: [
+        { type: "instructions", title: HOSTILE.style, action: all, instructionText: all, url: HOSTILE.link },
+        ...HOSTILE_URLS.map((url, index) => ({ type: "plugin" as const, title: `Hostile link ${index}`, action: all, url })),
+      ],
       horizon: [{ title: HOSTILE.link, description: all, starterPrompt: all }],
     },
   };
