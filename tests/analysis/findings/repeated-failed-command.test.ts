@@ -38,6 +38,32 @@ describe("repeated_failed_command", () => {
     expect(normalizeCommand("  pnpm   test ")).toBe("pnpm test");
   });
 
+  it("ignores a throwaway temp script failing in a single session", () => {
+    const calls = [1, 2, 3, 4, 5, 6].map((minute) => shell(`timeout 600 node /tmp/scratch-${"9f".repeat(32)}/probe.js`, "command_failed", day(0, minute)));
+    expect(findings("repeated_failed_command", [session({ toolCalls: calls })])).toEqual([]);
+  });
+
+  it("does not emit a finding a person could not recognise, like `node <temp file>`", () => {
+    const sessions = sessionsOverDays(3, (index) => ({
+      toolCalls: [1, 2, 3].map((minute) => shell(`node /tmp/run-${index}${minute}/a.js`, "command_failed", day(index, minute))),
+    }));
+    expect(findings("repeated_failed_command", sessions)).toEqual([]);
+  });
+
+  it("keeps placeholders, hashes and temp paths out of what the person reads", () => {
+    const sessions = sessionsOverDays(3, (index) => ({
+      toolCalls: [1, 2, 3].map((minute) => shell(`gh pr view ${4000 + index * 10 + minute} --json state > /tmp/out-${"ab12".repeat(4)}.json`, "command_failed", day(index, minute))),
+    }));
+    const [finding] = findings("repeated_failed_command", sessions);
+    expect(finding).toBeDefined();
+    const shown = [finding!.title, finding!.detail, finding!.suggestion?.instructionText ?? "", ...finding!.evidence.map((item) => item.note)];
+    for (const text of shown) {
+      expect(text).not.toMatch(/<(?:tmp|hash|id|time|n)>/);
+      expect(text).not.toMatch(/\/tmp|[0-9a-f]{12}|40\d\d/);
+    }
+    expect(finding!.suggestion?.instructionText).toContain("gh pr view");
+  });
+
   it("strips timeout and kill wrappers", () => {
     expect(normalizeCommand("timeout --kill-after=30s 600 pnpm test")).toBe("pnpm test");
     expect(normalizeCommand("timeout -k 10s -s KILL 5m make check")).toBe("make check");
@@ -66,7 +92,7 @@ describe("repeated_failed_command", () => {
   });
 
   it("groups a failing command across temp dirs into one finding with a short, stable id", () => {
-    const run = (hash: string) => `timeout --kill-after=30s 600 bash /tmp/hindsight-${hash}/verify-the-whole-repository-with-every-check-we-have.sh --run ${hash.slice(0, 12)}`;
+    const run = (hash: string) => `timeout --kill-after=30s 600 pnpm --dir /tmp/hindsight-${hash}/checkout run verify-the-whole-repository-with-every-check --run ${hash.slice(0, 12)}`;
     const make = () =>
       [0, 1, 2].map((index) =>
         session({
@@ -80,7 +106,8 @@ describe("repeated_failed_command", () => {
     expect(first[0]!.id).toBe(second[0]!.id);
     expect(first[0]!.id.length).toBeLessThanOrEqual(80);
     expect(first[0]!.title).not.toMatch(/[0-9a-f]{12}/);
-    expect(first[0]!.title).toContain("<tmp>");
+    expect(first[0]!.title).not.toContain("<tmp>");
+    expect(first[0]!.title).toContain("pnpm --dir …");
     expect(first[0]!.metric?.value).toBe(9);
   });
 });

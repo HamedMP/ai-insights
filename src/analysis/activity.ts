@@ -68,6 +68,34 @@ export function activeSpans(session: Session): Array<[number, number]> {
   return spans.filter(([start, end]) => end > start);
 }
 
+/** Merges overlapping spans so time when several sessions ran counts once. */
+export function unionSpans(spans: Array<[number, number]>): Array<[number, number]> {
+  const merged: Array<[number, number]> = [];
+  for (const [start, end] of [...spans].sort((a, b) => a[0] - b[0])) {
+    const last = merged.at(-1);
+    if (last && start <= last[1]) last[1] = Math.max(last[1], end);
+    else merged.push([start, end]);
+  }
+  return merged;
+}
+
+/** Wall-clock milliseconds of activity per local day, from already merged spans. */
+function msPerDay(merged: Array<[number, number]>, clock: Clock): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const [spanStart, spanEnd] of merged) {
+    let start = spanStart;
+    while (start < spanEnd) {
+      const end = Math.min(spanEnd, clock.nextMidnight(start));
+      const day = clock.dayOfMs(start);
+      out.set(day, (out.get(day) ?? 0) + (end - start));
+      start = end;
+    }
+  }
+  return out;
+}
+
+const MINUTES_PER_DAY = 1440;
+
 function parallelSessions(sessions: Session[]): Activity["parallelSessions"] {
   const events: Array<{ at: number; delta: 1 | -1; session: number }> = [];
   sessions.forEach((session, index) => {
@@ -131,12 +159,14 @@ export function buildActivity(sessions: Session[], clock: Clock): Activity {
   const files = new Set<string>();
   const responseTimes: number[] = [];
   const responseBuckets = new Map(RESPONSE_BUCKETS.map((bucket) => [bucket.key, 0]));
+  const spans: Array<[number, number]> = [];
 
   const activity: Activity = {
     sessions: sessions.length,
     activeDays: 0,
     longestStreakDays: 0,
     totalActiveMinutes: 0,
+    wallClockActiveMinutes: 0,
     userMessages: 0,
     assistantMessages: 0,
     linesAdded: 0,
@@ -177,11 +207,15 @@ export function buildActivity(sessions: Session[], clock: Clock): Activity {
     activity.gitCommits += session.gitCommits;
     for (const file of session.filesModified) files.add(file);
 
-    if (startDay) {
-      const row = dayRow(startDay);
-      row.sessions += 1;
-      row.activeMinutes += minutes;
+    // A session counts on every local day it did something, not only the day it started.
+    const days = new Set<string>();
+    if (startDay) days.add(startDay);
+    for (const value of [session.endTime, ...session.prompts.map((p) => p.timestamp), ...session.toolCalls.map((c) => c.timestamp), ...session.requests.map((r) => r.timestamp)]) {
+      const day = clock.day(value);
+      if (day) days.add(day);
     }
+    for (const day of days) dayRow(day).sessions += 1;
+    spans.push(...activeSpans(session));
     // Prompts may be capped by the source; messages beyond the cap are placed at the session start.
     let placed = 0;
     for (const prompt of session.prompts) {
@@ -231,6 +265,10 @@ export function buildActivity(sessions: Session[], clock: Clock): Activity {
     if (features.webSearch || features.webFetch) activity.features.sessionsWithWeb += 1;
     activity.features.compactions += features.compactions;
   }
+
+  const merged = unionSpans(spans);
+  activity.wallClockActiveMinutes = Math.round(merged.reduce((sum, [start, end]) => sum + (end - start), 0) / 60_000);
+  for (const [day, ms] of msPerDay(merged, clock)) dayRow(day).activeMinutes = Math.min(MINUTES_PER_DAY, Math.round(ms / 60_000));
 
   const activeDays = [...daily].filter(([, row]) => row.sessions > 0 || row.userMessages > 0).map(([day]) => day);
   activity.activeDays = activeDays.length;
