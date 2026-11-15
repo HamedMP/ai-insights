@@ -245,6 +245,47 @@ describe("codex token usage", () => {
     ]);
     expect(session.models).toEqual(["model-a", "model-b"]);
   });
+
+  it("does not recount usage a forked thread inherited, even when its counters drift from native totals", async () => {
+    const native = (id: string, own: number, total: number) =>
+      rec("token_usage_record", {
+        response_id: id,
+        thread_id: uuid(1),
+        usage: { input_tokens: own, cached_input_tokens: 0, output_tokens: 1 },
+        thread_token_usage: { input_tokens: total, cached_input_tokens: 0, output_tokens: 1000 },
+      });
+    const session = await parseOne([
+      meta(uuid(1), { forked_from_id: uuid(7), history_base: { thread_id: uuid(7), end_ordinal_exclusive: 10 }, forked_from_ordinal_exclusive: 10 }),
+      turnContext(),
+      ...userMessage("continue from the fork"),
+      native("r1", 100, 1_000_100),
+      tokenCount(900_100, 0, 900),
+      native("r2", 200, 1_000_300),
+      tokenCount(900_300, 0, 901),
+    ]);
+    expect(session.requests.map((request) => request.id)).toEqual(["codex-response:r1", "codex-response:r2"]);
+    expect(session.requests.reduce((sum, request) => sum + request.usage.input, 0)).toBe(300);
+  });
+
+  it("keeps counter-only usage from before a thread started writing native records", async () => {
+    const session = await parseOne([
+      meta(uuid(1)),
+      turnContext(),
+      ...userMessage("old turn"),
+      tokenCount(1000, 0, 10),
+      rec("token_usage_record", {
+        response_id: "r1",
+        thread_id: uuid(1),
+        usage: { input_tokens: 500, cached_input_tokens: 0, output_tokens: 5 },
+        thread_token_usage: { input_tokens: 1500, cached_input_tokens: 0, output_tokens: 15 },
+      }),
+      tokenCount(1500, 0, 15),
+    ]);
+    expect(session.requests.map((request) => [request.id.startsWith("codex-response:"), request.usage.input])).toEqual([
+      [false, 1000],
+      [true, 500],
+    ]);
+  });
 });
 
 describe("codex desktop rollouts", () => {
@@ -303,6 +344,18 @@ describe("codex desktop rollouts", () => {
     expect(session.filesModified).toEqual(["/work/demo/src/app.css", "/work/demo/src/theme.ts"]);
     expect(session.languages).toEqual({ CSS: 2, TypeScript: 1 });
     expect(session.features).toMatchObject({ mcpServers: ["figma"], skills: ["brand-colors"], subagents: 1, webFetch: true, compactions: 1 });
+  });
+
+  it("does not stretch a session to the day the thread was merely reopened", async () => {
+    const session = await parseOne([
+      meta(uuid(1)),
+      done({ type: "UserMessage", id: "u1", content: [{ type: "text", text: "quick fix" }] }),
+      ...assistant("fixed"),
+      rec("event_msg", { type: "thread_settings_applied", thread_id: uuid(1), thread_settings: {} }, { timestamp: "2026-03-20T09:00:00.000Z" }),
+      rec("world_state", { full: false, state: {} }, { timestamp: "2026-03-20T09:00:01.000Z" }),
+    ]);
+    expect(session.endTime.startsWith("2026-03-02")).toBe(true);
+    expect(session.durationMinutes).toBeLessThan(1);
   });
 
   it("treats a steer mid-turn as an interruption but not an answer to the agent's question", async () => {

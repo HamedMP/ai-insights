@@ -45,6 +45,7 @@ export class UsageParser {
   private session: string;
   private nativeTotals: Counters | undefined;
   private previous: Counters = { input: 0, cached: 0, output: 0 };
+  private inherited = false;
   private readonly events = new Map<string, UsageEvent>();
   issues = 0;
 
@@ -54,6 +55,14 @@ export class UsageParser {
 
   setSession(id: string): void {
     this.session = id;
+  }
+
+  /**
+   * A thread forked from another one carries the source thread's counters forward. Its first counter is
+   * the inherited baseline, already counted in the source thread, not usage of its own.
+   */
+  inheritCounters(): void {
+    this.inherited = true;
   }
 
   /** `model` is whatever the caller knows to be active for this record's turn. */
@@ -120,6 +129,11 @@ export class UsageParser {
       cached: count(usage.cached_input_tokens),
       output: count(usage.output_tokens),
     };
+    if (this.inherited) {
+      this.inherited = false;
+      this.previous = next;
+      return null;
+    }
     const native = this.nativeTotals;
     if (native && next.input === native.input && next.cached === native.cached && next.output === native.output) {
       this.previous = next;
@@ -236,8 +250,14 @@ export function reconcileUsageEvents(events: UsageEvent[]): { events: UsageEvent
   }
   const replaced = new Map<UsageEvent, UsageEvent | null>();
   let dropped = 0;
-  for (const { native, legacy } of sessions.values()) {
-    if (!legacy.length || !native.length) continue;
+  for (const { native, legacy: all } of sessions.values()) {
+    if (!all.length || !native.length) continue;
+    // Once Codex writes native records it writes one per response, so later counters only repeat them.
+    // Their totals can sit on a shifted scale (forked threads), which range matching cannot line up.
+    const firstNative = native.reduce((min, event) => Math.min(min, Date.parse(event.timestamp)), Infinity);
+    const legacy = all.filter((event) => Date.parse(event.timestamp) < firstNative);
+    for (const event of all) if (Date.parse(event.timestamp) >= firstNative) replaced.set(event, null);
+    if (!legacy.length) continue;
     const covered: Record<keyof Counters, Range[]> = { input: [], cached: [], output: [] };
     let uncertain = false;
     const prior: Counters = { input: 0, cached: 0, output: 0 };

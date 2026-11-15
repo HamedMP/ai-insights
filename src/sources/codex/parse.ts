@@ -191,7 +191,9 @@ export class RolloutBuilder {
     if (this.startOrdinal !== null && typeof record.ordinal === "number" && record.ordinal < this.startOrdinal) return;
 
     const timestamp = validTime(record.timestamp);
-    if (timestamp) this.seeTime(timestamp);
+    // Codex Desktop re-applies thread settings whenever a thread is reopened, days later; that is not work.
+    const passive = type === "world_state" || (type === "event_msg" && payload.type === "thread_settings_applied");
+    if (timestamp && !passive) this.seeTime(timestamp);
     const time = timestamp ?? this.last ?? "";
 
     switch (type) {
@@ -229,6 +231,7 @@ export class RolloutBuilder {
     this.cwd = str(payload.cwd) ?? this.cwd;
     this.branch = str(obj(payload.git).branch) ?? this.branch;
     if (typeof payload.subagent_history_start_ordinal === "number") this.startOrdinal = payload.subagent_history_start_ordinal;
+    if (this.meta.kind === "main" && (payload.history_base || typeof payload.forked_from_ordinal_exclusive === "number")) this.usage.inheritCounters();
     const time = validTime(timestamp) ?? validTime(payload.timestamp);
     if (time) this.seeTime(time);
   }
