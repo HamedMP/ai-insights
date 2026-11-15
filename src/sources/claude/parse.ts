@@ -1,7 +1,7 @@
 import { readdir } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import type { ModelRequest, Session, SessionFile, ToolCall, UserPrompt } from "../../schema/types.js";
-import { activeMinutes, clean, languageForPath, truncate } from "../shared.js";
+import { activeMinutes, languageForPath, truncate } from "../shared.js";
 import {
   EDIT_TOOLS,
   SUBAGENT_LAUNCH_TOOLS,
@@ -11,7 +11,9 @@ import {
   lineCount,
   lineDelta,
   mcpServer,
+  scrub,
   toolCategory,
+  type PromptKind,
 } from "./classify.js";
 import { DEFAULT_LIMITS, readJsonl, type JsonlLimits } from "./jsonl.js";
 
@@ -71,6 +73,35 @@ export function toolResultText(content: unknown): string {
     .join("\n");
 }
 
+/**
+ * What a main-thread user line is. Claude Code marks relays from other
+ * sessions inconsistently (some carry `origin`, some only `isMeta`, terminal
+ * hub messages claim to be typed), so origin and text are both checked.
+ */
+export function classifyUserRecord(record: Obj): PromptKind {
+  const { text, hasToolResult } = userText(obj(record.message).content);
+  if (hasToolResult) {
+    // Rejecting a tool call writes this marker next to the tool result.
+    return /\[Request interrupted by user/.test(text) ? { kind: "interrupt" } : { kind: "injected" };
+  }
+  if (record.isCompactSummary === true || record.isVisibleInTranscriptOnly === true) return { kind: "injected" };
+  const origin = obj(record.origin);
+  if (typeof origin.kind === "string" && origin.kind !== "human") return { kind: "agent", text };
+  // Scheduled tasks and loop wake-ups; plain isMeta lines are the harness expanding a skill or command.
+  if (record.isMeta === true) return record.promptSource === "system" ? { kind: "agent", text } : { kind: "injected" };
+  return classifyUserText(text);
+}
+
+export function classifyQueuedCommand(attachment: Obj): PromptKind {
+  const prompt = attachment.prompt;
+  const text = typeof prompt === "string" ? prompt : userText(prompt).text;
+  const origin = obj(attachment.origin);
+  if (typeof origin.kind === "string" && origin.kind !== "human") return { kind: "agent", text };
+  if (attachment.commandMode === "task-notification") return { kind: "agent", text };
+  if (attachment.commandMode !== "prompt" || attachment.isMeta === true) return { kind: "injected" };
+  return classifyUserText(text);
+}
+
 /** Where Claude Code keeps a session's subagent transcripts. */
 export function subagentDir(transcriptPath: string): string {
   return join(dirname(transcriptPath), basename(transcriptPath, ".jsonl"), "subagents");
@@ -114,6 +145,7 @@ class SessionBuilder {
   gitOps = new Map<number, { commits: number; pushes: number }>();
   prompts: UserPrompt[] = [];
   userMessageCount = 0;
+  agentMessageCount = 0;
   responseTimes: number[] = [];
   mcpServers = new Set<string>();
   skills = new Set<string>();
@@ -266,7 +298,7 @@ class SessionBuilder {
     if (category === "shell") {
       const command = str(input.command);
       if (command) {
-        call.command = clean(command, CAPS.commandChars);
+        call.command = scrub(command, CAPS.commandChars);
         for (const sub of gitSubcommands(command)) {
           if (sub === "commit") effect.commits += 1;
           else if (sub === "push") effect.pushes += 1;
@@ -345,34 +377,23 @@ class SessionBuilder {
       this.compactSummaries += 1;
       return;
     }
-    if (record.isMeta === true || record.isVisibleInTranscriptOnly === true) return;
-    const origin = obj(record.origin);
-    if (typeof origin.kind === "string" && origin.kind !== "human") return;
-
-    const { text, hasToolResult } = userText(m.content);
-    if (hasToolResult) {
-      // Rejecting a tool call writes this marker next to the tool result.
-      if (/\[Request interrupted by user/.test(text)) this.interruptPending = true;
-      return;
-    }
-    this.typed(text, time, false);
+    this.typed(classifyUserRecord(record), time, false);
   }
 
-  /** A prompt the person queued while the agent was still working. */
+  /** Something typed while the agent was still working, or a relay queued for it. */
   queuedCommand(attachment: Obj, time: string | null): void {
-    if (attachment.commandMode !== "prompt" || attachment.isMeta === true) return;
-    const origin = obj(attachment.origin);
-    if (typeof origin.kind === "string" && origin.kind !== "human") return;
-    const prompt = attachment.prompt;
-    const text = typeof prompt === "string" ? prompt : userText(prompt).text;
-    this.typed(text, isoTime(attachment.timestamp) ?? time, true);
+    this.typed(classifyQueuedCommand(attachment), isoTime(attachment.timestamp) ?? time, true);
   }
 
-  private typed(raw: string, time: string | null, queued: boolean): void {
-    const kind = classifyUserText(raw);
+  private typed(kind: PromptKind, time: string | null, queued: boolean): void {
     if (kind.kind === "injected") return;
     if (kind.kind === "interrupt") {
       this.interruptPending = true;
+      return;
+    }
+    if (kind.kind === "agent") {
+      // Another agent steering is not the person: no prompt, no response time, no turn reset.
+      this.agentMessageCount += 1;
       return;
     }
     let text: string;
@@ -384,7 +405,7 @@ class SessionBuilder {
     } else {
       text = kind.text;
     }
-    const cleaned = clean(text, CAPS.promptChars);
+    const cleaned = scrub(text, CAPS.promptChars);
     if (!cleaned) return;
     if (!time) {
       this.issues += 1;
@@ -482,6 +503,7 @@ class SessionBuilder {
       models: [...this.models],
       permissionMode: this.permissionMode,
       userMessageCount: this.userMessageCount,
+      agentMessageCount: this.agentMessageCount,
       assistantMessageCount: this.assistantMessages.size,
       prompts: this.prompts,
       userResponseTimesSec: this.responseTimes,
@@ -525,9 +547,10 @@ class SessionBuilder {
         break;
       case "system": {
         this.noteEnvelope(record);
-        this.noteTime(time, mainFile);
         if (!mainThread) break;
         const subtype = record.subtype;
+        // Other system records are harness bookkeeping, often written when an old session is merely reopened.
+        if (subtype === "compact_boundary" || subtype === "local_command") this.noteTime(time, mainFile);
         if (subtype === "compact_boundary") this.compactBoundaries += 1;
         else if (subtype === "turn_duration") this.turnEnded();
         else if (subtype === "local_command") {
@@ -537,10 +560,12 @@ class SessionBuilder {
         break;
       }
       case "attachment": {
-        this.noteTime(time, mainFile);
         if (!mainThread) break;
         const attachment = obj(record.attachment);
-        if (attachment.type === "queued_command") this.queuedCommand(attachment, time);
+        if (attachment.type === "queued_command") {
+          this.noteTime(isoTime(attachment.timestamp) ?? time, mainFile);
+          this.queuedCommand(attachment, time);
+        }
         else if (attachment.type === "invoked_skills" && Array.isArray(attachment.skills)) {
           for (const skill of attachment.skills.slice(0, CAPS.featureList)) {
             this.addSkill(typeof skill === "string" ? skill : obj(skill).name);
