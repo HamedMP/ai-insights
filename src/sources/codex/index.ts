@@ -3,7 +3,9 @@ import { join } from "node:path";
 import type { DiscoverOptions, ExcerptOptions, Session, SessionFile, Source, TranscriptTurn } from "../../schema/types.js";
 import { clean } from "../shared.js";
 import { expandRoots, rolloutIndex, rootForPath } from "./discover.js";
+import { shortenHome } from "./home.js";
 import { buildRollout, foldChild } from "./parse.js";
+import { chooseProject, MAX_EVIDENCE } from "./project.js";
 
 function codexHome(): string {
   const configured = process.env.CODEX_HOME?.trim();
@@ -37,18 +39,50 @@ async function parse(file: SessionFile): Promise<Session | null> {
     const session = built.session;
     if (!session) return null;
     const family = index.families.get(file.path);
+    const evidence = [...built.evidence];
     for (const child of family?.children ?? []) {
-      foldChild(session, await buildRollout(child.path, child.mtimeMs));
+      const folded = await buildRollout(child.path, child.mtimeMs);
+      foldChild(session, folded);
+      // A subagent's edits are this session's work; a guardian only reads what it reviews.
+      if (folded.meta.kind !== "guardian") evidence.push(...folded.evidence.slice(0, Math.max(0, MAX_EVIDENCE - evidence.length)));
     }
     if (family?.children.length) session.requests.sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
-    return session;
+    session.projectPath = chooseProject(session.projectPath, evidence);
+    return shortenSession(session);
   } catch {
     // Parsers never throw; an unreadable rollout simply holds no session.
     return null;
   }
 }
 
-/** Keep turns nearest an instant, or spread evenly across the session, always in time order. */
+/** Paths, commands and prompts show the home directory as `~`. `sourcePath` stays absolute: the store reads it back. */
+function shortenSession(session: Session): Session {
+  if (session.projectPath) session.projectPath = shortenHome(session.projectPath);
+  for (const prompt of session.prompts) prompt.text = shortenHome(prompt.text);
+  for (const call of session.toolCalls) {
+    if (call.command) call.command = shortenHome(call.command);
+    if (call.filePath) call.filePath = shortenHome(call.filePath);
+  }
+  session.filesModified = [...new Set(session.filesModified.map(shortenHome))];
+  return session;
+}
+
+type Indexed = { turn: TranscriptTurn; index: number };
+
+function pickEvenly<T>(items: T[], count: number): T[] {
+  if (count <= 0) return [];
+  if (items.length <= count) return items;
+  if (count === 1) return [items[items.length - 1]!];
+  const picked: T[] = [];
+  for (let step = 0; step < count; step += 1) picked.push(items[Math.round((step * (items.length - 1)) / (count - 1))]!);
+  return picked;
+}
+
+/**
+ * Tool and assistant turns vastly outnumber the person's. When turns must be dropped, keep what carries the
+ * signal first: the person's prompts (up to half the slots), the final answer, then failures and messages
+ * from other agents, then an even spread of the rest. Always in time order.
+ */
 function selectTurns(turns: TranscriptTurn[], maxTurns: number, around?: string): TranscriptTurn[] {
   if (turns.length <= maxTurns) return turns;
   const target = around ? Date.parse(around) : Number.NaN;
@@ -60,9 +94,32 @@ function selectTurns(turns: TranscriptTurn[], maxTurns: number, around?: string)
       .sort((a, b) => a.index - b.index)
       .map(({ index }) => turns[index]!);
   }
-  const picked: TranscriptTurn[] = [];
-  for (let step = 0; step < maxTurns; step += 1) picked.push(turns[Math.floor((step * turns.length) / maxTurns)]!);
-  return picked;
+  const indexed: Indexed[] = turns.map((turn, index) => ({ turn, index }));
+  let finalIndex = -1;
+  for (let index = turns.length - 1; index >= 0; index -= 1) {
+    if (turns[index]!.role === "assistant") {
+      finalIndex = index;
+      break;
+    }
+  }
+  const users = indexed.filter(({ turn }) => turn.role === "user");
+  const signals = indexed.filter(({ turn, index }) => index !== finalIndex && (turn.isError || turn.role === "agent"));
+  const rest = indexed.filter(({ turn, index }) => index !== finalIndex && turn.role !== "user" && !turn.isError && turn.role !== "agent");
+  const picked: Indexed[] = [];
+  let room = maxTurns;
+  if (finalIndex >= 0) {
+    picked.push(indexed[finalIndex]!);
+    room -= 1;
+  }
+  const others = signals.length + rest.length;
+  const userTake = Math.min(users.length, room, Math.max(Math.ceil(maxTurns / 2), room - others));
+  picked.push(...pickEvenly(users, userTake));
+  room -= userTake;
+  const signalTake = Math.min(signals.length, Math.max(Math.ceil(room / 2), room - rest.length));
+  picked.push(...pickEvenly(signals, signalTake));
+  room -= signalTake;
+  picked.push(...pickEvenly(rest, room));
+  return picked.sort((a, b) => a.index - b.index).map(({ turn }) => turn);
 }
 
 async function excerpt(file: SessionFile, options: ExcerptOptions = {}): Promise<TranscriptTurn[]> {
@@ -71,7 +128,7 @@ async function excerpt(file: SessionFile, options: ExcerptOptions = {}): Promise
   try {
     const built = await buildRollout(file.path, file.mtimeMs, { turnChars: maxChars });
     const turns = built.turns
-      .map((turn) => ({ ...turn, text: clean(turn.text, maxChars) }))
+      .map((turn) => ({ ...turn, text: clean(shortenHome(turn.text), maxChars) }))
       .filter((turn) => turn.text.length > 0);
     return selectTurns(turns, maxTurns, options.around);
   } catch {
