@@ -1,0 +1,154 @@
+import { readFileSync, readdirSync, existsSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { describe, expect, it } from "vitest";
+import {
+  FINDING_KINDS,
+  FRICTION_TYPES,
+  GOAL_CATEGORIES,
+  HELPFULNESS,
+  OUTCOMES,
+  SATISFACTION,
+  SESSION_TYPES,
+  SUCCESS_TYPES,
+  SUGGESTION_TYPES,
+  TOOL_CATEGORIES,
+  TOOL_ERROR_CATEGORIES,
+} from "../../src/schema/types.js";
+
+const ROOT = fileURLToPath(new URL("../..", import.meta.url));
+const SKILLS = join(ROOT, "skills");
+const REQUIRED = ["hindsight", "hindsight-coach", "hindsight-setup"];
+
+// The facet fields a skill may list values for, mapped to the contract array the values must come from.
+const FACET_FIELDS: Record<string, readonly string[]> = {
+  goalCategories: GOAL_CATEGORIES,
+  sessionType: SESSION_TYPES,
+  outcome: OUTCOMES,
+  helpfulness: HELPFULNESS,
+  satisfaction: SATISFACTION,
+  frictions: FRICTION_TYPES,
+  primarySuccess: SUCCESS_TYPES,
+};
+
+const TAXONOMY = new Set<string>([
+  ...GOAL_CATEGORIES,
+  ...SESSION_TYPES,
+  ...OUTCOMES,
+  ...HELPFULNESS,
+  ...SATISFACTION,
+  ...FRICTION_TYPES,
+  ...SUCCESS_TYPES,
+  ...FINDING_KINDS,
+  ...SUGGESTION_TYPES,
+  ...TOOL_CATEGORIES,
+  ...TOOL_ERROR_CATEGORIES,
+]);
+
+// The MCP tools the integration brief defines. A skill naming any other `hindsight_*` tool would send the agent after something that does not exist.
+const MCP_TOOLS = new Set([
+  "hindsight_scan",
+  "hindsight_report",
+  "hindsight_sessions",
+  "hindsight_excerpt",
+  "hindsight_save_facets",
+  "hindsight_save_narrative",
+  "hindsight_render",
+]);
+
+function skillDirs(): string[] {
+  return readdirSync(SKILLS, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name);
+}
+
+function read(skill: string): string {
+  return readFileSync(join(SKILLS, skill, "SKILL.md"), "utf8");
+}
+
+function frontmatter(text: string): Record<string, string> {
+  const block = text.match(/^---\n([\s\S]*?)\n---\n/)?.[1];
+  if (!block) return {};
+  const fields: Record<string, string> = {};
+  for (const line of block.split("\n")) {
+    const match = line.match(/^([A-Za-z_-]+):\s*(.*)$/);
+    if (match) fields[match[1]!] = match[2]!.replace(/^(["'])(.*)\1$/, "$2");
+  }
+  return fields;
+}
+
+function codeSpans(text: string): string[] {
+  const withoutFences = text.replace(/```[\s\S]*?```/g, "");
+  return [...withoutFences.matchAll(/`([^`\n]+)`/g)].map((match) => match[1]!);
+}
+
+describe("skills", () => {
+  it("ships the three skills the person invokes", () => {
+    for (const skill of REQUIRED) expect(existsSync(join(SKILLS, skill, "SKILL.md")), skill).toBe(true);
+  });
+
+  it("every skill loads in every harness: frontmatter is only name and description, and name equals the folder", () => {
+    for (const skill of skillDirs()) {
+      const text = read(skill);
+      const fields = frontmatter(text);
+      expect(Object.keys(fields).sort(), skill).toEqual(["description", "name"]);
+      expect(fields.name, skill).toBe(skill);
+      expect(skill).toMatch(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
+      expect(fields.description!.length, skill).toBeGreaterThan(40);
+      expect(fields.description!.length, skill).toBeLessThanOrEqual(1024);
+      // An unquoted ": " breaks YAML parsing in stricter harnesses.
+      expect(fields.description, skill).not.toMatch(/: /);
+    }
+  });
+
+  it("a facet written by following the skill passes validation: every listed taxonomy value is in the contract", () => {
+    const listed = new Map<string, string[]>();
+    for (const skill of skillDirs()) {
+      for (const line of read(skill).split("\n")) {
+        const match = line.match(/^- `([A-Za-z]+)`[^:]*:(.*)$/);
+        if (!match || !(match[1]! in FACET_FIELDS)) continue;
+        const values = codeSpans(match[2]!).map((span) => span.split(" ")[0]!);
+        const allowed = FACET_FIELDS[match[1]!]!;
+        for (const value of values) expect(allowed, `${skill}: ${match[1]} lists ${value}`).toContain(value);
+        listed.set(match[1]!, [...(listed.get(match[1]!) ?? []), ...values]);
+      }
+    }
+    // The main skill lists every field, so the agent never has to guess a value the contract allows.
+    for (const [field, allowed] of Object.entries(FACET_FIELDS)) {
+      expect(new Set(listed.get(field) ?? []), field).toEqual(new Set(allowed));
+    }
+  });
+
+  it("no skill names a snake_case value that the contract does not define", () => {
+    for (const skill of skillDirs()) {
+      for (const span of codeSpans(read(skill))) {
+        if (!/^[a-z]+(?:_[a-z0-9]+)+$/.test(span)) continue;
+        if (span.startsWith("hindsight_")) {
+          expect(MCP_TOOLS, `${skill} names tool ${span}`).toContain(span);
+        } else {
+          expect(TAXONOMY, `${skill} names ${span}`).toContain(span);
+        }
+      }
+    }
+  });
+
+  it("the main skill walks the whole flow with the real tool names", () => {
+    const text = read("hindsight");
+    for (const tool of MCP_TOOLS) expect(text, tool).toContain(`\`${tool}\``);
+    expect(text).toMatch(/nothing is uploaded|nothing leaves/i);
+    expect(text).toMatch(/Matrix OS/);
+  });
+
+  it("the coach never writes without asking", () => {
+    const text = read("hindsight-coach");
+    expect(text).toMatch(/diff/i);
+    expect(text).toMatch(/ask/i);
+    expect(text).toMatch(/never apply/i);
+  });
+
+  it("the setup skill checks the server and runs doctor", () => {
+    const text = read("hindsight-setup");
+    expect(text).toContain("hindsight_scan");
+    expect(text).toContain("npx -y @matrix-os/hindsight doctor");
+  });
+});
