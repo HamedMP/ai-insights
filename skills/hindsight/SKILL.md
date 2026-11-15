@@ -29,9 +29,9 @@ Take `sessionId` and `harness` from the session listing. Then:
 - `underlyingGoal`: one sentence, in plain words, on what the person was trying to get done.
 - `summary`: one or two sentences on what happened and how it ended.
 - `frictionDetail`: one sentence on the main friction, or an empty string when there was none.
-- `goalCategories` (one or more): `feature`, `bug_fix`, `refactor`, `tests`, `review`, `debugging`, `research`, `planning`, `docs`, `devops`, `git_and_prs`, `data_analysis`, `configuration`, `writing`, `other`.
+- `goalCategories` (one or more): `feature`, `bug_fix`, `refactor`, `tests`, `review`, `debugging`, `research`, `planning`, `docs`, `devops`, `git_and_prs`, `data_analysis`, `configuration`, `writing`, `orchestration` (directing other agents), `tooling` (trying out or setting up a command, skill or workflow), `other`.
 - `sessionType` (exactly one): `single_task`, `multi_task`, `iterative_refinement` (one thing, reworked over several rounds), `exploration` (reading and learning, little change), `quick_question`.
-- `outcome` (exactly one): `fully_achieved`, `mostly_achieved`, `partially_achieved`, `not_achieved`, `unclear`.
+- `outcome` (exactly one): `fully_achieved`, `mostly_achieved`, `partially_achieved`, `not_achieved`, `in_progress` (the session is still running), `unclear`.
 - `helpfulness` (exactly one): `essential`, `very_helpful`, `moderately_helpful`, `slightly_helpful`, `unhelpful`.
 - `satisfaction` (exactly one): `satisfied`, `likely_satisfied`, `neutral`, `dissatisfied`, `unclear`.
 - `frictions` (a count per type, only the types that happened; `{}` when none): `misunderstood_request`, `wrong_approach`, `buggy_code`, `incomplete_work`, `ignored_instructions`, `over_engineering`, `permission_block`, `tool_failure`, `environment_issue`, `external_blocker`, `context_loss`, `slow_or_stuck`.
