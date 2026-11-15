@@ -1,0 +1,173 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { run, type CliDeps } from "../../src/cli/main.js";
+import type { ServerDeps } from "../../src/mcp/server.js";
+import { packageVersion } from "../../src/mcp/version.js";
+import { Store } from "../../src/store/store.js";
+import { fakeBuildReport, fakeRenderReport, fakeSource, makeSession, tempHome, validFacet } from "../store/fixtures.js";
+
+let home: string;
+let cleanup: () => Promise<void>;
+let out: string;
+let err: string;
+let opened: string[];
+let mcpStarts: ServerDeps[];
+
+function deps(overrides: Partial<CliDeps> = {}): Partial<CliDeps> {
+  return {
+    stdout: (text) => {
+      out += text;
+    },
+    stderr: (text) => {
+      err += text;
+    },
+    env: { HINDSIGHT_HOME: home },
+    sources: [
+      fakeSource("claude-code", [makeSession({ id: "c1", sourceMtimeMs: Date.parse("2026-11-10T00:00:00Z") })]),
+      fakeSource("codex", [makeSession({ id: "x1", harness: "codex", sourceMtimeMs: Date.parse("2026-01-01T00:00:00Z") })]),
+    ],
+    buildReport: fakeBuildReport(),
+    renderReport: fakeRenderReport,
+    now: () => new Date("2026-11-15T00:00:00Z"),
+    timeZone: "UTC",
+    openFile: async (path) => {
+      opened.push(path);
+    },
+    startMcp: async (serverDeps) => {
+      mcpStarts.push(serverDeps);
+    },
+    ...overrides,
+  };
+}
+
+beforeEach(async () => {
+  ({ home, cleanup } = await tempHome());
+  out = "";
+  err = "";
+  opened = [];
+  mcpStarts = [];
+});
+afterEach(async () => cleanup());
+
+describe("hindsight (no command)", () => {
+  it("scans, writes the report and prints its path with a three-line summary", async () => {
+    expect(await run([], deps())).toBe(0);
+    const reportPath = join(home, "reports", "report.html");
+    expect(out).toContain(`Report: ${reportPath}`);
+    const summary = out.split("\n\n")[0]!.split("\n");
+    expect(summary).toHaveLength(3);
+    expect(summary[0]).toContain("2 sessions across Claude Code and Codex");
+    expect(summary[1]).toContain("$0.42 at API list prices");
+    expect(summary[2]).toContain("Top finding:");
+    expect(await readFile(reportPath, "utf8")).toContain("<!doctype html>");
+    expect(out).toContain("hindsight skill");
+  });
+
+  it("opens the report only when asked", async () => {
+    await run([], deps());
+    expect(opened).toEqual([]);
+    await run(["--open"], deps());
+    expect(opened).toEqual([join(home, "reports", "report.html")]);
+  });
+
+  it("drops the skill tip once facets have been saved", async () => {
+    await new Store(home).saveFacet(validFacet("c1"));
+    await run([], deps());
+    expect(out).not.toContain("hindsight skill");
+  });
+
+  it("says where to look when no history exists", async () => {
+    expect(await run([], deps({ sources: [fakeSource("claude-code", [])] }))).toBe(1);
+    expect(err).toContain("hindsight doctor");
+  });
+
+  it("reports a failing analysis as a one-line error, not a stack trace", async () => {
+    const code = await run([], deps({ buildReport: () => { throw new Error("buildReport is not implemented yet"); } }));
+    expect(code).toBe(1);
+    expect(err).toContain("could not build the report: buildReport is not implemented yet");
+    expect(err).not.toContain("    at ");
+  });
+});
+
+describe("hindsight scan", () => {
+  it("lists every harness, found or not, with totals", async () => {
+    expect(await run(["scan"], deps())).toBe(0);
+    expect(out).toMatch(/Claude Code\s+1 session/);
+    expect(out).toMatch(/Codex\s+1 session/);
+    expect(out).toMatch(/Cursor\s+not found/);
+    expect(out).toContain("2 sessions, 6 prompts");
+  });
+
+  it("applies --since and says history exists outside the window", async () => {
+    await run(["scan", "--since", "30d"], deps());
+    expect(out).toMatch(/Codex\s+found, no sessions in this window/);
+    expect(out).toMatch(/Claude Code\s+1 session/);
+  });
+
+  it("reuses the cache on a second run", async () => {
+    await run(["scan"], deps());
+    out = "";
+    await run(["scan"], deps());
+    expect(out).toContain("Parsed 0, reused 2 from cache");
+  });
+});
+
+describe("hindsight report", () => {
+  it("prints the report JSON with --json and writes no HTML", async () => {
+    expect(await run(["report", "--json", "--harness", "codex"], deps())).toBe(0);
+    const report = JSON.parse(out);
+    expect(report.version).toBe(1);
+    expect(report.activity.sessions).toBe(1);
+    await expect(readFile(join(home, "reports", "report.html"))).rejects.toThrow();
+  });
+
+  it("writes the HTML and prints only the path, so it can be piped", async () => {
+    expect(await run(["report", "--since=90d"], deps())).toBe(0);
+    expect(out.trim()).toBe(join(home, "reports", "report.html"));
+  });
+});
+
+describe("hindsight mcp", () => {
+  it("starts the server without writing anything to stdout", async () => {
+    expect(await run(["mcp"], deps())).toBe(0);
+    expect(mcpStarts).toHaveLength(1);
+    expect(mcpStarts[0]!.store.home).toBe(home);
+    expect(out).toBe("");
+  });
+});
+
+describe("hindsight doctor", () => {
+  it("shows each harness, where it looked, and the store", async () => {
+    expect(await run(["doctor"], deps())).toBe(0);
+    expect(out).toContain("Claude Code: 1 transcript");
+    expect(out).toContain("missing /fake/claude-code");
+    expect(out).toContain("Cursor: not supported yet");
+    expect(out).toContain(`Store: ${home}`);
+    expect(out).toContain("writable");
+  });
+});
+
+describe("flags", () => {
+  it("prints help and version", async () => {
+    expect(await run(["--help"], deps())).toBe(0);
+    expect(out).toContain("hindsight doctor");
+    out = "";
+    expect(await run(["-v"], deps())).toBe(0);
+    expect(out.trim()).toBe(packageVersion());
+    expect(packageVersion()).toMatch(/^\d+\.\d+\.\d+/);
+  });
+
+  it.each([
+    [["frobnicate"], "unknown command"],
+    [["--nope"], "unknown option"],
+    [["--since", "yesterday"], "--since must be"],
+    [["--harness", "vim"], "--harness must be one of"],
+    [["--since"], "needs a value"],
+    [["scan", "--json"], "--json only works"],
+  ])("rejects %j with a usable message", async (argv, message) => {
+    expect(await run(argv, deps())).toBe(2);
+    expect(err).toContain(message);
+    expect(out).toBe("");
+  });
+});
