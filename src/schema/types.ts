@@ -352,6 +352,8 @@ export interface Coverage {
   /** False when no history for this harness was found on the machine. */
   found: boolean;
   files: number;
+  /** Bytes the harness's history takes on disk, when the scan measured it. */
+  bytes?: number;
   sessions: number;
   issues: number;
   oldest: string | null;
