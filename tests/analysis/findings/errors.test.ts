@@ -23,6 +23,16 @@ describe("permission_prompt_load", () => {
     const sessions = sessionsOverDays(10, (index) => (index === 0 ? { toolCalls: [shell("git push", "user_rejected", day(0, 1))] } : {}));
     expect(findings("permission_prompt_load", sessions)).toEqual([]);
   });
+
+  it("stays quiet when refusals are a tiny share of a lot of work", () => {
+    const sessions = sessionsOverDays(4, (index) => ({
+      toolCalls: [
+        ...[1, 2, 3].map((minute) => shell("git push --force", "permission_denied", day(index, minute))),
+        ...Array.from({ length: 400 }, (_, n) => tool("read", { timestamp: day(index, 5 + n / 100) })),
+      ],
+    }));
+    expect(findings("permission_prompt_load", sessions)).toEqual([]);
+  });
 });
 
 describe("tool_error_hotspot", () => {

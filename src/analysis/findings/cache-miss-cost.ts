@@ -10,6 +10,7 @@ const TARGET_HIT_RATE = 0.8;
 const MIN_SAVING_USD = 5;
 /** Small samples swing wildly; only judge a harness with real volume. */
 const MIN_INPUT_TOKENS = 1_000_000;
+/** Severity follows the money: tens of dollars is medium, a hundred or more is high. */
 const MEDIUM_SAVING_USD = 25;
 const HIGH_SAVING_USD = 100;
 

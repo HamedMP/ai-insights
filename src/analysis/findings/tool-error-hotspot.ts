@@ -9,6 +9,7 @@ const MIN_CALLS = 20;
 const MIN_ERROR_RATE = 0.2;
 /** Seen in more than one session, so it is a pattern and not one broken environment. */
 const MIN_SESSIONS = 2;
+/** Above a third of calls failing, the tool costs more turns than it saves. */
 const MEDIUM_ERROR_RATE = 0.35;
 
 /** Permission refusals have their own finding. */

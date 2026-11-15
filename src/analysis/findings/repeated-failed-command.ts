@@ -10,9 +10,11 @@ const LONE_STREAK = 5;
 const MIN_SESSIONS = 3;
 /** Across sessions, only flag commands that fail most of the time; a test suite that sometimes fails is normal. */
 const MIN_FAILURE_RATE = 0.5;
+/** Severity by how long the agent kept retrying: five is wasteful, eight is stuck. */
 const HIGH_STREAK = 8;
 const MEDIUM_STREAK = 5;
 
+/** Timeouts count too: re-running a command that hangs wastes the same turns. */
 const FAILURES = new Set(["command_failed", "timeout"]);
 
 interface CommandStats {

@@ -9,6 +9,7 @@ const SLOW_GAP_MIN = 10;
 const MIN_SLOW_CORRECTIONS = 3;
 /** Spread over sessions, so one bad session does not define a habit. */
 const MIN_SLOW_SESSIONS = 2;
+/** This many late corrections is a regular cost, not an occasional one. */
 const MEDIUM_SLOW_CORRECTIONS = 6;
 
 interface Correction {

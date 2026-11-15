@@ -9,6 +9,7 @@ const MIN_EDIT_CALLS = 3;
 const MIN_SESSIONS = 3;
 /** Only a habit when it is a meaningful share of the sessions that ship code. */
 const MIN_SHARE = 0.25;
+/** Medium once it happens often and in most sessions that ship code. */
 const MEDIUM_SESSIONS = 5;
 const MEDIUM_SHARE = 0.5;
 

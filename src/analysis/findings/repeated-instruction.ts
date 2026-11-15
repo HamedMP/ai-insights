@@ -14,6 +14,7 @@ const MAX_WORDS = 40;
 const MIN_SIMILARITY = 0.7;
 /** Bounds the clustering work on very long histories. */
 const MAX_PROMPTS = 5000;
+/** Typed in eight or more sessions, it costs real time every week. */
 const MEDIUM_SESSIONS = 8;
 
 const STOPWORDS = new Set(

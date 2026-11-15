@@ -5,10 +5,13 @@ import { evidence, HARNESS_LABELS, MAX_EVIDENCE, plural, type Detector } from ".
 const MIN_BLOCKED = 10;
 /** Spread over sessions, so it reflects the setup, not one risky task. */
 const MIN_SESSIONS = 3;
-/** Per hundred tool calls; above this the person is interrupted constantly. */
+/** Per hundred tool calls. Below one, refusals are rare enough to be deliberate safety stops, not friction. */
+const MIN_PER_HUNDRED = 1;
+/** Above these, the person is interrupted every few minutes of agent work. */
 const MEDIUM_PER_HUNDRED = 5;
 const HIGH_PER_HUNDRED = 15;
 
+/** Both stop the agent and wait for the person; approved prompts leave no trace in transcripts. */
 const BLOCKED = new Set(["permission_denied", "user_rejected"]);
 
 const ADVICE: Partial<Record<Harness, { action: string; url: string }>> = {
@@ -44,6 +47,7 @@ export const permissionPromptLoad: Detector = ({ sessions }) => {
   for (const [harness, row] of [...byHarness].sort((a, b) => a[0].localeCompare(b[0]))) {
     if (row.blocked < MIN_BLOCKED || row.sessions.size < MIN_SESSIONS) continue;
     const perHundred = (row.blocked / Math.max(1, row.calls)) * 100;
+    if (perHundred < MIN_PER_HUNDRED) continue;
     const topTools = [...row.tools].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 3);
     const items = [...row.sessions]
       .sort((a, b) => b[1].count - a[1].count || a[1].first.localeCompare(b[1].first))

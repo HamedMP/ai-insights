@@ -7,6 +7,7 @@ const MIN_SESSIONS = 3;
 const MIN_COMPACTIONS = 5;
 /** A session compacted this often has lost its early context several times over. */
 const HEAVY_SESSION = 3;
+/** Ten resets is several sessions' worth of lost context: worth fixing soon. */
 const MEDIUM_COMPACTIONS = 10;
 
 export const contextResets: Detector = ({ sessions }) => {

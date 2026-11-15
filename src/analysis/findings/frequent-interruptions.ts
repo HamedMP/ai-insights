@@ -5,7 +5,9 @@ import { evidence, harnessesOf, MAX_EVIDENCE, percent, plural, round, type Detec
 const MIN_INTERRUPTIONS = 10;
 /** One prompt in seven arriving mid-turn means the agent often heads the wrong way before being stopped. */
 const MIN_INTERRUPTION_RATE = 0.15;
+/** Seen in several sessions, so it is how the person works, not one frustrating task. */
 const MIN_INTERRUPTED_SESSIONS = 3;
+/** Nearly one prompt in three mid-turn means a large share of agent work is being redirected. */
 const MEDIUM_INTERRUPTION_RATE = 0.3;
 
 export const frequentInterruptions: Detector = ({ sessions }) => {

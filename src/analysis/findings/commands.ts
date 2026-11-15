@@ -1,5 +1,6 @@
 /** Shell command helpers shared by the detectors that reason about what the agent ran. */
 
+/** Prefixes and pipes that change how a command is run but not what it does. */
 const CD_PREFIX = /^cd\s+(?:"[^"]*"|'[^']*'|\S+)\s*(?:&&|;)\s*/;
 const ENV_PREFIX = /^(?:[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|\S*)\s+)+/;
 const OUTPUT_TAIL = /\s*(?:2>&1|\|\s*(?:tail|head|grep|less|cat|tee)\b.*)$/;

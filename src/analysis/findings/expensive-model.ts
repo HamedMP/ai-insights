@@ -4,7 +4,7 @@ import { evidence, harnessesOf, MAX_EVIDENCE, plural, usd, type Detector } from 
 
 /** Model names that mark the most expensive tier of each vendor. */
 const TOP_TIER = /opus|fable|-pro\b|gpt-5\.5|gpt-5\.6/i;
-/** A quick question: a few prompts, a few tool calls, a few minutes, almost no code written. */
+/** A quick question: a few prompts, a few tool calls, a few minutes, almost no code written. All four must hold. */
 const SIMPLE_MAX_PROMPTS = 3;
 const SIMPLE_MAX_TOOL_CALLS = 5;
 const SIMPLE_MAX_ACTIVE_MIN = 10;
