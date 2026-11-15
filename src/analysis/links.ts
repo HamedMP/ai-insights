@@ -2,5 +2,5 @@
 
 export const MATRIX_URL = "https://matrix-os.com";
 
-/** Null until packmem has a public home; findings must not promise a link while it is null. */
-export const PACKMEM_URL: string | null = null;
+/** Null would drop the link from the disk-usage suggestion; its wording never depends on the link. */
+export const PACKMEM_URL: string | null = "https://hamedmp.github.io/packmem/";

@@ -4,21 +4,52 @@
 const CD_PREFIX = /^cd\s+(?:"[^"]*"|'[^']*'|\S+)\s*(?:&&|;)\s*/;
 const ENV_PREFIX = /^(?:[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|\S*)\s+)+/;
 const OUTPUT_TAIL = /\s*(?:2>&1|\|\s*(?:tail|head|grep|less|cat|tee)\b.*)$/;
-const TIMEOUT_PREFIX = /^(?:timeout\s+\S+|time|npx\s+--yes|env)\s+/;
+/** `timeout [options] DURATION cmd`; `-k` and `-s` take a separate value. */
+const TIMEOUT_WRAPPER = /^g?timeout(?:\s+(?:-[ks]\s+\S+|--?[\w-]+(?:=\S+)?))*\s+\d+(?:\.\d+)?[smhd]?\s+/;
+const OTHER_WRAPPER = /^(?:time|nohup|env|npx\s+--yes|nice(?:\s+-n\s+-?\d+)?|stdbuf(?:\s+-[ioe]\S+)+)\s+/;
+
+/**
+ * Parts that differ on every run of the same command. Order matters: whole temp paths first,
+ * then ids inside what remains, so a hash inside a temp path does not leave a stray placeholder.
+ */
+const VOLATILE: Array<[RegExp, string]> = [
+  [/(?:\/private)?\/(?:tmp|var\/folders|var\/tmp)\/[^\s'"`;|&)]*/g, "<tmp>"],
+  [/\$\{?TMPDIR\}?[^\s'"`;|&)]*/g, "<tmp>"],
+  [/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, "<id>"],
+  [/\b\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?/g, "<time>"],
+  [/\b(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{8,}\b/gi, "<hash>"],
+  [/\b\d{3,}\b/g, "<n>"],
+];
+
+/** Normalised commands longer than this are cut, and the id gets a hash of the full text instead. */
+const MAX_COMMAND_CHARS = 160;
 
 /**
  * The same intent written slightly differently should count as one command: the
- * agent often prefixes `cd repo &&`, sets env vars, or pipes output through `tail`.
+ * agent often prefixes `cd repo &&`, sets env vars, wraps it in `timeout`, pipes output
+ * through `tail`, or points it at a fresh temp directory.
  */
 export function normalizeCommand(command: string): string {
   let text = command.replace(/\s+/g, " ").trim();
-  for (let pass = 0; pass < 4; pass += 1) {
+  for (let pass = 0; pass < 6; pass += 1) {
     const before = text;
-    text = text.replace(CD_PREFIX, "").replace(ENV_PREFIX, "").replace(TIMEOUT_PREFIX, "");
+    text = text.replace(CD_PREFIX, "").replace(ENV_PREFIX, "").replace(TIMEOUT_WRAPPER, "").replace(OTHER_WRAPPER, "");
     text = text.replace(OUTPUT_TAIL, "").trim();
     if (text === before) break;
   }
-  return text.slice(0, 160);
+  for (const [pattern, placeholder] of VOLATILE) text = text.replace(pattern, placeholder);
+  return text.slice(0, MAX_COMMAND_CHARS);
+}
+
+/** Short stable key for a normalised command: readable prefix plus a hash of the whole thing. */
+export function commandKey(normalized: string, maxChars = 40): string {
+  if (normalized.length <= maxChars) return normalized;
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < normalized.length; index += 1) {
+    hash ^= normalized.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return `${normalized.slice(0, maxChars).trimEnd()}…${hash.toString(16).padStart(8, "0")}`;
 }
 
 /** Commands that check work: tests, type checks, linters and builds. Broad on purpose, so a check is rarely missed. */

@@ -1,5 +1,5 @@
 import type { Finding, Harness, Session } from "../../schema/types.js";
-import { cacheHitRate, priceFor } from "../usage.js";
+import { cacheHitRate, ratesFor } from "../usage.js";
 import { evidence, HARNESS_LABELS, MAX_EVIDENCE, percent, plural, round, usd, type Detector } from "./context.js";
 
 /** Agent loops resend the same prefix every turn, so healthy sessions read most input from cache; under half means the cache keeps breaking. */
@@ -34,7 +34,7 @@ const SUGGESTIONS: Partial<Record<Harness, string>> = {
 export const cacheMissCost: Detector = ({ requests }) => {
   const buckets = new Map<Harness, Bucket>();
   for (const { session, request } of requests) {
-    const price = priceFor(request.model);
+    const rates = ratesFor(request.model, request.usage);
     let bucket = buckets.get(session.harness);
     if (!bucket) {
       bucket = { input: 0, cachedInput: 0, cacheWrite: 0, missPremium: 0, pricedInput: 0, sessions: new Map() };
@@ -49,10 +49,10 @@ export const cacheMissCost: Detector = ({ requests }) => {
     row.cachedInput += cachedInput;
     row.cacheWrite += cacheWrite;
     bucket.sessions.set(session, row);
-    if (price) {
+    if (rates) {
       const prompt = input + cachedInput + cacheWrite;
       const missing = Math.max(0, TARGET_HIT_RATE * prompt - cachedInput);
-      bucket.missPremium += (missing * (price[0] - price[1])) / 1e6;
+      bucket.missPremium += (missing * (rates.input - rates.cacheRead)) / 1e6;
       bucket.pricedInput += prompt;
     }
   }

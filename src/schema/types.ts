@@ -119,6 +119,8 @@ export interface Session {
   userMessageCount: number;
   assistantMessageCount: number;
   prompts: UserPrompt[];
+  /** Messages injected by other agents or automations (orchestrator notes, task notifications). Never counted as the person's. */
+  agentMessageCount?: number;
   /** Seconds between the agent finishing a turn and the person's next prompt. */
   userResponseTimesSec: number[];
   requests: ModelRequest[];
@@ -164,7 +166,8 @@ export interface ExcerptOptions {
 /** A redacted, truncated slice of a transcript, for the model-run analysis pass. */
 export interface TranscriptTurn {
   timestamp: string;
-  role: "user" | "assistant" | "tool";
+  /** "agent" is a message another agent or automation injected; it is not the person speaking. */
+  role: "user" | "assistant" | "tool" | "agent";
   text: string;
   toolName?: string;
   isError?: boolean;
@@ -202,6 +205,8 @@ export const GOAL_CATEGORIES = [
   "data_analysis",
   "configuration",
   "writing",
+  "orchestration",
+  "tooling",
   "other",
 ] as const;
 export type GoalCategory = (typeof GOAL_CATEGORIES)[number];
@@ -209,7 +214,7 @@ export type GoalCategory = (typeof GOAL_CATEGORIES)[number];
 export const SESSION_TYPES = ["single_task", "multi_task", "iterative_refinement", "exploration", "quick_question"] as const;
 export type SessionType = (typeof SESSION_TYPES)[number];
 
-export const OUTCOMES = ["fully_achieved", "mostly_achieved", "partially_achieved", "not_achieved", "unclear"] as const;
+export const OUTCOMES = ["fully_achieved", "mostly_achieved", "partially_achieved", "not_achieved", "in_progress", "unclear"] as const;
 export type Outcome = (typeof OUTCOMES)[number];
 
 export const HELPFULNESS = ["essential", "very_helpful", "moderately_helpful", "slightly_helpful", "unhelpful"] as const;
@@ -246,6 +251,10 @@ export const SUCCESS_TYPES = [
 ] as const;
 export type SuccessType = (typeof SUCCESS_TYPES)[number];
 
+/** Who steered the session: the person typing, another agent (an orchestrator or automation), or both. */
+export const DRIVERS = ["person", "agent", "mixed"] as const;
+export type Driver = (typeof DRIVERS)[number];
+
 export interface SessionFacet {
   sessionId: string;
   harness: Harness;
@@ -259,6 +268,8 @@ export interface SessionFacet {
   frictions: Partial<Record<FrictionType, number>>;
   frictionDetail: string;
   summary: string;
+  /** Optional so facets saved before this field existed stay valid. */
+  drivenBy?: Driver;
 }
 
 // ---------------------------------------------------------------------------
@@ -371,7 +382,10 @@ export interface Activity {
   activeDays: number;
   /** Longest run of consecutive active days. */
   longestStreakDays: number;
+  /** Sum over sessions, so parallel sessions add up: agent time, not the person's time. */
   totalActiveMinutes: number;
+  /** Wall-clock minutes during which at least one session was active. Never more than 24 h per day. */
+  wallClockActiveMinutes?: number;
   userMessages: number;
   assistantMessages: number;
   linesAdded: number;
