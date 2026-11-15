@@ -1,5 +1,5 @@
 import type { Finding, Session } from "../../schema/types.js";
-import { normalizeCommand } from "./commands.js";
+import { commandKey, normalizeCommand } from "./commands.js";
 import { evidence, harnessesOf, label, MAX_EVIDENCE, MAX_FINDINGS_PER_KIND, plural, type Detector } from "./context.js";
 
 /** Three identical failures in a row means the agent is retrying instead of diagnosing. */
@@ -77,7 +77,7 @@ export const repeatedFailedCommand: Detector = ({ sessions }) => {
     if (inARow) parts.push(`At worst it failed ${row.bestStreak} times in a row, which usually means the agent retried without changing anything.`);
     if (acrossSessions) parts.push("It fails in session after session, so the agent is probably missing a setup step or using the wrong command for this project.");
     findings.push({
-      id: `repeated_failed_command:${command}`,
+      id: `repeated_failed_command:${commandKey(command)}`,
       kind: "repeated_failed_command",
       severity,
       title: `\`${command}\` keeps failing`,

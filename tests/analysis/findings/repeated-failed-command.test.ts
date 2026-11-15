@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeCommand } from "../../../src/analysis/findings/commands.js";
+import { commandKey, normalizeCommand } from "../../../src/analysis/findings/commands.js";
 import { day, session, sessionsOverDays, shell } from "../factory.js";
 import { findings } from "./helpers.js";
 
@@ -36,5 +36,51 @@ describe("repeated_failed_command", () => {
   it("treats the same command written differently as one", () => {
     expect(normalizeCommand("cd /a/b && CI=1 pnpm test 2>&1 | tail -n 50")).toBe("pnpm test");
     expect(normalizeCommand("  pnpm   test ")).toBe("pnpm test");
+  });
+
+  it("strips timeout and kill wrappers", () => {
+    expect(normalizeCommand("timeout --kill-after=30s 600 pnpm test")).toBe("pnpm test");
+    expect(normalizeCommand("timeout -k 10s -s KILL 5m make check")).toBe("make check");
+    expect(normalizeCommand("gtimeout --preserve-status 30 pytest -x")).toBe("pytest -x");
+    expect(normalizeCommand("nohup nice -n 10 cargo build")).toBe("cargo build");
+  });
+
+  it("replaces volatile parts with placeholders", () => {
+    const hash = "ab12".repeat(16);
+    expect(normalizeCommand(`bash /tmp/run-${hash}/step.sh`)).toBe("bash <tmp>");
+    expect(normalizeCommand("node /var/folders/xy/T/job/a.js")).toBe("node <tmp>");
+    expect(normalizeCommand("git show 3f2a9c1d8e7b")).toBe("git show <hash>");
+    expect(normalizeCommand("curl localhost/api/runs/0b6f2c3e-4d5a-4b7c-8d9e-0f1a2b3c4d5e")).toBe("curl localhost/api/runs/<id>");
+    expect(normalizeCommand("grep 2026-11-15T22:38:01.528Z app.log")).toBe("grep <time> app.log");
+    expect(normalizeCommand("gh pr view 4821")).toBe("gh pr view <n>");
+    expect(normalizeCommand("ls build-1731700000123")).toBe("ls build-<n>");
+    expect(normalizeCommand("sleep 5")).toBe("sleep 5");
+  });
+
+  it("keys long commands by a readable prefix and a hash, so ids stay short and distinct", () => {
+    const long = (tail: string) => `node scripts/a-fairly-long-script-name-for-checks.mjs --mode strict --target ${tail}`;
+    expect(commandKey(long("alpha")).length).toBeLessThanOrEqual(50);
+    expect(commandKey(long("alpha"))).toBe(commandKey(long("alpha")));
+    expect(commandKey(long("alpha"))).not.toBe(commandKey(long("beta")));
+    expect(commandKey("pnpm test")).toBe("pnpm test");
+  });
+
+  it("groups a failing command across temp dirs into one finding with a short, stable id", () => {
+    const run = (hash: string) => `timeout --kill-after=30s 600 bash /tmp/hindsight-${hash}/verify-the-whole-repository-with-every-check-we-have.sh --run ${hash.slice(0, 12)}`;
+    const make = () =>
+      [0, 1, 2].map((index) =>
+        session({
+          startTime: day(index),
+          toolCalls: [1, 2, 3].map((minute) => shell(run(`${index}${minute}`.padEnd(64, "f")), "command_failed", day(index, minute))),
+        }),
+      );
+    const first = findings("repeated_failed_command", make());
+    const second = findings("repeated_failed_command", make());
+    expect(first).toHaveLength(1);
+    expect(first[0]!.id).toBe(second[0]!.id);
+    expect(first[0]!.id.length).toBeLessThanOrEqual(80);
+    expect(first[0]!.title).not.toMatch(/[0-9a-f]{12}/);
+    expect(first[0]!.title).toContain("<tmp>");
+    expect(first[0]!.metric?.value).toBe(9);
   });
 });

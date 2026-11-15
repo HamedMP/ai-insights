@@ -6,8 +6,9 @@ import { evidence, HARNESS_LABELS, round, type Detector } from "./context.js";
 const MIN_TOTAL_BYTES = 500_000_000;
 const BYTES_PER_MB = 1_000_000;
 
+/** packmem is a library, not a ready-made archiver, so this must not promise a one-step fix or a ratio. */
 const ACTION =
-  "Agent transcripts repeat a lot of text (the same files, tool output and context resent turn after turn), so they compress very well. packmem compresses your agent history to save disk space without losing it.";
+  "Agent transcripts repeat a lot of text (the same files, tool output and context resent turn after turn), so they compress well. packmem is an Apache-2.0 library for npm, PyPI and crates.io that stores records as packed columns in a fraction of the space; you can build an archive of old transcripts on it before deleting the originals.";
 
 function megabytes(bytes: number): number {
   return round(bytes / BYTES_PER_MB, 0);

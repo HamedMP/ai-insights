@@ -30,11 +30,18 @@ describe("history_disk_usage", () => {
     expect(finding!.suggestion?.action).toContain("packmem");
   });
 
-  it("leaves out the link, and does not promise one, while packmem has no URL", () => {
-    expect(PACKMEM_URL).toBeNull();
+  it("links packmem and describes it honestly as a library, without promising an archiver or a ratio", () => {
+    expect(PACKMEM_URL).toBe("https://hamedmp.github.io/packmem/");
     const [finding] = findings("history_disk_usage", sessions(), { coverage: [coverage("claude-code", 3, true, 900 * MB)] });
-    expect(finding!.suggestion).not.toHaveProperty("url");
-    expect(finding!.suggestion?.action).not.toMatch(/link|below|install it from/i);
+    expect(finding!.suggestion?.url).toBe(PACKMEM_URL);
+    const action = finding!.suggestion!.action;
+    expect(action).toMatch(/library/i);
+    expect(action).toMatch(/npm/);
+    expect(action).toMatch(/PyPI/);
+    expect(action).toMatch(/crates/);
+    expect(action).toMatch(/Apache-2\.0/);
+    expect(action).not.toMatch(/\d+\s*(?:x|×|%)/i);
+    expect(action).not.toMatch(/one command|one-command|automatically compress|archiver/i);
   });
 
   it("stays quiet under half a gigabyte", () => {

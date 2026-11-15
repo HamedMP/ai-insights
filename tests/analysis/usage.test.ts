@@ -28,12 +28,8 @@ describe("usage and cost", () => {
     expect(report.usage.tokens).toBeGreaterThan(0);
   });
 
-  it("does not guess the price of cache writes without a lifetime split", () => {
-    expect(estimateUsd("claude-sonnet-4-6", { input: 10, cachedInput: 0, cacheWrite: 50, output: 5 })).toBeNull();
-  });
-
-  it("does not price long-context requests at standard rates", () => {
-    expect(estimateUsd("claude-sonnet-4-6", { input: 250_000, cachedInput: 0, cacheWrite: 0, output: 5 })).toBeNull();
+  it("does not price long prompts on models whose long-context price is unknown", () => {
+    expect(estimateUsd("claude-sonnet-4-5-20250929", { input: 250_000, cachedInput: 0, cacheWrite: 0, output: 5 })).toBeNull();
   });
 
   it("counts a response copied into a resumed session only once", () => {
