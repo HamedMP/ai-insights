@@ -29,6 +29,26 @@ export function clean(text: string, max: number): string {
   return truncate(redact(text).replace(/[ \t]+/g, " ").trim(), max);
 }
 
+// `/home/<user>`, `/Users/<user>` and `C:\Users\<user>`, wherever they sit: after a
+// variable (`$ROOT/home/me`), inside a dev-server URL (`/@fs/Users/me/...`), in quotes.
+const HOME_DIR = /(?:\/(?:home|Users)\/[A-Za-z0-9._-]+|[A-Za-z]:\\Users\\[A-Za-z0-9._ -]+?)(?=[\\/\s'"`:;,)\]}>|]|$)/g;
+const URL_HOST_BEFORE = /[a-z][a-z0-9+.-]*:\/\/[^\s/]+$/i;
+
+/** Replace home directories with `~`, so usernames do not travel into another agent's context. */
+export function shortenHome(text: string): string {
+  return text.replace(HOME_DIR, (match: string, offset: number, whole: string) => {
+    const before = whole.slice(Math.max(0, offset - 300), offset);
+    // `https://example.com/home/page` is a web page, not a home directory.
+    if (URL_HOST_BEFORE.test(before)) return match;
+    return before.endsWith("~") ? "" : "~";
+  });
+}
+
+/** Shorten home directories, redact, collapse spaces, cap length: for every string a source returns. */
+export function scrub(text: string, max: number): string {
+  return clean(shortenHome(text), max);
+}
+
 const LANGUAGES: Record<string, string> = {
   ts: "TypeScript", tsx: "TypeScript", mts: "TypeScript", cts: "TypeScript",
   js: "JavaScript", jsx: "JavaScript", mjs: "JavaScript", cjs: "JavaScript",
