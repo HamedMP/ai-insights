@@ -2,7 +2,9 @@ import { isAbsolute, join } from "node:path";
 import type { ModelRequest, Session, SessionFeatures, ToolCall, TranscriptTurn, UserPrompt } from "../../schema/types.js";
 import { activeMinutes, clean, languageForPath, truncate } from "../shared.js";
 import { normalise, readRecords, type RawRecord } from "./read.js";
-import { contentText, hasImage, isQuestionReply, promptText } from "./prompts.js";
+import { agentText, contentText, hasImage, isQuestionReply, promptText } from "./prompts.js";
+import { localPath, MAX_EVIDENCE, scriptDirs, type ProjectEvidence } from "./project.js";
+import { argsSummary, editLine, failure, firstLine, lastSegment, oneLine, parsedLine, shellLine } from "./summary.js";
 import {
   categoryForName,
   categoryForParsed,
@@ -66,11 +68,14 @@ interface CallEntry {
   patch?: PatchStats;
   git?: { commits: number; pushes: number };
   turn?: number;
+  /** The one-line excerpt text before any failure is known. */
+  summary?: string;
+  script?: string;
 }
 
 interface TurnEntry extends TranscriptTurn {
   /** Which alternative record stream produced this turn; only one stream per role survives. */
-  stream: "item" | "event" | "response";
+  stream: "item" | "event" | "response" | "always";
 }
 
 /** Prompts from one record stream. Codex mirrors prompts in several streams; only one is used. */
@@ -78,6 +83,7 @@ class PromptTrack {
   prompts: UserPrompt[] = [];
   responseTimes: number[] = [];
   slashCommands: string[] = [];
+  agents = 0;
   private sinceDone = false;
   private usedDone: number | null = null;
   private abortsSeen = 0;
@@ -104,6 +110,12 @@ class PromptTrack {
     return prompt;
   }
 
+  /** Another agent wrote into the thread. It may start a turn, but it is not the person and has no reply time. */
+  agent(): void {
+    this.agents += 1;
+    this.sinceDone = true;
+  }
+
   done(): void {
     this.sinceDone = false;
   }
@@ -124,6 +136,8 @@ export interface BuiltRollout {
   meta: RolloutMeta;
   session: Session | null;
   turns: TranscriptTurn[];
+  /** Where the work happened, for picking the project after children are folded in. */
+  evidence: ProjectEvidence[];
 }
 
 /** One pass over a rollout's records. Holds only bounded counters, metadata and the person's prompts. */
@@ -163,6 +177,9 @@ export class RolloutBuilder {
   private compacted = 0;
   private compactionEvents = 0;
   private reviewMode = false;
+  private automated = false;
+  private agentMessages = 0;
+  private evidence: ProjectEvidence[] = [];
 
   private usage: UsageParser;
   private turns: TurnEntry[] = [];
@@ -231,6 +248,8 @@ export class RolloutBuilder {
     this.cwd = str(payload.cwd) ?? this.cwd;
     this.branch = str(obj(payload.git).branch) ?? this.branch;
     if (typeof payload.subagent_history_start_ordinal === "number") this.startOrdinal = payload.subagent_history_start_ordinal;
+    // Scheduled automations write their own prompts; nothing in such a thread is the person typing.
+    this.automated = /automation|schedul|cron/i.test(String(payload.thread_source ?? "")) || "automation" in obj(payload.source);
     if (this.meta.kind === "main" && (payload.history_base || typeof payload.forked_from_ordinal_exclusive === "number")) this.usage.inheritCounters();
     const time = validTime(timestamp) ?? validTime(payload.timestamp);
     if (time) this.seeTime(time);
@@ -264,12 +283,41 @@ export class RolloutBuilder {
     return this.turns.length - 1;
   }
 
-  private appendTurn(index: number | undefined, text: string, isError: boolean): void {
-    if (index === undefined) return;
-    const turn = this.turns[index];
+  /** Rewrite a classic tool turn once its result says whether it failed. */
+  private settleTurn(entry: CallEntry, exitCode: unknown, output: string): void {
+    const turn = entry.turn === undefined ? undefined : this.turns[entry.turn];
     if (!turn) return;
-    if (text) turn.text = truncate(`${turn.text}\n${text}`, (this.turnChars ?? 0) + 400);
-    if (isError) turn.isError = true;
+    const failed = !!entry.call.error;
+    turn.isError = failed || undefined;
+    if (!failed) turn.text = entry.summary ?? turn.text;
+    else if (entry.script !== undefined) turn.text = shellLine(entry.script, exitCode, output, true);
+    else {
+      const line = firstLine(output);
+      turn.text = `${entry.summary ?? turn.text}${failure(line ? `failed: ${line}` : "failed")}`;
+    }
+    if (turn.isError === undefined) delete turn.isError;
+  }
+
+  private addEvidence(raw: string | null | undefined, weight: number): void {
+    const path = raw ? localPath(raw) : null;
+    if (!path || this.evidence.length >= MAX_EVIDENCE) return;
+    this.evidence.push({ path: this.absolute(path), weight });
+  }
+
+  private addScriptEvidence(script: string, dir: string | null): void {
+    for (const found of scriptDirs(script, dir ?? this.cwd)) this.addEvidence(found.path, found.weight);
+  }
+
+  /** A user-role message: the person's prompt, or a message another agent or an automation wrote. */
+  private userText(stream: "item" | "event" | "response", time: string, raw: string, image: boolean): void {
+    const typed = promptText(raw, image);
+    const fromAgent = agentText(raw) ?? (typed ? agentText(typed) : null) ?? (this.automated ? typed : null);
+    if (fromAgent !== null) {
+      this.tracks[stream].agent();
+      this.addTurn({ timestamp: time, role: "agent", text: fromAgent, stream });
+      return;
+    }
+    if (typed) this.prompt(stream, time, typed, isQuestionReply(raw));
   }
 
   private prompt(stream: "item" | "event" | "response", timestamp: string, text: string, reply = false): void {
@@ -282,14 +330,20 @@ export class RolloutBuilder {
     if (kind === "message") {
       if (payload.role === "user") {
         if (obj(record.metadata).inherited_user_message) return;
-        const raw = contentText(payload.content);
-        const text = promptText(raw, hasImage(payload.content));
-        if (text) this.prompt("response", time, text, isQuestionReply(raw));
+        this.userText("response", time, contentText(payload.content), hasImage(payload.content));
       } else if (payload.role === "assistant") {
         this.assistantResponses += 1;
         if (!this.sawTurnEvents) this.state.lastDoneMs = Date.parse(time) || this.state.lastDoneMs;
         this.addTurn({ timestamp: time, role: "assistant", text: contentText(payload.content), stream: "response" });
       }
+      return;
+    }
+    if (kind === "agent_message") {
+      // Subagents report back to the main thread this way; it is another agent talking, not the person.
+      this.agentMessages += 1;
+      const author = lastSegment(payload.author);
+      const text = contentText(payload.content, "input_text");
+      this.addTurn({ timestamp: time, role: "agent", text: author ? `${author}: ${text}` : text, stream: "always" });
       return;
     }
     if (kind === "function_call" || kind === "custom_tool_call" || kind === "local_shell_call" || kind === "web_search_call") {
@@ -308,7 +362,7 @@ export class RolloutBuilder {
           entry.call.error ??= /no such file|not found/i.test(text) ? "file_not_found" : "edit_mismatch";
         }
       }
-      this.appendTurn(entry.turn, text, !!entry.call.error);
+      this.settleTurn(entry, exitCode, text);
       return;
     }
   }
@@ -334,12 +388,13 @@ export class RolloutBuilder {
     } else args = obj(payload.arguments);
     const call: ToolCall = { name, category: categoryForName(name, namespace), timestamp: time };
     const entry: CallEntry = { call };
-    let turnText = name;
+    let turnText = `${name}${argsSummary(args)}`;
 
     const server = mcpServerFromName(name, namespace);
     if (server) {
       call.mcpServer = server;
       if (typeof namespace === "string" && namespace.startsWith("mcp__")) call.name = `${namespace}__${name}`;
+      turnText = `${server} ${call.name.replace(/^mcp__.+?__/, "")}${argsSummary(args)}`;
     }
 
     if (kind === "local_shell_call" || call.category === "shell") {
@@ -352,22 +407,33 @@ export class RolloutBuilder {
           call.category = "skill";
           call.skill = skill;
         }
-        turnText = `$ ${script}`;
+        turnText = `$ ${oneLine(script)}`;
+        entry.script = script;
+        const workdir = str(args.workdir) ?? str(args.cwd);
+        if (workdir && workdir !== this.cwd) this.addEvidence(workdir, 1);
+        this.addScriptEvidence(script, workdir);
       }
     } else if (name === "apply_patch") {
       const patch = typeof payload.input === "string" ? payload.input : typeof args.input === "string" ? args.input : typeof args.patch === "string" ? args.patch : "";
       entry.patch = parseApplyPatch(patch);
       entry.patch.files = entry.patch.files.map((file) => this.absolute(file));
+      entry.patch.perFile = entry.patch.perFile.map((file) => ({ ...file, path: this.absolute(file.path) }));
       if (entry.patch.files[0]) call.filePath = entry.patch.files[0];
-      turnText = `apply_patch ${entry.patch.files.join(", ")}`;
+      for (const file of entry.patch.files) this.addEvidence(file, 2);
+      turnText = entry.patch.perFile.length ? editLine(entry.patch.perFile, false) : "apply_patch";
     } else if (name === "view_image") {
       const path = str(args.path);
       if (path) call.filePath = this.absolute(path);
+      turnText = `view image ${path ?? ""}`.trim();
+    } else if (name === "update_plan") {
+      turnText = "update plan";
     } else if (kind === "web_search_call") {
       const action = obj(payload.action);
       if (action.type === "open_page" || action.type === "find_in_page") this.webFetch = true;
       else this.webSearch = true;
-      turnText = `web_search ${str(action.query) ?? ""}`.trim();
+      const query = str(action.query);
+      const url = str(action.url);
+      turnText = query ? `web search "${oneLine(query, 120)}"` : url ? `open ${url}` : "web search";
     } else if (call.category === "web") {
       this.webSearch = true;
     }
@@ -375,7 +441,8 @@ export class RolloutBuilder {
     if (kind === "custom_tool_call" && name === "exec") call.category = "other";
 
     if (!this.pushCall(this.classicCalls, entry)) return;
-    entry.turn = this.addTurn({ timestamp: time, role: "tool", toolName: call.name, text: turnText, stream: "response" });
+    entry.summary = oneLine(turnText);
+    entry.turn = this.addTurn({ timestamp: time, role: "tool", toolName: call.name, text: entry.summary, stream: "response" });
     const id = str(payload.call_id) ?? str(payload.id);
     if (id && this.classicById.size < MAX_TOOL_CALLS) this.classicById.set(id, entry);
   }
@@ -413,13 +480,14 @@ export class RolloutBuilder {
       case "turn_aborted":
         this.sawTurnEvents = true;
         this.turnDone(time, payload.reason === "interrupted");
+        // The person pressing Esc is a correction the model pass should see, wherever their prompts came from.
+        if (payload.reason === "interrupted") this.addTurn({ timestamp: time, role: "user", text: "[interrupted]", stream: "always" });
         return;
       case "user_message": {
         if (payload.kind !== undefined && payload.kind !== "plain") return;
         const raw = typeof payload.message === "string" ? payload.message : "";
         const images = Array.isArray(payload.images) && payload.images.length > 0;
-        const text = promptText(raw, images);
-        if (text) this.prompt("event", time, text, isQuestionReply(raw));
+        this.userText("event", time, raw, images);
         return;
       }
       case "agent_message":
@@ -434,6 +502,7 @@ export class RolloutBuilder {
         const error = shellError(payload.exit_code, output ?? "");
         if (error) entry.call.error = error;
         else if (typeof payload.exit_code === "number") delete entry.call.error;
+        this.settleTurn(entry, payload.exit_code, output ?? "");
         return;
       }
       case "patch_apply_end": {
@@ -443,6 +512,7 @@ export class RolloutBuilder {
           const stderr = typeof payload.stderr === "string" ? payload.stderr : "";
           entry.call.error = /no such file|not found/i.test(stderr) ? "file_not_found" : "edit_mismatch";
         } else if (payload.success === true) delete entry.call.error;
+        this.settleTurn(entry, undefined, typeof payload.stderr === "string" ? payload.stderr : "");
         return;
       }
       case "mcp_tool_call_end": {
@@ -455,9 +525,11 @@ export class RolloutBuilder {
           entry.call.category = "mcp";
           entry.call.mcpServer = server;
           if (tool) entry.call.name = `mcp__${server}__${tool}`;
+          entry.summary = oneLine(`${server} ${tool ?? ""}${argsSummary(invocation.arguments)}`);
         }
         const result = obj(payload.result);
         if ("Err" in result || obj(result.Ok).isError === true || obj(result.Ok).is_error === true) entry.call.error = "other";
+        this.settleTurn(entry, undefined, typeof result.Err === "string" ? result.Err : "");
         return;
       }
       case "web_search_end":
@@ -484,12 +556,9 @@ export class RolloutBuilder {
   private readItem(item: Record<string, unknown>, event: Record<string, unknown>, time: string): void {
     const at = msToIso(event.started_at_ms, time);
     switch (item.type) {
-      case "UserMessage": {
-        const raw = contentText(item.content, "text");
-        const text = promptText(raw, hasImage(item.content));
-        if (text) this.prompt("item", time, text, isQuestionReply(raw));
+      case "UserMessage":
+        this.userText("item", time, contentText(item.content, "text"), hasImage(item.content));
         return;
-      }
       case "CommandExecution": {
         const script = commandText(item.command);
         const parsed = categoryForParsed(item.parsed_cmd);
@@ -504,89 +573,114 @@ export class RolloutBuilder {
           call.category = "skill";
           call.skill = skill;
         }
-        const body = typeof item.aggregated_output === "string" ? item.aggregated_output : "";
-        this.itemCall({ call, git: gitOperations(script) }, `$ ${script}\n${body.slice(0, (this.turnChars ?? 0) + 400)}`, !!error);
+        const dir = localPath(str(item.cwd) ?? "");
+        if (dir && dir !== this.cwd) this.addEvidence(dir, 1);
+        this.addScriptEvidence(script, dir);
+        const text = error ? shellLine(script, item.exit_code, output, true) : (parsedLine(item.parsed_cmd) ?? `$ ${oneLine(script)}`);
+        this.itemCall({ call, git: gitOperations(script) }, text, !!error);
         return;
       }
       case "FileChange": {
         const changes = obj(item.changes);
-        const stats: PatchStats = { files: [], added: 0, removed: 0 };
+        const stats: PatchStats = { files: [], added: 0, removed: 0, perFile: [] };
         for (const [path, value] of Object.entries(changes)) {
           if (stats.files.length >= MAX_FILES) break;
           const change = obj(value);
           const kind = str(change.type) ?? ["add", "update", "delete"].find((key) => key in change) ?? "update";
           const body = kind in change ? obj(change[kind]) : change;
-          const target = str(body.move_path) ?? path;
-          stats.files.push(this.absolute(target));
-          if (kind === "add") stats.added += lineCount(String(body.content ?? ""));
-          else if (kind === "delete") stats.removed += lineCount(String(body.content ?? ""));
-          else {
-            const lines = diffLines(String(body.unified_diff ?? ""));
-            stats.added += lines.added;
-            stats.removed += lines.removed;
-          }
+          const target = this.absolute(str(body.move_path) ?? path);
+          let added = 0;
+          let removed = 0;
+          if (kind === "add") added = lineCount(String(body.content ?? ""));
+          else if (kind === "delete") removed = lineCount(String(body.content ?? ""));
+          else ({ added, removed } = diffLines(String(body.unified_diff ?? "")));
+          stats.files.push(target);
+          stats.perFile.push({ path: target, added, removed });
+          stats.added += added;
+          stats.removed += removed;
+          this.addEvidence(target, 2);
         }
         const call: ToolCall = { name: "apply_patch", category: "edit", timestamp: at };
         if (stats.files[0]) call.filePath = stats.files[0];
         if (item.status === "failed") call.error = "edit_mismatch";
         else if (item.status === "declined" || item.status === "rejected") call.error = "user_rejected";
-        this.itemCall({ call, patch: stats }, `apply_patch ${stats.files.join(", ")}`, !!call.error);
+        this.itemCall({ call, patch: stats }, stats.perFile.length ? editLine(stats.perFile, !!call.error) : "apply_patch", !!call.error);
         return;
       }
       case "McpToolCall": {
         const server = str(item.server) ?? "unknown";
         const tool = str(item.tool) ?? "unknown";
         const call: ToolCall = { name: `mcp__${server}__${tool}`, category: "mcp", timestamp: at, mcpServer: server };
-        const errorText = JSON.stringify(item.error ?? "");
+        const error = obj(item.error);
+        const errorText = typeof item.error === "string" ? item.error : (str(error.message) ?? (item.error ? JSON.stringify(item.error) : ""));
         if (item.status === "failed" || item.error) call.error = /timed? ?out/i.test(errorText) ? "timeout" : "other";
         else if (item.status === "declined" || item.status === "rejected") call.error = "user_rejected";
-        const result = item.result === undefined ? "" : JSON.stringify(item.result).slice(0, (this.turnChars ?? 0) + 400);
-        this.itemCall({ call }, `${server}.${tool}\n${result}`, !!call.error);
+        let text = `${server} ${tool}${argsSummary(item.arguments)}`;
+        if (call.error) {
+          const line = firstLine(errorText);
+          text += failure(call.error === "user_rejected" ? "declined" : line ? `failed: ${line}` : "failed");
+        }
+        this.itemCall({ call }, oneLine(text), !!call.error);
         return;
       }
       case "DynamicToolCall": {
         const name = [str(item.namespace), str(item.tool)].filter(Boolean).join("__") || "dynamic_tool";
         const call: ToolCall = { name, category: "other", timestamp: at };
         if (item.success === false || item.status === "failed") call.error = "other";
-        this.itemCall({ call }, name, !!call.error);
+        const label = [str(item.namespace), str(item.tool)].filter(Boolean).join(" ") || "dynamic tool";
+        this.itemCall({ call }, oneLine(`${label}${argsSummary(item.arguments)}${call.error ? failure("failed") : ""}`), !!call.error);
         return;
       }
       case "Extension": {
         const kind = str(item.kind) ?? "extension";
         const call: ToolCall = { name: kind, category: kind.startsWith("web.") ? "web" : "other", timestamp: at };
+        let text = kind === "clock.sleep" ? "sleep" : kind;
         if (kind.startsWith("web.")) {
           const action = obj(item.action);
-          if (action.type === "openPage" || action.type === "findInPage" || action.type === "open_page") this.webFetch = true;
-          else this.webSearch = true;
+          const url = str(action.url);
+          if (action.type === "openPage" || action.type === "findInPage" || action.type === "open_page") {
+            this.webFetch = true;
+            text = action.type === "findInPage" ? `find "${str(action.pattern) ?? ""}" in ${url ?? "page"}` : `open ${url ?? "page"}`;
+          } else {
+            this.webSearch = true;
+            const queries = Array.isArray(action.queries) ? action.queries.filter((query): query is string => typeof query === "string") : [];
+            const query = str(action.query) ?? queries.join(" | ");
+            text = query ? `web search "${oneLine(query, 160)}"` : "web search";
+          }
         }
-        const query = str(obj(item.action).query) ?? (Array.isArray(obj(item.action).queries) ? (obj(item.action).queries as unknown[]).filter((q) => typeof q === "string").join(" | ") : "");
-        this.itemCall({ call }, `${kind} ${query ?? ""}`.trim());
+        this.itemCall({ call }, oneLine(text));
         return;
       }
       case "SubAgentActivity": {
         if (item.kind === "completed") return;
         const started = item.kind === "started";
         if (started) this.subagentSpawns.item += 1;
-        this.itemCall({ call: { name: started ? "spawn_agent" : "message_agent", category: "subagent", timestamp: at } }, started ? "spawn_agent" : "message_agent");
+        const agent = lastSegment(item.agent_path);
+        this.itemCall(
+          { call: { name: started ? "spawn_agent" : "message_agent", category: "subagent", timestamp: at } },
+          `${started ? "spawn agent" : "message agent"}${agent ? ` ${agent}` : ""}`,
+        );
         return;
       }
       case "CollabAgentToolCall": {
         const name = str(item.tool) ?? "collab_agent";
         const call: ToolCall = { name, category: "subagent", timestamp: at };
         if (item.status === "failed") call.error = "other";
-        this.itemCall({ call }, name, !!call.error);
+        const receivers = Array.isArray(item.receiver_thread_ids) ? item.receiver_thread_ids.length : 0;
+        this.itemCall({ call }, `${name === "wait" ? "wait for" : name} ${receivers || ""} agent${receivers === 1 ? "" : "s"}${call.error ? failure("failed") : ""}`.replace(/\s+/g, " "), !!call.error);
         return;
       }
       case "ImageView": {
         const call: ToolCall = { name: "view_image", category: "read", timestamp: at };
         const path = str(item.path);
         if (path) call.filePath = this.absolute(path);
-        this.itemCall({ call }, "view_image");
+        this.itemCall({ call }, `view image ${path ?? ""}`.trim());
         return;
       }
       case "AgentMessage":
         if (Array.isArray(item.questions) && item.questions.length) {
-          this.itemCall({ call: { name: "request_user_input", category: "ask_user", timestamp: at } }, "request_user_input");
+          const titles = item.questions.map((question) => str(obj(question).title)).filter((title): title is string => !!title);
+          this.itemCall({ call: { name: "request_user_input", category: "ask_user", timestamp: at } }, oneLine(`ask: ${titles.join(" / ") || "question"}`));
         }
         return;
       case "ContextCompaction":
@@ -599,8 +693,10 @@ export class RolloutBuilder {
 
   /** Pick one prompt stream: item events (Desktop), then user_message events (CLI), then raw messages. */
   private promptTrack(): { track: PromptTrack; stream: "item" | "event" | "response" } {
-    if (this.tracks.item.prompts.length) return { track: this.tracks.item, stream: "item" };
-    if (this.tracks.event.prompts.length) return { track: this.tracks.event, stream: "event" };
+    for (const stream of ["item", "event", "response"] as const) {
+      const track = this.tracks[stream];
+      if (track.prompts.length || track.agents) return { track, stream };
+    }
     return { track: this.tracks.response, stream: "response" };
   }
 
@@ -610,13 +706,19 @@ export class RolloutBuilder {
     const callStream = calls === this.itemCalls ? "item" : "response";
     const assistantStream = this.assistantResponses > 0 ? "response" : "event";
     const turns: TranscriptTurn[] = this.turns
-      .filter((turn) => (turn.role === "user" ? turn.stream === stream : turn.role === "tool" ? turn.stream === callStream : turn.stream === assistantStream))
+      .filter((turn) => {
+        if (turn.stream === "always") return true;
+        if (turn.role === "user" || turn.role === "agent") return turn.stream === stream;
+        return turn.role === "tool" ? turn.stream === callStream : turn.stream === assistantStream;
+      })
       .map(({ stream: _stream, ...turn }) => turn);
 
     const requests: ModelRequest[] = this.usage.finish();
     this.issues += this.usage.issues;
-    if (!this.first || !this.last || (track.prompts.length === 0 && requests.length === 0 && calls.length === 0)) {
-      return { meta: this.meta, session: null, turns };
+    const agentMessageCount = track.agents + this.agentMessages;
+    const evidence = this.evidence;
+    if (!this.first || !this.last || (track.prompts.length === 0 && agentMessageCount === 0 && requests.length === 0 && calls.length === 0)) {
+      return { meta: this.meta, session: null, turns, evidence };
     }
 
     const files = new Set<string>();
@@ -679,6 +781,7 @@ export class RolloutBuilder {
       userMessageCount: track.prompts.length,
       assistantMessageCount: assistantStream === "response" ? this.assistantResponses : this.assistantEvents,
       prompts: track.prompts,
+      agentMessageCount,
       userResponseTimesSec: track.responseTimes,
       requests,
       toolCalls: calls.map((entry) => entry.call),
@@ -691,7 +794,7 @@ export class RolloutBuilder {
       gitPushes,
       issues: this.issues,
     };
-    return { meta: this.meta, session, turns };
+    return { meta: this.meta, session, turns, evidence };
   }
 }
 

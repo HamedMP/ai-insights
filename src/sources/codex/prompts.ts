@@ -12,7 +12,6 @@ const INJECTED_PREFIXES = [
   "<permissions instructions",
   "<collaboration_mode",
   "<turn_aborted",
-  "<subagent_notification",
   "<user_shell_command",
   "<skill",
   "<apps_instructions",
@@ -102,4 +101,17 @@ export function promptText(raw: string, image: boolean): string | null {
 /** Answers to the agent's own questions arrive mid-turn but are not interruptions. */
 export function isQuestionReply(raw: string): boolean {
   return QUESTION_REPLY.test(raw);
+}
+
+/** Envelopes other agents and automations use when they write into a thread: a terminal hub, cross-session relays, notifications. */
+const AGENT_ENVELOPE = /^<(hc|cross-session-message|teammate-message|task-notification|subagent_notification|inter_agent_message|agent_message)\b[^>]*>([\s\S]*?)(?:<\/\1>\s*$|$)/;
+const AGENT_PREFIX = /^(Another (?:Claude|Codex|agent) session sent a message:|Message from (?:another )?agent\b|\[(?:orchestrator|automation|agent)[^\]]*\])/i;
+
+/** The text of a message another agent or automation wrote, or null when it does not look like one. */
+export function agentText(raw: string): string | null {
+  const text = raw.trim();
+  const envelope = AGENT_ENVELOPE.exec(text);
+  if (envelope) return (envelope[2] ?? "").trim() || envelope[1]!;
+  if (AGENT_PREFIX.test(text)) return text;
+  return null;
 }

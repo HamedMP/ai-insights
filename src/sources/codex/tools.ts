@@ -84,35 +84,47 @@ export function exitCodeFromOutput(output: unknown): { exitCode: number | null; 
   return { exitCode: match ? Number(match[1]) : null, text };
 }
 
-export interface PatchStats {
-  files: string[];
+export interface FileStats {
+  path: string;
   added: number;
   removed: number;
 }
 
+export interface PatchStats {
+  files: string[];
+  added: number;
+  removed: number;
+  perFile: FileStats[];
+}
+
 /** Lines and files from an `apply_patch` body (`*** Begin Patch` … `*** End Patch`). */
 export function parseApplyPatch(patch: string): PatchStats {
-  const files: string[] = [];
-  let added = 0;
-  let removed = 0;
+  const perFile: FileStats[] = [];
+  let current: FileStats | null = null;
   let mode: "add" | "update" | "delete" | null = null;
   for (const line of patch.split("\n")) {
     const header = /^\*\*\* (Add|Update|Delete) File: (.+)$/.exec(line);
     if (header) {
       mode = header[1] === "Add" ? "add" : header[1] === "Update" ? "update" : "delete";
-      files.push(header[2]!.trim());
+      current = { path: header[2]!.trim(), added: 0, removed: 0 };
+      perFile.push(current);
       continue;
     }
     const move = /^\*\*\* Move to: (.+)$/.exec(line);
-    if (move) {
-      files.push(move[1]!.trim());
+    if (move && current) {
+      current.path = move[1]!.trim();
       continue;
     }
-    if (line.startsWith("***") || mode === null || mode === "delete") continue;
-    if (line.startsWith("+")) added += 1;
-    else if (line.startsWith("-") && mode === "update") removed += 1;
+    if (line.startsWith("***") || mode === null || mode === "delete" || !current) continue;
+    if (line.startsWith("+")) current.added += 1;
+    else if (line.startsWith("-") && mode === "update") current.removed += 1;
   }
-  return { files, added, removed };
+  return {
+    files: perFile.map((file) => file.path),
+    added: perFile.reduce((sum, file) => sum + file.added, 0),
+    removed: perFile.reduce((sum, file) => sum + file.removed, 0),
+    perFile,
+  };
 }
 
 /** Lines added and removed in a unified diff hunk set, ignoring file headers. */
