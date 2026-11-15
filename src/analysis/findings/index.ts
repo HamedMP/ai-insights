@@ -4,6 +4,7 @@ import { contextResets } from "./context-resets.js";
 import { compareFindings, MAX_EVIDENCE, type Detector, type DetectorContext } from "./context.js";
 import { expensiveModelForSimpleWork } from "./expensive-model.js";
 import { frequentInterruptions } from "./frequent-interruptions.js";
+import { historyDiskUsage } from "./history-disk-usage.js";
 import { longSessions } from "./long-sessions.js";
 import { noTestsBeforeDone } from "./no-tests-before-done.js";
 import { permissionPromptLoad } from "./permission-prompt-load.js";
@@ -33,6 +34,7 @@ export const DETECTORS: Record<FindingKind, Detector> = {
   unused_feature: unusedFeature,
   single_harness_only: singleHarnessOnly,
   short_history: shortHistory,
+  history_disk_usage: historyDiskUsage,
 };
 
 /**

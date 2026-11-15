@@ -280,6 +280,7 @@ export const FINDING_KINDS = [
   "unused_feature",
   "single_harness_only",
   "short_history",
+  "history_disk_usage",
 ] as const;
 export type FindingKind = (typeof FINDING_KINDS)[number];
 

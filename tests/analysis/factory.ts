@@ -138,8 +138,9 @@ export function sessionsOverDays(count: number, make: (index: number) => Partial
   return Array.from({ length: count }, (_, index) => session({ startTime: day(index), ...make(index) }));
 }
 
-export function coverage(harness: Harness, sessions: number, found = sessions > 0): Coverage {
+export function coverage(harness: Harness, sessions: number, found = sessions > 0, bytes?: number): Coverage {
   return {
+    ...(bytes === undefined ? {} : { bytes }),
     harness,
     label: harness === "claude-code" ? "Claude Code" : harness,
     found,
