@@ -25,6 +25,8 @@ const b = (text: string): Segment => ({ text, strong: true });
 export interface HookNumber {
   value: string;
   label: string;
+  /** A caveat the number needs, e.g. requests left out of a cost. */
+  note?: string;
 }
 
 export interface Story {
@@ -73,10 +75,11 @@ function list(names: string[]): string {
   return names.length <= 1 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
 
+/** Home-relative path when under home (it names the folder without the username), else the folder name. */
 function projectName(path: string): string {
   const short = shortenPath(path).replace(/[\\/]+$/, "");
-  const last = short.split(/[\\/]/).pop();
-  return last && last !== "~" ? last : short;
+  if (short.startsWith("~")) return short.length > 48 ? `…${short.slice(-47)}` : short;
+  return short.split(/[\\/]/).pop() || short;
 }
 
 function stepsPerMessage(report: Report): number | null {
@@ -135,7 +138,12 @@ function numbers(report: Report): HookNumber[] {
     { value: formatCompact(lines), label: "Lines changed" },
   ];
   const usd = typeof usage.estimatedUsd === "number" && Number.isFinite(usage.estimatedUsd) ? usage.estimatedUsd : null;
-  out.push(usd !== null ? { value: formatUsd(usd), label: "At API list prices" } : { value: formatCompact(usage.tokens), label: "Tokens" });
+  const unpriced = count(usage.unpriced);
+  if (usd !== null) {
+    out.push({ value: formatUsd(usd), label: "At API list prices", ...(unpriced > 0 ? { note: `excludes ${plural(unpriced, "unpriced request")}` } : {}) });
+  } else {
+    out.push({ value: formatCompact(usage.tokens), label: "Tokens" });
+  }
   return out;
 }
 
@@ -245,7 +253,9 @@ function tokensLine(report: Report): Line | null {
   line.push(rate !== null ? s("; ") : s("."));
   if (rate !== null) line.push(b(pct(rate)), s(" of their input came from cache."));
   const usd = typeof usage.estimatedUsd === "number" && Number.isFinite(usage.estimatedUsd) ? usage.estimatedUsd : null;
-  if (usd !== null) line.push(s(" At API list prices that is about "), b(formatUsd(usd)), s("."));
+  if (usd !== null) {
+    line.push(s(count(usage.unpriced) > 0 ? " At API list prices the priced part comes to about " : " At API list prices that is about "), b(formatUsd(usd)), s("."));
+  }
   return line;
 }
 

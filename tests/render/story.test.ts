@@ -57,11 +57,16 @@ describe("story lines on rich data", () => {
   });
 
   it("states the cache share and the list-price estimate for tokens", () => {
-    expect(lineText(story.tokens!)).toMatch(/^Your agents moved [\d.]+[KMB] tokens; \d+% of their input came from cache\. At API list prices that is about \$[\d,]+\.$/);
+    expect(lineText(story.tokens!)).toMatch(/^Your agents moved [\d.]+[KMB] tokens; \d+% of their input came from cache\. At API list prices (that is|the priced part comes to) about \$[\d,]+\.$/);
   });
 
   it("puts a share on failed tool calls and counts the patterns worth fixing", () => {
     expect(lineText(story.friction!)).toMatch(/^[\d.]+% of your agents' tool calls failed, most often a failed command\. Hindsight found 4 patterns worth fixing\.$/);
+  });
+
+  it("notes unpriced requests next to the cost instead of hiding them", () => {
+    expect(story.numbers[3]!.note).toMatch(/^excludes [\d,]+ unpriced requests$/);
+    expect(lineText(story.tokens!)).toContain("the priced part comes to about");
   });
 
   it("gives four headline numbers for the first screen", () => {
