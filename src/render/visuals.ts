@@ -1,4 +1,4 @@
-import { count, dayNumber, formatCompact, formatDay, formatInt, plural } from "./format.js";
+import { clip, count, dayNumber, formatCompact, formatDay, formatInt, plural } from "./format.js";
 import { html, raw, type SafeHtml } from "./html.js";
 import { weekday } from "./charts.js";
 
@@ -395,7 +395,7 @@ export function frictionMap(id: string, islands: Island[]): SafeHtml | null {
     const columns = Math.max(1, Math.ceil(Math.sqrt(cells)));
     const fullRows = Math.floor(cells / columns);
     const remainder = cells - fullRows * columns;
-    return html`<figure class="island${index === 0 ? " lead" : ""}"><span class="island-px" style="--c:${columns};--r:${fullRows};--rem:${remainder}" title="${island.label}: ${formatInt(island.value)}"><span class="island-body"></span>${remainder > 0 ? html`<span class="island-tail"></span>` : null}</span><figcaption><b>${formatInt(island.value)}</b> ${island.label}</figcaption></figure>`;
+    return html`<figure class="island${index === 0 ? " lead" : ""}"><span class="island-px" style="--c:${columns};--r:${fullRows};--rem:${remainder}" title="${island.label}: ${formatInt(island.value)}"><span class="island-body"></span>${remainder > 0 ? html`<span class="island-tail"></span>` : null}</span><figcaption><b>${formatInt(island.value)}</b> ${clip(island.label, 40)}</figcaption></figure>`;
   })}<p class="micro islands-key">1 square = ${plural(unit, "error")}</p></div>`;
 }
 

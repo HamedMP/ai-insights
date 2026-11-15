@@ -109,6 +109,10 @@ export function parallelChapter({ context, story, tips, actions, index }: Chapte
   return chapter({ id: "parallel", index, kicker: "Several at once", lead: story.parallel, body: html`${hours}${field ? panel("Every session", field) : null}`, tip: tryThis(tips.parallel, actions) });
 }
 
+function list(names: string[]): string {
+  return names.length <= 1 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+
 export function coverageChapter({ context, story, tips, actions, index }: ChapterInput): SafeHtml | null {
   const { report } = context;
   const coverage = report.coverage ?? [];
@@ -142,7 +146,7 @@ export function coverageChapter({ context, story, tips, actions, index }: Chapte
     8,
   );
   const body = html`${panel("Tools found", tools, { aside: "home folder shown as ~" })}<div class="row">${panel("Projects", projects, { aside: "by agent time" })}${panel("Languages", languages, { aside: "file-tool calls" })}</div>`;
-  return chapter({ id: "coverage", index, kicker: "Where your work lives", lead: story.where ?? [{ text: "No coding-agent history was found on this machine yet." }], second: story.history, body, tip: tryThis(tips.coverage, actions) });
+  return chapter({ id: "coverage", index, kicker: "Where your work lives", lead: story.where ?? [{ text: "Hindsight looked for " }, { text: list(coverage.map((entry) => entry.label || harnessLabel(entry.harness))) || "your agents' history", strong: true }, { text: "." }], second: story.history, body, tip: tryThis(tips.coverage, actions) });
 }
 
 function costCell(row: UsageTotals): string {

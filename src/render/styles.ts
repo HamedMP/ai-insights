@@ -68,6 +68,7 @@ svg .lbl{fill:var(--muted);font:500 11px var(--mono);letter-spacing:.04em}
 .topbar{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:28px 0}
 .hook-grid{flex:1;display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:64px;align-items:center;padding:4vh 0 40px}
 .hook-grid.no-art{grid-template-columns:minmax(0,1fr)}
+.hook.empty{min-height:0}
 .eyebrow{display:flex;align-items:center;gap:10px;margin-bottom:22px}
 .eyebrow::before{content:"";width:8px;height:8px;background:var(--accent)}
 .headline{font-size:clamp(2.3rem,1.2rem + 2.9vw,3.6rem);line-height:1.04;letter-spacing:-.04em;font-weight:600;max-width:17ch;text-wrap:balance}
@@ -208,7 +209,7 @@ dl.facts dd span{color:var(--muted);font-weight:400}
 .island.lead .island-body,.island.lead .island-tail{background:repeating-linear-gradient(90deg,transparent 0 8px,var(--panel) 8px 10px),repeating-linear-gradient(180deg,transparent 0 8px,var(--panel) 8px 10px),var(--p4)}
 .island-body{width:calc(var(--c) * 10px);height:calc(var(--r) * 10px)}
 .island-tail{width:calc(var(--rem) * 10px);height:10px}
-.island figcaption{font-size:13px;color:var(--text-2);max-width:16ch;line-height:1.35}
+.island figcaption{font-size:13px;color:var(--text-2);max-width:16ch;line-height:1.35;overflow-wrap:anywhere}
 .island figcaption b{display:block;color:var(--text);font-size:1.25rem;letter-spacing:-.02em}
 .islands-key{flex-basis:100%}
 

@@ -33,7 +33,7 @@ export function hookSection(context: RenderContext, story: Story, nav: NavItem[]
   const quote = report.narrative?.headline ? rich(report.narrative.headline, 600) : null;
   const sessions = count(report.activity.sessions);
 
-  return html`<section id="overview" class="hook">
+  return html`<section id="overview" class="hook${sessions === 0 ? " empty" : ""}">
 <div class="topbar"><span class="brand">${MARK}<span>hindsight</span></span><span class="micro">${generated ?? "Local report"}</span></div>
 <div class="hook-grid${art ? "" : " no-art"}">
 <div class="hook-copy">
@@ -54,6 +54,6 @@ ${quote ? html`<blockquote class="agent-quote rise" style="--d:4"><span class="m
 </div>
 ${art ? html`<div class="hook-art rise" style="--d:2">${art}</div>` : null}
 </div>
-${nav.length > 0 ? html`<nav class="chapter-nav micro" aria-label="Chapters">${nav.map((item, index) => html`<a href="#${item.id}"><span>${String(index + 1).padStart(2, "0")}</span>${item.label}</a>`)}</nav>` : null}
+${nav.length >= 3 ? html`<nav class="chapter-nav micro" aria-label="Chapters">${nav.map((item, index) => html`<a href="#${item.id}"><span>${String(index + 1).padStart(2, "0")}</span>${item.label}</a>`)}</nav>` : null}
 </section>`;
 }
