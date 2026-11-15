@@ -1,5 +1,6 @@
 import type { Report } from "../schema/types.js";
 import { clip } from "./format.js";
+import type { Line } from "./story.js";
 import { html, type SafeHtml } from "./html.js";
 
 /** Per-render state, so ids are deterministic and unique within one document. */
@@ -50,12 +51,45 @@ export function copyBlock(context: RenderContext, text: string, label: string): 
  * Report text often marks commands with backticks. Show those spans as code;
  * every piece still goes through the escaping \`html\` tag.
  */
-export function rich(text: unknown, max: number): SafeHtml {
+export function rich(text: unknown, max: number, maxCode = 48): SafeHtml {
   const value = clip(text, max);
   const parts = value.split(/`([^`\n]{1,300})`/);
-  return html`${parts.map((part, index) => (index % 2 === 1 ? html`<code>${part}</code>` : part))}`;
+  // Long command keys (temp paths, hashes) would swamp a title; the full text is in the title attribute.
+  return html`${parts.map((part, index) =>
+    index % 2 === 1 ? (part.length > maxCode ? html`<code title="${part}">${clip(part, maxCode)}</code>` : html`<code>${part}</code>`) : part,
+  )}`;
 }
 
 export function card(content: SafeHtml, className = ""): SafeHtml {
   return html`<div class="card${className ? ` ${className}` : ""}">${content}</div>`;
+}
+
+/** A story line as HTML: the strong segments (its numbers and names) are emphasised. */
+export function statement(line: Line | null | undefined, className = "statement"): SafeHtml | null {
+  if (!line || line.length === 0) return null;
+  return html`<p class="${className}">${line.map((segment) => (segment.strong ? html`<em>${segment.text}</em>` : segment.text))}</p>`;
+}
+
+export interface ChapterOptions {
+  id: string;
+  index: number;
+  kicker: string;
+  lead: Line | null;
+  second?: Line | null;
+  body: SafeHtml | null;
+  tip?: SafeHtml | null;
+  className?: string;
+}
+
+export function chapter(options: ChapterOptions): SafeHtml {
+  return html`<section id="${options.id}" class="chapter${options.className ? ` ${options.className}` : ""}">
+<header class="ch-head reveal"><div class="ch-index micro"><span>${String(options.index).padStart(2, "0")}</span><span>${options.kicker}</span></div>${statement(options.lead)}${statement(options.second ?? null, "statement second")}</header>
+${options.body ? html`<div class="ch-body">${options.body}</div>` : null}
+${options.tip ?? null}
+</section>`;
+}
+
+export function panel(label: string, content: SafeHtml | null, options: { className?: string; aside?: string | SafeHtml | null } = {}): SafeHtml | null {
+  if (!content) return null;
+  return html`<div class="panel reveal${options.className ? ` ${options.className}` : ""}"><div class="panel-head micro"><span>${label}</span>${options.aside ? html`<span class="panel-aside">${options.aside}</span>` : null}</div>${content}</div>`;
 }

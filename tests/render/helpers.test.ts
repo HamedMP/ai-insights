@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { barList, calendarHeatmap, columnChart, monthTicks, niceScale, weekday } from "../../src/render/charts.js";
 import { createContext, rich } from "../../src/render/components.js";
-import { safeLink } from "../../src/render/sections/advice.js";
+import { safeLink } from "../../src/render/links.js";
 import { HOSTILE_URLS } from "./fixtures.js";
 import { bytesFor, dayNumber, formatBytes, formatCompact, formatHours, formatPercent, formatUsd, safeTimeZone, shortenPath } from "../../src/render/format.js";
 import { html, raw } from "../../src/render/html.js";

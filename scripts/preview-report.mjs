@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // Write the synthetic fixture reports to HTML files so a person can open them.
-// Usage: node scripts/preview-report.mjs [outDir]
+// Usage: node scripts/preview-report.mjs [outDir] [report.json ...]
+// Extra report.json paths (for example a real one from ~/.hindsight/reports) render as report-real-<n>.html.
 // Needs Node 22.18+ (built-in TypeScript type stripping and module.registerHooks).
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import * as nodeModule from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -37,6 +38,10 @@ const variants = {
   "report-year.html": fixtures.makeYearReport(),
   "report-hostile.html": fixtures.makeHostileReport(),
 };
+
+process.argv.slice(3).forEach((path, index) => {
+  variants[`report-real-${index + 1}.html`] = JSON.parse(readFileSync(path, "utf8"));
+});
 
 for (const [name, report] of Object.entries(variants)) {
   const path = join(outDir, name);
