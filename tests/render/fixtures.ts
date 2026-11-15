@@ -505,7 +505,9 @@ const narrative: Narrative = {
 /** A full report: deterministic analysis plus facets and narrative from the insights skill. */
 export function makeReport(overrides: Partial<Report> = {}): Report {
   const base = buildDeterministic({ days: 150, end: "2026-11-14", seed: 7, density: 0.8, harnesses: ["claude-code", "codex"] });
-  return { ...base, facets, narrative, ...overrides };
+  // Parallel sessions make summed agent time exceed the person's wall-clock time.
+  const activity = { ...base.activity, wallClockActiveMinutes: Math.round(base.activity.totalActiveMinutes * 0.36) };
+  return { ...base, activity, facets, narrative, ...overrides };
 }
 
 /** The first run: deterministic analysis only, a short history and a single harness. */

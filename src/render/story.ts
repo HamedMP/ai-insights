@@ -48,6 +48,7 @@ const MIN_MESSAGES_FOR_HOURS = 10;
 const MIN_SPAN_DAYS_FOR_WEEK = 14;
 const MIN_ACTIVE_DAYS_FOR_WEEK = 5;
 /** The headline calls out parallel work or heavy delegation only when it is striking. */
+const HEADLINE_MIN_AGENT_RATIO = 2;
 const HEADLINE_MIN_CONCURRENT = 3;
 const HEADLINE_MIN_STEPS = 8;
 const PEAK_WINDOW_HOURS = 4;
@@ -82,6 +83,32 @@ function projectName(path: string): string {
   return short.split(/[\\/]/).pop() || short;
 }
 
+/** Person-facing hours: wall clock with at least one session running. Null when the analysis did not measure it. */
+export function wallClockMinutes(report: Report): number | null {
+  const value = report.activity.wallClockActiveMinutes;
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
+}
+
+/** Share of requests that could be priced, and the models that could not, biggest first. */
+export function pricingGap(report: Report): { pricedShare: number; unpricedShare: number; models: string[] } | null {
+  const { usage } = report;
+  const unpriced = count(usage.unpriced);
+  const requests = count(usage.requests);
+  if (unpriced === 0 || requests === 0) return null;
+  const share = Math.min(1, unpriced / requests);
+  const models = [...(usage.models ?? [])]
+    .filter((row) => count(row.unpriced) > 0 && typeof row.model === "string")
+    .sort((a, b2) => count(b2.unpriced) - count(a.unpriced))
+    .map((row) => row.model);
+  return { pricedShare: 1 - share, unpricedShare: share, models: [...new Set(models)] };
+}
+
+export function unpricedModelsText(models: string[], limit = 3): string {
+  if (models.length === 0) return "";
+  const shown = models.slice(0, limit).map((model) => (model.length > 32 ? `${model.slice(0, 31)}…` : model));
+  return models.length > limit ? `${shown.join(", ")} and ${models.length - limit} more` : list(shown);
+}
+
 function stepsPerMessage(report: Report): number | null {
   const user = count(report.activity.userMessages);
   const agent = count(report.activity.assistantMessages);
@@ -108,6 +135,11 @@ function headline(report: Report): Line {
   const { activity } = report;
   const sessions = count(activity.sessions);
   if (sessions === 0) return [s("Hindsight did not find any coding-agent history on this machine yet.")];
+  const wall = wallClockMinutes(report);
+  const agent = count(activity.totalActiveMinutes);
+  if (wall !== null && agent / wall >= HEADLINE_MIN_AGENT_RATIO) {
+    return [s("Your agents put in "), b(`${formatHours(agent)} of work`), s(" in "), b(formatHours(wall)), s(" of yours.")];
+  }
   const concurrent = count(activity.parallelSessions?.maxConcurrent);
   if (concurrent >= HEADLINE_MIN_CONCURRENT && count(activity.parallelSessions?.overlapEvents) > 0) {
     return [s("You ran up to "), b(`${formatInt(concurrent)} agent sessions`), s(" at the same time.")];
@@ -117,7 +149,10 @@ function headline(report: Report): Line {
     return [s("Every message you sent set off about "), b(`${formatInt(steps)} agent steps`), s(".")];
   }
   const days = count(activity.activeDays);
-  return [s("You spent "), b(formatHours(activity.totalActiveMinutes)), s(" hands-on with coding agents"), ...(days > 0 ? [s(" over "), b(plural(days, "day")), s(".")] : [s(".")])];
+  if (wall === null) {
+    return [s("Your agents logged "), b(`${formatHours(agent)} of work`), ...(days > 0 ? [s(" over "), b(plural(days, "day")), s(".")] : [s(".")])];
+  }
+  return [s("You spent "), b(formatHours(wall)), s(" with coding agents at work"), ...(days > 0 ? [s(" over "), b(plural(days, "day")), s(".")] : [s(".")])];
 }
 
 function subline(report: Report): Line | null {
@@ -132,15 +167,22 @@ function numbers(report: Report): HookNumber[] {
   const { activity, usage } = report;
   if (count(activity.sessions) === 0) return [];
   const lines = count(activity.linesAdded) + count(activity.linesRemoved);
+  const wall = wallClockMinutes(report);
   const out: HookNumber[] = [
-    { value: formatHours(activity.totalActiveMinutes), label: "Hands-on time" },
+    wall !== null
+      ? { value: formatHours(wall), label: "Hours with AI at work", note: `${formatHours(activity.totalActiveMinutes)} agent-hours across sessions` }
+      : { value: formatHours(activity.totalActiveMinutes), label: "Agent-hours", note: "summed across sessions, so parallel work adds up" },
     { value: formatInt(activity.sessions), label: "Sessions" },
     { value: formatCompact(lines), label: "Lines changed" },
   ];
   const usd = typeof usage.estimatedUsd === "number" && Number.isFinite(usage.estimatedUsd) ? usage.estimatedUsd : null;
-  const unpriced = count(usage.unpriced);
+  const gap = pricingGap(report);
   if (usd !== null) {
-    out.push({ value: formatUsd(usd), label: "At API list prices", ...(unpriced > 0 ? { note: `excludes ${plural(unpriced, "unpriced request")}` } : {}) });
+    out.push({
+      value: `${gap ? "≈ " : ""}${formatUsd(usd)}`,
+      label: gap ? `For the ${pct(gap.pricedShare)} of requests with a known price` : "At API list prices",
+      ...(gap ? { note: `${pct(gap.unpricedShare)} unpriced${gap.models.length > 0 ? `: ${unpricedModelsText(gap.models)}` : ""}` } : {}),
+    });
   } else {
     out.push({ value: formatCompact(usage.tokens), label: "Tokens" });
   }
@@ -215,6 +257,21 @@ function parallelLine(report: Report): Line | null {
   const parallel = report.activity.parallelSessions;
   if (!parallel) return null;
   const concurrent = count(parallel.maxConcurrent);
+  const wall = wallClockMinutes(report);
+  const agent = count(report.activity.totalActiveMinutes);
+  if (count(parallel.overlapEvents) > 0 && concurrent >= 2 && wall !== null && agent > wall * 1.05) {
+    return [
+      s("Running up to "),
+      b(`${formatInt(concurrent)} sessions at once`),
+      s(", your agents logged "),
+      b(`${(agent / wall).toFixed(1)}×`),
+      s(" the hours you did: "),
+      b(formatHours(agent)),
+      s(" of agent time in "),
+      b(formatHours(wall)),
+      s("."),
+    ];
+  }
   if (count(parallel.overlapEvents) > 0 && concurrent >= 2) {
     const involved = Math.min(count(parallel.sessionsInvolved), sessions);
     return [s("You ran up to "), b(`${formatInt(concurrent)} sessions at once`), s(", and "), b(`${formatInt(involved)} of ${formatInt(sessions)}`), s(" sessions overlapped with another.")];
@@ -253,8 +310,11 @@ function tokensLine(report: Report): Line | null {
   line.push(rate !== null ? s("; ") : s("."));
   if (rate !== null) line.push(b(pct(rate)), s(" of their input came from cache."));
   const usd = typeof usage.estimatedUsd === "number" && Number.isFinite(usage.estimatedUsd) ? usage.estimatedUsd : null;
-  if (usd !== null) {
-    line.push(s(count(usage.unpriced) > 0 ? " At API list prices the priced part comes to about " : " At API list prices that is about "), b(formatUsd(usd)), s("."));
+  const gap = pricingGap(report);
+  if (usd !== null && gap) {
+    line.push(s(" At API list prices, the "), b(pct(gap.pricedShare)), s(" of requests with a known price come to about "), b(formatUsd(usd)), s("; the rest use models with no known price."));
+  } else if (usd !== null) {
+    line.push(s(" At API list prices that is about "), b(formatUsd(usd)), s("."));
   }
   return line;
 }

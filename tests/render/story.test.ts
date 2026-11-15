@@ -16,8 +16,8 @@ describe("story lines on rich data", () => {
   const report = makeReport();
   const story = buildStory(report, ZONE);
 
-  it("leads with the most distinctive fact, backed by its number", () => {
-    expect(lineText(story.headline)).toBe("You ran up to 4 agent sessions at the same time.");
+  it("leads with agent time against the person's own time when parallel work multiplies it", () => {
+    expect(lineText(story.headline)).toMatch(/^Your agents put in [\d.,]+ h of work in [\d.,]+ h of yours\.$/);
   });
 
   it("speaks to the person in second person and states a number in every line", () => {
@@ -45,8 +45,8 @@ describe("story lines on rich data", () => {
     );
   });
 
-  it("counts overlap from the parallel-session totals", () => {
-    expect(lineText(story.parallel!)).toBe(`You ran up to 4 sessions at once, and 121 of ${report.activity.sessions} sessions overlapped with another.`);
+  it("contrasts agent-hours with wall-clock hours when both are known", () => {
+    expect(lineText(story.parallel!)).toMatch(/^Running up to 4 sessions at once, your agents logged 2\.8× the hours you did: [\d.,]+ h of agent time in [\d.,]+ h\.$/);
   });
 
   it("names where the time went using the project folder name, never the full path", () => {
@@ -56,21 +56,26 @@ describe("story lines on rich data", () => {
     expect(where).toMatch(/Claude Code \(\d+%\) and Codex \(\d+%\)/);
   });
 
-  it("states the cache share and the list-price estimate for tokens", () => {
-    expect(lineText(story.tokens!)).toMatch(/^Your agents moved [\d.]+[KMB] tokens; \d+% of their input came from cache\. At API list prices (that is|the priced part comes to) about \$[\d,]+\.$/);
+  it("states the cache share and prices only the share of requests it can price", () => {
+    expect(lineText(story.tokens!)).toMatch(
+      /^Your agents moved [\d.]+[KMB] tokens; \d+% of their input came from cache\. At API list prices, the \d+% of requests with a known price come to about \$[\d,]+; the rest use models with no known price\.$/,
+    );
   });
 
   it("puts a share on failed tool calls and counts the patterns worth fixing", () => {
     expect(lineText(story.friction!)).toMatch(/^[\d.]+% of your agents' tool calls failed, most often a failed command\. Hindsight found 4 patterns worth fixing\.$/);
   });
 
-  it("notes unpriced requests next to the cost instead of hiding them", () => {
-    expect(story.numbers[3]!.note).toMatch(/^excludes [\d,]+ unpriced requests$/);
-    expect(lineText(story.tokens!)).toContain("the priced part comes to about");
+  it("never shows a bare cost when requests are unpriced: it names the share and the models", () => {
+    const cost = story.numbers[3]!;
+    expect(cost.value).toMatch(/^≈ \$[\d,]+$/);
+    expect(cost.label).toMatch(/^For the \d+% of requests with a known price$/);
+    expect(cost.note).toMatch(/^\d+% unpriced: local-experimental-model$/);
   });
 
-  it("gives four headline numbers for the first screen", () => {
-    expect(story.numbers.map((number) => number.label)).toEqual(["Hands-on time", "Sessions", "Lines changed", "At API list prices"]);
+  it("gives four headline numbers, with person hours first and agent-hours as the caveat", () => {
+    expect(story.numbers.map((number) => number.label).slice(0, 3)).toEqual(["Hours with AI at work", "Sessions", "Lines changed"]);
+    expect(story.numbers[0]!.note).toMatch(/agent-hours across sessions$/);
   });
 });
 
@@ -79,8 +84,25 @@ describe("story lines on sparse and single-harness data", () => {
   const story = buildStory(report, ZONE);
 
   it("still has a headline and a subline", () => {
-    expect(lineText(story.headline)).toMatch(/\d/);
+    expect(lineText(story.headline)).toBe("You ran up to 4 agent sessions at the same time.");
     expect(story.subline).not.toBeNull();
+  });
+
+  it("labels summed time as agent-hours when wall-clock time was not measured", () => {
+    expect(story.numbers[0]!.label).toBe("Agent-hours");
+  });
+
+  it("falls back to agent time over active days when nothing else is striking", () => {
+    const quiet = makeDeterministicReport();
+    quiet.activity.parallelSessions = { overlapEvents: 0, maxConcurrent: 1, sessionsInvolved: 0 };
+    quiet.activity.assistantMessages = quiet.activity.userMessages * 2;
+    expect(lineText(buildStory(quiet, ZONE).headline)).toMatch(/^Your agents logged [\d.,]+ h of work over \d+ days\.$/);
+  });
+
+  it("counts overlap from the parallel totals when wall-clock time is missing", () => {
+    const sessions = makeDeterministicReport().activity.sessions;
+    // The fixture claims more sessions involved than exist; the line caps it at the total.
+    expect(lineText(story.parallel!)).toBe(`You ran up to 4 sessions at once, and ${sessions} of ${sessions} sessions overlapped with another.`);
   });
 
   it("does not split sessions between tools when there is only one", () => {
