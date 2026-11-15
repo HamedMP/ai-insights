@@ -32,8 +32,8 @@ export interface Tile {
   sub?: string | null;
 }
 
-export function tiles(items: Tile[], label: string): SafeHtml {
-  return html`<div class="tiles" role="list" aria-label="${label}">${items.map(
+export function tiles(items: Tile[], label: string, className = ""): SafeHtml {
+  return html`<div class="tiles${className ? ` ${className}` : ""}" role="list" aria-label="${label}">${items.map(
     (item) => html`<div class="tile" role="listitem"><span class="value">${item.value}</span><span class="label">${item.label}</span>${item.sub ? html`<span class="sub">${item.sub}</span>` : null}</div>`,
   )}</div>`;
 }
@@ -44,6 +44,16 @@ export const MAX_COPY_CHARS = 6000;
 export function copyBlock(context: RenderContext, text: string, label: string): SafeHtml {
   const id = context.nextId("copy");
   return html`<div class="copy"><pre id="${id}" tabindex="0" aria-label="${label}">${clip(text, MAX_COPY_CHARS)}</pre><button type="button" data-copy="${id}" aria-label="Copy ${label}">Copy</button></div>`;
+}
+
+/**
+ * Report text often marks commands with backticks. Show those spans as code;
+ * every piece still goes through the escaping \`html\` tag.
+ */
+export function rich(text: unknown, max: number): SafeHtml {
+  const value = clip(text, max);
+  const parts = value.split(/`([^`\n]{1,300})`/);
+  return html`${parts.map((part, index) => (index % 2 === 1 ? html`<code>${part}</code>` : part))}`;
 }
 
 export function card(content: SafeHtml, className = ""): SafeHtml {

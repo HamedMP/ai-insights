@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderReport } from "../../src/render/index.js";
-import { HOSTILE, makeDeterministicReport, makeEmptyReport, makeHostileReport, makeReport, makeYearReport } from "./fixtures.js";
+import { makeDeterministicReport, makeEmptyReport, makeHostileReport, makeReport, makeYearReport } from "./fixtures.js";
 
 const FULL_SECTIONS = ["overview", "coverage", "work", "activity", "usage", "wins", "friction", "suggestions", "features", "horizon", "matrix"];
 const DETERMINISTIC_SECTIONS = ["overview", "coverage", "insights-prompt", "activity", "usage", "friction", "suggestions", "features", "matrix"];

@@ -1,7 +1,7 @@
-import { formatCompact, formatDate, formatHours, formatInt, formatUsd, parseInstant, plural, count, clip, dayNumber, dayFromNumber } from "../format.js";
+import { formatCompact, formatDate, formatHours, formatInt, formatUsd, parseInstant, plural, count, dayNumber, dayFromNumber } from "../format.js";
 import { html, type SafeHtml } from "../html.js";
 import { harnessLabel } from "../labels.js";
-import { tiles, type RenderContext } from "../components.js";
+import { rich, tiles, type RenderContext } from "../components.js";
 
 export interface NavItem {
   id: string;
@@ -43,14 +43,15 @@ export function overviewSection(context: RenderContext, nav: NavItem[]): SafeHtm
   const { activity, usage } = report;
   const range = rangeText(context);
   const generated = formatDate(report.generatedAt, context.zone);
-  const headline = report.narrative?.headline ? clip(report.narrative.headline, 900) : null;
+  const headline = report.narrative?.headline ? rich(report.narrative.headline, 900) : null;
 
   const items = [
     { value: formatInt(activity.sessions), label: "Sessions", sub: plural(count(activity.activeDays), "active day") },
     { value: formatHours(activity.totalActiveMinutes), label: "Active time", sub: `Longest streak ${plural(count(activity.longestStreakDays), "day")}` },
     { value: formatInt(activity.userMessages), label: "Messages you sent", sub: `${formatCompact(activity.assistantMessages)} agent replies` },
-    { value: `+${formatCompact(activity.linesAdded)}`, label: "Lines added", sub: `−${formatCompact(activity.linesRemoved)} removed, ${plural(count(activity.filesModified), "file")}` },
-    { value: formatInt(activity.gitCommits), label: "Commits" },
+    { value: `+${formatCompact(activity.linesAdded)}`, label: "Lines added", sub: `−${formatCompact(activity.linesRemoved)} removed` },
+    { value: formatInt(activity.filesModified), label: "Files changed" },
+    { value: formatInt(activity.gitCommits), label: "Commits", sub: `${plural(count(activity.projects?.length ?? 0), "project")}` },
     { value: formatCompact(usage.tokens), label: "Tokens", sub: `${formatCompact(usage.requests)} model requests` },
     { value: formatUsd(usage.estimatedUsd), label: "Estimated cost", sub: "at API list prices" },
   ];

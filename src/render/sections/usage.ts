@@ -112,7 +112,7 @@ ${card(html`<div class="card-head"><h3>Where the tokens went</h3></div><dl class
 </div>
 ${card(html`<div class="card-head"><h3>By model</h3></div>${table}<p class="note">All costs are estimated at API list prices${pricing ? html` (pricing table ${pricing})` : null}.${
     count(usage.unpriced) > 0
-      ? html` ${plural(count(usage.unpriced), "request")}${unpricedModels > 0 ? html` across ${plural(unpricedModels, "model")}` : null} used a model with no known price and are left out of the estimate rather than counted as free.`
+      ? html` ${plural(count(usage.unpriced), "request")}${unpricedModels > 0 ? html` (${plural(unpricedModels, "model")})` : null} had no known price and are left out of the estimate rather than counted as free.`
       : null
   }</p>`)}
 </div>

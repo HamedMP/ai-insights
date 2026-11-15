@@ -1,6 +1,6 @@
 import type { Count } from "../../schema/types.js";
 import { barList, compositionBar, type BarItem } from "../charts.js";
-import { card, copyBlock, sectionHead, type RenderContext } from "../components.js";
+import { card, copyBlock, rich, sectionHead, type RenderContext } from "../components.js";
 import { clip, count, plural } from "../format.js";
 import { html, type SafeHtml } from "../html.js";
 import { keyLabel } from "../labels.js";
@@ -44,9 +44,9 @@ export function workSection(context: RenderContext): SafeHtml | null {
 ${sectionHead("Work", "What you work on, and how", facets ? `Based on ${plural(count(facets.sessionsWithFacets), "session")} your agent read and classified.` : null)}
 <div class="stack">
 ${areas.length > 0 ? html`<div class="grid">${areas.map((area) =>
-    card(html`<div class="card-head"><h3>${clip(area.name, MAX_TITLE)}</h3><span class="muted">${plural(count(area.sessions), "session")}</span></div><p class="muted">${clip(area.description, MAX_TEXT)}</p>`),
+    card(html`<h3>${rich(area.name, MAX_TITLE)}</h3><p class="count">${plural(count(area.sessions), "session")}</p><p class="muted" style="margin-top:10px">${rich(area.description, MAX_TEXT)}</p>`),
   )}</div>` : null}
-${style ? card(html`<h4>Interaction style</h4><p class="quote">${style}</p>`) : null}
+${style ? card(html`<h4>Interaction style</h4><p class="quote">${rich(style, MAX_TEXT)}</p>`) : null}
 ${facets ? html`<div class="grid two">
 ${card(html`<h4>Goals</h4>${barList("goals", goals, { limit: MAX_ITEMS, emptyMessage: "No goals classified yet." })}`)}
 ${card(html`<h4>Session types</h4>${barList("session-types", types, { limit: MAX_ITEMS, emptyMessage: "No session types classified yet." })}`)}
@@ -62,7 +62,7 @@ export function winsSection(context: RenderContext): SafeHtml | null {
   return html`<section id="wins">
 ${sectionHead("What went well", "Where your agents earned their keep")}
 <div class="stack">
-${wins.length > 0 ? html`<div class="grid">${wins.map((win) => card(html`<h3>${clip(win.title, MAX_TITLE)}</h3><p class="muted">${clip(win.description, MAX_TEXT)}</p>`))}</div>` : null}
+${wins.length > 0 ? html`<div class="grid">${wins.map((win) => card(html`<h3>${rich(win.title, MAX_TITLE)}</h3><p class="muted">${rich(win.description, MAX_TEXT)}</p>`))}</div>` : null}
 ${facets ? html`<div class="grid two">
 ${card(html`<h4>Outcomes</h4>${compositionBar("outcomes", countItems(facets.outcomes), "No outcomes classified yet.")}`)}
 ${card(html`<h4>What worked best</h4>${barList("successes", countItems(facets.successes), { limit: MAX_ITEMS, emptyMessage: "No standout successes classified yet." })}`)}
@@ -80,8 +80,8 @@ export function narrativeFrictions(context: RenderContext): SafeHtml | null {
   return html`<div class="grid">${frictions.map((friction) => {
     const examples = (friction.examples ?? []).slice(0, MAX_EXAMPLES);
     return card(
-      html`<h3>${clip(friction.title, MAX_TITLE)}</h3><p class="muted">${clip(friction.description, MAX_TEXT)}</p>${
-        examples.length > 0 ? html`<ul class="examples">${examples.map((example) => html`<li>${clip(example, 400)}</li>`)}</ul>` : null
+      html`<h3>${rich(friction.title, MAX_TITLE)}</h3><p class="muted">${rich(friction.description, MAX_TEXT)}</p>${
+        examples.length > 0 ? html`<ul class="examples">${examples.map((example) => html`<li>${rich(example, 400)}</li>`)}</ul>` : null
       }`,
     );
   })}</div>`;
@@ -95,7 +95,7 @@ export function horizonSection(context: RenderContext): SafeHtml | null {
 ${sectionHead("On the horizon", "Bigger workflows worth trying next", "Each one builds on how you already work. Starter prompts are ready to paste into your agent.")}
 ${items.length > 0
     ? html`<div class="grid two">${items.map((item) =>
-        card(html`<h3>${clip(item.title, MAX_TITLE)}</h3><p class="muted">${clip(item.description, MAX_TEXT)}</p>${item.starterPrompt ? copyBlock(context, item.starterPrompt, `starter prompt: ${clip(item.title, 80)}`) : null}`),
+        card(html`<h3>${rich(item.title, MAX_TITLE)}</h3><p class="muted">${rich(item.description, MAX_TEXT)}</p>${item.starterPrompt ? copyBlock(context, item.starterPrompt, `starter prompt: ${clip(item.title, 80)}`) : null}`),
       )}</div>`
     : html`<p class="muted">Nothing on the horizon yet.</p>`}
 </section>`;

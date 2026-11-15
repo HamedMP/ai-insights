@@ -1,6 +1,6 @@
 import type { Finding, Suggestion } from "../../schema/types.js";
 import { barList } from "../charts.js";
-import { card, copyBlock, sectionHead, type RenderContext } from "../components.js";
+import { card, copyBlock, rich, sectionHead, type RenderContext } from "../components.js";
 import { clip, count, formatDateTime, formatInt, formatUsd, num, plural } from "../format.js";
 import { html, type SafeHtml } from "../html.js";
 import { harnessLabel, keyLabel, severityLabel, severityRank, suggestionLabel } from "../labels.js";
@@ -78,12 +78,12 @@ function findingCard(context: RenderContext, finding: Finding, advice: Advice): 
   const severity = String(finding.severity);
   return html`<article class="card finding">
 <div class="finding-top"><span class="badge ${["high", "medium", "low", "info"].includes(severity) ? severity : "info"}">${severityLabel(severity)}</span>${harnesses.map((name) => html`<span class="chip">${name}</span>`)}</div>
-<h3>${clip(finding.title, MAX_TITLE)}</h3>
+<h3>${rich(finding.title, MAX_TITLE)}</h3>
 ${metricText(finding)}
-<p class="muted">${clip(finding.detail, MAX_TEXT)}</p>
+<p class="muted">${rich(finding.detail, MAX_TEXT)}</p>
 ${evidence.length > 0 ? html`<div><h4>Evidence</h4><ul class="evidence" style="margin-top:10px">${evidence.map((item) => {
     const when = formatDateTime(item.timestamp, context.zone);
-    return html`<li><span>${clip(item.note, 300)}</span><span class="where">${harnessLabel(String(item.harness))}${when ? html` · ${when}` : null} · <code>${clip(String(item.sessionId), 40)}</code></span></li>`;
+    return html`<li><span>${rich(item.note, 300)}</span><span class="where">${harnessLabel(String(item.harness))}${when ? html` · ${when}` : null} · <code>${clip(String(item.sessionId), 40)}</code></span></li>`;
   })}</ul>${hidden > 0 ? html`<p class="more">and ${formatInt(hidden)} more</p>` : null}</div>` : null}
 ${anchor ? html`<p class="see"><a href="#${anchor}">See the suggestion</a></p>` : null}
 </article>`;
@@ -125,11 +125,11 @@ function suggestionCard(context: RenderContext, item: SuggestionItem): SafeHtml 
   const { suggestion, finding } = item;
   return html`<article class="card suggestion" id="${item.anchor}">
 <div class="type">${suggestionLabel(String(suggestion.type))}</div>
-<h3>${clip(suggestion.title, MAX_TITLE)}</h3>
-<p class="muted" style="margin-top:8px">${clip(suggestion.action, MAX_TEXT)}</p>
+<h3>${rich(suggestion.title, MAX_TITLE)}</h3>
+<p class="muted" style="margin-top:8px">${rich(suggestion.action, MAX_TEXT)}</p>
 ${suggestion.instructionText ? copyBlock(context, suggestion.instructionText, `instructions: ${clip(suggestion.title, 80)}`) : null}
 ${learnMore(suggestion.url)}
-${finding ? html`<p class="from">From: ${clip(finding.title, MAX_TITLE)}</p>` : null}
+${finding ? html`<p class="from">From: ${rich(finding.title, MAX_TITLE)}</p>` : null}
 </article>`;
 }
 
@@ -159,15 +159,15 @@ export function featuresSection(context: RenderContext, advice: Advice): SafeHtm
   return html`<section id="features">
 ${sectionHead("Features to try", "What you use, and what you are missing")}
 <div class="stack">
-${card(html`<div class="card-head"><h3>Already in use</h3></div><dl class="facts">
+${card(html`<div class="card-head"><h3>What you use today</h3></div><div class="grid two"><dl class="facts" style="align-self:start">
 <dt>Sessions with subagents</dt><dd>${formatInt(features?.sessionsWithSubagents ?? 0)} of ${formatInt(sessions)}</dd>
 <dt>Sessions with plan mode</dt><dd>${formatInt(features?.sessionsWithPlanMode ?? 0)} of ${formatInt(sessions)}</dd>
 <dt>Sessions with web search or fetch</dt><dd>${formatInt(features?.sessionsWithWeb ?? 0)} of ${formatInt(sessions)}</dd>
 <dt>Context compactions</dt><dd>${formatInt(features?.compactions ?? 0)}</dd>
-</dl>${inUse.length > 0 ? html`<div class="stack" style="margin-top:20px">${inUse}</div>` : null}`)}
+</dl>${inUse.length > 0 ? html`<div class="stack">${inUse}</div>` : html`<p class="muted" style="margin-top:14px">No MCP servers, skills or slash commands used yet.</p>`}</div>`)}
 ${advice.features.length > 0 || advice.bareFeatureFindings.length > 0
     ? html`<div class="grid two">${advice.features.map((item) => suggestionCard(context, item))}${advice.bareFeatureFindings.slice(0, MAX_SUGGESTIONS).map((finding) =>
-        card(html`<div class="type eyebrow">Feature</div><h3 style="margin-top:6px">${clip(finding.title, MAX_TITLE)}</h3><p class="muted" style="margin-top:8px">${clip(finding.detail, MAX_TEXT)}</p>`, "suggestion"),
+        card(html`<div class="type eyebrow">Feature</div><h3 style="margin-top:6px">${rich(finding.title, MAX_TITLE)}</h3><p class="muted" style="margin-top:8px">${rich(finding.detail, MAX_TEXT)}</p>`, "suggestion"),
       )}</div>`
     : html`<div class="chart-empty">Nothing new to try right now. You are using the main features already.</div>`}
 </div>

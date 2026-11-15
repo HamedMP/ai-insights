@@ -15,9 +15,6 @@ function historyDays(entry: Coverage): number | null {
 
 function coverageCard(context: RenderContext, entry: Coverage): SafeHtml {
   const label = entry.label || harnessLabel(entry.harness);
-  if (!entry.found) {
-    return html`<div class="card off"><div class="card-head"><h3>${label}</h3><span class="status off">Not found</span></div><p class="muted" style="margin-top:10px;font-size:var(--fs-sm)">No history for this tool on this machine.</p></div>`;
-  }
   const oldest = formatDate(entry.oldest, context.zone);
   const newest = formatDate(entry.newest, context.zone);
   const days = historyDays(entry);
@@ -35,6 +32,7 @@ ${count(entry.issues) > 0 ? html`<dt>Records skipped</dt><dd>${formatInt(entry.i
 export function coverageSection(context: RenderContext): SafeHtml {
   const coverage = [...(context.report.coverage ?? [])].sort((a, b) => Number(b.found) - Number(a.found));
   const found = coverage.filter((entry) => entry.found);
+  const missing = coverage.filter((entry) => !entry.found);
   const oldest = found.map((entry) => parseInstant(entry.oldest)).filter((ms): ms is number => ms !== null);
   const newest = found.map((entry) => parseInstant(entry.newest)).filter((ms): ms is number => ms !== null);
   let intro: string;
@@ -49,6 +47,7 @@ export function coverageSection(context: RenderContext): SafeHtml {
   }
   return html`<section id="coverage" class="coverage">
 ${sectionHead("Coverage", "What Hindsight found", intro)}
-<div class="grid">${coverage.map((entry) => coverageCard(context, entry))}</div>
+${found.length > 0 ? html`<div class="grid">${found.map((entry) => coverageCard(context, entry))}</div>` : null}
+${missing.length > 0 ? html`<p class="not-found"><span class="status off">Not found</span> ${missing.map((entry) => html`<span class="chip">${entry.label || harnessLabel(entry.harness)}</span>`)}</p>` : null}
 </section>`;
 }

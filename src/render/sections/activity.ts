@@ -103,7 +103,7 @@ export function activitySection(context: RenderContext): SafeHtml {
   return html`<section id="activity">
 ${sectionHead("Activity", "When and how much you work with agents", window ? `${plural(count(activity.activeDays), "active day")}, longest streak ${plural(count(activity.longestStreakDays), "day")}.` : null)}
 <div class="stack">
-${card(html`<div class="card-head"><h3>Every day</h3><span class="muted">Sessions per day</span></div>${calendarHeatmap("heatmap", heatDays, { emptyMessage: EMPTY, unit: "sessions" })}`)}
+${card(html`<div class="card-head"><h3>Active days</h3><span class="muted">Darker means more sessions</span></div>${calendarHeatmap("heatmap", heatDays, { emptyMessage: EMPTY, unit: "sessions" })}`)}
 ${card(html`<div class="card-head"><h3>Sessions per day</h3></div>${sessionsChart}`)}
 <div class="grid two">
 ${card(html`<div class="card-head"><h3>Time of day</h3>${peakHour !== null ? html`<span class="muted">Busiest at ${String(peakHour).padStart(2, "0")}:00</span>` : null}</div>${hoursChart}`)}
@@ -120,6 +120,7 @@ ${card(html`<div class="card-head"><h3>Parallel sessions</h3></div><div data-cha
             { value: formatInt(parallel.sessionsInvolved), label: "Sessions involved" },
           ],
           "Parallel sessions",
+          "three",
         )}<p class="note">Times two or more sessions were running side by side.</p>`
       : html`<div class="chart-empty">No overlapping sessions. Everything ran one at a time.</div>`
   }</div>`)}

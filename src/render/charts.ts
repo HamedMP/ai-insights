@@ -184,8 +184,8 @@ export function calendarHeatmap(id: string, days: HeatmapDay[], options: { empty
   const thresholds = [quantile(0.25), quantile(0.5), quantile(0.75)];
   const level = (value: number) => (value <= 0 ? 0 : value <= thresholds[0]! ? 1 : value <= thresholds[1]! ? 2 : value <= thresholds[2]! ? 3 : 4);
 
-  const cell = 11;
-  const step = 14;
+  const cell = 13;
+  const step = 16;
   const left = 30;
   const topPad = 18;
   const width = left + weeks * step;
