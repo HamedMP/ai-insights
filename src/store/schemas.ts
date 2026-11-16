@@ -190,6 +190,7 @@ export const SessionSchema = z.object({
     webSearch: z.boolean(),
     webFetch: z.boolean(),
     compactions: z.number(),
+    slashCommandCounts: z.record(z.string().max(200), z.number().int().min(0).max(1_000_000)).optional(),
   }),
   linesAdded: z.number(),
   linesRemoved: z.number(),
@@ -198,6 +199,16 @@ export const SessionSchema = z.object({
   gitCommits: z.number(),
   gitPushes: z.number(),
   issues: z.number(),
+  toolCallsDropped: z.number().int().min(0).optional(),
+  thinking: z.object({ blocks: z.number().int().min(0), totalMs: z.number().min(0).nullable(), longestMs: z.number().min(0).nullable() }).optional(),
+  approvals: z
+    .object({
+      auto: z.number().int().min(0).optional(),
+      byPerson: z.number().int().min(0).optional(),
+      denied: z.number().int().min(0).optional(),
+      guardianReviews: z.number().int().min(0).optional(),
+    })
+    .optional(),
   // Keeps keys this schema does not name yet, so a newer source's fields survive a cache round trip.
 }).loose() satisfies z.ZodType<Session, unknown>;
 

@@ -249,6 +249,23 @@ describe("SessionSchema", () => {
     expect(SessionSchema.safeParse({ ...makeSession({ id: "b" }), projectRoot: null }).success).toBe(true);
     expect(SessionSchema.safeParse({ ...makeSession({ id: "c" }), projectRoot: 7 }).success).toBe(false);
   });
+
+  it("keeps thinking, approvals, dropped tool calls and per-invocation slash counts through the cache, so the recap can use them", () => {
+    const base = makeSession({ id: "recap" });
+    const input = {
+      ...base,
+      features: { ...base.features, slashCommandCounts: { "/model": 3 } },
+      toolCallsDropped: 4,
+      thinking: { blocks: 2, totalMs: 1500, longestMs: 1000 },
+      approvals: { auto: 5, byPerson: 1, denied: 0 },
+    };
+    const parsed = SessionSchema.parse(JSON.parse(JSON.stringify(input)));
+    expect(parsed.features.slashCommandCounts).toEqual({ "/model": 3 });
+    expect(parsed.toolCallsDropped).toBe(4);
+    expect(parsed.thinking).toEqual({ blocks: 2, totalMs: 1500, longestMs: 1000 });
+    expect(parsed.approvals).toEqual({ auto: 5, byPerson: 1, denied: 0 });
+    expect(SessionSchema.safeParse({ ...input, thinking: { blocks: -1, totalMs: null, longestMs: null } }).success).toBe(false);
+  });
 });
 
 describe("narrative placeholders", () => {

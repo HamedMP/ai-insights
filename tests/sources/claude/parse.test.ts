@@ -467,3 +467,65 @@ describe("claude source: subagents", () => {
     expect(session.toolCalls.map((c) => c.name)).toEqual(["Task", "Read"]);
   });
 });
+
+describe("claude source: recap fields", () => {
+  it("counts thinking blocks and their recorded durations, subagents included, each record once", async () => {
+    const root = tempRoot();
+    const first = assistant(T(1), "msg_1", [thinking("hmm")], { extra: { thinkingDurationMs: 4000 } });
+    const file = transcript(
+      [
+        prompt(T(0), "plan the migration"),
+        first,
+        // The same record copied again (a resumed write) must not count twice.
+        first,
+        assistant(T(2), "msg_1", [text("plan")]),
+        assistant(T(3), "msg_2", [thinking("again")], { extra: { thinkingDurationMs: 1500 } }),
+        assistant(T(4), "msg_3", [thinking("no duration")]),
+      ],
+      { root },
+    );
+    const side = { isSidechain: true, agentId: "abc" };
+    writeLines(join(root, "-work-demo", SESSION, "subagents", "agent-abc.jsonl"), [
+      assistant(T(5), "msg_s1", [thinking("sub")], { extra: { ...side, thinkingDurationMs: 9000 } }),
+    ]);
+    const session = (await claudeSource.parse(file))!;
+    expect(session.thinking).toEqual({ blocks: 4, totalMs: 14_500, longestMs: 9000 });
+  });
+
+  it("leaves thinking out of a session that never thought", async () => {
+    const session = await parse([prompt(T(0), "hi"), assistant(T(1), "msg_1", [text("hello")])]);
+    expect(session.thinking).toBeUndefined();
+  });
+
+  it("splits permission decisions into automatic, the person's, and denied", async () => {
+    const decision = (decision: string, source: string) => ({ permissionDecision: { decision, source, reasonType: "classifier" } });
+    const session = await parse([
+      prompt(T(0), "run it"),
+      assistant(T(1), "msg_1", [toolUse("t1", "Bash", { command: "ls" }), toolUse("t2", "Bash", { command: "rm x" }), toolUse("t3", "Bash", { command: "pwd" }), toolUse("t4", "Bash", { command: "id" })], { stop: "tool_use" }),
+      toolResult(T(2), "t1", "ok", { result: undefined }),
+      { ...toolResult(T(2), "t1", "ok"), ...decision("accept", "config") },
+      { ...toolResult(T(2), "t2", "no", { error: true }), ...decision("reject", "config") },
+      { ...toolResult(T(2), "t3", "ok"), ...decision("accept", "user_temporary") },
+      { ...toolResult(T(2), "t4", "ok"), ...decision("accept", "user_permanent") },
+    ]);
+    expect(session.approvals).toEqual({ auto: 1, byPerson: 2, denied: 1 });
+  });
+
+  it("counts each slash command invocation, including ones that left no prompt", async () => {
+    const session = await parse([
+      prompt(T(0), "<command-name>/model</command-name>\n<command-args></command-args>"),
+      assistant(T(1), "msg_1", [text("ok")]),
+      system(T(2), "local_command", { content: "<command-name>/model</command-name>\n<command-args></command-args>" }),
+      system(T(2, 1), "local_command", { content: "<local-command-stdout>Set model</local-command-stdout>" }),
+      prompt(T(3), "<command-name>clear</command-name>"),
+    ]);
+    expect(session.features.slashCommandCounts).toEqual({ "/model": 2, "/clear": 1 });
+  });
+
+  it("counts tool calls beyond the cap instead of losing them silently", async () => {
+    const calls = Array.from({ length: 20_003 }, (_, n) => toolUse(`t${n}`, "Read", { file_path: "/w/a.ts" }));
+    const session = await parse([prompt(T(0), "read everything"), assistant(T(1), "msg_1", calls, { stop: "tool_use" })]);
+    expect(session.toolCalls).toHaveLength(20_000);
+    expect(session.toolCallsDropped).toBe(3);
+  });
+});

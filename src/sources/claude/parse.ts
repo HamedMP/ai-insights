@@ -1,6 +1,6 @@
 import { readdir } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
-import type { ModelRequest, Session, SessionFile, ToolCall, UserPrompt } from "../../schema/types.js";
+import type { ApprovalStats, ModelRequest, Session, SessionFile, ThinkingStats, ToolCall, UserPrompt } from "../../schema/types.js";
 import { activeMinutes, languageForPath, truncate } from "../shared.js";
 import {
   EDIT_TOOLS,
@@ -36,6 +36,8 @@ export const CAPS = {
   timestamps: 200_000,
   subagentFiles: 500,
   featureList: 200,
+  /** Records remembered to skip copies of thinking and permission lines. */
+  seenRecords: 200_000,
 };
 
 export type Obj = Record<string, unknown>;
@@ -213,6 +215,12 @@ class SessionBuilder {
   compactBoundaries = 0;
   compactSummaries = 0;
   issues = 0;
+  toolCallsDropped = 0;
+  slashCounts = new Map<string, number>();
+  private thinking = { blocks: 0, totalMs: 0, longestMs: 0, timed: false };
+  private approvals = { auto: 0, byPerson: 0, denied: 0, seen: false };
+  /** Record uuids already counted for thinking or permissions: resumed and copied files repeat lines. */
+  private counted = new Set<string>();
 
   // Turn tracking for interruptions and response times.
   private lastAssistantTime: string | null = null;
@@ -260,6 +268,47 @@ class SessionBuilder {
     if (this.slashCommands.size < CAPS.featureList) this.slashCommands.add(truncate(name, CAPS.nameChars));
   }
 
+  /** One invocation by the person: typed, or run locally without leaving a prompt. */
+  countSlashCommand(name: string): void {
+    const key = truncate(name, CAPS.nameChars);
+    if (this.slashCounts.has(key) || this.slashCounts.size < CAPS.featureList) this.slashCounts.set(key, (this.slashCounts.get(key) ?? 0) + 1);
+  }
+
+  /** False when this record was already counted; records without a uuid always count. */
+  private firstSight(record: Obj, kind: string): boolean {
+    const id = str(record.uuid);
+    if (!id) return true;
+    const key = `${kind}:${id}`;
+    if (this.counted.has(key)) return false;
+    if (this.counted.size < CAPS.seenRecords) this.counted.add(key);
+    return true;
+  }
+
+  private noteThinking(record: Obj, content: unknown[]): void {
+    if (!content.some((block) => obj(block).type === "thinking" || obj(block).type === "redacted_thinking")) return;
+    if (!this.firstSight(record, "thinking")) return;
+    this.thinking.blocks += 1;
+    const ms = record.thinkingDurationMs;
+    if (typeof ms === "number" && Number.isFinite(ms) && ms >= 0 && ms < 86_400_000) {
+      this.thinking.timed = true;
+      this.thinking.totalMs += Math.round(ms);
+      this.thinking.longestMs = Math.max(this.thinking.longestMs, Math.round(ms));
+    }
+  }
+
+  /** Claude Code writes who allowed or blocked a tool call next to its result. */
+  private notePermission(record: Obj): void {
+    const decision = obj(record.permissionDecision);
+    const verdict = str(decision.decision);
+    if (!verdict || !this.firstSight(record, "permission")) return;
+    this.approvals.seen = true;
+    if (verdict === "reject" || verdict === "deny") this.approvals.denied += 1;
+    else if (verdict === "accept" || verdict === "allow") {
+      if (str(decision.source).startsWith("user")) this.approvals.byPerson += 1;
+      else this.approvals.auto += 1;
+    }
+  }
+
   assistant(record: Obj, time: string | null, mainThread: boolean): void {
     const message = record.message;
     if (!message || typeof message !== "object") {
@@ -283,6 +332,7 @@ class SessionBuilder {
     }
 
     if (!Array.isArray(m.content)) return;
+    if (!synthetic) this.noteThinking(record, m.content);
     for (const block of m.content) {
       const b = obj(block);
       if (b.type === "tool_use") this.toolUse(b, time ?? this.end ?? "", mainThread);
@@ -353,6 +403,7 @@ class SessionBuilder {
     const name = truncate(str(block.name) || "unknown", CAPS.nameChars);
     if (this.toolCalls.length >= CAPS.toolCalls) {
       this.issues += 1;
+      this.toolCallsDropped += 1;
       return;
     }
     const category = toolCategory(name);
@@ -437,6 +488,7 @@ class SessionBuilder {
         if (b.type === "tool_result") this.toolResult(b, record.toolUseResult);
       }
     }
+    if (record.permissionDecision) this.notePermission(record);
     if (!mainThread) return;
     if (record.isCompactSummary === true) {
       this.compactSummaries += 1;
@@ -468,6 +520,7 @@ class SessionBuilder {
     let text: string;
     if (kind.kind === "slash") {
       this.addSlashCommand(kind.name);
+      this.countSlashCommand(kind.name);
       text = kind.args ? `${kind.name} ${kind.args}` : kind.name;
     } else if (kind.kind === "bash") {
       text = `! ${kind.command}`;
@@ -587,6 +640,7 @@ class SessionBuilder {
         webSearch: this.webSearch,
         webFetch: this.webFetch,
         compactions: this.compactBoundaries > 0 ? this.compactBoundaries : this.compactSummaries,
+        ...(this.slashCounts.size ? { slashCommandCounts: Object.fromEntries(this.slashCounts) } : {}),
       },
       linesAdded,
       linesRemoved,
@@ -595,7 +649,20 @@ class SessionBuilder {
       gitCommits,
       gitPushes,
       issues: this.issues,
+      ...(this.toolCallsDropped ? { toolCallsDropped: this.toolCallsDropped } : {}),
+      ...(this.thinking.blocks ? { thinking: this.thinkingStats() } : {}),
+      ...(this.approvals.seen ? { approvals: this.approvalStats() } : {}),
     };
+  }
+
+  private thinkingStats(): ThinkingStats {
+    const { blocks, totalMs, longestMs, timed } = this.thinking;
+    return { blocks, totalMs: timed ? totalMs : null, longestMs: timed ? longestMs : null };
+  }
+
+  private approvalStats(): ApprovalStats {
+    const { auto, byPerson, denied } = this.approvals;
+    return { auto, byPerson, denied };
   }
 
   record(record: Obj, mainFile: boolean): void {
@@ -625,7 +692,10 @@ class SessionBuilder {
         else if (subtype === "turn_duration") this.turnEnded();
         else if (subtype === "local_command") {
           const kind = classifyUserText(str(record.content));
-          if (kind.kind === "slash") this.addSlashCommand(kind.name);
+          if (kind.kind === "slash") {
+            this.addSlashCommand(kind.name);
+            this.countSlashCommand(kind.name);
+          }
         }
         break;
       }
