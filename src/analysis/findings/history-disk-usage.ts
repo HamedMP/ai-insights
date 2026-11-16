@@ -1,5 +1,6 @@
 import type { Evidence, Harness, Session, Suggestion } from "../../schema/types.js";
-import { PACKMEM_URL } from "../links.js";
+import { PACKMEM_ACTION, PACKMEM_URL } from "../links.js";
+import { historyRetention } from "./history-retention.js";
 import { parseMs } from "../time.js";
 import { evidence, HARNESS_LABELS, round, type Detector } from "./context.js";
 
@@ -14,18 +15,13 @@ function isRunning(session: Session, nowMs: number): boolean {
   return nowMs - last < RUNNING_WINDOW_MS;
 }
 
-/**
- * Wording agreed with packmem for its 0.3.4 release: the ratio is the one measured on real history, and the
- * safety sentence is packmem's own. It adds disk until the originals go, so it must not promise freed space at once.
- */
-const ACTION =
-  "Agent transcripts repeat a lot of text, so they compress well. Run `npx packmem archive --dry-run` to see what it would do, then `npx packmem archive`: the archive is about 4-5x smaller on real Claude Code and Codex history. It never deletes or changes your agents' own files, and it counts a session as archived only after reading it back and matching the original's sha256, so a restore gives back the exact bytes. The archive is a full private copy that takes extra disk until the originals are removed.";
 
 function megabytes(bytes: number): number {
   return round(bytes / BYTES_PER_MB, 0);
 }
 
-export const historyDiskUsage: Detector = ({ sessions, coverage, now }) => {
+export const historyDiskUsage: Detector = (context) => {
+  const { sessions, coverage, now } = context;
   const sized = coverage
     .filter((entry) => typeof entry.bytes === "number" && Number.isFinite(entry.bytes) && entry.bytes > 0)
     .sort((a, b) => b.bytes! - a.bytes! || a.harness.localeCompare(b.harness));
@@ -45,7 +41,7 @@ export const historyDiskUsage: Detector = ({ sessions, coverage, now }) => {
   const suggestion: Suggestion = {
     type: "plugin",
     title: "Compress and save disk space",
-    action: ACTION,
+    action: PACKMEM_ACTION,
     ...(PACKMEM_URL ? { url: PACKMEM_URL } : {}),
   };
   return [
@@ -58,7 +54,8 @@ export const historyDiskUsage: Detector = ({ sessions, coverage, now }) => {
       harnesses: sized.map((entry) => entry.harness).sort(),
       metric: { value: megabytes(total), unit: "MB", label: "agent history on disk" },
       evidence: items,
-      suggestion,
+      // The keep-your-history finding already carries the packmem step; the pitch is not shown twice.
+      ...(historyRetention(context).length ? {} : { suggestion }),
     },
   ];
 };

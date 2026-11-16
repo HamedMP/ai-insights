@@ -1,4 +1,4 @@
-import type { Activity, Coverage, Evidence, Finding, Harness, Session, Severity, UsageSummary } from "../../schema/types.js";
+import type { Activity, Coverage, Evidence, Finding, Harness, Retention, Session, Severity, UsageSummary } from "../../schema/types.js";
 import { clean } from "../../sources/shared.js";
 import type { Clock } from "../time.js";
 import type { OwnedRequest } from "../usage.js";
@@ -15,6 +15,8 @@ export interface DetectorContext {
   coverage: Coverage[];
   now: Date;
   clock: Clock;
+  /** Measured by the scan; absent in tests and older callers. */
+  retention?: Retention;
 }
 
 export type Detector = (context: DetectorContext) => Finding[];

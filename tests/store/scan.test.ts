@@ -347,6 +347,25 @@ describe("history the harness has deleted", () => {
     expect(result.coverage.find((entry) => entry.harness === "claude-code")).toMatchObject({ sessions: 2, oldest: "2026-08-01T09:00:00.000Z" });
   });
 
+  it("measures retention: what is about to be deleted, even outside a narrow since window, and what only the cache holds", async () => {
+    const now = new Date("2026-11-16T12:00:00Z");
+    const policies = async () => new Map([["claude-code" as const, { harness: "claude-code" as const, policy: "deletes" as const, days: 30, source: "default" as const, clock: "modified" as const, basis: "b", desktopDays: null }]]);
+    const old = await onDisk("old", { sourceMtimeMs: now.getTime() - 27 * 86_400_000 });
+    const fresh = await onDisk("fresh", { sourceMtimeMs: now.getTime() - 86_400_000 });
+    const gone = await onDisk("gone", { startTime: "2026-08-01T09:00:00.000Z", endTime: "2026-08-01T10:00:00.000Z", sourceMtimeMs: now.getTime() - 100 * 86_400_000 });
+    const source = fakeSource("claude-code", [old, fresh, gone]);
+    await scan({ sources: [source], store, now: () => now, retentionPolicies: policies });
+    await rm(gone.sourcePath);
+    source.sessions = [old, fresh];
+    const result = await scan({ sources: [source], store: new Store(home), now: () => now, retentionPolicies: policies }, { since: new Date(now.getTime() - 3 * 86_400_000) });
+    const entry = result.retention!.harnesses.find((item) => item.harness === "claude-code")!;
+    // The real file's own mtime is now, so only the fake discovery mtimes matter through the injected clock.
+    expect(entry.transcripts).toBe(2);
+    expect(entry.cachedOnly).toBe(0);
+    expect(result.retention!.cache.drops.length).toBeGreaterThan(0);
+    expect(await scan({ sources: [source], store, retentionPolicies: false })).not.toHaveProperty("retention");
+  });
+
   it("keeps an orphan even after a parser bump, because there is nothing left to re-parse", async () => {
     const gone = await onDisk("gone");
     const source = fakeSource("claude-code", [gone]);

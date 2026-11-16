@@ -4,6 +4,8 @@ import { coverage, day, sessionsOverDays } from "../factory.js";
 import { findings } from "./helpers.js";
 
 const MB = 1_000_000;
+/** Months after the sessions, so history is long and only the disk-usage finding speaks. */
+const LATER = new Date(day(120));
 
 describe("history_disk_usage", () => {
   const sessions = () => [
@@ -14,6 +16,7 @@ describe("history_disk_usage", () => {
   it("suggests compressing history once it takes half a gigabyte, with one line per harness", () => {
     const all = sessions();
     const result = findings("history_disk_usage", all, {
+      now: LATER,
       coverage: [coverage("claude-code", 3, true, 420 * MB), coverage("codex", 2, true, 180 * MB), coverage("cursor", 0, false)],
     });
     expect(result).toHaveLength(1);
@@ -32,7 +35,7 @@ describe("history_disk_usage", () => {
 
   it("gives the packmem archive commands with the measured saving and says the originals stay", () => {
     expect(PACKMEM_URL).toBe("https://hamedmp.github.io/packmem/docs/agent-history/");
-    const [finding] = findings("history_disk_usage", sessions(), { coverage: [coverage("claude-code", 3, true, 900 * MB)] });
+    const [finding] = findings("history_disk_usage", sessions(), { now: LATER, coverage: [coverage("claude-code", 3, true, 900 * MB)] });
     expect(finding!.suggestion?.url).toBe(PACKMEM_URL);
     const action = finding!.suggestion!.action;
     expect(action).toContain("npx packmem archive --dry-run");
@@ -41,6 +44,15 @@ describe("history_disk_usage", () => {
     expect(action).toMatch(/extra disk/);
   });
 
+
+  it("keeps its number but leaves the packmem pitch to the keep-your-history finding when that one fires", () => {
+    const all = findings("history_disk_usage", sessions(), { coverage: [coverage("claude-code", 3, true, 900 * MB)] });
+    expect(all).toHaveLength(1);
+    expect(all[0]!.metric?.value).toBe(900);
+    expect(all[0]!.suggestion).toBeUndefined();
+    const [retention] = findings("history_retention", sessions(), { coverage: [coverage("claude-code", 3, true, 900 * MB)] });
+    expect(retention!.suggestion?.steps?.find((step) => step.title === "Archive them compactly")?.action).toContain("npx packmem archive --dry-run");
+  });
 
   it("stays quiet under half a gigabyte", () => {
     expect(findings("history_disk_usage", sessions(), { coverage: [coverage("claude-code", 3, true, 300 * MB), coverage("codex", 2, true, 150 * MB)] })).toEqual([]);

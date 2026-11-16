@@ -14,11 +14,11 @@ function busy(dayIndex: number, from: number, to: number): ToolCall[] {
   return calls;
 }
 
-describe("short_history uses one definition of days of history", () => {
+describe("history_retention uses one definition of days of history", () => {
   it("counts calendar days from the oldest session to today, the same number the page can compute", () => {
     const sessions = sessionsOverDays(3);
     const now = new Date(day(20, 600));
-    const [finding] = findings("short_history", sessions, { now });
+    const [finding] = findings("history_retention", sessions, { now });
     expect(historyDays(sessions[0]!.startTime, now, "UTC")).toBe(20);
     expect(finding!.metric?.value).toBe(20);
   });
@@ -26,13 +26,13 @@ describe("short_history uses one definition of days of history", () => {
   it("reads the oldest date from coverage when the scan recorded it", () => {
     const sessions = sessionsOverDays(3, (index) => ({ startTime: day(10 + index) }));
     const cov = { ...coverage("claude-code", 3), oldest: day(5) };
-    const [finding] = findings("short_history", sessions, { coverage: [cov], now: new Date(day(20)) });
+    const [finding] = findings("history_retention", sessions, { coverage: [cov], now: new Date(day(20)) });
     expect(finding!.metric?.value).toBe(15);
   });
 
-  it("names transcript cleanup as the usual cause, not as a fact", () => {
-    const [finding] = findings("short_history", sessionsOverDays(3), { now: new Date(day(10)) });
-    expect(finding!.detail).toMatch(/usual cause/i);
+  it("names transcript cleanup as one possible cause, not as a fact", () => {
+    const [finding] = findings("history_retention", sessionsOverDays(3), { now: new Date(day(10)) });
+    expect(finding!.detail).toMatch(/cleanupPeriodDays/);
     expect(finding!.detail).toMatch(/new machine|fresh install/i);
   });
 });
@@ -45,7 +45,6 @@ describe("history_disk_usage", () => {
     const [finding] = findings("history_disk_usage", [finished, running], { coverage: [coverage("claude-code", 2, true, 600 * MB)], now });
     expect(finding).toBeDefined();
     expect(finding!.evidence.map((item) => item.sessionId)).toEqual([finished.id]);
-    expect(finding!.suggestion?.url).toBeTruthy();
   });
 });
 
@@ -172,7 +171,7 @@ describe("Coverage.historyDays", () => {
     const now = new Date(day(20));
     const report = build(sessions, [coverage("claude-code", 2), coverage("codex", 2)], now);
     expect(report.coverage.map((entry) => [entry.harness, entry.historyDays])).toEqual([["claude-code", 6], ["codex", 20]]);
-    const finding = report.findings.find((item) => item.kind === "short_history");
+    const finding = report.findings.find((item) => item.kind === "history_retention");
     expect(finding!.metric?.value).toBe(6);
     expect(finding!.detail).toContain("Codex 20 days");
   });
@@ -224,11 +223,9 @@ describe("wave 6", () => {
 
   it("names each harness's own oldest date in the short-history text", () => {
     const sessions = [...sessionsOverDays(2, (index) => ({ startTime: day(20 + index) })), ...sessionsOverDays(2, (index) => ({ harness: "codex", startTime: day(index) }))];
-    const [finding] = findings("short_history", sessions, { now: new Date(day(26)) });
+    const [finding] = findings("history_retention", sessions, { now: new Date(day(26)) });
     expect(finding!.detail).toContain("Claude Code 6 days (since 2026-06-21)");
     expect(finding!.detail).toContain("Codex 26 days (since 2026-06-01)");
-    expect(finding!.suggestion?.action).toContain("2026-06-21");
-    expect(finding!.suggestion?.action).not.toContain("2026-06-01");
     const notes = finding!.evidence.map((item) => [item.harness, item.note]);
     expect(notes).toEqual([
       ["claude-code", expect.stringContaining("2026-06-21")],

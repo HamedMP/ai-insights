@@ -61,6 +61,7 @@ export async function buildFromScan(deps: PipelineDeps, result: ScanResult): Pro
     coverage: result.coverage,
     timeZone: deps.timeZone ?? localTimeZone(),
     now: deps.now?.() ?? new Date(),
+    ...(result.retention ? { retention: result.retention } : {}),
   });
   return { report, facetCount: facets.length, hasNarrative: narrative !== null };
 }

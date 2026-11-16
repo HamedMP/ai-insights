@@ -10,7 +10,7 @@ import { noTestsBeforeDone } from "./no-tests-before-done.js";
 import { permissionPromptLoad } from "./permission-prompt-load.js";
 import { repeatedFailedCommand } from "./repeated-failed-command.js";
 import { repeatedInstruction } from "./repeated-instruction.js";
-import { shortHistory } from "./short-history.js";
+import { historyRetention } from "./history-retention.js";
 import { singleHarnessOnly } from "./single-harness-only.js";
 import { slowCorrection } from "./slow-correction.js";
 import { toolErrorHotspot } from "./tool-error-hotspot.js";
@@ -43,8 +43,10 @@ export const DETECTORS: Record<FindingKind, Detector> = {
   tool_error_hotspot: toolErrorHotspot,
   unused_feature: unusedFeature,
   single_harness_only: singleHarnessOnly,
-  short_history: shortHistory,
+  // Folded into history_retention: one idea, not two.
+  short_history: () => [],
   history_disk_usage: historyDiskUsage,
+  history_retention: historyRetention,
 };
 
 /**

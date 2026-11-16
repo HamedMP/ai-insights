@@ -21,12 +21,13 @@ import {
 } from "../schema/types.js";
 import { clean } from "../sources/shared.js";
 import { buildFromScan, countsForFacets, describeHeadline, headline, renderFromScan, type BuildReportFn, type RenderReportFn } from "../store/pipeline.js";
+import type { RetentionPolicy } from "../store/retention.js";
 import { scan, type ScanOptions, type ScanResult } from "../store/scan.js";
 import { describeIssues, isSafeId } from "../store/schemas.js";
 import { parseSince, SINCE_HELP } from "../store/since.js";
 import { isFacetStale, sessionKey, StoreError, type Store } from "../store/store.js";
 import { fitJson } from "./bound.js";
-import { activityDigest, facetsDigest, projectLabel, recapDigest, usageDigest, DIGEST_WEEKS } from "./digest.js";
+import { activityDigest, facetsDigest, projectLabel, recapDigest, retentionDigest, usageDigest, DIGEST_WEEKS } from "./digest.js";
 import { DEFAULT_EXCERPT_CHARS, DEFAULT_EXCERPT_CHARS_PER_TURN, DEFAULT_EXCERPT_TURNS, fitTurns } from "./excerpt.js";
 import { DEFAULT_MIN_USER_MESSAGES, facetBacklog, filterCandidates, isAgentDriven, isLive, spreadOrder } from "./select.js";
 import { packageVersion } from "./version.js";
@@ -38,6 +39,8 @@ export interface ServerDeps {
   renderReport: RenderReportFn;
   now?: () => Date;
   timeZone?: string;
+  /** How long each harness keeps transcripts. Default: read from this machine's settings files. */
+  retentionPolicies?: false | (() => Promise<Map<Harness, RetentionPolicy>>);
 }
 
 /** An error whose message is safe to show the agent as-is. */
@@ -114,7 +117,15 @@ class ServerState {
 
   async runScan(options: ScanOptions): Promise<ScanResult> {
     if (this.inflight) await this.inflight.catch(() => undefined);
-    this.inflight = scan({ sources: this.deps.sources, store: this.deps.store }, options);
+    this.inflight = scan(
+      {
+        sources: this.deps.sources,
+        store: this.deps.store,
+        ...(this.deps.now ? { now: this.deps.now } : {}),
+        ...(this.deps.retentionPolicies !== undefined ? { retentionPolicies: this.deps.retentionPolicies } : {}),
+      },
+      options,
+    );
     try {
       this.last = await this.inflight;
       return this.last;
@@ -171,6 +182,8 @@ function summarySection(report: Report, facetCount: number, hasNarrative: boolea
     findingsBySeverity: countBy(report.findings.map((finding) => finding.severity)),
     sessionsWithFacets: facetCount,
     hasNarrative,
+    // So the narrative can say plainly when transcripts are about to be deleted, and what survives.
+    ...(report.retention ? { retention: retentionDigest(report.retention) } : {}),
   };
 }
 

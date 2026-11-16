@@ -106,6 +106,7 @@ export const TIP_TITLES: ReadonlySet<string> = new Set([
   "Hand off instead of compacting",
   "Front-load the request",
   "Store your conversations long term",
+  "Keep your history",
   "Compress and save disk space",
   "Delegate exploration to a subagent",
   "Start big changes in plan mode",

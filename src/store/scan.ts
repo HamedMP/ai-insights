@@ -1,6 +1,7 @@
-import { HARNESSES, type Coverage, type Harness, type Session, type SessionFile, type Source } from "../schema/types.js";
+import { HARNESSES, type Coverage, type Harness, type Retention, type Session, type SessionFile, type Source } from "../schema/types.js";
 import { mapLimit } from "./fs.js";
 import { ProjectRoots, resolveProjectRoots } from "./project-root.js";
+import { measureRetention, readRetentionPolicies, type RetentionPolicy } from "./retention.js";
 import { sessionKey, type Store } from "./store.js";
 
 export interface ScanOptions {
@@ -19,6 +20,13 @@ export interface ScanOptions {
 export interface ScanDeps {
   sources: Source[];
   store: Store;
+  /** The clock retention is measured against. */
+  now?: () => Date;
+  /**
+   * How long each harness keeps transcripts. Default: read from this machine's settings files. False skips
+   * the retention measurement (the report then has no `retention`).
+   */
+  retentionPolicies?: false | (() => Promise<Map<Harness, RetentionPolicy>>);
 }
 
 export interface ScanResult {
@@ -30,6 +38,8 @@ export interface ScanResult {
   stats: { discovered: number; parsed: number; cached: number; failed: number; skippedEmpty: number; duplicates: number; orphaned: number };
   scannedAt: string;
   options: { since: string | null; harness: Harness[] | null; maxSessions: number };
+  /** Absent when the scan did not measure it, or measuring failed. */
+  retention?: Retention;
 }
 
 export const DEFAULT_MAX_SESSIONS = 5_000;
@@ -167,11 +177,13 @@ export async function scan(deps: ScanDeps, options: ScanOptions = {}): Promise<S
   // History the harness deleted lives on in the cache; without it a long recap would shrink to the harness's retention.
   const known = new Set(all.map((file) => file.path));
   let room = maxSessions - all.length;
+  const cachedOnly = new Map<Harness, Session[]>();
   for (const source of active) {
     if (room <= 0) break;
     const orphans = await deps.store
       .orphanSessions(source.harness, known, { limit: room, ...(options.since ? { sinceMs: options.since.getTime() } : {}) })
       .catch(() => []);
+    cachedOnly.set(source.harness, orphans.map((orphan) => orphan.session));
     for (const orphan of orphans) entries.push({ file: orphan.file, session: orphan.session, fresh: false });
     stats.orphaned += orphans.length;
     room -= orphans.length;
@@ -229,6 +241,7 @@ export async function scan(deps: ScanDeps, options: ScanOptions = {}): Promise<S
     });
   }
 
+  const retention = await retentionFor(deps, active, discovered, entries, cachedOnly, options.since).catch(() => undefined);
   return {
     sessions,
     coverage,
@@ -236,5 +249,30 @@ export async function scan(deps: ScanDeps, options: ScanOptions = {}): Promise<S
     stats,
     scannedAt: new Date().toISOString(),
     options: { since: options.since?.toISOString() ?? null, harness: wanted, maxSessions },
+    ...(retention ? { retention } : {}),
   };
+}
+
+async function retentionFor(
+  deps: ScanDeps,
+  active: Source[],
+  discovered: Map<Harness, SessionFile[]>,
+  entries: ScannedEntry[],
+  cachedOnly: Map<Harness, Session[]>,
+  since: Date | undefined,
+): Promise<Retention | undefined> {
+  if (deps.retentionPolicies === false) return undefined;
+  const all = await (deps.retentionPolicies ?? readRetentionPolicies)();
+  const policies = new Map([...all].filter(([harness]) => active.some((source) => source.harness === harness)));
+  const files = new Map(discovered);
+  // Files about to be deleted are old, so a narrow `since` would hide exactly them: list deleting harnesses in full.
+  if (since) {
+    for (const source of active) {
+      if (policies.get(source.harness)?.policy !== "deletes") continue;
+      const full = await safeDiscover(source, undefined, HARD_MAX_SESSIONS);
+      if (full) files.set(source.harness, full);
+    }
+  }
+  const sessionsByPath = new Map(entries.map((entry) => [entry.file.path, entry.session]));
+  return measureRetention({ now: deps.now?.() ?? new Date(), policies, files, sessionsByPath, cachedOnly });
 }

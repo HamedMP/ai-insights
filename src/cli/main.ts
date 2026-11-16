@@ -8,11 +8,12 @@ import { buildReport as realBuildReport } from "../analysis/index.js";
 import { startStdioServer, type ServerDeps } from "../mcp/server.js";
 import { packageVersion } from "../mcp/version.js";
 import { renderReport as realRenderReport } from "../render/index.js";
-import { HARNESSES, type Coverage, type Harness, type Report, type Source } from "../schema/types.js";
+import { HARNESSES, type Coverage, type Harness, type Report, type Retention, type SessionFile, type Source } from "../schema/types.js";
 import { sources as realSources } from "../sources/index.js";
 import { ensureDir, pathExists, writeFileAtomic } from "../store/fs.js";
 import { buildFromScan, describeHeadline, headline, renderFromScan, type BuildReportFn, type RenderReportFn } from "../store/pipeline.js";
 import { harnessLabel, scan, totalBytes, type ScanOptions } from "../store/scan.js";
+import { measureRetention, readRetentionPolicies, type RetentionPolicy } from "../store/retention.js";
 import { parseSince, SINCE_HELP } from "../store/since.js";
 import { Store, resolveHome } from "../store/store.js";
 
@@ -28,6 +29,8 @@ export interface CliDeps {
   /** Opens a local file in the default app. Never a URL on the network. */
   openFile: (path: string) => Promise<void>;
   startMcp: (deps: ServerDeps) => Promise<unknown>;
+  /** How long each harness keeps transcripts. Default: read from this machine's settings files. */
+  retentionPolicies?: () => Promise<Map<Harness, RetentionPolicy>>;
 }
 
 class UsageError extends Error {}
@@ -193,6 +196,30 @@ function coverageLines(coverage: Coverage[]): string[] {
   });
 }
 
+/**
+ * One line when transcripts are about to be deleted, naming the change that keeps them; null otherwise.
+ * "12 Claude Code sessions will be deleted within 7 days (from 2026-11-18). ..."
+ */
+export function retentionLine(retention: Retention | undefined, now: Date): string | null {
+  if (!retention || retention.atRisk.sessions <= 0) return null;
+  const due = retention.harnesses.filter((entry) => (entry.atRisk?.sessions ?? 0) > 0).sort((a, b) => b.atRisk!.sessions - a.atRisk!.sessions);
+  const counts = due.map((entry) => `${entry.atRisk!.sessions.toLocaleString("en-US")} ${harnessLabel(entry.harness)}`).join(" and ");
+  const noun = retention.atRisk.sessions === 1 ? "session" : "sessions";
+  const next = retention.atRisk.nextDeletion ? Date.parse(retention.atRisk.nextDeletion) : Number.NaN;
+  const when = Number.isFinite(next) ? (next <= now.getTime() ? " (some at the agent's next start)" : ` (from ${day(new Date(next).toISOString())})`) : "";
+  const lead = due[0]!;
+  const file = lead.setting?.file;
+  const fix =
+    lead.source === "managed"
+      ? "ask an admin (managed settings set this) or "
+      : lead.harness === "claude-code" && file
+        ? `add "cleanupPeriodDays": 365 to ${file} or `
+        : lead.harness === "gemini" && file
+          ? `set general.sessionRetention.maxAge to "365d" in ${file} or `
+          : "";
+  return `${counts} ${noun} will be deleted within ${plural(retention.windowDays, "day")}${when}. AI Insights keeps their stats; to keep the transcripts, ${fix}archive them with \`npx packmem archive\`.`;
+}
+
 /** Three lines a person can read at a glance: what was covered, how much, and the top finding. */
 export function summaryLines(report: Report): string[] {
   const found = report.coverage.filter((entry) => entry.sessions > 0).map((entry) => entry.label);
@@ -210,13 +237,15 @@ export function summaryLines(report: Report): string[] {
 // -- commands -----------------------------------------------------------------
 
 async function commandRun(parsed: Parsed, deps: CliDeps, store: Store): Promise<number> {
-  const result = await scan({ sources: deps.sources, store }, scanOptions(parsed));
+  const result = await scan(scanDeps(deps, store), scanOptions(parsed));
   if (result.sessions.length === 0) {
     deps.stderr("No agent sessions found. Run `ai-insights doctor` to see where AI Insights looked.\n");
     return 1;
   }
   const outcome = await renderFromScan(pipelineDeps(deps, store), result);
   deps.stdout(`${summaryLines(outcome.report).join("\n")}\n\nReport: ${outcome.htmlPath}\n`);
+  const keep = retentionLine(outcome.report.retention, deps.now());
+  if (keep) deps.stdout(`${keep}\n`);
   if (outcome.facetCount === 0 && !outcome.hasNarrative) {
     deps.stdout("Tip: run the analyze-ai-usage skill in your agent to add what went well and what got in the way.\n");
   }
@@ -225,7 +254,7 @@ async function commandRun(parsed: Parsed, deps: CliDeps, store: Store): Promise<
 }
 
 async function commandScan(parsed: Parsed, deps: CliDeps, store: Store): Promise<number> {
-  const result = await scan({ sources: deps.sources, store }, scanOptions(parsed));
+  const result = await scan(scanDeps(deps, store), scanOptions(parsed));
   const numbers = headline(result.sessions);
   let analysed: string | null = null;
   if (result.sessions.length > 0) {
@@ -251,7 +280,7 @@ async function commandScan(parsed: Parsed, deps: CliDeps, store: Store): Promise
 }
 
 async function commandReport(parsed: Parsed, deps: CliDeps, store: Store): Promise<number> {
-  const result = await scan({ sources: deps.sources, store }, scanOptions(parsed));
+  const result = await scan(scanDeps(deps, store), scanOptions(parsed));
   if (parsed.json) {
     const { report } = await buildFromScan(pipelineDeps(deps, store), result);
     deps.stdout(`${JSON.stringify(report, null, 2)}\n`);
@@ -273,6 +302,8 @@ async function countEntries(dir: string): Promise<number> {
 
 async function commandDoctor(deps: CliDeps, store: Store): Promise<number> {
   const lines: string[] = [`ai-insights ${packageVersion()} on Node ${process.versions.node}`, ""];
+  const policies = await (deps.retentionPolicies ?? readRetentionPolicies)().catch(() => new Map<Harness, RetentionPolicy>());
+  const found = new Map<Harness, SessionFile[]>();
   for (const harness of HARNESSES) {
     const source = deps.sources.find((candidate) => candidate.harness === harness);
     const label = harnessLabel(harness, deps.sources);
@@ -301,11 +332,18 @@ async function commandDoctor(deps: CliDeps, store: Store): Promise<number> {
         ? "no history found"
         : `${plural(files.length, "transcript")} (${formatBytes(totalBytes(files))}), ${new Date(oldest).toISOString().slice(0, 10)} to ${new Date(newest).toISOString().slice(0, 10)}`;
     lines.push(`${label}: ${status}`);
+    found.set(harness, files);
+    const policy = policies.get(harness);
+    if (policy && files.length) lines.push(`  keeps   ${keepsText(policy)}`);
     const note = source.diagnose ? await source.diagnose().catch(() => null) : null;
     if (note) lines.push(`  note    ${note}`);
     for (const root of roots) lines.push(`  ${(await pathExists(root)) ? "found  " : "missing"} ${root}`);
     if (roots.length === 0) lines.push("  (no default location on this machine)");
   }
+
+  const retention = await measureRetention({ now: deps.now(), policies, files: found, sessionsByPath: new Map(), cachedOnly: new Map() }).catch(() => undefined);
+  const keep = retentionLine(retention, deps.now());
+  if (keep) lines.push("", keep);
 
   lines.push("", `Store: ${store.home}`);
   let writable = true;
@@ -329,6 +367,17 @@ async function commandDoctor(deps: CliDeps, store: Store): Promise<number> {
   lines.push(`  last report: ${report ? `${reportPath} (${report.mtime.toISOString().slice(0, 16).replace("T", " ")})` : "none yet"}`);
   deps.stdout(`${lines.join("\n")}\n`);
   return 0;
+}
+
+function keepsText(policy: RetentionPolicy): string {
+  if (policy.policy === "kept") return "transcripts until you delete them";
+  if (policy.policy === "unknown" || policy.days === undefined) return "unknown how long transcripts are kept";
+  const where = policy.setting ? `${policy.setting.name} in ${policy.setting.file}` : "its settings";
+  return `transcripts ${plural(policy.days, "day")} (${policy.source === "default" ? `the default; ${where}` : policy.source === "managed" ? "managed settings" : where})`;
+}
+
+function scanDeps(deps: CliDeps, store: Store) {
+  return { sources: deps.sources, store, now: deps.now, ...(deps.retentionPolicies ? { retentionPolicies: deps.retentionPolicies } : {}) };
 }
 
 function pipelineDeps(deps: CliDeps, store: Store) {

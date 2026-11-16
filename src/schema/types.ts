@@ -364,8 +364,10 @@ export const FINDING_KINDS = [
   "tool_error_hotspot",
   "unused_feature",
   "single_harness_only",
+  /** Folded into `history_retention`; no detector emits it any more. Kept so older saved reports still type-check. */
   "short_history",
   "history_disk_usage",
+  "history_retention",
 ] as const;
 export type FindingKind = (typeof FINDING_KINDS)[number];
 
@@ -382,6 +384,19 @@ export interface Evidence {
 export const SUGGESTION_TYPES = ["instructions", "feature", "plugin", "habit", "model_choice", "matrix"] as const;
 export type SuggestionType = (typeof SUGGESTION_TYPES)[number];
 
+/** One action of a multi-step suggestion, shown as its own step. */
+export interface SuggestionStep {
+  title: string;
+  /** What to do and why, in one or two sentences. */
+  action: string;
+  /** Text to copy exactly as given: a command to run or a settings line to paste. */
+  command?: string;
+  /** How to take the step back. */
+  undo?: string;
+  url?: string;
+  instructionText?: string;
+}
+
 export interface Suggestion {
   type: SuggestionType;
   title: string;
@@ -396,6 +411,11 @@ export interface Suggestion {
    * same idea is not listed twice. Absent when the suggestion stands on its own.
    */
   findingId?: string;
+  /**
+   * Separate actions to show as numbered steps, in order. `action` then sums them up in one line. Absent on
+   * single-action suggestions.
+   */
+  steps?: SuggestionStep[];
 }
 
 export interface Finding {
@@ -477,6 +497,79 @@ export interface Coverage {
 export interface Count {
   key: string;
   count: number;
+}
+
+// ---------------------------------------------------------------------------
+// Retention: how long each harness keeps transcripts, and what AI Insights keeps after they are gone
+// ---------------------------------------------------------------------------
+
+/** Days ahead `atRisk` looks for transcripts about to be deleted. */
+export const RETENTION_WINDOW_DAYS = 7;
+
+export interface RetentionAtRisk {
+  /** Transcripts past, or reaching within the window, the age at which the harness deletes them. */
+  sessions: number;
+  bytes: number;
+  /**
+   * When the first of them becomes eligible for deletion (ISO). The harness deletes at its next start after
+   * that, so a date in the past means "the next time it starts".
+   */
+  nextDeletion: string | null;
+}
+
+export interface HarnessRetention {
+  harness: Harness;
+  /** `deletes`: the harness removes transcripts by itself; `kept`: kept until you delete them; `unknown`: not documented or unreadable here. */
+  policy: "deletes" | "kept" | "unknown";
+  /** Age in days at which transcripts are deleted. Only with `deletes`. */
+  days?: number;
+  /** Where `days` came from: the documented default, the person's settings file, or managed (organization) settings. */
+  source?: "default" | "settings" | "managed";
+  /** The setting that controls it: its name, the file it lives in (home shortened to `~`), and the value found there. */
+  setting?: { name: string; file: string; value: number | string | null };
+  /** What the age is measured from: the file's last change (Claude Code) or the chat's recorded last update (Gemini CLI). */
+  clock?: "modified" | "last-updated";
+  /** One or two sentences on how the harness decides, from its docs or source. */
+  basis: string;
+  /** The doc or source `basis` comes from. */
+  url?: string;
+  /** Transcripts on disk now. */
+  transcripts: number;
+  bytes: number;
+  /** Start of the oldest session whose transcript is still on disk (ISO), or null. */
+  oldestOnDisk: string | null;
+  /** Only with `deletes`. */
+  atRisk?: RetentionAtRisk;
+  /**
+   * Up to five sessions in `atRisk`, soonest first, so a finding can cite them. Session ids only: no paths.
+   */
+  due?: Array<{ sessionId: string; eligibleAt: string }>;
+  /**
+   * Transcripts that would be due but the harness keeps anyway, left out of `atRisk`: Claude Code keeps sessions
+   * started or last continued in Claude Desktop or Cowork (v2.1.248+), and Claude Desktop's own session stores are
+   * not part of its sweep, so they may be kept.
+   */
+  exempt?: { sessions: number; reason: string };
+  /** Sessions whose transcript is gone and that now exist only in AI Insights' cache. */
+  cachedOnly: number;
+  /** Start of the oldest session AI Insights still has for this harness, on disk or in its cache (ISO), or null. */
+  coversFrom: string | null;
+}
+
+export interface Retention {
+  windowDays: number;
+  /** Harnesses with transcripts on disk or sessions in the cache. */
+  harnesses: HarnessRetention[];
+  /** Sums over `harnesses`. */
+  atRisk: RetentionAtRisk;
+  cachedOnly: number;
+  /** The earliest session start any recap can still cover (ISO), or null. */
+  coversFrom: string | null;
+  /**
+   * What a session cached by AI Insights keeps once its transcript is deleted, and what it does not. Fixed text,
+   * so a page can say "your stats survive; the full transcripts do not unless you archive them".
+   */
+  cache: { keeps: string[]; drops: string[] };
 }
 
 export interface SessionSpan {
@@ -586,6 +679,8 @@ export interface Report {
   narrative: Narrative | null;
   /** The shareable stats for the recap cards. Absent when there are no sessions, and in reports from before it existed. */
   recap?: Recap;
+  /** How long each harness keeps transcripts. Absent when the scan did not measure it (tests, older reports). */
+  retention?: Retention;
 }
 
 // ---------------------------------------------------------------------------
@@ -814,6 +909,18 @@ export interface Recap {
   thinking?: RecapThinking;
   approvals?: RecapApprovals;
   replies?: RecapReplies;
+  /** How much history AI Insights keeps. Absent without `Report.retention`. */
+  history?: RecapHistory;
+}
+
+/** Share-safe: a day and counts only. */
+export interface RecapHistory {
+  /** Local calendar days from `firstDay` to the report day, at least 1: counted as `Coverage.historyDays` is. */
+  days: number;
+  /** Local day of the oldest session AI Insights still has. */
+  firstDay: string;
+  /** Sessions whose transcript the harness deleted and that only AI Insights' cache still holds. */
+  cachedOnly: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -908,4 +1015,6 @@ export interface BuildReportInput {
   coverage: Coverage[];
   timeZone?: string;
   now?: Date;
+  /** Measured by the scan; passed through to `Report.retention`. */
+  retention?: Retention;
 }
