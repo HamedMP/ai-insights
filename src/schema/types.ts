@@ -460,6 +460,11 @@ export interface SessionSpan {
   activeMinutes: number;
   /** True when the session was driven by another agent, not typed by the person. */
   agentDriven?: boolean;
+  /**
+   * When the session was really working: [startMs, endMs] epoch-millisecond pairs, split where it sat idle for
+   * more than 10 minutes, oldest first, at most 50. A session resumed days later is two stretches, not one bar.
+   */
+  active?: Array<[number, number]>;
 }
 
 export interface Activity {

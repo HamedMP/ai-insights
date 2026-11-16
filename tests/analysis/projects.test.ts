@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildReport } from "../../src/analysis/index.js";
 import type { Session } from "../../src/schema/types.js";
-import { at, coverage, day, NOW, prompt, session, sessionsOverDays, task } from "./factory.js";
+import { at, coverage, day, NOW, prompt, session, sessionsOverDays, task, tool } from "./factory.js";
 import { findings } from "./findings/helpers.js";
 
 const build = (sessions: Session[]) =>
@@ -54,10 +54,28 @@ describe("session spans", () => {
       session({ id: "early", startTime: at(0), projectPath: "/synthetic/plain" }),
       session({ id: "none", startTime: at(60), projectPath: null }),
     ]);
+    const ms = (minutes: number) => Date.parse(at(minutes));
+    // The factory session works 0-13 min, idles 12 min, then works 25-30 min.
     expect(report.activity.sessionSpans).toEqual([
-      { sessionId: "early", harness: "claude-code", project: "/synthetic/plain", start: at(0), end: at(30), activeMinutes: 25 },
-      { sessionId: "none", harness: "claude-code", project: null, start: at(60), end: at(90), activeMinutes: 25 },
-      { sessionId: "late", harness: "claude-code", project: ROOT, start: at(120), end: at(150), activeMinutes: 25 },
+      { sessionId: "early", harness: "claude-code", project: "/synthetic/plain", start: at(0), end: at(30), activeMinutes: 25, active: [[ms(0), ms(13)], [ms(25), ms(30)]] },
+      { sessionId: "none", harness: "claude-code", project: null, start: at(60), end: at(90), activeMinutes: 25, active: [[ms(60), ms(73)], [ms(85), ms(90)]] },
+      { sessionId: "late", harness: "claude-code", project: ROOT, start: at(120), end: at(150), activeMinutes: 25, active: [[ms(120), ms(133)], [ms(145), ms(150)]] },
+    ]);
+  });
+
+  it("gives each span its active stretches, split at idle gaps, so a timeline can draw when a session really worked", () => {
+    const resumed = session({
+      id: "resumed",
+      startTime: at(0),
+      endTime: at(300),
+      prompts: [prompt("fix", at(0)), prompt("again", at(290))],
+      requests: [],
+      toolCalls: [tool("read", { timestamp: at(5) }), tool("read", { timestamp: at(300) })],
+    });
+    const span = build([resumed]).activity.sessionSpans![0]!;
+    expect(span.active).toEqual([
+      [Date.parse(at(0)), Date.parse(at(5))],
+      [Date.parse(at(290)), Date.parse(at(300))],
     ]);
   });
 

@@ -9,6 +9,8 @@ const MAX_COUNTS = 100;
 const MAX_PROJECTS = 50;
 /** The contract caps spans so a long history does not bloat the report; the newest are the ones a reader recognises. */
 const MAX_SESSION_SPANS = 400;
+/** Stretches kept per span: a marathon resumed every day for months still costs a bounded few KB. */
+const MAX_ACTIVE_STRETCHES = 50;
 
 const RESPONSE_BUCKETS: Array<{ key: string; maxSec: number }> = [
   { key: "<10s", maxSec: 10 },
@@ -167,6 +169,8 @@ function sessionSpans(sessions: Session[]): SessionSpan[] {
       activeMinutes: Math.max(0, session.activeMinutes || 0),
     };
     if (isAgentDriven(session)) span.agentDriven = true;
+    const active = activeSpans(session);
+    if (active.length) span.active = active.slice(0, MAX_ACTIVE_STRETCHES);
     return span;
   });
 }
