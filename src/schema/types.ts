@@ -371,6 +371,8 @@ export interface UsageSummary extends UsageTotals {
 }
 
 export interface Coverage {
+  /** Local calendar days from the oldest session's day to the report day, at least 1. The one number to show. */
+  historyDays?: number;
   harness: Harness;
   label: string;
   /** False when no history for this harness was found on the machine. */
@@ -419,6 +421,7 @@ export interface Activity {
   /** 24 entries, sessions' user messages by local hour. */
   hourHistogram: number[];
   /** Per local day, newest last. */
+  /** `sessions` counts sessions started that day, so the series sums to `sessions` above. */
   daily: Array<{ day: string; sessions: number; userMessages: number; activeMinutes: number }>;
   byHarness: Array<{ harness: Harness; sessions: number; activeMinutes: number }>;
   /** Grouped by `projectRoot ?? projectPath`; `worktrees` counts the distinct working folders folded into the row. */
