@@ -57,15 +57,36 @@ describe("session timeline: spans present", () => {
     expect(timeline.window.label).toBe("Nov 12");
     expect(timeline.inWindow).toBeLessThan(timeline.total);
     const markup = String(spanTimeline(timeline, ZONE, 40));
-    expect(markup).toContain(`Showing Nov 12, the day with the most sessions at once · ${timeline.inWindow} of ${timeline.total} sessions`);
+    expect(markup).toContain(`Showing Nov 12, the day with the most sessions open at once · ${timeline.inWindow} of ${timeline.total} sessions`);
   });
 
   it("marks the busiest moment with its count", () => {
     const timeline = buildTimeline(makeSpans(), ZONE)!;
     const markup = String(spanTimeline(timeline, ZONE, 40));
     expect(timeline.peak.count).toBeGreaterThanOrEqual(7);
-    expect(markup).toContain(`<b>${timeline.peak.count}</b> at once · ${timeline.peak.label}`);
+    expect(markup).toContain(`<b>${timeline.peak.count}</b> open · ${timeline.peak.label}`);
     expect(markup).toContain('class="tl-peak"');
+  });
+
+  it("explains why more sessions were open than working when the report's count of active sessions is lower", () => {
+    const report = makeReport();
+    const timeline = buildTimeline(report.activity.sessionSpans, ZONE)!;
+    const working = timeline.peak.count - 2;
+    const html = renderReport({ ...report, activity: { ...report.activity, parallelSessions: { ...report.activity.parallelSessions, maxConcurrent: working } } });
+    const parallel = section(html, "parallel");
+    const sentence = `A bar runs from a session's first to last message, idle time included; at most ${working} sessions were actively working at the same moment.`;
+    expect(parallel).toContain(`<b>${timeline.peak.count}</b> open · `);
+    expect(parallel).toContain(`<span class="tl-idle">${sentence.replace(/'/g, "&#39;")}</span>`);
+    expect(parallel).toContain(`aria-label="`);
+    expect(parallel).toMatch(new RegExp(`aria-label="[^"]*actively working at the same moment`));
+    expect(parallel).toContain(`<dt>Most working at once</dt><dd>${working}</dd>`);
+  });
+
+  it("leaves out the idle-time sentence when open and working counts agree", () => {
+    const timeline = buildTimeline(MORNING, ZONE)!;
+    expect(String(spanTimeline(timeline, ZONE, 4, timeline.peak.count))).not.toContain("tl-idle");
+    expect(String(spanTimeline(timeline, ZONE, 4))).not.toContain("tl-idle");
+    expect(String(spanTimeline(timeline, ZONE, 4, 1))).toContain("at most 1 session was actively working");
   });
 
   it("colours by harness in the order the report ranks them and sets agent-driven sessions apart", () => {
@@ -81,7 +102,7 @@ describe("session timeline: spans present", () => {
     const timeline = buildTimeline(MORNING, ZONE)!;
     const summary = timelineSummary(timeline, ZONE);
     expect(summary).toContain("4 sessions drawn in 3 lanes");
-    expect(summary).toContain("At most 3 ran at once, at 11:30.");
+    expect(summary).toContain("At most 3 were open at once, at 11:30.");
     expect(summary).toContain("1 session was driven by another agent.");
     const markup = String(spanTimeline(timeline, ZONE, 4));
     expect(markup).toContain(`role="img" aria-label="${summary}"`);
@@ -114,7 +135,7 @@ describe("session timeline: spans present", () => {
   it("still tells the story from spans alone when the aggregate overlap counts are missing", () => {
     const report = makeReport();
     const html = renderReport({ ...report, activity: { ...report.activity, parallelSessions: undefined as never } });
-    expect(section(html, "parallel")).toMatch(/At the busiest moment, <em>\d+ of your sessions<\/em> were running at the same time/);
+    expect(section(html, "parallel")).toMatch(/At the busiest moment, <em>\d+ of your sessions<\/em> were open at the same time/);
   });
 });
 

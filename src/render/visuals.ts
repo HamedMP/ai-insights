@@ -302,7 +302,7 @@ export function sessionField(sessions: number, involved: number, maxConcurrent: 
 <figure class="viz field"><svg data-chart="parallel" viewBox="0 0 ${columns * cell - 3} ${height - 3}" width="${Math.round((columns * cell - 3) * scale)}" height="${Math.round((height - 3) * scale)}" role="img" aria-label="${`${formatInt(involved)} of ${formatInt(total)} sessions overlapped with another`}">${raw(rects.join(""))}</svg>
 <figcaption class="micro">${perCell === 1 ? "One square per session" : `One square per ${formatInt(perCell)} sessions`} · lit squares overlapped with another session</figcaption></figure>
 ${tower > 0
-    ? html`<figure class="viz tower"><svg viewBox="0 0 40 ${tower * 14 - 3}" role="img" aria-label="${`At most ${formatInt(maxConcurrent)} sessions ran at the same time`}">${raw(towerRects.join(""))}</svg><figcaption class="micro"><b>${formatInt(maxConcurrent)}</b> at once, at the peak</figcaption></figure>`
+    ? html`<figure class="viz tower"><svg viewBox="0 0 40 ${tower * 14 - 3}" role="img" aria-label="${`At most ${formatInt(maxConcurrent)} sessions were working at the same time`}">${raw(towerRects.join(""))}</svg><figcaption class="micro"><b>${formatInt(maxConcurrent)}</b> working at once, at the peak</figcaption></figure>`
     : null}
 ${parallelFacts(total, involved, maxConcurrent, overlapEvents)}
 </div>`;
@@ -311,7 +311,7 @@ ${parallelFacts(total, involved, maxConcurrent, overlapEvents)}
 /** The overlap counts as plain facts; they come from every session, not just the drawn ones. */
 export function parallelFacts(sessions: number, involved: number, maxConcurrent: number, overlapEvents: number): SafeHtml {
   const total = count(sessions);
-  return html`<dl class="facts parallel-facts"><dt>Sessions that overlapped</dt><dd>${formatInt(Math.min(count(involved), total))} <span>of ${formatInt(total)}</span></dd><dt>Times sessions overlapped</dt><dd>${formatInt(overlapEvents)}</dd><dt>Most at once</dt><dd>${formatInt(maxConcurrent)}</dd></dl>`;
+  return html`<dl class="facts parallel-facts"><dt>Sessions that overlapped</dt><dd>${formatInt(Math.min(count(involved), total))} <span>of ${formatInt(total)}</span></dd><dt>Times sessions overlapped</dt><dd>${formatInt(overlapEvents)}</dd><dt>Most working at once</dt><dd>${formatInt(maxConcurrent)}</dd></dl>`;
 }
 
 export interface PixelBarItem {
