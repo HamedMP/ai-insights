@@ -1,7 +1,7 @@
 {
   "name": "@matrix-os/hindsight",
-  "version": "0.0.1",
-  "description": "Look back at how you work with AI coding agents. Local insights and actionable tips from your Claude Code, Codex, Cursor, Pi and OpenCode history.",
+  "version": "0.1.0",
+  "description": "Look back at how you work with AI coding agents. Local insights and actionable tips from your Claude Code and Codex history.",
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -20,11 +20,9 @@
   },
   "files": [
     "dist",
+    "!dist/**/*.map",
     "skills",
-    "pi",
-    "scripts/install.sh",
-    "README.md",
-    "LICENSE"
+    "pi"
   ],
   "keywords": [
     "ai",
@@ -37,18 +35,23 @@
     "insights",
     "agent-skills"
   ],
+  "homepage": "https://hamedmp.github.io/hindsight/",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/hamedmp/hindsight.git"
   },
+  "bugs": {
+    "url": "https://github.com/hamedmp/hindsight/issues"
+  },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "generate:harness": "node scripts/generate-harness.mjs",
     "check": "pnpm typecheck && pnpm test && pnpm generate:harness:check",
-    "generate:harness:check": "node scripts/generate-harness.mjs --check"
+    "generate:harness:check": "node scripts/generate-harness.mjs --check",
+    "prepublishOnly": "pnpm check && pnpm build"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

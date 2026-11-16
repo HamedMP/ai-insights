@@ -16,7 +16,7 @@ const CONFIG = {
   version: pkg.version,
   description: pkg.description,
   author: { name: "Matrix OS", url: "https://matrix-os.com" },
-  homepage: "https://github.com/hamedmp/hindsight",
+  homepage: pkg.homepage,
   repository: "https://github.com/hamedmp/hindsight",
   license: pkg.license,
   keywords: ["insights", "history", "usage", "cost", "claude-code", "codex", "mcp", "agent-skills"],
@@ -35,6 +35,9 @@ const CONFIG = {
 
 // Claude Code and Codex install this directory. It holds only what a plugin needs, so an install does not copy src/ or node_modules.
 const TREE = "harness/hindsight";
+// The icon lives at the repository root for Cursor and the README; the tree gets its own copy, since a plugin may only reference files inside itself.
+const ICON_PNG = "assets/icon.png";
+const ICON_SVG = "assets/icon.svg";
 const SKILL_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 function walk(dir) {
@@ -49,7 +52,7 @@ const posix = (path) => path.split(sep).join("/");
 const asJson = (value) => Buffer.from(`${JSON.stringify(value, null, 2)}\n`);
 const file = (path) => ({ bytes: readFileSync(path), executable: (statSync(path).mode & 0o111) !== 0 });
 
-function checkSkills() {
+function checkInputs() {
   const problems = [];
   const skills = readdirSync(join(ROOT, "skills"), { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name);
   for (const skill of skills) {
@@ -70,15 +73,35 @@ function checkSkills() {
     if (keys.join(",") !== "description,name") problems.push(`skills/${skill}/SKILL.md frontmatter must hold only name and description, has ${keys.join(", ")}`);
     if (!SKILL_NAME.test(skill) || skill.length > 64) problems.push(`skills/${skill} is not lowercase words joined by hyphens, at most 64 characters`);
   }
+  problems.push(...checkIcon());
   if (CONFIG.shortDescription.length > 30) problems.push(`shortDescription is ${CONFIG.shortDescription.length} characters; Codex allows 30`);
   if (CONFIG.defaultPrompts.length > 3) problems.push("Codex shows at most three default prompts");
   return problems;
+}
+
+// The Claude Code directory takes a square PNG or JPEG of 512 to 2048 pixels under 2 MB, and SVG nowhere; checking here keeps a bad image out of every listing.
+function checkIcon() {
+  if (!existsSync(join(ROOT, ICON_PNG))) return [];
+  const bytes = readFileSync(join(ROOT, ICON_PNG));
+  const signature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  if (bytes.length < 24 || !bytes.subarray(0, 8).equals(signature) || bytes.toString("ascii", 12, 16) !== "IHDR") return [`${ICON_PNG} is not a PNG`];
+  const [width, height] = [bytes.readUInt32BE(16), bytes.readUInt32BE(20)];
+  if (width !== height || width < 512 || width > 2048) return [`${ICON_PNG} is ${width}x${height}; it must be square, 512 to 2048 pixels`];
+  if (bytes.length >= 2 * 1024 * 1024) return [`${ICON_PNG} is over 2 MB`];
+  return [];
 }
 
 function render() {
   const { name, displayName, version, description, author, homepage, repository, license, keywords } = CONFIG;
   const identity = { name, version, description, author, homepage, repository, license, keywords };
   const server = { command: CONFIG.mcp.command, args: CONFIG.mcp.args };
+  const png = existsSync(join(ROOT, ICON_PNG));
+  const svg = existsSync(join(ROOT, ICON_SVG));
+  // Codex shows `composerIcon` small in the composer, where a vector stays sharp, and `logo` in the plugin listing.
+  const codexIcons = {
+    ...((svg || png) && { composerIcon: `./${svg ? ICON_SVG : ICON_PNG}` }),
+    ...(png && { logo: `./${ICON_PNG}` }),
+  };
   const codexInterface = {
     displayName,
     shortDescription: CONFIG.shortDescription,
@@ -88,12 +111,13 @@ function render() {
     capabilities: ["Interactive", "Read", "Write"],
     websiteURL: homepage,
     defaultPrompt: CONFIG.defaultPrompts,
+    ...codexIcons,
   };
 
   const files = new Map();
   const put = (path, bytes, executable = false) => files.set(path, { bytes, executable });
 
-  put(`${TREE}/.claude-plugin/plugin.json`, asJson({ ...identity, skills: "./skills/", mcpServers: "./.mcp.json" }));
+  put(`${TREE}/.claude-plugin/plugin.json`, asJson({ ...identity, ...(png && { icon: `./${ICON_PNG}` }), skills: "./skills/", mcpServers: "./.mcp.json" }));
   put(`${TREE}/.codex-plugin/plugin.json`, asJson({ ...identity, skills: "./skills/", mcpServers: "./.mcp.json", interface: codexInterface }));
   put(
     `${TREE}/plugin.json`,
@@ -113,6 +137,7 @@ function render() {
   );
   for (const path of walk(join(ROOT, "skills"))) files.set(`${TREE}/${posix(relative(ROOT, path))}`, file(path));
   files.set(`${TREE}/LICENSE`, file(join(ROOT, "LICENSE")));
+  for (const [present, path] of [[png, ICON_PNG], [svg, ICON_SVG]]) if (present) files.set(`${TREE}/${path}`, file(join(ROOT, path)));
   put(
     `${TREE}/README.md`,
     Buffer.from(
@@ -169,6 +194,8 @@ function render() {
       repository,
       license,
       keywords,
+      // Cursor resolves a relative logo against the repository on GitHub, so the root copy is the one it shows.
+      ...((svg || png) && { logo: svg ? ICON_SVG : ICON_PNG }),
       category: "developer-tools",
       tags: ["insights", "history", "mcp"],
       skills: "./skills/",
@@ -179,7 +206,7 @@ function render() {
   return files;
 }
 
-const problems = checkSkills();
+const problems = checkInputs();
 for (const problem of problems) console.log(`FAIL ${problem}`);
 if (problems.length > 0) process.exit(1);
 
