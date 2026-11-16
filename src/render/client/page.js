@@ -32,7 +32,9 @@ const S = {
 { const sl = store.get("sel", null); if (Array.isArray(sl)) S.sel = new Set(sl.filter((id) => ALL_IDS.includes(id))); }
 if (params.get("cards")) { const ids = params.get("cards").split(",").filter((id) => ALL_IDS.includes(id)); if (ids.length) { S.sel = new Set(ids); S.order = [...ids, ...S.order.filter((id) => !ids.includes(id))]; } }
 const saveStudio = () => { store.set("order", S.order); store.set("sel", [...S.sel]); store.set("ratio", S.ratio); store.set("pace", S.pace); store.set("preset", S.preset); store.set("style", S.style); store.set("mark", S.mark); };
-const seqIds = () => S.order.filter((id) => S.sel.has(id));
+/** An optional card is offered only in styles that draw it; the 21 required ones are in every style. */
+const hasCard = (id, style = S.style) => CARD_IDS.includes(id) || !!(CardStyles.specs(style) || {})[id];
+const seqIds = () => S.order.filter((id) => S.sel.has(id) && hasCard(id));
 const specOf = (id, style = S.style) => { const set = CardStyles.specs(style) || CardStyles.specs("pop"); return set[id] || CardStyles.specs("pop")[id]; };
 const durOf = (id) => (S.pace === "quick" ? Math.min(specOf(id).dur, 4000) : specOf(id).dur);
 const fmtSec = (ms) => { const sec = Math.round(ms / 1000); return sec >= 60 ? `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}` : `${sec} s`; };
@@ -328,7 +330,7 @@ function buildWall() {
   wall.classList.toggle("wide", S.ratio === "16:9");
   for (const t of tiles.values()) t.inst.el.remove();
   wall.replaceChildren(); tiles = new Map();
-  for (const id of S.order) {
+  for (const id of S.order.filter((cid) => hasCard(cid))) {
     const inst = makeInst(id);
     render(inst, inst.dur);
     const thumb = h("div", { class: "thumb", style: { aspectRatio: `${W} / ${H}` } }, inst.el);
@@ -368,7 +370,7 @@ function placeNear(from, to, after) {
   S.order.splice(S.order.indexOf(to) + (after ? 1 : 0), 0, from);
   reorderDom(); saveStudio(); refreshStudio();
 }
-function reorderDom() { for (const id of S.order) wall.append(tiles.get(id).tile); }
+function reorderDom() { for (const id of S.order) if (tiles.has(id)) wall.append(tiles.get(id).tile); }
 let hovering = null;
 function hoverStart(id) { hovering = { id, t0: null }; }
 function hoverStop(id) { if (hovering && hovering.id === id) { const t = tiles.get(id); t && render(t.inst, t.inst.dur); hovering = null; } }
@@ -997,7 +999,7 @@ fontsReady(S.style).then(async () => {
 window.recap = {
   ready: () => document.documentElement.dataset.ready === "1",
   styles: () => STYLES.map(({ id, name }) => ({ id, name })),
-  cards: () => ALL_IDS.slice(),
+  cards: () => ALL_IDS.filter((id) => hasCard(id)),
   state: () => ({ style: S.style, ratio: S.ratio, pace: S.pace, mark: S.mark, order: [...S.order], selected: seqIds(), totalMs: seqIds().reduce((a, id) => a + durOf(id), 0) }),
   setStyle: switchStyle, setRatio,
   setPace: (p) => { S.pace = p === "quick" ? "quick" : "full"; refreshStudio(); },
@@ -1008,7 +1010,7 @@ window.recap = {
   /** The card's markup at time t: the same input always gives the same string. */
   frame: (id, t, ratio = S.ratio, style = S.style) => { const inst = makeInst(id, ratio, style); render(inst, t); const out = inst.el.outerHTML; inst.el.remove(); return out; },
   seek: (i, ms) => { heroPlayer.setPlaying(false); heroPlayer.mount(i, ms); },
-  audit: (style = S.style, ratio = S.ratio) => { const out = {}; for (const id of ALL_IDS) { const inst = makeInst(id, ratio, style); render(inst, inst.dur); const iss = CardKit.audit(inst); if (iss.length) out[id] = iss; inst.el.remove(); } return out; },
+  audit: (style = S.style, ratio = S.ratio) => { const out = {}; for (const id of ALL_IDS.filter((cid) => hasCard(cid, style))) { const inst = makeInst(id, ratio, style); render(inst, inst.dur); const iss = CardKit.audit(inst); if (iss.length) out[id] = iss; inst.el.remove(); } return out; },
   caption, share: SHARE, intents: (text = caption()) => ({ x: INTENT.x(text), linkedin: INTENT.linkedin(text) }),
   support: () => Exporter.support(),
   png: async (id, ms, ratio = S.ratio, style = S.style) => { const inst = makeInst(id, ratio, style); const b = await Exporter.png(inst, ms); inst.el.remove(); const u8 = new Uint8Array(await b.arrayBuffer()); let s2 = ""; for (let i = 0; i < u8.length; i += 0x8000) s2 += String.fromCharCode(...u8.subarray(i, i + 0x8000)); return btoa(s2); },

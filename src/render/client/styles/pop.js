@@ -387,25 +387,39 @@ add({ id: "danger", title: "Danger", bg: "var(--paper)", fg: "var(--ink)", dur: 
 // 12. parallel ------------------------------------------------------------
 add({ id: "parallel", title: "Parallel", bg: "var(--orange)", fg: "var(--ink)", dur: 6500, squareSide: false,
   build(c) {
-    const n = D.parallel.max;
+    // With lanes the count is the lanes open at the peak (the data layer keeps them equal to max).
+    const L = D.parallel.lanes, n = L ? L.atPeak : D.parallel.max;
     const k = kick("most agents at once");
     const big = h("div", { class: "huge", style: { fontSize: 460 * c.k * c.u + "px" } }, int(n));
     const p = h("div", { class: "p gap1" }, "sessions running side by side. Plus ", h("b", {}, `${int(D.parallel.subagents)} subagents`), " launched along the way.");
     c.tl.in(k, 100).pop(big, 200, { dur: 1000 }).in(p, 700);
-    // Lanes are drawn from the recap's real start and end shares when it has them; otherwise N identical
-    // bars, a plain picture of N sessions with no time axis, so nothing looks like data that is not.
-    const lanes = D.parallel.lanes;
-    return { head: head(k, big, p), artMin: 0.3, split: 0.46, legend: lanes ? "one lane = one session, around the peak" : "one bar = one session",
+    // Real lanes when the recap has them: each session's working stretches in a window around the peak, the
+    // peak marked. Otherwise N identical bars, a plain picture of N sessions with no time axis.
+    return { head: head(k, big, p), artMin: 0.3, split: 0.46, legend: L ? `${Math.round(L.windowMinutes / 60)} h around the peak` : "one bar = one session",
       art(w, hgt) {
-        const svg = svgBox(w, hgt), m = Math.min(n, lanes ? lanes.length : 40);
-        const lh = Math.min(48 * c.u, (hgt - 40) / m * 0.8), gap = Math.min(14 * c.u, (hgt - 40) / m * 0.2);
-        const y0 = (hgt - m * (lh + gap)) / 2, nowX = w * 0.5;
-        for (let i = 0; i < m; i++) {
-          const a = lanes ? lanes[i][0] * w : 0, b = lanes ? lanes[i][1] * w : w, y = y0 + i * (lh + gap) + lh / 2;
-          const ln = s("line", { x1: a + lh / 2, y1: y, x2: b - lh / 2, y2: y, stroke: ["var(--ink)", "var(--paper)", "var(--purple)"][i % 3], "stroke-width": lh, "stroke-linecap": "round" });
-          svg.append(ln); c.tl.draw(ln, 400 + i * 70, 900, "out5");
+        const svg = svgBox(w, hgt);
+        if (!L) {
+          const m = Math.min(n, 40), lh = Math.min(48 * c.u, (hgt - 40) / m * 0.8), gap = Math.min(14 * c.u, (hgt - 40) / m * 0.2), y0 = (hgt - m * (lh + gap)) / 2;
+          for (let i = 0; i < m; i++) {
+            const y = y0 + i * (lh + gap) + lh / 2;
+            const ln = s("line", { x1: lh / 2, y1: y, x2: w - lh / 2, y2: y, stroke: ["var(--ink)", "var(--paper)", "var(--purple)"][i % 3], "stroke-width": lh, "stroke-linecap": "round" });
+            svg.append(ln); c.tl.draw(ln, 400 + i * 70, 900, "out5");
+          }
+          return svg;
         }
-        if (lanes) { const now = s("line", { x1: nowX, y1: y0 - 20, x2: nowX, y2: y0 + m * (lh + gap) + 10, stroke: "var(--ink)", "stroke-width": 6 * c.u, "stroke-dasharray": "14 12" }); svg.append(now); c.tl.in(now, 1300, { y: 0, dur: 400 }); }
+        const rows = L.rows.slice(0, 40), m = rows.length, top = 30 * c.u, bot = 10 * c.u;
+        const pitch = Math.min(56 * c.u, (hgt - top - bot) / m), lh = Math.max(3, pitch * 0.68), y0 = top + (hgt - top - bot - m * pitch) / 2;
+        const X = (f) => f * w;
+        rows.forEach((r, i) => {
+          const y = y0 + i * pitch + pitch / 2, g = s("g");
+          // the session open: a thin track; working: thick bars
+          g.append(s("line", { x1: X(r.start), y1: y, x2: X(r.end), y2: y, stroke: "var(--ink)", "stroke-width": Math.max(1.5, lh * 0.18), opacity: 0.45 }));
+          for (const [a, b] of r.active) g.append(s("rect", { x: X(a), y: y - lh / 2, width: Math.max(2, X(b) - X(a)), height: lh, rx: Math.min(lh / 2, (X(b) - X(a)) / 2), fill: r.atPeak ? (i % 2 ? "var(--paper)" : "var(--ink)") : "var(--purple)" }));
+          svg.append(g); c.tl.in(g, 400 + i * Math.min(70, 900 / m), { x: -40 * c.u, y: 0, dur: 600 });
+        });
+        const px = X(L.peak), ln = s("line", { x1: px, y1: y0 - 14 * c.u, x2: px, y2: y0 + m * pitch + 6 * c.u, stroke: "var(--ink)", "stroke-width": 6 * c.u, "stroke-dasharray": `${14 * c.u} ${12 * c.u}` });
+        const tag = svgText(c, Math.min(w - 60 * c.u, Math.max(60 * c.u, px)), y0 - 22 * c.u, "peak", { size: 26 * c.u });
+        svg.append(ln, tag); c.tl.in(ln, 1300, { y: 0, dur: 400 }).in(tag, 1400, { y: 0, dur: 400 });
         return svg;
       } };
   } });
@@ -417,8 +431,11 @@ add({ id: "marathon", title: "Marathon", bg: "var(--sky)", fg: "var(--ink)", dur
     const k = kick("longest session");
     const big = countHero(c, "huge", L.activeMinutes / 60, one, " hrs", 200);
     const p = h("div", { class: "p gap1" }, `of active work in one ${harnessName(L.harness)} session`, days >= 1 ? [", spread over ", h("b", {}, `${one(days)} days`), "."] : ".");
+    // Longer sessions a script or another agent drove are not the person's marathon: say they were left out.
+    const skip = L.skippedAutomated > 0 ? h("div", { class: "p", style: { fontSize: 30 * c.k * c.u + "px", opacity: 0.7, marginTop: 14 * c.k + "px" } }, `${int(L.skippedAutomated)} longer automated ${L.skippedAutomated === 1 ? "session" : "sessions"} left out.`) : null;
     c.tl.in(k, 100).in(big, 200).in(p, 700);
-    return { head: head(k, big, p), artMin: 0.3, split: 0.48, legend: "active = gaps under 10 min",
+    if (skip) c.tl.in(skip, 900);
+    return { head: head(k, big, p, skip), artMin: 0.3, split: 0.48, legend: "active = gaps under 10 min",
       art(w, hgt, x, y) {
         const stats = [[int(L.prompts), "prompts from you"], [L.toolCallsCapped ? `${int(L.toolCalls)}+` : capped(L.toolCalls), "tool calls"], [int(L.compactions), "context resets"]];
         const rowH = Math.min(150 * c.u, hgt / 3.2);
@@ -585,6 +602,7 @@ add({ id: "tips", title: "Try next", bg: "var(--paper)", fg: "var(--ink)", dur: 
   build(c) {
     // One line of why per finding kind, from the number alone: never the finding's own text.
     const TIP_WHY = {
+      history_retention: (m) => (/session/i.test(m.unit) ? `${int(m.value)} transcripts can be deleted this week.` : `History kept: ${int(m.value)} days.`),
       context_resets: (m) => `${int(m.value)} context compactions in ${D.range.days} days.`,
       slow_correction: (m) => `You usually step in after ${one(m.value)} minutes.`,
       repeated_failed_command: (m) => `One command failed ${int(m.value)} times running.`,
@@ -686,17 +704,60 @@ add({ id: "outro", title: "Made with", bg: "var(--brand-deep)", fg: "var(--brand
       } };
   } });
 
-// optional: how much history the tools keep ----------------------------
+// optional cards: offered only when their data exists, never in the default selection -------------
+/** A unit so that n items need at most `max` marks: 1, 2, 5, 10, 20, 50, ... */
+const unitFor = (n, max = 150) => { let u = 1; for (const step of [2, 2.5, 2]) { if (Math.ceil(n / u) <= max) break; u *= step; } while (Math.ceil(n / u) > max) u *= 10; return u; };
+const dur = (ms) => (ms >= 3_600_000 ? [one(ms / 3_600_000), " hrs"] : ms >= 60_000 ? [int(ms / 60_000), " min"] : [int(ms / 1000), " sec"]);
+function dotGrid(c, n, w, hgt, fill, start = 300) {
+  const g = cellGrid(n, w, hgt, 0.25), svg = svgBox(w, hgt);
+  const ox = (w - (g.cols * g.size + (g.cols - 1) * g.gap)) / 2, oy = (hgt - (g.rows * g.size + (g.rows - 1) * g.gap)) / 2;
+  const dots = Array.from({ length: n }, (_, i) => { const d = s("circle", { cx: ox + (i % g.cols) * (g.size + g.gap) + g.size / 2, cy: oy + Math.floor(i / g.cols) * (g.size + g.gap) + g.size / 2, r: g.size / 2, fill }); svg.append(d); return d; });
+  c.tl.stagger(dots, start, Math.min(25, 1300 / n), (d, st) => c.tl.pop(d, st, { dur: 500 }));
+  return svg;
+}
+
+if (D.thinking) add({ id: "thinking", title: "Deep thoughts", bg: "var(--purple)", fg: "var(--ink)", dur: 6000, squareSide: false,
+  build(c) {
+    const TH = D.thinking, timed = TH.totalMs != null;
+    const k = kick("deep thoughts");
+    const [v, unit] = timed ? dur(TH.totalMs) : [compact(TH.blocks), ""];
+    const big = h("div", { class: "huge", "data-fit": Math.round(330 * c.k * c.u), "data-min": Math.round(90 * c.u) }, v, unit ? h("span", { class: "unit" }, unit) : null);
+    const p = h("div", { class: "p gap1" }, timed ? ["of thinking before answering, over ", h("b", {}, `${compact(TH.blocks)} thoughts`), "."] : "times the model stopped to think before answering.",
+      TH.longestMs != null ? [" The longest took ", h("b", {}, dur(TH.longestMs).join("")), "."] : "");
+    c.tl.in(k, 100).pop(big, 200, { dur: 900 }).in(p, 700);
+    const per = unitFor(TH.blocks);
+    return { head: head(k, big, p), artMin: 0.3, split: 0.5, legend: per === 1 ? "one dot = one thought" : `one dot = ${int(per)} thoughts`,
+      art(w, hgt) { return dotGrid(c, Math.ceil(TH.blocks / per), w, hgt, "var(--ink)"); } };
+  } });
+
+if (D.approvals) add({ id: "approvals", title: "Rubber stamp", bg: "var(--mint)", fg: "var(--ink)", dur: 6000, squareSide: false,
+  build(c) {
+    const A = D.approvals;
+    const rows = [["let through by your settings", A.auto], ["approved by you", A.byPerson], ["declined by you", A.denied], ["blocked by auto-review", A.autoBlocked]]
+      .filter(([key, v], i) => v != null && (i < 2 || v > 0)).map(([key, count]) => ({ key, count }));
+    // the share of permission decisions nobody had to make: settings let them through, against those you answered
+    const all = A.auto + A.byPerson + (A.denied || 0) || 1;
+    const k = kick("rubber stamp");
+    const big = countHero(c, "huge", (A.auto / all) * 100, (x) => `${Math.round(x)}`, "%", 200);
+    const p = h("div", { class: "p gap1" }, "of permission checks passed without asking you. You said yes ", h("b", {}, `${capped(A.byPerson, 1e6)} times`), ".");
+    c.tl.in(k, 100).in(big, 200).in(p, 700);
+    return { head: head(k, big, p), artMin: 0.3, split: 0.48, legend: `${int(A.sessions)} sessions recorded it`,
+      art(w, hgt) { return rankList(c, rows, w, hgt, { bars: true, noTop: true, fmt: (r) => compact(r.count), maxRow: 150 }); }, artAlign: "center" };
+  } });
+
 if (D.history) add({ id: "history", title: "History kept", bg: "var(--sky)", fg: "var(--ink)", dur: 6000, squareSide: false,
   build(c) {
     const Hh = D.history;
     const k = kick("history on this machine");
     const big = countHero(c, "huge", Hh.days, int, Hh.days === 1 ? " day" : " days", 200);
-    const p = h("div", { class: "p gap1" }, Hh.firstDay ? ["of transcripts kept, back to ", h("b", {}, dshort(Hh.firstDay)), ". "] : "of transcripts kept. ", "Older ones are deleted by default; keep them and next year's look back covers the whole year.");
+    const p = h("div", { class: "p gap1" }, Hh.firstDay ? ["of sessions AI Insights still has, back to ", h("b", {}, dshort(Hh.firstDay)), "."] : "of sessions AI Insights still has.",
+      Hh.cachedOnly > 0 ? [" ", h("b", {}, int(Hh.cachedOnly)), ` ${Hh.cachedOnly === 1 ? "lives" : "live"} on only in its cache.`] : "");
     c.tl.in(k, 100).in(p, 700);
-    return { head: head(k, big, p), artMin: 0.3, split: 0.5, legend: "one square = one day kept",
+    // a day per square up to 150 days, then a week, then a month: never more than about 150 marks
+    const [per, word] = Hh.days <= 150 ? [1, "day"] : Hh.days <= 150 * 7 ? [7, "week"] : [30, "month"];
+    return { head: head(k, big, p), artMin: 0.3, split: 0.5, legend: `one square = one ${word}`,
       art(w, hgt) {
-        const n = Math.min(Hh.days, 400), g = cellGrid(n, w, hgt, 0.2), svg = svgBox(w, hgt);
+        const n = Math.max(1, Math.ceil(Hh.days / per)), g = cellGrid(n, w, hgt, 0.2), svg = svgBox(w, hgt);
         const cells = Array.from({ length: n }, (_, i) => { const r = s("rect", { x: (i % g.cols) * (g.size + g.gap), y: Math.floor(i / g.cols) * (g.size + g.gap), width: g.size, height: g.size, rx: g.size * 0.12, fill: "var(--ink)" }); svg.append(r); return r; });
         c.tl.stagger(cells, 300, Math.min(25, 1300 / n), (r, st) => c.tl.pop(r, st, { dur: 500 }));
         return svg;
