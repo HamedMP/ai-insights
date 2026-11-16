@@ -25,8 +25,8 @@ const ADVICE: Partial<Record<ToolErrorCategory, Suggestion>> = {
   file_not_found: {
     type: "instructions",
     title: "Describe the project layout",
-    action: "The agent keeps guessing paths that do not exist. A short map of where things live saves the guessing.",
-    instructionText: "Search for a file before opening it if you are not sure of its path. Key directories: <list your main source, test and config directories here>.",
+    action: "The agent keeps guessing paths that do not exist. Add this rule and a short map of where your source, tests and config live to your instructions file.",
+    instructionText: "Search for a file before opening it if you are not sure of its path; never guess a path from memory.",
   },
   file_changed: {
     type: "habit",

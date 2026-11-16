@@ -18,6 +18,16 @@ import { unusedFeature } from "./unused-feature.js";
 
 export type { Detector, DetectorContext } from "./context.js";
 
+/** Text meant to be pasted into an instructions file must be complete: no ellipsis, no `<n>`-style placeholder. */
+const PLACEHOLDER = /\u2026|\.\.\.|<[^<>\n]{1,80}>/;
+
+function withoutPlaceholderInstructions(finding: Finding): Finding {
+  const text = finding.suggestion?.instructionText;
+  if (!text || !PLACEHOLDER.test(text)) return finding;
+  const { instructionText: _dropped, ...suggestion } = finding.suggestion!;
+  return { ...finding, suggestion };
+}
+
 /** Keyed by kind so the compiler insists on a detector for every `FindingKind`. */
 export const DETECTORS: Record<FindingKind, Detector> = {
   repeated_failed_command: repeatedFailedCommand,
@@ -54,7 +64,7 @@ export function detectFindings(context: DetectorContext): Finding[] {
     for (const finding of produced) {
       if (seen.has(finding.id) || finding.evidence.length === 0) continue;
       seen.add(finding.id);
-      findings.push({ ...finding, evidence: finding.evidence.slice(0, MAX_EVIDENCE) });
+      findings.push(withoutPlaceholderInstructions({ ...finding, evidence: finding.evidence.slice(0, MAX_EVIDENCE) }));
     }
   }
   return findings.sort(compareFindings);

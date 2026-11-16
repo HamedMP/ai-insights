@@ -1,5 +1,5 @@
 import type { Evidence, Finding, Harness, Session, Suggestion } from "../../schema/types.js";
-import { evidence, harnessesOf, isAgentDriven, MAX_EVIDENCE, plural, type Detector } from "./context.js";
+import { evidence, HARNESS_LABELS, harnessesOf, isAgentDriven, isBriefDriven, MAX_EVIDENCE, plural, type Detector } from "./context.js";
 
 /** "Never used" only means something once there is a decent amount of history to have used it in. */
 const MIN_SESSIONS = 10;
@@ -21,7 +21,7 @@ interface FeatureCheck {
   key: string;
   name: string;
   harnesses: Harness[];
-  /** Only judge sessions the person steered: work handed over by an orchestrator arrives already planned. */
+  /** Only judge sessions the person steered live: work handed over by an orchestrator or a written brief arrives already planned. */
   personOnly?: boolean;
   used(session: Session): boolean;
   /** Why this session would have benefited, or null. */
@@ -139,21 +139,27 @@ const CHECKS: FeatureCheck[] = [
 export const unusedFeature: Detector = ({ sessions }) => {
   const findings: Finding[] = [];
   for (const check of CHECKS) {
-    const eligible = sessions.filter((session) => check.harnesses.includes(session.harness) && !(check.personOnly && isAgentDriven(session)));
-    if (eligible.length < MIN_SESSIONS || eligible.some((session) => check.used(session))) continue;
-    const reasons = eligible.flatMap((session) => {
+    // "Never used" is judged over every session of a harness that has the feature, so the count matches what the person sees.
+    const all = sessions.filter((session) => check.harnesses.includes(session.harness));
+    if (all.length < MIN_SESSIONS || all.some((session) => check.used(session))) continue;
+    const judged = check.personOnly ? all.filter((session) => !isAgentDriven(session) && !isBriefDriven(session)) : all;
+    const reasons = judged.flatMap((session) => {
       const item = check.why(session);
       return item ? [item] : [];
     });
     if (reasons.length < MIN_EVIDENCE) continue;
-    const harnesses = harnessesOf(eligible);
+    const harnesses = harnessesOf(all);
+    const names = harnesses.map((harness) => HARNESS_LABELS[harness]).join(" and ");
+    const fit = check.personOnly
+      ? `${reasons.length} of the ${judged.length} sessions you steered yourself looked like a good fit (sessions driven by another agent or started from a written brief are left out)`
+      : `${plural(reasons.length, "session")} looked like a good fit`;
     const suggestion = check.suggestion[harnesses.find((harness) => check.suggestion[harness]) ?? harnesses[0]!];
     findings.push({
       id: `unused_feature:${check.key}`,
       kind: "unused_feature",
       severity: "info",
       title: `You have not used ${check.name}`,
-      detail: `None of your ${eligible.length} sessions used ${check.name}, and ${plural(reasons.length, "session")} looked like a good fit. ${check.benefit}`,
+      detail: `None of your ${all.length} ${names} sessions used ${check.name}, and ${fit}. ${check.benefit}`,
       harnesses,
       metric: { value: reasons.length, unit: "sessions", label: "sessions that could have used it" },
       evidence: reasons.slice(0, MAX_EVIDENCE),

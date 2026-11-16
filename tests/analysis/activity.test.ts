@@ -105,7 +105,7 @@ describe("activity", () => {
     expect(report.activity.daily.find((row) => row.day === "2026-06-01")?.activeMinutes).toBe(1440);
   });
 
-  it("splits activity that crosses local midnight between both days, and counts the session on each", () => {
+  it("splits activity that crosses local midnight between both days, but counts the session once, on the day it started", () => {
     const calls = [];
     // 23:30 to 00:30 in Tokyo (UTC+9)
     for (let ms = Date.parse("2026-06-01T14:30:00.000Z"); ms <= Date.parse("2026-06-01T15:30:00.000Z"); ms += 5 * 60_000) {
@@ -117,11 +117,11 @@ describe("activity", () => {
     );
     expect(report.activity.daily.map((row) => [row.day, row.sessions, row.activeMinutes])).toEqual([
       ["2026-06-01", 1, 30],
-      ["2026-06-02", 1, 30],
+      ["2026-06-02", 0, 30],
     ]);
   });
 
-  it("counts a session on a later day where only its messages landed", () => {
+  it("places a resumed session's later messages on their own day, and still counts that day as active", () => {
     const report = build([
       session({
         startTime: "2026-06-01T09:00:00.000Z",
@@ -132,10 +132,16 @@ describe("activity", () => {
         toolCalls: [],
       }),
     ]);
-    const third = report.activity.daily.find((row) => row.day === "2026-06-03");
-    expect(third).toMatchObject({ sessions: 1, userMessages: 1 });
-    expect(report.activity.daily.filter((row) => row.userMessages > 0 && row.sessions === 0)).toEqual([]);
+    expect(report.activity.daily.find((row) => row.day === "2026-06-03")).toMatchObject({ sessions: 0, userMessages: 1 });
     expect(report.activity.activeDays).toBe(2);
+  });
+
+  it("has daily session counts that add up to the real number of sessions, so weekly sums do too", () => {
+    const sessions = [0, 1, 2, 3].map((n) =>
+      session({ startTime: `2026-06-0${n + 1}T09:00:00.000Z`, endTime: `2026-06-0${n + 4}T09:00:00.000Z`, prompts: [prompt(`resume work item ${n}`, `2026-06-0${n + 4}T09:00:00.000Z`)] }),
+    );
+    const { daily } = build(sessions).activity;
+    expect(daily.reduce((sum, row) => sum + row.sessions, 0)).toBe(4);
   });
 
   it("does not treat a session resumed the next day as running all night", () => {

@@ -10,10 +10,17 @@ const HEAVY_SESSION = 3;
 /** Ten resets is several sessions' worth of lost context: worth fixing soon. */
 const MEDIUM_COMPACTIONS = 10;
 
-export const contextResets: Detector = ({ sessions }) => {
+/** The sessions the context-resets finding cites, or null when it does not fire. */
+export function compactedSessions(sessions: Session[]): Session[] | null {
   const compacted = sessions.filter((session) => session.features.compactions > 0);
   const total = compacted.reduce((sum, session) => sum + session.features.compactions, 0);
-  if (compacted.length < MIN_SESSIONS || total < MIN_COMPACTIONS) return [];
+  return compacted.length < MIN_SESSIONS || total < MIN_COMPACTIONS ? null : compacted;
+}
+
+export const contextResets: Detector = ({ sessions }) => {
+  const compacted = compactedSessions(sessions);
+  if (!compacted) return [];
+  const total = compacted.reduce((sum, session) => sum + session.features.compactions, 0);
   const heaviest = Math.max(...compacted.map((session) => session.features.compactions));
   const items = [...compacted]
     .sort((a, b) => b.features.compactions - a.features.compactions || a.startTime.localeCompare(b.startTime))
