@@ -55,31 +55,53 @@ describe("the public site", () => {
     expect(workflow).toContain("actions/deploy-pages");
   });
 
-  it("keeps the README's links working: the sample report, the screenshot and the light and dark shots", () => {
+  it("keeps the README's pictures and the site's media in place", () => {
     expect(existsSync(join(ROOT, "site/public/demo/report.html"))).toBe(true);
-    expect(existsSync(join(ROOT, "assets/report.png"))).toBe(true);
-    for (const id of [...read("site/components/site/report-shots.tsx").matchAll(/id: "([a-z]+)"/g)].map((match) => match[1]!)) {
-      for (const theme of ["light", "dark"]) expect(existsSync(join(ROOT, `site/public/assets/shot-${id}-${theme}.png`)), `${id} ${theme}`).toBe(true);
-    }
-    for (const file of ["site/public/og.png", "site/public/llms.txt", "site/app/icon.svg"]) expect(existsSync(join(ROOT, file)), file).toBe(true);
+    for (const file of ["assets/report.png", "assets/recap.gif", "site/public/og.png", "site/public/llms.txt", "site/app/icon.svg", "site/public/media/rabbit.svg"]) expect(existsSync(join(ROOT, file)), file).toBe(true);
+    const media = JSON.parse(read("site/lib/media.json"));
+    for (const file of [media.video.file, media.video.poster]) expect(existsSync(join(ROOT, "site/public", file)), file).toBe(true);
+    for (const [style, cards] of Object.entries(media.wall as Record<string, string[]>)) for (const card of cards) expect(existsSync(join(ROOT, `site/public/media/card-${style}-${card}.webp`)), `${style} ${card}`).toBe(true);
+    for (const [style, card] of media.trio as Array<[string, string]>) expect(existsSync(join(ROOT, `site/public/media/card-${style}-${card}.webp`)), `${style} ${card}`).toBe(true);
+    const readme = read("README.md");
+    for (const match of readme.matchAll(/raw\.githubusercontent\.com\/hamedmp\/ai-insights\/main\/([\w./-]+)/g)) expect(existsSync(join(ROOT, match[1]!)), match[1]).toBe(true);
   });
 
-  it("gives the README's install commands and claims only the history AI Insights reads today", () => {
+  it("shows live cards from the product's own engine, built from the sample report at build time", () => {
+    const site = JSON.parse(read("site/package.json"));
+    expect(site.scripts.build).toMatch(/^node scripts\/build-embed\.mjs && next build/);
+    expect(site.scripts.dev).toContain("scripts/build-embed.mjs");
+    const embed = read("site/scripts/build-embed.mjs");
+    expect(embed).toContain("public/demo/report.html");
+    expect(read("site/.gitignore")).toContain("/public/demo/cards.html");
+    expect(read("site/components/site/live-card.tsx")).toContain("demo/cards.html");
+    const media = JSON.parse(read("site/lib/media.json"));
+    expect(media.styles.map((style: { id: string }) => style.id)).toEqual(["pop", "panel", "sticker"]);
+  });
+
+  it("gives the README's install commands and states each agent's status as the README does", () => {
     const install = read("site/components/site/install.tsx");
     const readme = read("README.md");
     for (const line of ["/plugin marketplace add hamedmp/ai-insights", "/plugin install ai-insights@ai-insights", "codex plugin marketplace add hamedmp/ai-insights", "codex plugin add ai-insights@ai-insights", "scripts/install.sh --harness cursor", "pi install git:github.com/hamedmp/ai-insights", "scripts/install.sh --harness opencode"]) {
       expect(install, line).toContain(line);
       expect(readme, line).toContain(line);
     }
-    expect(install).toContain("does not read their own history yet");
+    expect(read("site/lib/site.ts")).toContain('COMMAND = "npx ai-insights"');
+    expect(readme).toContain("npx ai-insights");
     const page = read("site/app/page.tsx");
-    expect(page).toContain("Claude Code, Codex");
-    expect(page).not.toMatch(/Cursor|OpenCode/);
+    for (const agent of ["Claude Code", "Codex", "OpenCode", "Pi", "Cursor", "Gemini CLI"]) expect(page, agent).toContain(`name: "${agent}"`);
+    expect(page).toMatch(/name: "Cursor"[^}]*tokens: "No"/);
+    expect(page).toMatch(/name: "Gemini CLI", history: "Untested"/);
+    expect(readme).toMatch(/\| Gemini CLI \| untested/);
   });
 
-  it("ships a sample report and site data built from invented sessions, with nothing from the machine that built them", () => {
+  it("keeps the launch hashtag in one constant", () => {
+    const uses = SITE_SOURCES.filter((path) => read(path).includes("#AIInsights"));
+    expect(uses).toEqual(["site/lib/site.ts"]);
+  });
+
+  it("ships a sample report, site data and media built from invented sessions, with nothing from the machine that built them", () => {
     const name = userInfo().username;
-    for (const path of ["site/public/demo/report.html", "site/lib/demo.json", "site/public/llms.txt"]) {
+    for (const path of ["site/public/demo/report.html", "site/lib/demo.json", "site/lib/media.json", "site/public/llms.txt"]) {
       const text = read(path);
       expect(text, path).not.toContain(homedir());
       if (name.length >= 3) expect(text, path).not.toMatch(new RegExp(`[/\\\\]${name}[/\\\\]`));
@@ -89,18 +111,9 @@ describe("the public site", () => {
     const data = JSON.parse(read("site/lib/demo.json"));
     expect(data.note).toMatch(/invented sessions/);
     expect(pageData(read("site/public/demo/report.html")).hero.sessions).toBe(data.numbers.sessions);
-  });
-
-  it("shows only changes the sample report gives, with the text to paste exactly as it appears there", () => {
-    const view = pageData(read("site/public/demo/report.html"));
-    const actions = [...view.actions.top, ...view.actions.rest];
-    const { payoff } = JSON.parse(read("site/lib/demo.json"));
-    expect(payoff.length).toBe(3);
-    for (const tip of payoff) {
-      const card = actions.find((action) => action.anchor === tip.anchor);
-      expect(card, tip.title).toBeDefined();
-      expect([card!.instructionText, card!.snippet?.text], tip.title).toContain(tip.paste.text);
-    }
-    expect(read("site/components/site/tips.tsx")).toContain("demo.payoff");
+    // The caption shown on the site is the sample's share-safe caption: no project names from the invented history.
+    const media = JSON.parse(read("site/lib/media.json"));
+    expect(media.caption).not.toMatch(/acme-api|web-app/);
+    expect(media.caption).toContain("npx ai-insights");
   });
 });

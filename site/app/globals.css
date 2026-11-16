@@ -153,25 +153,6 @@ html.theme-fade *::after {
     stroke 320ms ease !important;
 }
 
-/* ---------- quadrant glyph marker: a small block that turns on hover ---------- */
-.glyph::before {
-  content: "▚";
-  display: inline-block;
-  color: var(--brand);
-  font-family: var(--font-geist-mono), ui-monospace, monospace;
-}
-.glyph-host:hover .glyph::before,
-.glyph-host:focus-visible .glyph::before {
-  animation: glyph-turn 0.5s steps(1, end) infinite;
-}
-@keyframes glyph-turn {
-  0% { content: "▖"; }
-  25% { content: "▘"; }
-  50% { content: "▝"; }
-  75% { content: "▗"; }
-  100% { content: "▖"; }
-}
-
 /* ---------- scroll reveal: content is visible at rest; motion only adds an entrance ---------- */
 @media (prefers-reduced-motion: no-preference) {
   /* Starts readable (never at zero opacity), so a skim or a thumbnail sees the whole page. */
@@ -223,107 +204,49 @@ html.theme-fade *::after {
   background-size: auto, auto, 18px 18px;
 }
 
-/* ---------- how it works: nodes light in order while a packet runs the rail ---------- */
-.flow-node {
-  opacity: 0;
-  transform: scale(0.4);
+/* ---------- card wall: rows of cards drift past; still and scrollable with reduced motion ---------- */
+.marquee {
+  overflow: hidden;
+  mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent);
 }
-.flow-run .flow-node,
-.flow-run .flow-num {
-  transition:
-    opacity 450ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    transform 450ms cubic-bezier(0.2, 0.8, 0.2, 1.3),
-    color 300ms ease;
-  transition-delay: var(--d, 0ms);
+.marquee-track {
+  display: flex;
+  width: max-content;
 }
-.flow-run .flow-node {
-  opacity: 1;
-  transform: none;
+.marquee-item {
+  padding-right: 1rem;
+  flex: none;
 }
-.flow-run .flow-num {
-  color: var(--primary-foreground);
-}
-.flow-packet-x,
-.flow-packet-y {
-  opacity: 0;
+@media (min-width: 768px) {
+  .marquee-item {
+    padding-right: 1.25rem;
+  }
 }
 @media (prefers-reduced-motion: no-preference) {
-  .flow-run .flow-packet-x {
-    animation: flow-x 2800ms cubic-bezier(0.55, 0, 0.35, 1) 400ms infinite;
+  .marquee-track {
+    animation: marquee var(--dur, 80s) linear infinite;
   }
-  .flow-run .flow-packet-y {
-    animation: flow-y 2800ms cubic-bezier(0.55, 0, 0.35, 1) 400ms infinite;
+  .marquee[data-dir="rev"] .marquee-track {
+    animation-direction: reverse;
   }
-  .js .flow-idle .flow-chip {
-    opacity: 0.3;
-    transform: translateY(6px);
-  }
-  .flow-run .flow-chip {
-    animation: chip-in 520ms cubic-bezier(0.2, 0.8, 0.2, 1.2) both;
-    animation-delay: var(--d, 0ms);
+  .marquee:hover .marquee-track,
+  .marquee:focus-within .marquee-track {
+    animation-play-state: paused;
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .flow-node {
-    opacity: 1;
-    transform: none;
+  .marquee {
+    overflow-x: auto;
+    mask-image: none;
+    padding-inline: 1rem;
   }
-  .flow-num {
-    color: var(--primary-foreground);
-  }
-}
-@keyframes flow-x {
-  0% { transform: translateX(0); opacity: 0; }
-  8% { opacity: 1; }
-  85% { opacity: 1; }
-  100% { transform: translateX(100%); opacity: 0; }
-}
-@keyframes flow-y {
-  0% { transform: translateY(0); opacity: 0; }
-  8% { opacity: 1; }
-  85% { opacity: 1; }
-  100% { transform: translateY(100%); opacity: 0; }
-}
-
-/* ---------- hero timeline: lanes draw themselves left to right ---------- */
-@media (prefers-reduced-motion: no-preference) {
-  .tl-run .tl-bar {
-    transform-box: fill-box;
-    transform-origin: left center;
-    animation: tl-grow 900ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
-    animation-delay: var(--d, 0ms);
-  }
-  .tl-run .tl-fade {
-    animation: tl-fade 600ms ease both;
-    animation-delay: var(--d, 0ms);
-  }
-  .tl-run .tl-cursor {
-    animation: tl-sweep 2600ms cubic-bezier(0.45, 0, 0.2, 1) both;
-    animation-delay: 300ms;
-  }
-  .tl-run .tl-peak {
-    animation: tl-pop 500ms cubic-bezier(0.2, 0.9, 0.3, 1.3) both;
-    animation-delay: 2700ms;
-  }
-  .tl-pulse {
-    animation: tl-pulse 2.4s ease-in-out infinite;
-    animation-delay: 3.2s;
+  .marquee-item[aria-hidden="true"] {
+    display: none;
   }
 }
-@keyframes tl-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-@keyframes tl-fade { from { opacity: 0; } to { opacity: 1; } }
-@keyframes tl-sweep { from { transform: translateX(var(--sweep-from)); opacity: 0; } 12% { opacity: 1; } to { transform: translateX(0); opacity: 1; } }
-@keyframes tl-pop { from { transform: translateY(6px) scale(0.92); opacity: 0; } to { transform: none; opacity: 1; } }
-@keyframes tl-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
-
-/* ---------- activity grid: cells light up in a wave ---------- */
-@media (prefers-reduced-motion: no-preference) {
-  .grid-run .cell {
-    animation: cell-in 520ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
-    animation-delay: var(--d, 0ms);
-  }
+@keyframes marquee {
+  to { transform: translateX(-50%); }
 }
-@keyframes cell-in { from { transform: scale(0.7); opacity: 0.3; } to { transform: none; opacity: 1; } }
 
 /* ---------- beam: a slow light that runs round the active install card ---------- */
 @property --beam-angle {
@@ -378,28 +301,4 @@ html.theme-fade *::after {
 .link-underline:hover {
   text-decoration-color: currentColor;
 }
-.shot-frame img {
-  transition: transform 600ms cubic-bezier(0.2, 0.7, 0.2, 1);
-}
-@media (prefers-reduced-motion: no-preference) {
-  .shot-frame:hover img {
-    transform: scale(1.012);
-  }
-}
 
-/* the grid waits, dimmed, until it is seen (never invisible), then runs the wave */
-@media (prefers-reduced-motion: no-preference) {
-  .js .grid-idle .cell {
-    opacity: 0.3;
-    transform: scale(0.7);
-  }
-  .js .chip-idle .chip {
-    opacity: 0.3;
-    transform: translateY(6px);
-  }
-  .chip-run .chip {
-    animation: chip-in 520ms cubic-bezier(0.2, 0.8, 0.2, 1.2) both;
-    animation-delay: var(--d, 0ms);
-  }
-}
-@keyframes chip-in { from { opacity: 0.3; transform: translateY(6px); } to { opacity: 1; transform: none; } }

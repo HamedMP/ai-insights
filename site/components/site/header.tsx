@@ -4,16 +4,17 @@ import * as React from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Cancel01Icon, GithubIcon, Menu01Icon } from "@hugeicons/core-free-icons"
 
-import { Logo } from "@/components/site/logo"
+import { Wordmark } from "@/components/site/rabbit"
 import { ThemeSwitcher } from "@/components/site/theme-switcher"
 import { Button } from "@/components/ui/button"
 import { REPO } from "@/lib/site"
 import { cn } from "@/lib/utils"
 
 const LINKS = [
-  { id: "report", label: "Report" },
-  { id: "tips", label: "Tips" },
-  { id: "how", label: "How it works" },
+  { id: "cards", label: "Cards" },
+  { id: "video", label: "Video" },
+  { id: "privacy", label: "Privacy" },
+  { id: "agents", label: "Agents" },
   { id: "install", label: "Install" },
   { id: "faq", label: "FAQ" },
 ]
@@ -94,7 +95,7 @@ export function Header() {
       if (!panel.current?.contains(target) && !toggle.current?.contains(target)) setOpen(false)
     }
     const onResize = () => {
-      if (window.innerWidth >= 768) setOpen(false)
+      if (window.innerWidth >= 1024) setOpen(false)
     }
     window.addEventListener("keydown", onKey)
     window.addEventListener("pointerdown", onPointer)
@@ -114,10 +115,10 @@ export function Header() {
       )}
     >
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 md:px-8">
-        <a href="#top" aria-label="AI Insights, back to the top" className="-m-1 rounded-md p-1 outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
-          <Logo />
+        <a href="#top" aria-label="AI Insights by Matrix OS, back to the top" className="-m-1 rounded-md p-1 outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+          <Wordmark />
         </a>
-        <nav ref={nav} aria-label="Sections" className="relative hidden h-16 items-center md:flex">
+        <nav ref={nav} aria-label="Sections" className="relative hidden h-16 items-center lg:flex">
           {LINKS.map((link) => (
             <a
               key={link.id}
@@ -138,7 +139,7 @@ export function Header() {
           <Button
             variant="secondary"
             size="lg"
-            className="size-10 rounded-full bg-secondary/70 backdrop-blur sm:h-9 sm:w-auto sm:gap-2 sm:px-3.5"
+            className="size-10 rounded-full bg-secondary/70 backdrop-blur max-sm:hidden sm:h-9 sm:w-auto sm:gap-2 sm:px-3.5"
             nativeButton={false}
             render={<a href={REPO} aria-label="AI Insights on GitHub" />}
           >
@@ -147,7 +148,10 @@ export function Header() {
               GitHub
             </span>
           </Button>
-          <ThemeSwitcher className="max-md:hidden" />
+          <ThemeSwitcher className="max-lg:hidden" />
+          <Button size="lg" className="h-10 rounded-full px-4 sm:h-9" nativeButton={false} render={<a href="#get" />}>
+            Get yours
+          </Button>
           <button
             ref={toggle}
             type="button"
@@ -156,13 +160,13 @@ export function Header() {
             aria-controls="mobile-menu"
             aria-label={open ? "Close menu" : "Open menu"}
             onClick={() => setOpen((value) => !value)}
-            className="grid size-10 place-items-center rounded-full border bg-secondary/70 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:hidden"
+            className="grid size-10 place-items-center rounded-full border bg-secondary/70 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 lg:hidden"
           >
             <HugeiconsIcon icon={open ? Cancel01Icon : Menu01Icon} strokeWidth={2} className="size-[18px]" />
           </button>
         </div>
       </div>
-      <div ref={panel} id="mobile-menu" hidden={!open} className="border-t md:hidden">
+      <div ref={panel} id="mobile-menu" hidden={!open} className="border-t lg:hidden">
         <nav aria-label="Sections, menu" className="mx-auto flex max-w-6xl flex-col px-4 pt-1 pb-5 animate-in fade-in-0 slide-in-from-top-2 duration-300 motion-reduce:animate-none">
           {LINKS.map((link, index) => (
             <a
@@ -173,9 +177,13 @@ export function Header() {
               className="flex h-13 items-center justify-between border-b text-lg font-medium tracking-tight outline-none focus-visible:text-primary"
             >
               {link.label}
-              <span className={cn("font-mono text-xs text-muted-foreground", active === link.id && "text-primary")}>0{index + 1}</span>
+              <span className={cn("font-mono text-xs text-muted-foreground", active === link.id && "text-primary")}>{String(index + 1).padStart(2, "0")}</span>
             </a>
           ))}
+          <a href={REPO} className="flex h-13 items-center justify-between border-b text-lg font-medium tracking-tight outline-none focus-visible:text-primary sm:hidden">
+            GitHub
+            <HugeiconsIcon icon={GithubIcon} strokeWidth={2} className="size-4 text-muted-foreground" />
+          </a>
           <div className="flex items-center justify-between pt-4">
             <span className="mono-comment text-xs">theme</span>
             <ThemeSwitcher size="lg" />
