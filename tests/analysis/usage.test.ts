@@ -98,3 +98,26 @@ describe("usage and cost", () => {
     expect(build([session({ requests: [] })]).usage.cacheHitRate).toBeNull();
   });
 });
+
+describe("cost the harness recorded", () => {
+  it("shows recorded spend apart from the list-price estimate, per harness and in total", () => {
+    const report = build([
+      session({ id: "o1", harness: "opencode", requests: [request({ id: "r1", model: "openai/gpt-5.5", costUsd: 0.4 }), request({ id: "r2", model: "mystery-model-9", costUsd: 0.1 })] }),
+      session({ id: "p1", harness: "pi", requests: [request({ id: "r3", model: "openai-codex/gpt-5.5", costUsd: 0 })] }),
+      session({ id: "c1", harness: "claude-code", requests: [request({ id: "r4", model: "claude-sonnet-4-6" })] }),
+    ]);
+    expect(report.usage.recorded).toEqual({ usd: 0.5, requests: 3, zeroRequests: 1 });
+    expect(report.usage.recordedByHarness).toEqual([
+      { harness: "opencode", usd: 0.5, requests: 2, zeroRequests: 0 },
+      { harness: "pi", usd: 0, requests: 1, zeroRequests: 1 },
+    ]);
+    // The estimate is still the list-price one; the recorded cost never fills an unpriced gap.
+    expect(report.usage.unpriced).toBe(1);
+  });
+
+  it("has no recorded cost when no harness recorded one, rather than $0", () => {
+    const report = build([session({ requests: [request({ model: "claude-sonnet-4-6" })] })]);
+    expect(report.usage.recorded).toBeUndefined();
+    expect(report.usage.recordedByHarness).toBeUndefined();
+  });
+});

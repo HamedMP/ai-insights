@@ -429,8 +429,24 @@ export interface UsageTotals {
   unpriced: number;
 }
 
+/**
+ * Spend a harness recorded itself (OpenCode, Pi), at its own price list. Not an API bill and not the estimate:
+ * subscriptions and coding plans record 0, so `zeroRequests` says how many requests recorded $0.
+ */
+export interface RecordedCost {
+  usd: number;
+  /** Requests that carried a recorded cost (zero included). */
+  requests: number;
+  /** Of those, the ones that recorded exactly $0. */
+  zeroRequests: number;
+}
+
 export interface UsageSummary extends UsageTotals {
   daily: Array<UsageTotals & { day: string }>;
+  /** Total of `ModelRequest.costUsd`; absent when no request carried one (never a $0 stand-in). */
+  recorded?: RecordedCost;
+  /** The same per harness, highest spend first; absent with `recorded`. */
+  recordedByHarness?: Array<RecordedCost & { harness: Harness }>;
   models: Array<UsageTotals & { harness: Harness; model: string }>;
   /** cachedInput / (input + cachedInput + cacheWrite), 0..1, null when there was no input. */
   cacheHitRate: number | null;

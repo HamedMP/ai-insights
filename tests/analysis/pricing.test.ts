@@ -164,3 +164,26 @@ it("names the price table revision", () => {
   expect(PRICING_VERSION).not.toBe("api-list-2026-11-15");
   expect(PRICING_VERSION).toMatch(/^api-list-\d{4}-\d{2}-\d{2}/);
 });
+
+describe("OpenAI rows added from the vendor's pages (2026-11-16)", () => {
+  const usage = { input: 1_000_000, cachedInput: 1_000_000, cacheWrite: 0, output: 1_000_000 };
+  it("prices gpt-5.2 and gpt-5.2-codex at 1.75 / 0.175 / 14, and gpt-5.2 Fast at 3.50 / 0.35 / 28", () => {
+    expect(estimateUsd("openai/gpt-5.2", usage)).toBeCloseTo(1.75 + 0.175 + 14, 9);
+    expect(estimateUsd("gpt-5.2-codex", usage)).toBeCloseTo(1.75 + 0.175 + 14, 9);
+    expect(estimateUsd("gpt-5.2", usage, { serviceTier: "priority" })).toBeCloseTo(3.5 + 0.35 + 28, 9);
+  });
+
+  it("bills gpt-5.2-pro cached tokens at the input rate, because the page lists no cached-input price", () => {
+    expect(estimateUsd("gpt-5.2-pro", usage)).toBeCloseTo(21 + 21 + 168, 9);
+  });
+
+  it("keeps ids the vendor does not publish unpriced: OpenCode's gpt-5.5-fast and third-party hosts", () => {
+    expect(estimateUsd("openai/gpt-5.5-fast", usage)).toBeNull();
+    expect(estimateUsd("baseten/zai-org/GLM-5.2", usage)).toBeNull();
+    expect(estimateUsd("gemini-3-pro-preview", usage)).toBeNull();
+  });
+
+  it("prices Pi's openai-codex provider ids from the OpenAI rows", () => {
+    expect(estimateUsd("openai-codex/gpt-5.5", usage)).toBe(estimateUsd("gpt-5.5", usage));
+  });
+});

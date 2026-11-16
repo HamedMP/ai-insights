@@ -106,6 +106,8 @@ export function usageDigest(usage: UsageSummary, weeks = DIGEST_WEEKS) {
     estimatedUsd: usd(usage.estimatedUsd),
     unpriced: usage.unpriced,
     cacheHitRate: usage.cacheHitRate === null ? null : round(usage.cacheHitRate, 3),
+    // What OpenCode and Pi recorded themselves; a recorded $0 is a subscription or plan, not free use.
+    ...(usage.recorded ? { recorded: { ...usage.recorded, usd: round(usage.recorded.usd, 2), byHarness: Object.fromEntries((usage.recordedByHarness ?? []).map((row) => [row.harness, round(row.usd, 2)])) } } : {}),
     // Keyed by model name: the name already says which vendor, and unpriced appears only when it matters.
     models: Object.fromEntries(
       [...usage.models]
