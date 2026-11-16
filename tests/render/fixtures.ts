@@ -6,6 +6,7 @@ import type {
   Finding,
   Narrative,
   Report,
+  SessionSpan,
   UsageSummary,
   UsageTotals,
 } from "../../src/schema/types.js";
@@ -502,11 +503,65 @@ const narrative: Narrative = {
   ],
 };
 
+const SPAN_PROJECTS = ["/home/dev/code/storefront", "/home/dev/code/storefront-wt/checkout", "/home/dev/code/billing-service", "/home/dev/code/infra", null];
+
+/**
+ * Synthetic session spans over the last `days` days before `end` (UTC), a few sessions a
+ * day, with one busy afternoon (`busyDay`) where an orchestrator fans out `busy` agents.
+ */
+export function makeSpans(options: { end?: string; days?: number; busyDay?: string; busy?: number; seed?: number } = {}): SessionSpan[] {
+  const { end = "2026-11-14", days = 10, busyDay = "2026-11-12", busy = 7, seed = 5 } = options;
+  const random = rng(seed);
+  const spans: SessionSpan[] = [];
+  const last = Date.parse(`${end}T00:00:00Z`);
+  let serial = 0;
+  const push = (start: number, minutes: number, harness: "claude-code" | "codex", agentDriven: boolean) => {
+    serial += 1;
+    spans.push({
+      sessionId: `span-${String(serial).padStart(4, "0")}`,
+      harness,
+      project: SPAN_PROJECTS[serial % SPAN_PROJECTS.length] ?? null,
+      start: new Date(start).toISOString(),
+      end: new Date(start + minutes * 60_000).toISOString(),
+      activeMinutes: Math.round(minutes * 0.6),
+      ...(agentDriven ? { agentDriven: true } : {}),
+    });
+  };
+  for (let d = days - 1; d >= 0; d -= 1) {
+    const dayStart = last - d * 86_400_000;
+    const perDay = 2 + Math.floor(random() * 3);
+    for (let k = 0; k < perDay; k += 1) {
+      push(dayStart + (8 + k * 3 + random() * 2) * 3_600_000, 25 + Math.round(random() * 90), random() < 0.3 ? "codex" : "claude-code", false);
+    }
+  }
+  const busyStart = Date.parse(`${busyDay}T13:00:00Z`);
+  push(busyStart - 20 * 60_000, 260, "claude-code", false);
+  for (let k = 0; k < busy - 1; k += 1) {
+    push(busyStart + k * 9 * 60_000, 70 + Math.round(random() * 80), k % 3 === 2 ? "codex" : "claude-code", true);
+  }
+  return spans.sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+}
+
+/** Most spans open at once, so a fixture's aggregate counts agree with its spans. */
+function mostAtOnce(spans: SessionSpan[]): number {
+  const events = spans.flatMap((entry) => [[Date.parse(entry.start), 1], [Date.parse(entry.end), -1]] as const).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  let running = 0;
+  let best = 0;
+  for (const [, delta] of events) best = Math.max(best, (running += delta));
+  return best;
+}
+
+function withSpans(activity: Activity, spans: SessionSpan[]): Activity {
+  const parallelSessions = { ...activity.parallelSessions, maxConcurrent: Math.max(activity.parallelSessions.maxConcurrent, mostAtOnce(spans)) };
+  return { ...activity, parallelSessions, sessionSpans: spans };
+}
+
 /** A full report: deterministic analysis plus facets and narrative from the insights skill. */
 export function makeReport(overrides: Partial<Report> = {}): Report {
   const base = buildDeterministic({ days: 150, end: "2026-11-14", seed: 7, density: 0.8, harnesses: ["claude-code", "codex"] });
   // Parallel sessions make summed agent time exceed the person's wall-clock time.
-  const activity = { ...base.activity, wallClockActiveMinutes: Math.round(base.activity.totalActiveMinutes * 0.36) };
+  const projects = base.activity.projects.map((entry, index) => (index === 0 ? { ...entry, worktrees: 4 } : index === 1 ? { ...entry, worktrees: 1 } : entry));
+  const activity = { ...withSpans(base.activity, makeSpans()), projects, wallClockActiveMinutes: Math.round(base.activity.totalActiveMinutes * 0.36) };
   return { ...base, activity, facets, narrative, ...overrides };
 }
 
@@ -547,7 +602,7 @@ export function makeYearReport(): Report {
     ...base,
     usage: { ...base.usage, models },
     findings,
-    activity: { ...base.activity, projects },
+    activity: { ...withSpans(base.activity, makeSpans({ days: 160, busy: 30, seed: 9 }).slice(-400)), projects },
     facets,
     narrative,
   };

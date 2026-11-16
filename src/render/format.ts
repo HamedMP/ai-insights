@@ -108,7 +108,7 @@ export function formatDate(value: string | null | undefined, zone: string): stri
 
 export function formatDateTime(value: string | null | undefined, zone: string): string | null {
   const ms = parseInstant(value);
-  return ms === null ? null : formatter(zone, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).format(ms);
+  return ms === null ? null : formatter(zone, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(ms);
 }
 
 const DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -172,4 +172,38 @@ export function formatBytes(bytes: number): string {
     }
   }
   return `${formatInt(b)} B`;
+}
+
+function localParts(ms: number, zone: string): { year: number; month: number; day: number; hour: number; minute: number } {
+  const parts = formatter(zone, { year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", hourCycle: "h23" }).formatToParts(ms);
+  const get = (type: string) => Number(parts.find((part) => part.type === type)?.value ?? 0);
+  return { year: get("year"), month: get("month"), day: get("day"), hour: get("hour") % 24, minute: get("minute") };
+}
+
+/** How far the zone's wall clock is ahead of UTC at an instant, in ms. */
+export function zoneOffsetMs(ms: number, zone: string): number {
+  const p = localParts(ms, zone);
+  return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute) - Math.floor(ms / 60_000) * 60_000;
+}
+
+/** The instant of the local wall-clock time `local` (ms as if the zone were UTC); one correction step covers DST edges. */
+export function fromLocal(local: number, zone: string): number {
+  const guess = local - zoneOffsetMs(local, zone);
+  return local - zoneOffsetMs(guess, zone);
+}
+
+/** Local midnight at or before an instant. */
+export function localDayStart(ms: number, zone: string): number {
+  const local = ms + zoneOffsetMs(ms, zone);
+  return fromLocal(Math.floor(local / 86_400_000) * 86_400_000, zone);
+}
+
+/** "14:05" in the zone. */
+export function formatClock(ms: number, zone: string): string {
+  return formatter(zone, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(ms);
+}
+
+/** "Nov 12" in the zone. */
+export function formatLocalDay(ms: number, zone: string): string {
+  return formatter(zone, { month: "short", day: "numeric" }).format(ms);
 }

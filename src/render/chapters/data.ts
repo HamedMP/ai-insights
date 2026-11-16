@@ -4,8 +4,9 @@ import { chapter, panel, type RenderContext } from "../components.js";
 import { clip, count, dayNumber, formatBytes, formatCompact, formatDate, formatDay, formatHours, formatInt, formatSeconds, formatUsd, parseInstant, plural, shortenPath } from "../format.js";
 import { html, type SafeHtml } from "../html.js";
 import { harnessLabel, keyLabel } from "../labels.js";
-import { peakWindow, pricingGap, unpricedModelsText, weekdayTotals, type Story } from "../story.js";
-import { dayGrid, dayStacks, delegationFan, denseDays, dotColumns, hourClock, pixelBars, sessionField, splitBar, tokenFlow, waffle, weekStacks } from "../visuals.js";
+import { peakWindow, pricingGap, unpricedModelsText, weekdayTotals, type Line, type Story } from "../story.js";
+import { buildTimeline, spanTimeline, type Timeline } from "../timeline.js";
+import { dayGrid, dayStacks, delegationFan, denseDays, dotColumns, hourClock, parallelFacts, pixelBars, sessionField, splitBar, tokenFlow, waffle, weekStacks } from "../visuals.js";
 import { tryThis, type ActionIndex } from "./common.js";
 import type { ChapterId } from "../story.js";
 import type { Finding } from "../../schema/types.js";
@@ -98,15 +99,37 @@ export function delegationChapter({ context, story, tips, actions, index }: Chap
 }
 
 export function parallelChapter({ context, story, tips, actions, index }: ChapterInput): SafeHtml | null {
-  if (!story.parallel) return null;
-  const parallel = context.report.activity.parallelSessions;
-  const field = sessionField(count(context.report.activity.sessions), count(parallel?.sessionsInvolved), count(parallel?.maxConcurrent), count(parallel?.overlapEvents));
-  const wall = context.report.activity.wallClockActiveMinutes;
+  const { activity } = context.report;
+  const timeline = buildTimeline(activity.sessionSpans, context.zone, [...(activity.byHarness ?? [])].sort((a, b) => count(b.sessions) - count(a.sessions)).map((entry) => entry.harness));
+  const lead = story.parallel ?? (timeline ? timelineLead(timeline) : null);
+  if (!lead) return null;
+  const parallel = activity.parallelSessions;
+  const wall = activity.wallClockActiveMinutes;
   const hours =
     typeof wall === "number" && Number.isFinite(wall) && wall > 0
-      ? html`<div class="versus reveal"><div><b>${formatHours(wall)}</b><span class="micro">your hours with AI at work</span></div><div class="vs-bar"><span class="you" style="width:${Math.max(4, Math.round((wall / Math.max(wall, count(context.report.activity.totalActiveMinutes))) * 100))}%"></span><span class="agents"></span></div><div><b>${formatHours(context.report.activity.totalActiveMinutes)}</b><span class="micro">agent-hours, summed across sessions</span></div></div>`
+      ? html`<div class="versus reveal"><div><b>${formatHours(wall)}</b><span class="micro">your hours with AI at work</span></div><div class="vs-bar"><span class="you" style="width:${Math.max(4, Math.round((wall / Math.max(wall, count(activity.totalActiveMinutes))) * 100))}%"></span><span class="agents"></span></div><div><b>${formatHours(activity.totalActiveMinutes)}</b><span class="micro">agent-hours, summed across sessions</span></div></div>`
       : null;
-  return chapter({ id: "parallel", index, kicker: "Several at once", lead: story.parallel, body: html`${hours}${field ? panel("Every session", field) : null}`, tip: tryThis(tips.parallel, actions) });
+  const visual = timeline
+    ? html`${panel("Side by side", spanTimeline(timeline, context.zone, count(activity.sessions)), { className: "timeline-panel", aside: timeline.window.kind === "all" ? "your whole history" : timeline.window.days === 1 ? "the busiest day" : "the busiest days" })}${
+        parallel && count(parallel.overlapEvents) > 0 ? parallelFacts(count(activity.sessions), count(parallel.sessionsInvolved), count(parallel.maxConcurrent), count(parallel.overlapEvents)) : null
+      }`
+    : (() => {
+        const field = sessionField(count(activity.sessions), count(parallel?.sessionsInvolved), count(parallel?.maxConcurrent), count(parallel?.overlapEvents));
+        return field ? panel("Every session", field) : null;
+      })();
+  return chapter({ id: "parallel", index, kicker: "Several at once", lead, body: html`${hours}${visual}`, tip: tryThis(tips.parallel, actions) });
+}
+
+/** A lead from the spans alone, for a report that has spans but no aggregate overlap counts. */
+function timelineLead(timeline: Timeline): Line {
+  return [{ text: "At the busiest moment, " }, { text: `${formatInt(timeline.peak.count)} of your sessions`, strong: true }, { text: " were running at the same time." }];
+}
+
+/** Long paths keep their last folder, the part that names the project; the full path stays in the tooltip. */
+function tailOfPath(path: string): string {
+  if (path.length <= 22) return path;
+  const last = path.split(/[\\/]/).filter(Boolean).pop() ?? path;
+  return clip(`…/${last}`, 60);
 }
 
 function list(names: string[]): string {
@@ -134,8 +157,9 @@ export function coverageChapter({ context, story, tips, actions, index }: Chapte
   const projects = pixelBars(
     "projects",
     (report.activity.projects ?? []).map((entry) => {
-      const label = clip(shortenPath(String(entry.projectPath ?? "")), 60);
-      return { label, title: label, value: count(entry.activeMinutes) || count(entry.sessions), display: plural(count(entry.sessions), "session") };
+      const full = clip(shortenPath(String(entry.projectPath ?? "")), 120);
+      const worktrees = count(entry.worktrees);
+      return { label: tailOfPath(full), title: full, value: count(entry.activeMinutes) || count(entry.sessions), display: plural(count(entry.sessions), "session"), note: worktrees > 1 ? plural(worktrees, "worktree") : undefined };
     }),
     8,
     { mono: true },
