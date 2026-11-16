@@ -1,9 +1,11 @@
+import { mkdir, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { HARNESSES } from "../../src/schema/types.js";
 import { scan } from "../../src/store/scan.js";
 import { headline, renderFromScan } from "../../src/store/pipeline.js";
 import { Store } from "../../src/store/store.js";
-import { fakeBuildReport, fakeRenderReport, fakeSource, makeSession, tempHome, validFacet } from "./fixtures.js";
+import { fakeBuildReport, fakeRenderReport, fakeSource, fileFor, makeSession, tempHome, validFacet } from "./fixtures.js";
 import type { BuildReportInput } from "../../src/schema/types.js";
 
 let home: string;
@@ -166,5 +168,107 @@ describe("pipeline", () => {
   it("summarises headline numbers straight from sessions", () => {
     const numbers = headline([makeSession({ id: "a" }), makeSession({ id: "b", startTime: "2026-09-01T00:00:00.000Z" })]);
     expect(numbers).toMatchObject({ sessions: 2, userPrompts: 6, toolCalls: 4, toolErrors: 2, tokens: 2500, firstSession: "2026-09-01T00:00:00.000Z" });
+  });
+});
+
+describe("scan project roots", () => {
+  /** Lays out a main checkout and a linked worktree inside the temp home, the way git does it. */
+  async function repo() {
+    const main = join(home, "work", "app");
+    const worktree = join(home, "work", "app-wt", "feature");
+    const admin = join(main, ".git", "worktrees", "feature");
+    await mkdir(join(main, "packages", "web"), { recursive: true });
+    await mkdir(admin, { recursive: true });
+    await mkdir(worktree, { recursive: true });
+    await writeFile(join(worktree, ".git"), `gitdir: ${admin}\n`);
+    await writeFile(join(admin, "gitdir"), `${join(worktree, ".git")}\n`);
+    await writeFile(join(admin, "commondir"), "../..\n");
+    return { main, worktree };
+  }
+
+  it("counts worktrees and subfolders of one repository as one project root", async () => {
+    const { main, worktree } = await repo();
+    const outside = join(home, "scratch");
+    await mkdir(outside);
+    const source = fakeSource("claude-code", [
+      makeSession({ id: "main", projectPath: main }),
+      makeSession({ id: "sub", projectPath: join(main, "packages", "web"), sourceMtimeMs: 2 }),
+      makeSession({ id: "wt", projectPath: worktree, sourceMtimeMs: 3 }),
+      makeSession({ id: "plain", projectPath: outside, sourceMtimeMs: 4 }),
+      makeSession({ id: "none", projectPath: null, sourceMtimeMs: 5 }),
+    ]);
+    const result = await scan({ sources: [source], store });
+    const byId = Object.fromEntries(result.sessions.map((session) => [session.id, session]));
+    expect(byId.main!.projectRoot).toBe(main);
+    expect(byId.sub!.projectRoot).toBe(main);
+    expect(byId.wt!.projectRoot).toBe(main);
+    expect(byId.wt!.projectPath).toBe(worktree);
+    expect("projectRoot" in byId.plain!).toBe(false);
+    expect("projectRoot" in byId.none!).toBe(false);
+  });
+
+  it("fills the root into sessions cached before roots existed, without parsing their transcripts again", async () => {
+    const { main, worktree } = await repo();
+    const old = makeSession({ id: "old", projectPath: worktree, agentMessageCount: 4 });
+    await store.cacheSession(fileFor(old), old);
+    await store.flush();
+    const source = fakeSource("claude-code", [old]);
+
+    const result = await scan({ sources: [source], store: new Store(home) });
+    expect(source.parseCalls).toEqual([]);
+    expect(result.sessions[0]!.projectRoot).toBe(main);
+    // Fields the cache schema does not list by name survive the round trip.
+    expect(result.sessions[0]!.agentMessageCount).toBe(4);
+    const cached = await new Store(home).cachedSession(fileFor(old));
+    expect(cached && cached.projectRoot).toBe(main);
+  });
+
+  it("keeps a cached root after the worktree folder is deleted and git has forgotten it", async () => {
+    const { main, worktree } = await repo();
+    const source = fakeSource("claude-code", [makeSession({ id: "wt", projectPath: worktree })]);
+    await scan({ sources: [source], store });
+    await rm(worktree, { recursive: true, force: true });
+    await rm(join(main, ".git", "worktrees"), { recursive: true, force: true });
+
+    const again = await scan({ sources: [source], store: new Store(home) });
+    expect(source.parseCalls).toHaveLength(1);
+    expect(again.sessions[0]!.projectRoot).toBe(main);
+  });
+
+  it("places a deleted worktree under the root another session reached, when git still lists it", async () => {
+    const { main, worktree } = await repo();
+    await rm(worktree, { recursive: true, force: true });
+    const source = fakeSource("claude-code", [
+      makeSession({ id: "main", projectPath: main }),
+      makeSession({ id: "gone", projectPath: worktree, sourceMtimeMs: 2 }),
+      makeSession({ id: "lost", projectPath: join(home, "never-existed"), sourceMtimeMs: 3 }),
+    ]);
+    const result = await scan({ sources: [source], store });
+    const byId = Object.fromEntries(result.sessions.map((session) => [session.id, session]));
+    expect(byId.gone!.projectRoot).toBe(main);
+    expect("projectRoot" in byId.lost!).toBe(false);
+  });
+
+  it("writes each newly parsed session to the cache once", async () => {
+    const { main } = await repo();
+    const source = fakeSource("claude-code", [makeSession({ id: "a", projectPath: main })]);
+    const counting = new Store(home);
+    let writes = 0;
+    const original = counting.cacheSession.bind(counting);
+    counting.cacheSession = async (file, session) => {
+      writes += 1;
+      return original(file, session);
+    };
+    await scan({ sources: [source], store: counting });
+    expect(writes).toBe(1);
+    const second = new Store(home);
+    let rewrites = 0;
+    const secondOriginal = second.cacheSession.bind(second);
+    second.cacheSession = async (file, session) => {
+      rewrites += 1;
+      return secondOriginal(file, session);
+    };
+    await scan({ sources: [source], store: second });
+    expect(rewrites).toBe(0);
   });
 });

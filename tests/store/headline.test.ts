@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeHeadline } from "../../src/store/pipeline.js";
+import { describeHeadline, foldProjectsByRoot } from "../../src/store/pipeline.js";
 import { fakeBuildReport, makeSession } from "./fixtures.js";
 
 const sessions = [makeSession({ id: "a", activeMinutes: 4_800 }), makeSession({ id: "b", activeMinutes: 2_400 })];
@@ -43,5 +43,31 @@ describe("describeHeadline", () => {
     const headline = describeHeadline(report({ estimatedUsd: null, requests: 10, unpriced: 10 }));
     expect(headline.cost).toBe("cost unknown: none of the requests could be priced");
     expect(headline.cost).not.toContain("$");
+  });
+});
+
+describe("foldProjectsByRoot", () => {
+  const row = (projectPath: string, sessions: number, activeMinutes: number, worktrees?: number) => ({
+    projectPath,
+    sessions,
+    activeMinutes,
+    ...(worktrees === undefined ? {} : { worktrees }),
+  });
+
+  it("merges project rows from worktrees of one repository into its root and counts the folders", () => {
+    const sessions = [
+      makeSession({ id: "a", projectPath: "/r/app", projectRoot: "/r/app" }),
+      makeSession({ id: "b", projectPath: "/r/app-wt/one", projectRoot: "/r/app" }),
+      makeSession({ id: "c", projectPath: "/r/app-wt/two", projectRoot: "/r/app" }),
+      makeSession({ id: "d", projectPath: "/r/other" }),
+    ];
+    const folded = foldProjectsByRoot([row("/r/app-wt/one", 5, 50), row("/r/other", 4, 90), row("/r/app", 2, 20), row("/r/app-wt/two", 1, 10)], sessions);
+    expect(folded).toEqual([row("/r/other", 4, 90), row("/r/app", 8, 80, 3)]);
+  });
+
+  it("leaves rows already grouped by root alone, keeping their worktree counts", () => {
+    const sessions = [makeSession({ id: "a", projectPath: "/r/app-wt/one", projectRoot: "/r/app" })];
+    const rows = [row("/r/app", 3, 30, 2), row("/r/x", 1, 5)];
+    expect(foldProjectsByRoot(rows, sessions)).toEqual(rows);
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { usageDigest, weekOf } from "../../src/mcp/digest.js";
+import { activityDigest, usageDigest, weekOf } from "../../src/mcp/digest.js";
 import { fitTurns } from "../../src/mcp/excerpt.js";
 import { spreadOrder, spreadPositions } from "../../src/mcp/select.js";
 import type { TranscriptTurn } from "../../src/schema/types.js";
@@ -64,5 +64,17 @@ describe("fitTurns", () => {
     expect(fitted.turns.at(-1)!.text).toBe("done");
     expect(fitted.omitted).toBeGreaterThan(0);
     expect(fitted.turns.reduce((sum, item) => sum + item.text.length, 0)).toBeLessThanOrEqual(2_000);
+  });
+});
+
+describe("activityDigest", () => {
+  it("says how many worktrees were folded into a project, and stays a plain count otherwise", () => {
+    const activity = fakeBuildReport()({ sessions: [], coverage: [] }).activity;
+    activity.projects = [
+      { projectPath: "/r/big-repo", sessions: 9, activeMinutes: 90, worktrees: 4 },
+      { projectPath: "/r/small", sessions: 2, activeMinutes: 10 },
+      { projectPath: "/r/single", sessions: 1, activeMinutes: 5, worktrees: 1 },
+    ];
+    expect(activityDigest(activity).projects).toEqual({ "r/big-repo": { sessions: 9, worktrees: 4 }, "r/small": 2, "r/single": 1 });
   });
 });

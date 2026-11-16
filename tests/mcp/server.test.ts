@@ -1,6 +1,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { DRIVERS, GOAL_CATEGORIES, OUTCOMES, type BuildReportInput, type Report, type Session, type TranscriptTurn } from "../../src/schema/types.js";
 import { createServer } from "../../src/mcp/server.js";
@@ -196,6 +197,22 @@ describe("hindsight_sessions", () => {
     const { json } = await call("hindsight_sessions");
     const c2 = json.sessions.find((session: any) => session.sessionId === "c2");
     expect(c2.project).toBe("code/secret-app");
+  });
+
+  it("names a worktree session by its repository root, in listings and excerpts alike", async () => {
+    const main = join(home, "code", "big-repo");
+    const admin = join(main, ".git", "worktrees", "feat");
+    const worktree = join(home, "code", "big-repo-wt", "feat");
+    await mkdir(admin, { recursive: true });
+    await mkdir(worktree, { recursive: true });
+    await writeFile(join(worktree, ".git"), `gitdir: ${admin}\n`);
+    await writeFile(join(admin, "commondir"), "../..\n");
+    claude.sessions = [...claude.sessions, makeSession({ id: "w1", sourceMtimeMs: 4, projectPath: worktree })];
+
+    const { json } = await call("hindsight_sessions");
+    expect(json.sessions.find((session: any) => session.sessionId === "w1").project).toBe("code/big-repo");
+    const excerpt = await call("hindsight_excerpt", { sessionId: "w1", harness: "claude-code" });
+    expect(excerpt.json.session.project).toBe("code/big-repo");
   });
 
   it("filters to sessions still missing facets", async () => {

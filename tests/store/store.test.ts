@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ZodError } from "zod";
 import { DRIVERS, FRICTION_TYPES, GOAL_CATEGORIES, OUTCOMES } from "../../src/schema/types.js";
-import { describeIssues } from "../../src/store/schemas.js";
+import { SessionSchema, describeIssues } from "../../src/store/schemas.js";
 import { KEEP_REPORT_COPIES, Store, resolveHome } from "../../src/store/store.js";
 import { parseSince } from "../../src/store/since.js";
 import { fakeBuildReport, fileFor, makeSession, tempHome, validFacet, validNarrative } from "./fixtures.js";
@@ -209,5 +209,15 @@ describe("parseSince", () => {
     expect(parseSince("soon", now)).toBeNull();
     expect(parseSince("0d", now)).toBeNull();
     expect(parseSince("", now)).toBeNull();
+  });
+});
+
+describe("SessionSchema", () => {
+  it("accepts a project root, a null one, and fields newer than the schema", () => {
+    const withRoot = SessionSchema.parse({ ...makeSession({ id: "a" }), projectRoot: "/work/app", someNewField: 1 });
+    expect(withRoot.projectRoot).toBe("/work/app");
+    expect((withRoot as Record<string, unknown>).someNewField).toBe(1);
+    expect(SessionSchema.safeParse({ ...makeSession({ id: "b" }), projectRoot: null }).success).toBe(true);
+    expect(SessionSchema.safeParse({ ...makeSession({ id: "c" }), projectRoot: 7 }).success).toBe(false);
   });
 });

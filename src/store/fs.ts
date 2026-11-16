@@ -14,6 +14,21 @@ export async function ensureDir(path: string): Promise<void> {
   await chmod(path, DIR_MODE).catch(() => undefined);
 }
 
+/** Runs `fn` over `items` with at most `limit` in flight, keeping results in input order. */
+export async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, async () => {
+    while (next < items.length) {
+      const index = next;
+      next += 1;
+      results[index] = await fn(items[index]!);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
 /** Write to a sibling temp file then rename, so a crash never leaves a half-written file behind. */
 export async function writeFileAtomic(path: string, data: string): Promise<void> {
   await ensureDir(dirname(path));

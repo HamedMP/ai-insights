@@ -35,7 +35,40 @@ export async function buildFromScan(deps: PipelineDeps, result: ScanResult): Pro
     timeZone: deps.timeZone ?? localTimeZone(),
     now: deps.now?.() ?? new Date(),
   });
+  if (Array.isArray(report.activity?.projects)) report.activity.projects = foldProjectsByRoot(report.activity.projects, result.sessions);
   return { report, facetCount: facets.length, hasNarrative: narrative !== null };
+}
+
+type ProjectRow = Report["activity"]["projects"][number];
+
+/**
+ * Folds project rows that are worktrees or subfolders of one repository into the repository's root.
+ * Rows already keyed by root pass through untouched, so this is a no-op once the analysis groups by root.
+ */
+export function foldProjectsByRoot(rows: ProjectRow[], sessions: Session[]): ProjectRow[] {
+  const rootOf = new Map<string, string>();
+  for (const session of sessions) {
+    if (session.projectPath && typeof session.projectRoot === "string" && session.projectRoot !== session.projectPath) {
+      rootOf.set(session.projectPath, session.projectRoot);
+    }
+  }
+  if (rootOf.size === 0) return rows;
+  const merged = new Map<string, { row: ProjectRow; folded: boolean }>();
+  for (const row of rows) {
+    const root = rootOf.get(row.projectPath) ?? row.projectPath;
+    const existing = merged.get(root);
+    if (!existing) {
+      merged.set(root, { row: { ...row, projectPath: root }, folded: root !== row.projectPath });
+      continue;
+    }
+    existing.row.sessions += row.sessions;
+    existing.row.activeMinutes += row.activeMinutes;
+    existing.row.worktrees = (existing.row.worktrees ?? 1) + (row.worktrees ?? 1);
+    existing.folded = true;
+  }
+  return [...merged.values()]
+    .map(({ row, folded }) => (folded && row.worktrees === undefined ? { ...row, worktrees: 1 } : row))
+    .sort((a, b) => b.activeMinutes - a.activeMinutes || b.sessions - a.sessions || a.projectPath.localeCompare(b.projectPath));
 }
 
 export interface RenderOutcome extends SavedReport {
