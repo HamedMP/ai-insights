@@ -37,6 +37,7 @@ const { renderReport } = await import("../src/render/index.ts");
 const { rankActions } = await import("../src/render/story.ts");
 const { settingsSnippet } = await import("../src/render/view.ts");
 const { makeSnapshot, compareRuns } = await import("../src/store/snapshots.ts");
+const { measureRetention, readRetentionPolicies } = await import("../src/store/retention.ts");
 
 const args = process.argv.slice(2);
 const jsonAt = args.indexOf("--json");
@@ -61,6 +62,9 @@ function rng(seed) {
   };
 }
 const random = rng(20261113);
+// Thinking, approvals and recorded cost draw from their own stream, so adding them left every older number as it was.
+const extraRandom = rng(20261116);
+const extraInt = (min, max) => min + Math.floor(extraRandom() * (max - min + 1));
 const int = (min, max) => min + Math.floor(random() * (max - min + 1));
 const pick = (list) => list[Math.floor(random() * list.length)];
 const chance = (p) => random() < p;
@@ -235,7 +239,22 @@ function makeSession({ harness, projectKey, start, minutes, prompts, model, work
   const lastAt = Math.max(start + 60_000, ...toolCalls.map((call) => Date.parse(call.timestamp)), ...requests.map((request) => Date.parse(request.timestamp)));
   const durationMinutes = Math.round((lastAt - start) / MIN);
   const shell = toolCalls.filter((call) => call.category === "shell");
+  // How the harnesses record thinking and approvals (see ThinkingStats and ApprovalStats): Claude Code times its
+  // thinking blocks and logs permission decisions; Codex times reasoning and logs its automatic reviews; Pi
+  // records thinking blocks without durations; Cursor records neither.
+  const blocks = harness === "cursor" ? 0 : Math.round(requests.length * (harness === "codex" ? 0.5 : 0.3)) + extraInt(0, 2);
+  const timed = harness === "claude-code" || harness === "codex" || harness === "opencode";
+  const thinks = Array.from({ length: timed ? blocks : 0 }, () => extraInt(1_500, extraRandom() < 0.04 ? 140_000 : 22_000));
+  const thinking = blocks ? { blocks, totalMs: timed ? thinks.reduce((a, b) => a + b, 0) : null, longestMs: timed ? Math.max(0, ...thinks) : null } : undefined;
+  const asked = shell.length + toolCalls.filter((call) => call.category === "edit").length;
+  const approvals = harness === "claude-code"
+    ? { auto: Math.round(asked * 0.72), byPerson: Math.round(asked * 0.26), denied: toolCalls.filter((call) => call.error === "permission_denied").length }
+    : harness === "codex"
+      ? { guardianReviews: extraInt(0, 3), autoBlocked: extraRandom() < 0.15 ? 1 : 0, denied: extraRandom() < 0.1 ? 1 : 0 }
+      : undefined;
   return {
+    ...(thinking ? { thinking } : {}),
+    ...(approvals ? { approvals } : {}),
     id: uuid(),
     harness,
     sourcePath: `demo://${harness}/${requestSerial}.jsonl`,
@@ -330,7 +349,8 @@ for (let day = CODEX_FROM; day < NOW.getTime() - DAY / 2; day += DAY) {
 }
 
 // The other harnesses AI Insights reads, a few sessions each, so the page shows all six: OpenCode records its
-// own cost (here $0, a subscription), Cursor records no token counts at all, Pi and Gemini CLI price normally.
+// own cost (here $0, a subscription), Pi records its own cost at its price list, Cursor records no token counts at
+// all, and Gemini CLI prices normally.
 {
   const extra = [
     ["opencode", "api", "claude-sonnet-4-6", 4],
@@ -344,6 +364,7 @@ for (let day = CODEX_FROM; day < NOW.getTime() - DAY / 2; day += DAY) {
       const session = makeSession({ harness, projectKey, start: local(day, 10 + int(0, 6)), minutes: int(20, 70), prompts: int(3, 8), model });
       if (harness === "cursor") session.requests = [];
       if (harness === "opencode") session.requests = session.requests.map((request) => ({ ...request, costUsd: 0 }));
+      if (harness === "pi") session.requests = session.requests.map((request) => ({ ...request, costUsd: extraInt(4, 60) / 1000 }));
       sessions.push(session);
     }
   }
@@ -392,7 +413,30 @@ const COVERAGE = [
   return { ...entry, files: own.length, sessions: own.length, oldest: own[0].startTime, newest: own[own.length - 1].endTime };
 });
 
-const deterministic = buildReport({ sessions, coverage: COVERAGE, timeZone: ZONE, now: NOW, facets });
+// How long each harness keeps these transcripts, measured the way a scan does: the documented defaults (an empty
+// home, so no settings file is read; the platform only picks where managed settings would live, and none exist
+// there), each session's transcript dated by its last change. Claude Code's oldest sessions reach 30 days within
+// the week, and one of them was continued in Claude Desktop, so it is kept anyway.
+const transcriptOf = (session) => `demo://${session.harness}/${session.id}.jsonl`;
+const policies = await readRetentionPolicies({ env: {}, home: "/home/demo", platform: "win32" });
+const files = new Map();
+for (const session of sessions) {
+  const list = files.get(session.harness) ?? [];
+  list.push({ harness: session.harness, path: transcriptOf(session), mtimeMs: Date.parse(session.endTime), sizeBytes: 300_000 + Math.round(session.durationMinutes * 9_000) });
+  files.set(session.harness, list);
+}
+const desktopSession = sessions.find((session) => session.harness === "claude-code");
+const retention = await measureRetention({
+  now: NOW,
+  policies,
+  files,
+  sessionsByPath: new Map(sessions.map((session) => [transcriptOf(session), session])),
+  cachedOnly: new Map(),
+  isDesktop: async (path) => path === transcriptOf(desktopSession),
+  mtimeOf: async (file) => file.mtimeMs,
+});
+
+const deterministic = buildReport({ sessions, coverage: COVERAGE, timeZone: ZONE, now: NOW, facets, retention });
 const idOf = (kind) => deterministic.findings.find((finding) => finding.kind === kind)?.id;
 
 const narrative = {
