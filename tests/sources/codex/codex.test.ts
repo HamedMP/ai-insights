@@ -525,6 +525,6 @@ describe("codex excerpts", () => {
 
 describe("codex parser version", () => {
   it("declares a parser version so the store re-parses cached history after a parser fix", () => {
-    expect(codexSource.parserVersion).toBe("2");
+    expect(codexSource.parserVersion).toBe("3");
   });
 });
