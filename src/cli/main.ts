@@ -300,6 +300,8 @@ async function commandDoctor(deps: CliDeps, store: Store): Promise<number> {
         ? "no history found"
         : `${plural(files.length, "transcript")} (${formatBytes(totalBytes(files))}), ${new Date(oldest).toISOString().slice(0, 10)} to ${new Date(newest).toISOString().slice(0, 10)}`;
     lines.push(`${label}: ${status}`);
+    const note = source.diagnose ? await source.diagnose().catch(() => null) : null;
+    if (note) lines.push(`  note    ${note}`);
     for (const root of roots) lines.push(`  ${(await pathExists(root)) ? "found  " : "missing"} ${root}`);
     if (roots.length === 0) lines.push("  (no default location on this machine)");
   }

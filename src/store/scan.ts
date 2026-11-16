@@ -189,6 +189,7 @@ export async function scan(deps: ScanDeps, options: ScanOptions = {}): Promise<S
     if (!found && source && (options.since || (wanted && !wanted.includes(harness)))) {
       found = ((await safeDiscover(source, undefined, 1)) ?? []).length > 0;
     }
+    const note = source?.diagnose && (!wanted || wanted.includes(harness)) ? await source.diagnose().catch(() => null) : null;
     const starts = harnessSessions.map((session) => session.startTime).filter((value) => Number.isFinite(Date.parse(value))).sort();
     const ends = harnessSessions.map((session) => session.endTime).filter((value) => Number.isFinite(Date.parse(value))).sort();
     coverage.push({
@@ -202,6 +203,8 @@ export async function scan(deps: ScanDeps, options: ScanOptions = {}): Promise<S
       issues: (issues.get(harness) ?? 0) + harnessSessions.reduce((sum, session) => sum + (session.issues || 0), 0),
       oldest: starts[0] ?? null,
       newest: ends[ends.length - 1] ?? null,
+      // History that exists but cannot be read here is found, and counted as an issue, not silently absent.
+      ...(note ? { note, found: true, issues: (issues.get(harness) ?? 0) + 1 + harnessSessions.reduce((sum, session) => sum + (session.issues || 0), 0) } : {}),
     });
   }
 

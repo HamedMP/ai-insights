@@ -168,7 +168,7 @@ export const SessionSchema = z.object({
   assistantMessageCount: z.number(),
   prompts: z.array(z.object({ timestamp: z.string(), text: z.string(), interrupted: z.boolean().optional() })),
   userResponseTimesSec: z.array(z.number()),
-  requests: z.array(z.object({ id: z.string(), timestamp: z.string(), model: z.string(), usage: TokenUsageSchema })),
+  requests: z.array(z.object({ id: z.string(), timestamp: z.string(), model: z.string(), usage: TokenUsageSchema, costUsd: z.number().optional() })),
   toolCalls: z.array(
     z.object({
       name: z.string(),

@@ -27,6 +27,11 @@ export interface ModelRequest {
   timestamp: string;
   model: string;
   usage: TokenUsage;
+  /**
+   * USD the harness itself recorded for this response (OpenCode, Pi), at its own price list. It can be 0 for
+   * subscription or free models and is not an API bill. Absent when the harness records no cost.
+   */
+  costUsd?: number;
 }
 
 export const TOOL_CATEGORIES = [
@@ -196,6 +201,11 @@ export interface Source {
   /** Null when the file holds no real session (empty, too short, not a transcript). */
   parse(file: SessionFile): Promise<Session | null>;
   excerpt(file: SessionFile, options?: ExcerptOptions): Promise<TranscriptTurn[]>;
+  /**
+   * Why history this source can see on this machine cannot be read (an unsupported Node version, an unreadable
+   * database), or null when nothing is wrong. Shown in coverage and `doctor`. Never throws.
+   */
+  diagnose?(): Promise<string | null>;
 }
 
 // ---------------------------------------------------------------------------
@@ -389,6 +399,8 @@ export interface Coverage {
   issues: number;
   oldest: string | null;
   newest: string | null;
+  /** Why history that exists could not be read, e.g. "needs Node 22.5 or later to read opencode.db". */
+  note?: string;
 }
 
 export interface Count {
