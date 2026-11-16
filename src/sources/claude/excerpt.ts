@@ -1,5 +1,6 @@
 import { basename } from "node:path";
 import type { ExcerptOptions, SessionFile, TranscriptTurn } from "../../schema/types.js";
+import { truncate } from "../shared.js";
 import { scrub, toolCategory, type PromptKind } from "./classify.js";
 import { DEFAULT_LIMITS, readJsonl, type JsonlLimits } from "./jsonl.js";
 import { classifyQueuedCommand, classifyUserRecord, isoTime, obj, str, toolResultText } from "./parse.js";
@@ -12,6 +13,14 @@ const HARD_MAX_CHARS = 20_000;
 const TOOL_LINE_CHARS = 120;
 /** How much of the failing call is repeated in front of its error. */
 const ERROR_CONTEXT_CHARS = 80;
+/**
+ * What the model pass reads per session by default (the MCP server fits every
+ * excerpt into 4,000 characters). The source fits itself first, so the server
+ * never has to trim every turn evenly and cut the brief to a line.
+ */
+const MIN_BUDGET_CHARS = 4_000;
+/** Below this, a turn says too little; drop the least useful turn instead of trimming further. */
+const MIN_TURN_CHARS = 150;
 // Candidates kept while streaming; beyond this the least useful tier is thinned so memory stays bounded.
 const MAX_CANDIDATES = 20_000;
 
@@ -27,6 +36,7 @@ const TIER = {
   agent: 3, // messages from other agents or automations
   answer: 4, // other assistant text
   tool: 5, // tool calls
+  harness: 6, // task notifications, monitor events, wake-ups: only when nothing else is left
 } as const;
 type Tier = (typeof TIER)[keyof typeof TIER];
 
@@ -67,7 +77,7 @@ function pickEvenly<T>(items: T[], count: number): T[] {
 /** Fill the slots tier by tier; a tier that does not fit is spread evenly across the session. */
 function byPriority(candidates: Candidate[], count: number): Candidate[] {
   const picked: Candidate[] = [];
-  for (let tier: number = TIER.anchor; tier <= TIER.tool && picked.length < count; tier += 1) {
+  for (let tier: number = TIER.anchor; tier <= TIER.harness && picked.length < count; tier += 1) {
     const items = candidates.filter((candidate) => candidate.tier === tier);
     picked.push(...pickEvenly(items, count - picked.length));
   }
@@ -87,13 +97,56 @@ function nearest(candidates: Candidate[], count: number, around: string): Candid
 
 /** Halve the least useful tier that still has more than one turn. */
 function thin(candidates: Candidate[]): Candidate[] {
-  for (let tier: number = TIER.tool; tier >= TIER.person; tier -= 1) {
+  for (let tier: number = TIER.harness; tier >= TIER.person; tier -= 1) {
     const count = candidates.filter((candidate) => candidate.tier === tier).length;
     if (count < 2) continue;
     let index = 0;
     return candidates.filter((candidate) => candidate.tier !== tier || index++ % 2 === 0);
   }
   return candidates;
+}
+
+const length = (candidates: Candidate[]) => candidates.reduce((sum, candidate) => sum + candidate.turn.text.length, 0);
+
+/**
+ * Fit the picked turns into `budget` characters. The first prompt is the brief
+ * and keeps its full turn; the rest share what is left. When sharing would cut
+ * turns below a useful length, the least useful turns go first.
+ */
+function fitBudget(picked: Candidate[], budget: number): Candidate[] {
+  let kept = picked;
+  const brief = kept.find((candidate) => candidate.tier === TIER.anchor && candidate.turn.role === "user");
+  const briefChars = brief ? Math.min(brief.turn.text.length, Math.floor(budget / 2)) : 0;
+  const room = budget - briefChars;
+  const others = () => kept.filter((candidate) => candidate !== brief);
+  const capFor = (rest: Candidate[]): number => {
+    // Largest per-turn cap that fits: short turns stay whole, long ones share what is left.
+    let low = 0;
+    let high = Math.max(0, ...rest.map((candidate) => candidate.turn.text.length));
+    while (low < high) {
+      const mid = Math.ceil((low + high) / 2);
+      if (rest.reduce((sum, candidate) => sum + Math.min(candidate.turn.text.length, mid), 0) <= room) low = mid;
+      else high = mid - 1;
+    }
+    return low;
+  };
+  let cap = capFor(others());
+  while (length(others()) > room && cap < MIN_TURN_CHARS) {
+    let dropped = false;
+    for (let tier: number = TIER.harness; tier > TIER.anchor && !dropped; tier -= 1) {
+      const items = kept.filter((candidate) => candidate.tier === tier);
+      if (items.length === 0) continue;
+      const keep = new Set(pickEvenly(items, items.length - 1));
+      kept = kept.filter((candidate) => candidate.tier !== tier || keep.has(candidate));
+      dropped = true;
+    }
+    if (!dropped) break;
+    cap = capFor(others());
+  }
+  return kept.map((candidate) => {
+    const max = candidate === brief ? briefChars : cap;
+    return candidate.turn.text.length <= max ? candidate : { ...candidate, turn: { ...candidate.turn, text: truncate(candidate.turn.text, max) } };
+  });
 }
 
 /**
@@ -157,6 +210,9 @@ export async function excerptClaudeTranscript(
       case "agent":
         push({ timestamp: time, role: "agent", text: scrub(kind.text, maxChars) }, TIER.agent);
         break;
+      case "harness":
+        push({ timestamp: time, role: "tool", toolName: "harness", text: scrub(kind.text, Math.min(maxChars, TOOL_LINE_CHARS)) }, TIER.harness);
+        break;
       default:
         break;
     }
@@ -219,5 +275,7 @@ export async function excerptClaudeTranscript(
   }
 
   const picked = options.around ? nearest(candidates, maxTurns, options.around) : byPriority(candidates, maxTurns);
-  return picked.map((candidate) => candidate.turn);
+  // About a quarter of the turns at full length, and never less than the default read.
+  const budget = Math.max(MIN_BUDGET_CHARS, Math.floor((maxTurns * maxChars) / 4));
+  return fitBudget(picked, budget).map((candidate) => candidate.turn);
 }

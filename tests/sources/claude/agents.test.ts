@@ -50,7 +50,9 @@ describe("claude source: messages from other agents", () => {
       '<pasted_content id="p1"><hc from="t35">note</hc></pasted_content>',
     ]);
     expect(session.userMessageCount).toBe(3);
-    expect(session.agentMessageCount).toBe(9);
+    // Three hub relays, a hand-back, a queued relay and a peer message. Task notifications and the
+    // scheduled wake-up are the harness reporting on the agent's own work, not another agent.
+    expect(session.agentMessageCount).toBe(6);
     // Only the person's reply to the agent's last answer is a response time.
     expect(session.userResponseTimesSec).toEqual([120]);
   });

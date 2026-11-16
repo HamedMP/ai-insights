@@ -62,7 +62,8 @@ describe("claude source: excerpts that show how a long session went", () => {
       ["tool", "make deploy → The user doesn't want to proceed with this tool use."],
       ["user", "[interrupted the agent]"],
       ["agent", "Another Claude session sent a message: the build is red"],
-      ["agent", "<task-notification><summary>tests done</summary></task-notification>"],
+      // A background task finishing is the harness talking, not another agent.
+      ["tool", "[task notification] tests done"],
     ]);
   });
 

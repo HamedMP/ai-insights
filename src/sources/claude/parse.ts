@@ -8,6 +8,9 @@ import {
   classifyUserText,
   errorCategory,
   gitSubcommands,
+  harnessEventLine,
+  isAgentMessageText,
+  isHarnessEventText,
   lineCount,
   lineDelta,
   mcpServer,
@@ -85,19 +88,31 @@ export function classifyUserRecord(record: Obj): PromptKind {
     return /\[Request interrupted by user/.test(text) ? { kind: "interrupt" } : { kind: "injected" };
   }
   if (record.isCompactSummary === true || record.isVisibleInTranscriptOnly === true) return { kind: "injected" };
-  const origin = obj(record.origin);
-  if (typeof origin.kind === "string" && origin.kind !== "human") return { kind: "agent", text };
-  // Scheduled tasks and loop wake-ups; plain isMeta lines are the harness expanding a skill or command.
-  if (record.isMeta === true) return record.promptSource === "system" ? { kind: "agent", text } : { kind: "injected" };
+  const origin = typeof obj(record.origin).kind === "string" ? String(obj(record.origin).kind) : null;
+  if (origin !== null && origin !== "human") return fromElsewhere(text, origin);
+  if (record.isMeta === true) {
+    // Plain isMeta lines are the harness expanding a skill or command; system ones are wake-ups and relays.
+    if (record.promptSource !== "system") return { kind: "injected" };
+    return fromElsewhere(text, null, "scheduled wake-up");
+  }
   return classifyUserText(text);
+}
+
+/** Something that did not come from the person: another agent, or the harness reporting on the agent's own work. */
+function fromElsewhere(raw: string, origin: string | null, label?: string): PromptKind {
+  const text = raw.trim();
+  if (text === "") return { kind: "injected" };
+  if (origin === "task-notification" || isHarnessEventText(text)) return { kind: "harness", text: harnessEventLine(text) };
+  if (origin === null && label && !isAgentMessageText(text)) return { kind: "harness", text: harnessEventLine(text, label) };
+  return { kind: "agent", text };
 }
 
 export function classifyQueuedCommand(attachment: Obj): PromptKind {
   const prompt = attachment.prompt;
   const text = typeof prompt === "string" ? prompt : userText(prompt).text;
-  const origin = obj(attachment.origin);
-  if (typeof origin.kind === "string" && origin.kind !== "human") return { kind: "agent", text };
-  if (attachment.commandMode === "task-notification") return { kind: "agent", text };
+  const origin = typeof obj(attachment.origin).kind === "string" ? String(obj(attachment.origin).kind) : null;
+  if (attachment.commandMode === "task-notification") return fromElsewhere(text, "task-notification");
+  if (origin !== null && origin !== "human") return fromElsewhere(text, origin);
   if (attachment.commandMode !== "prompt" || attachment.isMeta === true) return { kind: "injected" };
   return classifyUserText(text);
 }
@@ -391,9 +406,13 @@ class SessionBuilder {
       this.interruptPending = true;
       return;
     }
+    // The harness reporting a background task or monitor event: nobody spoke.
+    if (kind.kind === "harness") return;
     if (kind.kind === "agent") {
       // Another agent steering is not the person: no prompt, no response time, no turn reset.
-      this.agentMessageCount += 1;
+      // Untimed lines are left out, as the excerpt has to leave them out.
+      if (time) this.agentMessageCount += 1;
+      else this.issues += 1;
       return;
     }
     let text: string;
