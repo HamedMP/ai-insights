@@ -1,18 +1,29 @@
 # AI Insights
 
-> AI Insights reads a person's local Claude Code and Codex history and turns it into one private HTML report: where their time and tokens go, what keeps going wrong, and specific changes to try. Everything runs on their machine; AI Insights makes no network calls and never calls a model API.
+> AI Insights turns a person's local AI coding-agent history (Claude Code, Codex, OpenCode, Pi, Cursor, Gemini CLI) into one HTML page on their machine: a recap of animated cards they can share, a private analysis of where their time and tokens go with ranked changes to make, and a comparison with their previous runs. It makes no network calls, has no telemetry and never calls a model API.
 
-- Package: ai-insights on npm (Node.js 20 or newer)
-- Source: https://github.com/hamedmp/ai-insights (MIT)
-- Sample report, built from invented sessions: https://hamedmp.github.io/ai-insights/demo/report.html
+- Run it: `npx ai-insights` (Node.js 20 or newer). `npx ai-insights doctor` shows which history it found.
+- From an agent: install the plugin, then run `/analyze-ai-usage` in a new session.
+- Package: ai-insights on npm
+- Source: https://github.com/hamedmp/ai-insights (MIT). Built by the Matrix OS team (https://matrix-os.com). Formerly Hindsight.
+- Sample recap, built from invented sessions: https://hamedmp.github.io/ai-insights/demo/report.html
+
+## The recap
+
+Up to 21 animated cards (persona, most agents at once, living dangerously, manners, favourite word, when you prompt, streak, bash hall of fame, tests, top model, tokens, three things to try next, summary, how to make your own, and more), in three styles (Pop, Instrument panel, Sticker sheet) and four shapes (1:1, 9:16, 4:5, 16:9). A card studio picks and orders cards and checks length against presets for X, Instagram, TikTok, LinkedIn and YouTube Shorts. The page exports an MP4 (in Chromium browsers; other browsers get a terminal recipe) or PNG images, and has share buttons for X, LinkedIn, Instagram, TikTok or Shorts, the system share sheet and a copyable caption. Cards contain counts and allowlisted words only: no prompts, file or project names, paths or session ids.
 
 ## What it reads
 
-- Claude Code: ~/.claude/projects/**/*.jsonl (or under CLAUDE_CONFIG_DIR)
-- Codex: ~/.codex/sessions and ~/.codex/archived_sessions (or under CODEX_HOME)
-- Cursor, Pi and OpenCode can run the skills, but their own history is not read yet, and those installs are untested.
+| Agent | History | Tokens | Skill install |
+| --- | --- | --- | --- |
+| Claude Code | ~/.claude/projects (or CLAUDE_CONFIG_DIR) | yes | plugin |
+| Codex | ~/.codex/sessions and archived_sessions (or CODEX_HOME) | yes | plugin |
+| OpenCode | ~/.local/share/opencode/opencode.db (Node 22.5+) | yes | untested |
+| Pi | ~/.pi/agent/sessions | yes | untested |
+| Cursor | ~/.cursor/projects/*/agent-transcripts | no | untested |
+| Gemini CLI | ~/.gemini/tmp/*/chats; untested on real history | yes | none yet |
 
-It keeps numbers (tokens, durations, tool calls, errors, lines changed) and the prompts the person typed, with secrets redacted. It does not store agent replies or tool output. It writes only to ~/.ai-insights/ (AI_INSIGHTS_HOME moves it; a ~/.hindsight/ folder from before the rename to AI Insights keeps being used).
+It keeps numbers (tokens, durations, tool calls, errors, lines changed) and the prompts the person typed, with secrets redacted. It does not store agent replies or tool output. It writes only to ~/.ai-insights/ (AI_INSIGHTS_HOME moves it; a ~/.hindsight/ folder from before the rename keeps being used).
 
 ## Install
 
@@ -28,14 +39,10 @@ Codex:
 
 Several harnesses at once: clone the repository and run scripts/install.sh (--dry-run shows what it would do).
 
-Each install adds the MCP server (npx -y ai-insights mcp) and three skills: analyze-ai-usage (builds the report), ai-insights-coach (turns findings into edits the person approves), ai-insights-setup (checks the setup). Then, in a new session, the person asks their agent to "analyze my AI usage" (or runs /analyze-ai-usage).
-
-Without an agent: `npx ai-insights` builds the numbers-only report; `npx ai-insights doctor` shows which history it found.
+Each install adds the MCP server (npx -y ai-insights mcp) and three skills: analyze-ai-usage (builds the report), ai-insights-coach (turns findings into edits the person approves), ai-insights-setup (checks the setup).
 
 ## How it works
 
-1. Deterministic scan: sessions, activity, token usage, estimated cost at API list prices, and findings with evidence. No model involved.
-2. The person's own agent reads short redacted excerpts, labels each sampled session from a fixed taxonomy (goal, outcome, friction, what went well), and writes a short narrative.
-3. Both become one self-contained HTML report that loads nothing from the network.
-
-Built by the Matrix OS team: https://matrix-os.com
+1. Deterministic scan: sessions, the recap, activity, token usage, estimated cost at API list prices, and findings with evidence. No model involved.
+2. From an agent, the person's own agent reads short redacted excerpts, labels a sample of sessions from a fixed taxonomy and writes a short narrative.
+3. Both become one self-contained HTML page that loads nothing from the network.

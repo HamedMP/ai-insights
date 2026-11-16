@@ -4,8 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build && node scripts/check-export.mjs",
+    "dev": "node scripts/build-embed.mjs && next dev",
+    "build": "node scripts/build-embed.mjs && next build && node scripts/check-export.mjs",
+    "media": "node scripts/render-media.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

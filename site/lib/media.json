@@ -1,0 +1,234 @@
+{
+  "note": "Made by site/scripts/render-media.mjs from the sample report (invented sessions). Do not edit by hand.",
+  "styles": [
+    {
+      "id": "pop",
+      "name": "Pop",
+      "swatch": "linear-gradient(135deg,#ff7a2f 50%,#c9b8ff 50%)"
+    },
+    {
+      "id": "panel",
+      "name": "Instrument panel",
+      "swatch": "linear-gradient(135deg,#f3f0e6 0 55%,#2848c8 55% 70%,#cc2f22 70% 85%,#1b1d22 85%)"
+    },
+    {
+      "id": "sticker",
+      "name": "Sticker sheet",
+      "swatch": "radial-gradient(circle at 32% 36%,#ff5b3d 0 21%,#fff 22% 27%,transparent 28%),radial-gradient(circle at 68% 64%,#2d5bff 0 21%,#fff 22% 27%,transparent 28%),#f2ede3"
+    }
+  ],
+  "cards": [
+    {
+      "id": "intro",
+      "dur": 5600
+    },
+    {
+      "id": "hours",
+      "dur": 6500
+    },
+    {
+      "id": "clock",
+      "dur": 7000
+    },
+    {
+      "id": "weekday",
+      "dur": 6500
+    },
+    {
+      "id": "streak",
+      "dur": 6500
+    },
+    {
+      "id": "words",
+      "dur": 7000
+    },
+    {
+      "id": "manners",
+      "dur": 6500
+    },
+    {
+      "id": "shell",
+      "dur": 6500
+    },
+    {
+      "id": "tests",
+      "dur": 6500
+    },
+    {
+      "id": "parallel",
+      "dur": 6500
+    },
+    {
+      "id": "marathon",
+      "dur": 6500
+    },
+    {
+      "id": "failures",
+      "dur": 6500
+    },
+    {
+      "id": "nemesis",
+      "dur": 6500
+    },
+    {
+      "id": "model",
+      "dur": 6500
+    },
+    {
+      "id": "tokens",
+      "dur": 6500
+    },
+    {
+      "id": "persona",
+      "dur": 7500
+    },
+    {
+      "id": "tips",
+      "dur": 8000
+    },
+    {
+      "id": "summary",
+      "dur": 9000
+    },
+    {
+      "id": "outro",
+      "dur": 3500
+    }
+  ],
+  "titles": {
+    "pop": {
+      "intro": "Intro",
+      "hours": "Time",
+      "clock": "Clock",
+      "weekday": "Weekdays",
+      "streak": "Streak",
+      "words": "Words",
+      "manners": "Manners",
+      "shell": "Hall of fame",
+      "tests": "Tests",
+      "parallel": "Parallel",
+      "marathon": "Marathon",
+      "failures": "Failures",
+      "nemesis": "Nemesis",
+      "model": "Model",
+      "tokens": "Tokens",
+      "persona": "Persona",
+      "tips": "Try next",
+      "summary": "Summary",
+      "outro": "Made with"
+    },
+    "panel": {
+      "intro": "Intro",
+      "hours": "Time",
+      "clock": "Clock",
+      "weekday": "Weekdays",
+      "streak": "Streak",
+      "words": "Words",
+      "manners": "Manners",
+      "shell": "Hall of fame",
+      "tests": "Tests",
+      "parallel": "Parallel",
+      "marathon": "Marathon",
+      "failures": "Failures",
+      "nemesis": "Nemesis",
+      "model": "Model",
+      "tokens": "Tokens",
+      "persona": "Persona",
+      "tips": "Try next",
+      "summary": "Summary",
+      "outro": "Made with"
+    },
+    "sticker": {
+      "intro": "Intro",
+      "hours": "Time",
+      "clock": "Clock",
+      "weekday": "Weekdays",
+      "streak": "Streak",
+      "words": "Words",
+      "manners": "Manners",
+      "shell": "Hall of fame",
+      "tests": "Tests",
+      "parallel": "Parallel",
+      "marathon": "Marathon",
+      "failures": "Failures",
+      "nemesis": "Nemesis",
+      "model": "Model",
+      "tokens": "Tokens",
+      "persona": "Persona",
+      "tips": "Try next",
+      "summary": "Summary",
+      "outro": "Made with"
+    }
+  },
+  "defaults": [
+    "persona",
+    "parallel",
+    "manners",
+    "words",
+    "clock",
+    "summary",
+    "outro"
+  ],
+  "wall": {
+    "pop": [
+      "persona",
+      "parallel",
+      "manners",
+      "tokens",
+      "clock",
+      "shell",
+      "streak",
+      "outro"
+    ],
+    "panel": [
+      "hours",
+      "summary",
+      "nemesis",
+      "model",
+      "weekday",
+      "failures",
+      "marathon",
+      "tests"
+    ],
+    "sticker": [
+      "words",
+      "intro",
+      "parallel",
+      "model",
+      "tips",
+      "nemesis",
+      "tokens",
+      "persona"
+    ]
+  },
+  "trio": [
+    [
+      "pop",
+      "persona"
+    ],
+    [
+      "panel",
+      "summary"
+    ],
+    [
+      "sticker",
+      "parallel"
+    ]
+  ],
+  "caption": "I'm The Morning Orchestrator.\n7 agents running at once · 137 hours with AI agents in 51 days · 921.5M tokens\nMake yours: npx ai-insights or /analyze-ai-usage\nhttps://hamedmp.github.io/ai-insights/\n#AIInsights",
+  "video": {
+    "file": "media/sample-1x1.mp4",
+    "poster": "media/sample-1x1.webp",
+    "cards": [
+      "persona",
+      "parallel",
+      "manners",
+      "words",
+      "clock",
+      "summary",
+      "outro"
+    ],
+    "seconds": 47,
+    "exportMb": 5.8
+  }
+}
