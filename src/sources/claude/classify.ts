@@ -121,6 +121,25 @@ export function isAgentMessageText(text: string): boolean {
   return AGENT_MESSAGE.test(text.trimStart());
 }
 
+const PASTED_BLOCK = /<pasted_content\b[^>]*>([\s\S]*?)<\/pasted_content\b[^>]*>/g;
+
+/**
+ * A long relay reaches the terminal as a paste, so the hub's `<hc>` arrives
+ * wrapped in `<pasted_content>`. When the message is nothing but pasted relays
+ * it is the relay; anything the person wrote around the paste makes it theirs.
+ * Returns the unwrapped relay, or null.
+ */
+export function pastedAgentMessage(text: string): string | null {
+  if (!text.startsWith("<pasted_content")) return null;
+  const inner: string[] = [];
+  const outside = text.slice(0, 200_000).replace(PASTED_BLOCK, (_block: string, content: string) => {
+    inner.push(content.trim());
+    return "";
+  });
+  if (outside.trim() !== "" || inner.length === 0 || !inner.every(isAgentMessageText)) return null;
+  return inner.join("\n");
+}
+
 /**
  * The harness reporting on the agent's own work: a background command or
  * subagent finishing, a monitor event, the hub saying a peer went idle.
@@ -162,6 +181,8 @@ export function classifyUserText(raw: string): PromptKind {
   if (INTERRUPT.test(text)) return { kind: "interrupt" };
   if (isHarnessEventText(text)) return { kind: "harness", text: harnessEventLine(text) };
   if (isAgentMessageText(text)) return { kind: "agent", text };
+  const pasted = pastedAgentMessage(text);
+  if (pasted !== null) return { kind: "agent", text: pasted };
   const command = /<command-name>\s*([^<]*?)\s*<\/command-name>/.exec(text);
   if (command && command[1]) {
     const args = /<command-args>([\s\S]*?)<\/command-args>/.exec(text)?.[1]?.trim() ?? "";

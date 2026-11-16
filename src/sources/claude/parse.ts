@@ -11,6 +11,7 @@ import {
   harnessEventLine,
   isAgentMessageText,
   isHarnessEventText,
+  pastedAgentMessage,
   lineCount,
   lineDelta,
   mcpServer,
@@ -103,6 +104,8 @@ function fromElsewhere(raw: string, origin: string | null, label?: string): Prom
   const text = raw.trim();
   if (text === "") return { kind: "injected" };
   if (origin === "task-notification" || isHarnessEventText(text)) return { kind: "harness", text: harnessEventLine(text) };
+  const pasted = pastedAgentMessage(text);
+  if (pasted !== null) return { kind: "agent", text: pasted };
   if (origin === null && label && !isAgentMessageText(text)) return { kind: "harness", text: harnessEventLine(text, label) };
   return { kind: "agent", text };
 }
