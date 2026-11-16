@@ -51,7 +51,8 @@ function range(sessions: Session[]): Report["range"] {
 function withHistory(recap: Recap, retention: Retention, now: Date, clock: Clock): Recap {
   const from = parseMs(retention.coversFrom);
   if (from === null) return recap;
-  const history: RecapHistory = { days: historyDaysFrom(from, now.getTime(), clock), firstDay: clock.dayOfMs(from), cachedOnly: retention.cachedOnly };
+  // Calendar days from the first day through today, both included, so the card agrees with the recap's own range.
+  const history: RecapHistory = { days: historyDaysFrom(from, now.getTime(), clock) + 1, firstDay: clock.dayOfMs(from), cachedOnly: retention.cachedOnly };
   return { ...recap, history };
 }
 

@@ -45,7 +45,7 @@ describe("history_retention", () => {
       retention: retention([claude({ atRisk: { sessions: 2, bytes: 2_000, nextDeletion: day(121) }, due })]),
     });
     expect(finding!.severity).toBe("medium");
-    expect(finding!.title).toBe("2 Claude Code sessions will be deleted within 7 days");
+    expect(finding!.title).toBe("2 Claude Code sessions can be deleted within 7 days");
     expect(finding!.metric).toEqual({ value: 2, unit: "sessions", label: "sessions due for deletion within 7 days" });
     expect(finding!.evidence[0]).toMatchObject({ sessionId: sessions[0]!.id, harness: "claude-code" });
     const [longer, archive, matrix] = finding!.suggestion!.steps!;
@@ -87,7 +87,7 @@ describe("retention in the report and the recap", () => {
     const measured = retention([claude({ cachedOnly: 4 })]);
     const report = buildReport({ sessions, coverage: [coverage("claude-code", 3)], now: new Date(day(20)), timeZone: "UTC", retention: measured });
     expect(report.retention).toBe(measured);
-    expect(report.recap!.history).toEqual({ days: 20, firstDay: "2026-06-01", cachedOnly: 4 });
+    expect(report.recap!.history).toEqual({ days: 21, firstDay: "2026-06-01", cachedOnly: 4 });
   });
 
   it("leaves both out when the scan did not measure retention", () => {

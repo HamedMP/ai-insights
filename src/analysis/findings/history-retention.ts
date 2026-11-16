@@ -147,8 +147,8 @@ export function historyRetention(context: DetectorContext): Finding[] {
     const lead = atRisk[0]!;
     const total = atRisk.reduce((sum, entry) => sum + entry.atRisk!.sessions, 0);
     const next = retention!.atRisk.nextDeletion;
-    title = `${plural(total, `${HARNESS_LABELS[lead.harness]} session`)} will be deleted within ${plural(retention!.windowDays, "day")}`;
-    if (atRisk.length > 1) title = `${plural(total, "session")} will be deleted within ${plural(retention!.windowDays, "day")}`;
+    title = `${plural(total, `${HARNESS_LABELS[lead.harness]} session`)} can be deleted within ${plural(retention!.windowDays, "day")}`;
+    if (atRisk.length > 1) title = `${plural(total, "session")} can be deleted within ${plural(retention!.windowDays, "day")}`;
     metric = { value: total, unit: "sessions", label: `sessions due for deletion within ${retention!.windowDays} days` };
     detail =
       `${atRisk.map((entry) => `${HARNESS_LABELS[entry.harness]} deletes transcripts ${plural(entry.days ?? 0, "day")} after they last changed; ${plural(entry.atRisk!.sessions, "transcript")} reach that age within ${retention!.windowDays} days`).join(". ")}` +

@@ -81,7 +81,7 @@ describe("transcripts about to be deleted", () => {
   it("prints one line after the report when Claude Code sessions will be deleted within 7 days", async () => {
     const sources = [fakeSource("claude-code", [aged("a", 25), aged("b", 27), aged("c", 2)])];
     expect(await run([], deps({ sources, buildReport: realBuildReport, retentionPolicies: policies }))).toBe(0);
-    expect(out).toContain('2 Claude Code sessions will be deleted within 7 days (from 2026-11-18). AI Insights keeps their stats; to keep the transcripts, add "cleanupPeriodDays": 365 to ~/.claude/settings.json or archive them with `npx packmem archive`.');
+    expect(out).toContain('2 Claude Code sessions can be deleted within 7 days (from 2026-11-18). AI Insights keeps their stats; to keep the transcripts, add "cleanupPeriodDays": 365 to ~/.claude/settings.json or archive them with `npx packmem archive`.');
   });
 
   it("says the same in doctor, with how long each harness keeps transcripts", async () => {
@@ -89,12 +89,12 @@ describe("transcripts about to be deleted", () => {
     expect(await run(["doctor"], deps({ sources, retentionPolicies: async () => new Map<Harness, RetentionPolicy>([...(await policies()), ["codex", { harness: "codex", policy: "kept", basis: "kept" }]]) }))).toBe(0);
     expect(out).toContain("keeps   transcripts 30 days (the default; cleanupPeriodDays in ~/.claude/settings.json)");
     expect(out).toContain("keeps   transcripts until you delete them");
-    expect(out).toContain("1 Claude Code session will be deleted within 7 days");
+    expect(out).toContain("1 Claude Code session can be deleted within 7 days");
   });
 
   it("prints nothing about deletion when nothing is due", async () => {
     expect(await run([], deps({ sources: [fakeSource("claude-code", [aged("c", 2)])], buildReport: realBuildReport, retentionPolicies: policies }))).toBe(0);
-    expect(out).not.toContain("will be deleted");
+    expect(out).not.toContain("can be deleted");
   });
 });
 

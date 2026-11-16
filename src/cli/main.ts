@@ -203,7 +203,7 @@ function coverageLines(coverage: Coverage[]): string[] {
 
 /**
  * One line when transcripts are about to be deleted, naming the change that keeps them; null otherwise.
- * "12 Claude Code sessions will be deleted within 7 days (from 2026-11-18). ..."
+ * "12 Claude Code sessions can be deleted within 7 days (from 2026-11-18). ..."
  */
 export function retentionLine(retention: Retention | undefined, now: Date): string | null {
   if (!retention || retention.atRisk.sessions <= 0) return null;
@@ -222,7 +222,7 @@ export function retentionLine(retention: Retention | undefined, now: Date): stri
         : lead.harness === "gemini" && file
           ? `set general.sessionRetention.maxAge to "365d" in ${file} or `
           : "";
-  return `${counts} ${noun} will be deleted within ${plural(retention.windowDays, "day")}${when}. AI Insights keeps their stats; to keep the transcripts, ${fix}archive them with \`npx packmem archive\`.`;
+  return `${counts} ${noun} can be deleted within ${plural(retention.windowDays, "day")}${when}. AI Insights keeps their stats; to keep the transcripts, ${fix}archive them with \`npx packmem archive\`.`;
 }
 
 /** Three lines a person can read at a glance: what was covered, how much, and the top finding. */

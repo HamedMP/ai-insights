@@ -206,7 +206,7 @@ When `history_retention` fires, `history_disk_usage` keeps its number but has no
 pitch shows once. Show the disk card from its `detail`/`metric`.
 
 `recap.history?: { days, firstDay, cachedOnly }` (absent without `retention`): "N days of history kept";
-`days` is counted as `Coverage.historyDays` is.
+`days` counts calendar days from `firstDay` through the report day, both included (one more than `Coverage.historyDays`).
 
 ### Cost the harness recorded
 

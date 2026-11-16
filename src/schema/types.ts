@@ -943,7 +943,7 @@ export interface Recap {
 
 /** Share-safe: a day and counts only. */
 export interface RecapHistory {
-  /** Local calendar days from `firstDay` to the report day, at least 1: counted as `Coverage.historyDays` is. */
+  /** Local calendar days from `firstDay` through the report day, both included, so it agrees with `range.days`. */
   days: number;
   /** Local day of the oldest session AI Insights still has. */
   firstDay: string;
