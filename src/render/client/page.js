@@ -141,7 +141,8 @@ class Player {
     this.size();
     this.ttl.textContent = `${String(this.i + 1).padStart(2, "0")} / ${ids.length} · ${this.inst.title}`;
     [...this.segs.children].forEach((sg, j) => { sg.firstChild.style.transform = `scaleX(${j < this.i ? 1 : 0})`; });
-    this.t = t; this.draw();
+    // With reduced motion a card is shown at rest (its last frame) unless the person presses play.
+    this.t = reduced && !this.playing ? this.inst.dur : t; this.draw();
   }
   draw() {
     if (!this.inst) return;
@@ -235,17 +236,20 @@ heroPlayerSlot.append(heroPlayer.root);
 if (RC) players.add(heroPlayer);
 
 const theater = h("div", { class: "theater", role: "dialog", "aria-modal": "true", "aria-label": "Recap" });
-const thPlayer = new Player({ ids: seqIds, ratio: () => S.ratio, dur: durOf, box: () => ({ w: innerWidth - 40, h: innerHeight - 110 }) });
-const thClose = h("button", { class: "ibtn close", type: "button", "aria-label": "Close", html: ICON.close, onclick: () => closeTheater() });
 const thShare = h("div", { class: "th-share" });
+const thPlayer = new Player({ ids: seqIds, ratio: () => S.ratio, dur: durOf, box: () => ({ w: innerWidth - 40, h: innerHeight - 110 - (thShare.childElementCount ? thShare.offsetHeight + 12 : 0) }) });
+const thClose = h("button", { class: "ibtn close", type: "button", "aria-label": "Close", html: ICON.close, onclick: () => closeTheater() });
 theater.append(thClose, thPlayer.root, thShare);
+let thShared = false;
 thPlayer.onEnd = async () => {
-  if (thShare.childElementCount) return;
+  if (thShared) return;
+  thShared = true;
   const inst = thPlayer.inst;
   const card = await Exporter.png(makeInst(seqIds()[thPlayer.i]));
-  if (!theater.classList.contains("on") || !inst) return;
+  if (!theater.classList.contains("on") || !inst) { thShared = false; return; }
   thShare.append(h("div", { class: "row-between" }, h("strong", {}, "Like it? Share it."), h("button", { class: "btn small", type: "button", onclick: () => { closeTheater(); document.getElementById("studio").scrollIntoView(); bVideo.focus(); } }, "Make the video")));
   shareSheet(thShare, [{ name: `ai-insights-${seqIds()[thPlayer.i]}-${S.ratio.replace(":", "x")}.png`, blob: card }], "image");
+  thPlayer.size();
 };
 let theaterReturn = null;
 function openTheater(i) {
@@ -253,7 +257,7 @@ function openTheater(i) {
   theaterReturn = document.activeElement;
   heroPlayer.setPlaying(false);
   theater.classList.add("on"); document.body.style.overflow = "hidden";
-  thShare.replaceChildren();
+  thShare.replaceChildren(); thShared = false; thPlayer.size();
   thPlayer.reload(); thPlayer.mount(i); thPlayer.setPlaying(!reduced); players.add(thPlayer);
   thPlayer.vp.focus();
 }

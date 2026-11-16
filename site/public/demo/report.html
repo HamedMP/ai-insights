@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'sha256-mh6Dw0VhCxbFzEg+DdMcdybghP2Ox2sqEacyxmKj4H8='; img-src data: blob:; font-src data:; media-src blob:; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'sha256-HMYjU4gN4tYUWJASgtR99TE70/sHy8CeciPU6qwrck8='; img-src data: blob:; font-src data:; media-src blob:; base-uri 'none'; form-action 'none'">
 <meta name="color-scheme" content="light">
 <meta name="referrer" content="no-referrer">
 <meta name="generator" content="AI Insights">
@@ -530,14 +530,14 @@ html.capture #root { position: relative; width: 100vw; height: 100vh; overflow: 
 .share-h { font: 600 11.5px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
 .share-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .share-status { margin: 10px 0 0; min-height: 1.4em; }
-.th-share { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); width: min(720px, calc(100vw - 32px)); background: var(--surface); color: var(--ink); border-radius: 16px; padding: 14px 16px; }
+.theater.on { grid-auto-flow: row; align-content: center; gap: 12px; }
+.th-share { width: min(720px, calc(100vw - 32px)); background: var(--surface); color: var(--ink); border-radius: 16px; padding: 14px 16px; }
 .th-share:empty { display: none; }
 .th-share .share { margin-top: 10px; }
 .finding > button { grid-template-columns: auto minmax(0, 1fr) auto; }
 @media (max-width: 720px) {
   .finding > button { grid-template-columns: auto minmax(0, 1fr); }
   .finding .fm { grid-column: 2; white-space: normal; }
-  .th-share { bottom: 8px; }
 }
 .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-top: 14px; }
 .step { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
@@ -4117,7 +4117,8 @@ class Player {
     this.size();
     this.ttl.textContent = `${String(this.i + 1).padStart(2, "0")} / ${ids.length} · ${this.inst.title}`;
     [...this.segs.children].forEach((sg, j) => { sg.firstChild.style.transform = `scaleX(${j < this.i ? 1 : 0})`; });
-    this.t = t; this.draw();
+    // With reduced motion a card is shown at rest (its last frame) unless the person presses play.
+    this.t = reduced && !this.playing ? this.inst.dur : t; this.draw();
   }
   draw() {
     if (!this.inst) return;
@@ -4211,17 +4212,20 @@ heroPlayerSlot.append(heroPlayer.root);
 if (RC) players.add(heroPlayer);
 
 const theater = h("div", { class: "theater", role: "dialog", "aria-modal": "true", "aria-label": "Recap" });
-const thPlayer = new Player({ ids: seqIds, ratio: () => S.ratio, dur: durOf, box: () => ({ w: innerWidth - 40, h: innerHeight - 110 }) });
-const thClose = h("button", { class: "ibtn close", type: "button", "aria-label": "Close", html: ICON.close, onclick: () => closeTheater() });
 const thShare = h("div", { class: "th-share" });
+const thPlayer = new Player({ ids: seqIds, ratio: () => S.ratio, dur: durOf, box: () => ({ w: innerWidth - 40, h: innerHeight - 110 - (thShare.childElementCount ? thShare.offsetHeight + 12 : 0) }) });
+const thClose = h("button", { class: "ibtn close", type: "button", "aria-label": "Close", html: ICON.close, onclick: () => closeTheater() });
 theater.append(thClose, thPlayer.root, thShare);
+let thShared = false;
 thPlayer.onEnd = async () => {
-  if (thShare.childElementCount) return;
+  if (thShared) return;
+  thShared = true;
   const inst = thPlayer.inst;
   const card = await Exporter.png(makeInst(seqIds()[thPlayer.i]));
-  if (!theater.classList.contains("on") || !inst) return;
+  if (!theater.classList.contains("on") || !inst) { thShared = false; return; }
   thShare.append(h("div", { class: "row-between" }, h("strong", {}, "Like it? Share it."), h("button", { class: "btn small", type: "button", onclick: () => { closeTheater(); document.getElementById("studio").scrollIntoView(); bVideo.focus(); } }, "Make the video")));
   shareSheet(thShare, [{ name: `ai-insights-${seqIds()[thPlayer.i]}-${S.ratio.replace(":", "x")}.png`, blob: card }], "image");
+  thPlayer.size();
 };
 let theaterReturn = null;
 function openTheater(i) {
@@ -4229,7 +4233,7 @@ function openTheater(i) {
   theaterReturn = document.activeElement;
   heroPlayer.setPlaying(false);
   theater.classList.add("on"); document.body.style.overflow = "hidden";
-  thShare.replaceChildren();
+  thShare.replaceChildren(); thShared = false; thPlayer.size();
   thPlayer.reload(); thPlayer.mount(i); thPlayer.setPlaying(!reduced); players.add(thPlayer);
   thPlayer.vp.focus();
 }
