@@ -80,6 +80,7 @@ describe("Anthropic list prices", () => {
 describe("model id matching", () => {
   it("maps dated, provider-prefixed and variant ids onto their table row", () => {
     expect(canonicalModel("claude-opus-4-1-20250805")).toBe("claude-opus-4-1");
+    expect(canonicalModel("openai-codex/gpt-5.5")).toBe("gpt-5.5");
     expect(canonicalModel("claude-opus-4-20250514")).toBe("claude-opus-4");
     expect(canonicalModel("claude-sonnet-4-5-20250929")).toBe("claude-sonnet-4-5");
     expect(canonicalModel("claude-opus-4-6[1m]")).toBe("claude-opus-4-6");

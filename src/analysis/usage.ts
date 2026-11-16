@@ -225,7 +225,7 @@ export function canonicalModel(model: string): string {
   return model
     .trim()
     .toLowerCase()
-    .replace(/^(?:anthropic|openai)\//, "")
+    .replace(/^(?:anthropic|openai|openai-codex)\//, "")
     .replace(/^(?:[a-z]{2,6}\.)?anthropic\./, "")
     .replace(/\[[^\]]*\]$/, "")
     .replace(/-v\d+(?::\d+)?$/, "")

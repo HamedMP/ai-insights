@@ -236,6 +236,12 @@ describe("parseSince", () => {
 });
 
 describe("SessionSchema", () => {
+  it("keeps a request's recorded cost and service tier, so cached history is priced like a fresh parse", () => {
+    const request = { id: "r1", timestamp: "2026-10-01T09:00:00.000Z", model: "gpt-5.5", usage: { input: 10, cachedInput: 0, cacheWrite: 0, output: 5 }, costUsd: 0.5, serviceTier: "priority" };
+    const parsed = SessionSchema.parse({ ...makeSession({ id: "tier" }), requests: [request] });
+    expect(parsed.requests[0]).toMatchObject({ costUsd: 0.5, serviceTier: "priority" });
+  });
+
   it("accepts a project root, a null one, and fields newer than the schema", () => {
     const withRoot = SessionSchema.parse({ ...makeSession({ id: "a" }), projectRoot: "/work/app", someNewField: 1 });
     expect(withRoot.projectRoot).toBe("/work/app");
