@@ -1,11 +1,14 @@
-import type { Activity, Count, Harness, Session } from "../schema/types.js";
+import type { Activity, Count, Harness, Session, SessionSpan } from "../schema/types.js";
 import { IDLE_GAP_MS } from "../sources/shared.js";
 import { continuousDays, daysBetween, parseMs, type Clock } from "./time.js";
+import { isAgentDriven, projectKey } from "./sessions.js";
 import { MAX_DAYS } from "./usage.js";
 
 /** Long tails of tools and projects add nothing a reader can act on and bloat the report. */
 const MAX_COUNTS = 100;
 const MAX_PROJECTS = 50;
+/** The contract caps spans so a long history does not bloat the report; the newest are the ones a reader recognises. */
+const MAX_SESSION_SPANS = 400;
 
 const RESPONSE_BUCKETS: Array<{ key: string; maxSec: number }> = [
   { key: "<10s", maxSec: 10 },
@@ -139,6 +142,35 @@ function longestStreak(days: string[]): number {
   return best;
 }
 
+/** One bar per session for a timeline; sessions without a usable start and end have nowhere to go. */
+function sessionSpans(sessions: Session[]): SessionSpan[] {
+  const timed: Array<{ session: Session; startMs: number }> = [];
+  for (const session of sessions) {
+    const startMs = parseMs(session.startTime);
+    const endMs = parseMs(session.endTime);
+    if (startMs === null || endMs === null || endMs < startMs) continue;
+    timed.push({ session, startMs });
+  }
+  timed.sort(
+    (a, b) =>
+      a.startMs - b.startMs ||
+      (a.session.harness < b.session.harness ? -1 : a.session.harness > b.session.harness ? 1 : 0) ||
+      (a.session.id < b.session.id ? -1 : a.session.id > b.session.id ? 1 : 0),
+  );
+  return timed.slice(-MAX_SESSION_SPANS).map(({ session }) => {
+    const span: SessionSpan = {
+      sessionId: session.id,
+      harness: session.harness,
+      project: projectKey(session),
+      start: session.startTime,
+      end: session.endTime,
+      activeMinutes: Math.max(0, session.activeMinutes || 0),
+    };
+    if (isAgentDriven(session)) span.agentDriven = true;
+    return span;
+  });
+}
+
 export function buildActivity(sessions: Session[], clock: Clock): Activity {
   const daily = new Map<string, { sessions: number; userMessages: number; activeMinutes: number }>();
   const dayRow = (day: string) => {
@@ -148,7 +180,7 @@ export function buildActivity(sessions: Session[], clock: Clock): Activity {
   };
   const hourHistogram = Array.from({ length: 24 }, () => 0);
   const byHarness = new Map<Harness, { sessions: number; activeMinutes: number }>();
-  const projects = new Map<string, { sessions: number; activeMinutes: number }>();
+  const projects = new Map<string, { sessions: number; activeMinutes: number; folders: Set<string> }>();
   const languages = new Map<string, number>();
   const tools = new Map<string, number>();
   const toolCategories = new Map<string, number>();
@@ -236,11 +268,13 @@ export function buildActivity(sessions: Session[], clock: Clock): Activity {
     harness.sessions += 1;
     harness.activeMinutes += minutes;
     byHarness.set(session.harness, harness);
-    if (session.projectPath) {
-      const project = projects.get(session.projectPath) ?? { sessions: 0, activeMinutes: 0 };
+    const key = projectKey(session);
+    if (key) {
+      const project = projects.get(key) ?? { sessions: 0, activeMinutes: 0, folders: new Set<string>() };
       project.sessions += 1;
       project.activeMinutes += minutes;
-      projects.set(session.projectPath, project);
+      if (session.projectPath) project.folders.add(session.projectPath);
+      projects.set(key, project);
     }
 
     for (const [language, count] of Object.entries(session.languages)) bump(languages, language, count);
@@ -282,7 +316,7 @@ export function buildActivity(sessions: Session[], clock: Clock): Activity {
     .map(([harness, row]) => ({ harness, ...row }))
     .sort((a, b) => b.sessions - a.sessions || a.harness.localeCompare(b.harness));
   activity.projects = [...projects]
-    .map(([projectPath, row]) => ({ projectPath, ...row }))
+    .map(([projectPath, { sessions, activeMinutes, folders }]) => ({ projectPath, sessions, activeMinutes, ...(folders.size > 1 ? { worktrees: folders.size } : {}) }))
     .sort((a, b) => b.activeMinutes - a.activeMinutes || b.sessions - a.sessions || a.projectPath.localeCompare(b.projectPath))
     .slice(0, MAX_PROJECTS);
   activity.languages = toCounts(languages);
@@ -292,6 +326,7 @@ export function buildActivity(sessions: Session[], clock: Clock): Activity {
   activity.responseTimeBuckets = RESPONSE_BUCKETS.map((bucket) => ({ key: bucket.key, count: responseBuckets.get(bucket.key) ?? 0 }));
   activity.medianResponseTimeSec = median(responseTimes);
   activity.parallelSessions = parallelSessions(sessions);
+  activity.sessionSpans = sessionSpans(sessions);
   activity.features.mcpServers = toCounts(mcpServers);
   activity.features.skills = toCounts(skills);
   activity.features.slashCommands = toCounts(slashCommands);

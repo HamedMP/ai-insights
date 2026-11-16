@@ -1,6 +1,6 @@
 import type { Finding, Session } from "../../schema/types.js";
 import { clean } from "../../sources/shared.js";
-import { evidence, harnessesOf, label, MAX_EVIDENCE, MAX_FINDINGS_PER_KIND, type Detector } from "./context.js";
+import { evidence, harnessesOf, label, MAX_EVIDENCE, MAX_FINDINGS_PER_KIND, projectKey, type Detector } from "./context.js";
 
 /** Typed in this many separate sessions, it is a standing rule rather than a task. */
 const MIN_SESSIONS = 4;
@@ -86,7 +86,7 @@ export const repeatedInstruction: Detector = ({ sessions, clock }) => {
     for (const member of cluster.members) wording.set(member.text, (wording.get(member.text) ?? 0) + 1);
     const [representative] = [...wording].sort((a, b) => b[1] - a[1] || a[0].length - b[0].length || a[0].localeCompare(b[0]))[0]!;
     const quoted = label(representative);
-    const projects = new Set([...bySession.keys()].map((session) => session.projectPath ?? ""));
+    const projects = new Set([...bySession.keys()].map((session) => projectKey(session) ?? ""));
     const where =
       projects.size > 1
         ? "It spans several projects, so it belongs in your global instructions file (for example `~/.claude/CLAUDE.md` or `~/.codex/AGENTS.md`)."
