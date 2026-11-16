@@ -1,10 +1,12 @@
 import { pathToFileURL } from "node:url";
-import type { BuildReportInput, Report, Session } from "../schema/types.js";
+import type { BuildReportInput, RenderExtras, Report, RunSnapshot, Session } from "../schema/types.js";
 import type { ScanResult } from "./scan.js";
+import { compareRuns, loadRuns, makeSnapshot, saveSnapshot } from "./snapshots.js";
 import { sessionKey, type SavedReport, type Store } from "./store.js";
 
 export type BuildReportFn = (input: BuildReportInput) => Report;
-export type RenderReportFn = (report: Report) => string;
+/** A renderer may ignore `extras`; it holds the saved runs for showing change over time. */
+export type RenderReportFn = (report: Report, extras?: RenderExtras) => string;
 
 export interface PipelineDeps {
   store: Store;
@@ -68,13 +70,37 @@ export interface RenderOutcome extends SavedReport {
   url: string;
   facetCount: number;
   hasNarrative: boolean;
+  /** Saved runs, oldest first, this one last. */
+  runs: RunSnapshot[];
+}
+
+/**
+ * Saves this run's snapshot and returns every run up to it, this one last. A failure to save or read history
+ * costs only the comparison, never the report.
+ */
+export async function recordRun(store: Store, report: Report, now: Date): Promise<RenderExtras> {
+  const snapshot = makeSnapshot(report);
+  let saved: RunSnapshot[] = [];
+  try {
+    await saveSnapshot(store.home, snapshot, now);
+    saved = await loadRuns(store.home);
+  } catch {
+    // An unwritable or unreadable snapshots folder loses the comparison, not the report; this run still shows alone.
+    saved = [];
+  }
+  const at = Date.parse(snapshot.generatedAt);
+  const runs = [...saved.filter((run) => run.id !== snapshot.id && Date.parse(run.generatedAt) < at), snapshot];
+  const previous = runs.at(-2);
+  return previous ? { runs, comparison: compareRuns(previous, snapshot) } : { runs };
 }
 
 export async function renderFromScan(deps: PipelineDeps, result: ScanResult): Promise<RenderOutcome> {
   const built = await buildFromScan(deps, result);
-  const html = deps.renderReport(built.report);
-  const saved = await deps.store.saveReport(html, built.report, deps.now?.() ?? new Date());
-  return { ...saved, ...built, url: pathToFileURL(saved.htmlPath).href };
+  const now = deps.now?.() ?? new Date();
+  const extras = await recordRun(deps.store, built.report, now);
+  const html = deps.renderReport(built.report, extras);
+  const saved = await deps.store.saveReport(html, built.report, now);
+  return { ...saved, ...built, runs: extras.runs ?? [], url: pathToFileURL(saved.htmlPath).href };
 }
 
 export interface Headline {
