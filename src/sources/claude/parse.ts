@@ -173,6 +173,8 @@ class SessionBuilder {
   activityTimes: string[] = [];
   models = new Set<string>();
   requests = new Map<string, ModelRequest>();
+  /** Response ids seen only as an incomplete proxy placeholder so far. */
+  private placeholders = new Set<string>();
   assistantMessages = new Set<string>();
   toolCalls: ToolCall[] = [];
   toolIndex = new Map<string, number>();
@@ -294,6 +296,15 @@ class SessionBuilder {
       usage.cacheWrite5m = counter(cache.ephemeral_5m_input_tokens);
       usage.cacheWrite1h = counter(cache.ephemeral_1h_input_tokens);
     }
+    // A proxy's placeholder for a response still in flight: explicit null stop reason, the prompt as plain input,
+    // no output and no cache counters. Its input is not the billed split, so it never counts on its own and a
+    // completed copy replaces it instead of merging with it.
+    const placeholder = m.stop_reason === null && usage.input > 0 && usage.output === 0 && usage.cachedInput === 0 && usage.cacheWrite === 0;
+    if (placeholder) {
+      if (!this.requests.has(id) && this.placeholders.size < CAPS.requests) this.placeholders.add(id);
+      return;
+    }
+    this.placeholders.delete(id);
     const existing = this.requests.get(id);
     if (existing) {
       // Streamed copies of one response repeat or grow the counters; the largest is the final one.

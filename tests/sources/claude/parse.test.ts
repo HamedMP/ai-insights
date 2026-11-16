@@ -120,6 +120,27 @@ describe("claude source: token usage", () => {
     expect(session.assistantMessageCount).toBe(2);
   });
 
+  it("lets a proxy's incomplete placeholder be replaced by the completed response, never merged with it", async () => {
+    const session = await parse([
+      prompt(T(0), "go"),
+      // A proxy logs the whole prompt as uncached input before the response finishes.
+      assistant(T(1), "msg_P", [text("")], { usage: { input: 5000, output: 0 }, stop: null }),
+      assistant(T(1, 5), "msg_P", [text("x")], { usage: { input: 10, output: 30, cacheRead: 4990 }, stop: "end_turn" }),
+    ]);
+    expect(session.requests.map((r) => r.usage)).toEqual([{ input: 10, cachedInput: 4990, cacheWrite: 0, output: 30 }]);
+  });
+
+  it("does not count an incomplete placeholder that never completed", async () => {
+    const session = await parse([
+      prompt(T(0), "go"),
+      assistant(T(1), "msg_P", [text("")], { usage: { input: 5000, output: 0 }, stop: null }),
+      assistant(T(2), "msg_Q", [text("ok")], { usage: { input: 3, output: 4 } }),
+      // A streamed copy with output or cache counters is a real response, even with no stop reason yet.
+      assistant(T(3), "msg_R", [text("partial")], { usage: { input: 3, output: 7, cacheRead: 100 }, stop: null }),
+    ]);
+    expect(session.requests.map((r) => r.id)).toEqual(["claude:msg_Q", "claude:msg_R"]);
+  });
+
   it("ignores synthetic placeholder responses that never reached the API", async () => {
     const session = await parse([
       prompt(T(0), "go"),
