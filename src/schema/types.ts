@@ -102,6 +102,37 @@ export interface SessionFeatures {
   webFetch: boolean;
   /** Number of context compactions or resets inside the session. */
   compactions: number;
+  /**
+   * Invocations per slash command, keyed as in `slashCommands`. `slashCommands` is a set and loses repeats;
+   * this keeps them, including commands that leave no prompt (Claude `system` `local_command` lines). Absent in
+   * sessions cached before it existed and in sources that cannot count.
+   */
+  slashCommandCounts?: Record<string, number>;
+}
+
+/** How much the model thought before answering, as the harness records it. */
+export interface ThinkingStats {
+  /** Claude: assistant records holding a `thinking` block. Codex: reasoning items. */
+  blocks: number;
+  /** Summed thinking time in ms, or null when the harness records no durations. */
+  totalMs: number | null;
+  /** The longest single think in ms, or null when the harness records no durations. */
+  longestMs: number | null;
+}
+
+/**
+ * Who let the agent's actions through. Each counter is absent when the harness does not record it, so a
+ * missing number is never read as zero.
+ */
+export interface ApprovalStats {
+  /** Claude: `permissionDecision` accepted by configuration (classifier, mode, rule). */
+  auto?: number;
+  /** Claude: accepted by the person (`user_temporary`, `user_permanent` and other user sources). */
+  byPerson?: number;
+  /** Claude: rejected decisions. Codex: actions the person declined. */
+  denied?: number;
+  /** Codex: automatic guardian review threads this session started. */
+  guardianReviews?: number;
 }
 
 /**
@@ -151,6 +182,12 @@ export interface Session {
   gitPushes: number;
   /** Records the parser could not understand. Never throw on unknown records; count them. */
   issues: number;
+  /** Tool calls seen beyond the source's cap and so missing from `toolCalls`. Absent or 0 when none were dropped. */
+  toolCallsDropped?: number;
+  /** Absent when the harness records no thinking, and in sessions cached before it existed. */
+  thinking?: ThinkingStats;
+  /** Absent when the harness records no approval decisions, and in sessions cached before it existed. */
+  approvals?: ApprovalStats;
 }
 
 export interface SessionFile {
@@ -513,6 +550,320 @@ export interface Report {
   facets: FacetAggregate | null;
   /** Null until the model-run pass has saved a narrative. */
   narrative: Narrative | null;
+  /** The shareable stats for the recap cards. Absent when there are no sessions, and in reports from before it existed. */
+  recap?: Recap;
+}
+
+// ---------------------------------------------------------------------------
+// Recap: the shareable stats. Cards built from it get posted publicly, so it holds counts, times, shares and
+// names from fixed public allowlists only: never prompt text, paths, project, branch, file or person names.
+// Field names follow the approved prototype's bundle.json; docs/recap-contract.md lists every difference.
+// A stat that cannot be computed is absent, never zero or a guess.
+// ---------------------------------------------------------------------------
+
+export const RECAP_VERSION = 1 as const;
+
+/** A label from a fixed list (an allowlisted word, program or command, or a neutral fallback) and its count. */
+export interface RecapCount {
+  key: string;
+  count: number;
+}
+
+export type RecapWeekday = "Mon" | "Tue" | "Wed" | "Thu" | "Fri" | "Sat" | "Sun";
+
+export type RecapVerdictKey = "night_owl" | "early_bird" | "evening" | "afternoon" | "morning";
+
+export interface RecapRhythm {
+  /** 24 entries: the person's prompts by local hour (every prompt, templates and agent-driven sessions included). */
+  hours: number[];
+  /** Local hour with the most prompts; the earliest on a tie. */
+  peakHour: number;
+  /** Share of prompts from 22:00 to 04:59, 0..1. */
+  nightShare: number;
+  /** Share of prompts from 05:00 to 09:59, 0..1. */
+  earlyShare: number;
+  verdict: { key: RecapVerdictKey; label: string };
+  /** Longest run of hours with no prompt, wrapping midnight. `start` is null when every hour has prompts. */
+  quiet: { len: number; start: number | null };
+  /** Latest prompt between 00:00 and 04:59 as minutes after midnight; absent when there was none. */
+  latestNight?: number;
+  /** Peak hour per harness, for harnesses with at least one prompt. */
+  harnessPeaks: Array<{ key: Harness; peak: number; prompts: number; hours: number[] }>;
+  /** Monday first, always seven entries. */
+  weekdays: Array<{ key: RecapWeekday; count: number }>;
+}
+
+export interface RecapVoice {
+  /** Prompts the stats below were computed from: typed by the person, not slash commands or script-filled templates. */
+  prompts: number;
+  /** Sessions another agent drove, left out of every voice stat. */
+  excludedAgentSessions: number;
+  /** Prompts that open with an XML-style wrapper tag: templates a script filled, counted in totals only. */
+  excludedWrapped: number;
+  /** Top five words from the fixed vocabulary, counted once per prompt. */
+  words: RecapCount[];
+  /** Top three openers from the fixed list ("can you", "let's", "yes"). */
+  openers: RecapCount[];
+  polite: { please: number; thanks: number; sorry: number };
+  /** Share of voice prompts that are questions, 0..1. */
+  questionShare: number;
+  /** Whitespace-separated words across voice prompts. */
+  wordsTyped: number;
+  /** Voice prompts of exactly one word. */
+  oneWord: number;
+  /** The prompt of at most five words that set off the most tool calls before the next prompt. Never the words themselves. */
+  leverage?: { words: number; toolCalls: number };
+}
+
+export interface RecapShell {
+  /** Shell tool calls with a command. */
+  calls: number;
+  /** Top five programs, public names only; anything else is "your own CLI". */
+  programs: RecapCount[];
+  /** Test-runner invocations. */
+  tests: number;
+  /** Share of test runs that did not fail, 0..1; absent when no tests ran. */
+  testPass?: number;
+  rmrf: number;
+  forcePush: number;
+  /** Times the agent slept or waited (`sleep`, Codex `clock.sleep`). */
+  sleeps: number;
+}
+
+export interface RecapLongestSession {
+  activeMinutes: number;
+  wallMinutes: number;
+  prompts: number;
+  toolCalls: number;
+  harness: Harness;
+  compactions: number;
+  /** The source kept only part of the session's tool calls: show `toolCalls` as "10,000+". */
+  toolCallsCapped: boolean;
+}
+
+export interface RecapFailures {
+  total: number;
+  calls: number;
+  /** total / calls, 0..1 (0 when there were no calls). */
+  rate: number;
+  categories: Array<{ key: ToolErrorCategory; label: string; count: number }>;
+  /** The programs the agent's commands failed with most: public names only, anything else is "your own CLI". */
+  nemesis: Array<{ key: string; count: number; runs: number }>;
+}
+
+export interface RecapModel {
+  /** A display name from a known public model family ("Claude Opus 4.6", "GPT-5"), else "Another model". */
+  key: string;
+  harness: Harness;
+  requests: number;
+  /** Share of the requests of models the person chose (the automatic `codex-auto-review` excluded), 0..1. */
+  share: number;
+}
+
+export interface RecapUsage {
+  tokens: number;
+  output: number;
+  /** Requests to models the person chose: `codex-auto-review` is left out. */
+  requests: number;
+  /** API list-price estimate; absent when nothing could be priced. */
+  usd?: number;
+  unpriced: number;
+  cacheHitRate?: number;
+  /** Output tokens as novels (about 0.75 words per token, 90k words per novel). */
+  novels: number;
+  /** Absent without a price or without commits. */
+  usdPerCommit?: number;
+}
+
+export interface RecapPersona {
+  /** "The Night Orchestrator". */
+  title: string;
+  time: "Night" | "Dawn" | "Golden-Hour" | "Afternoon" | "Morning";
+  role: "Orchestrator" | "Shipper" | "Delegator";
+  /** One sentence built from a fixed template and numbers; the win-rate clause only when facets exist. */
+  reason: string;
+}
+
+export interface RecapTip {
+  /** One of the fixed suggestion titles the detectors write; nothing interpolated from the history. */
+  title: string;
+  kind: FindingKind;
+  metric: { value: number; unit: string } | null;
+}
+
+export interface RecapThinking {
+  blocks: number;
+  /** Absent when no session recorded durations. */
+  totalMs?: number;
+  longestMs?: number;
+  /** Sessions that reported thinking; older cached sessions report none. */
+  sessions: number;
+}
+
+export interface RecapApprovals {
+  auto?: number;
+  byPerson?: number;
+  denied?: number;
+  guardianReviews?: number;
+  /** Sessions that reported approvals. */
+  sessions: number;
+}
+
+export interface RecapReplies {
+  /** Gaps between the agent finishing and the person's next prompt, over 12 h dropped (a session reopened days later). */
+  count: number;
+  medianSec: number;
+  /** Share answered within a minute, 0..1. */
+  fastShare: number;
+  /** The slowest reply kept, at most 12 h. */
+  longestSec: number;
+}
+
+export interface Recap {
+  version: typeof RECAP_VERSION;
+  generatedAt: string;
+  timeZone: string;
+  /** The true span: first to last local day with a session, `days` counted inclusively and never capped. */
+  range: { from: string; to: string; days: number };
+  totals: {
+    sessions: number;
+    /** The person's prompts (`prompts` kept per session), templates included. */
+    prompts: number;
+    activeDays: number;
+    /** Wall-clock hours with at least one session active. */
+    wallHours: number;
+    /** Summed session hours: parallel sessions add up. */
+    agentHours: number;
+    harnesses: Array<{ key: Harness; sessions: number }>;
+    commits: number;
+    /** Share of sessions with at least one commit, 0..1. */
+    commitShare: number;
+    compactions: number;
+    toolCalls: number;
+    toolsPerPrompt: number;
+    /** Some session kept only part of its tool calls, so `toolCalls` is a lower bound. */
+    toolCallsCapped: boolean;
+  };
+  /** Absent when no prompt has a usable time. */
+  rhythm?: RecapRhythm;
+  /** Per local day, oldest first, the newest `MAX_RECAP_DAYS` at most. */
+  daily: Array<{ day: string; sessions: number; prompts: number; minutes: number }>;
+  /** True when `daily` lost older days to the cap; `range` still covers them. */
+  dailyTruncated: boolean;
+  /** Longest run of consecutive active days; `start` and `end` are null when there was none. */
+  streak: { days: number; start: string | null; end: string | null };
+  bigDay?: { day: string; prompts: number; weekday: RecapWeekday };
+  voice: RecapVoice;
+  /** Prompts sent while the agent was working: interruptions and Codex steering. */
+  interrupted: number;
+  slash: RecapCount[];
+  slashTotal: number;
+  /** MCP servers by sessions using them, public names only; anything else is "a custom one". */
+  connectors: RecapCount[];
+  /** Skills by invocations, public names only; anything else is "a custom one". */
+  skills: RecapCount[];
+  shell: RecapShell;
+  parallel: { max: number; overlapEvents: number; subagents: number };
+  longestSession?: RecapLongestSession;
+  /** The top project's share of agent time, 0..1, never its name. Absent without projects. */
+  topProjectShare?: number;
+  failures: RecapFailures;
+  models: RecapModel[];
+  usage: RecapUsage;
+  /** Fully or mostly achieved share of judged sessions; absent without facets. */
+  winRate?: number;
+  facetSessions: number;
+  /** Absent when no prompt has a usable time. */
+  persona?: RecapPersona;
+  tips: RecapTip[];
+  thinking?: RecapThinking;
+  approvals?: RecapApprovals;
+  replies?: RecapReplies;
+}
+
+// ---------------------------------------------------------------------------
+// Run snapshots: a few KB saved per report run, so later reports can show change over time. Never prompt text.
+// ---------------------------------------------------------------------------
+
+export const SNAPSHOT_VERSION = 1 as const;
+
+export interface RunMetrics {
+  sessions: number;
+  prompts: number;
+  activeDays: number;
+  wallHours: number;
+  agentHours: number;
+  toolCalls: number;
+  toolErrors: number;
+  failureRate: number;
+  tests: number;
+  testPass: number | null;
+  tokens: number;
+  usd: number | null;
+  cacheHitRate: number | null;
+  maxParallel: number;
+  compactions: number;
+  compactionsPerSession: number;
+  commits: number;
+  /** Median reply time with gaps over 12 h dropped, as in the recap. */
+  medianResponseSec: number | null;
+  winRate: number | null;
+  interrupted: number;
+  streak: number;
+}
+
+export interface RunFinding {
+  /** `Finding.id`, except `repeated_instruction`, whose id is built from prompt words and is hashed here. */
+  id: string;
+  kind: FindingKind;
+  severity: Severity;
+  /** `Finding.title`, except `repeated_instruction`, whose title quotes a prompt and is replaced by a fixed one. */
+  title: string;
+  metric: { value: number; unit: string; label: string } | null;
+  hasSuggestion: boolean;
+}
+
+export interface RunSnapshot {
+  snapshotVersion: typeof SNAPSHOT_VERSION;
+  /** `generatedAt` as a file-name-safe stamp; also the file name. */
+  id: string;
+  generatedAt: string;
+  timeZone: string;
+  versions: { report: number; recap: number; pricing: string };
+  window: { from: string | null; to: string | null; days: number };
+  metrics: RunMetrics;
+  findings: RunFinding[];
+  /** Finding ids whose suggestion the report showed. */
+  suggestionsShown: string[];
+  narrative: boolean;
+  /** The newest days of the window, at most 30. */
+  daily?: Array<{ day: string; sessions: number; prompts: number; minutes: number }>;
+}
+
+export interface MetricDelta {
+  key: keyof RunMetrics;
+  previous: number | null;
+  current: number | null;
+  /** current - previous; null when either side is missing. */
+  delta: number | null;
+}
+
+export interface RunComparison {
+  previousId: string;
+  currentId: string;
+  deltas: MetricDelta[];
+  /** Flagged before, not detected now. Not proof of a fix. */
+  resolved: RunFinding[];
+  stillOpen: RunFinding[];
+  new: RunFinding[];
+}
+
+/** What a renderer receives besides the report. Every field is optional, so a renderer can ignore it. */
+export interface RenderExtras {
+  /** Saved snapshots, oldest first, the current run last. */
+  runs?: RunSnapshot[];
+  /** The current run against the one before it; absent on a first run. */
+  comparison?: RunComparison;
 }
 
 export interface BuildReportInput {

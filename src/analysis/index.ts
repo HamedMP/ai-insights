@@ -2,6 +2,7 @@ import { REPORT_VERSION, type BuildReportInput, type Report, type Session } from
 import { buildActivity } from "./activity.js";
 import { aggregateFacets } from "./facets.js";
 import { detectFindings } from "./findings/index.js";
+import { buildRecap } from "./recap/index.js";
 import { withHistoryDays } from "./history.js";
 import { makeClock, parseMs, resolveTimeZone } from "./time.js";
 import { summarizeUsage, uniqueRequests } from "./usage.js";
@@ -9,6 +10,7 @@ import { summarizeUsage, uniqueRequests } from "./usage.js";
 export { DETECTORS, detectFindings } from "./findings/index.js";
 export { estimateUsd, PRICING_VERSION } from "./usage.js";
 export { historyDays } from "./history.js";
+export { buildRecap, MAX_RECAP_DAYS, MAX_REPLY_SEC } from "./recap/index.js";
 
 function byStart(a: Session, b: Session): number {
   return (
@@ -59,16 +61,20 @@ export function buildReport(input: BuildReportInput): Report {
   const activity = buildActivity(sessions, clock);
   const coverage = withHistoryDays(input.coverage, sessions, now.getTime(), clock);
   const findings = detectFindings({ sessions, requests, usage, activity, coverage, now, clock });
+  const facets = aggregateFacets(input.facets, sessions);
+  const generatedAt = now.toISOString();
+  const recap = buildRecap({ sessions, activity, usage, findings, facets, clock, timeZone, generatedAt });
   return {
     version: REPORT_VERSION,
-    generatedAt: now.toISOString(),
+    generatedAt,
     timeZone,
     range: range(sessions),
     coverage,
     activity,
     usage,
     findings,
-    facets: aggregateFacets(input.facets, sessions),
+    facets,
     narrative: input.narrative ?? null,
+    ...(recap ? { recap } : {}),
   };
 }
