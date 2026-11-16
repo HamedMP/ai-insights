@@ -610,7 +610,7 @@ add({ id: "tips", title: "Try next", bg: "var(--paper)", fg: "var(--ink)", dur: 
       art(w, hgt) {
         const rowH = Math.min(300 * c.u, hgt / D.tips.length);
         const items = D.tips.map((tip, i) => h("div", { style: { display: "grid", gridTemplateColumns: `${rowH * 0.45}px 1fr`, gap: 22 * c.k + "px", alignItems: "start", borderTop: `${5 * c.k}px solid var(--ink)`, height: rowH + "px", paddingTop: rowH * 0.12 + "px" } },
-          h("span", { class: "huge", style: { fontSize: rowH * 0.5 + "px", color: ["var(--orange)", "var(--purple)", "var(--red)"][i] } }, i + 1),
+          h("span", { class: "huge", style: { fontSize: rowH * 0.5 + "px", color: ["var(--red)", "var(--purple)", "var(--ink)"][i] } }, i + 1),
           h("div", {}, h("div", { class: "h2", style: { fontSize: Math.min(68 * c.u, rowH * 0.27) + "px" } }, tip.title), h("div", { class: "p", style: { marginTop: rowH * 0.05 + "px", opacity: 0.75, fontSize: Math.min(40 * c.u, rowH * 0.15) + "px" } }, TIP_WHY[tip.kind] && (tip.metric || tip.kind === "single_harness_only") ? TIP_WHY[tip.kind](tip.metric || {}) : ""))));
         c.tl.stagger(items, 600, 260, (el, st) => c.tl.in(el, st, { x: 0, y: 80, rot: -1.5 }));
         return h("div", { style: { width: w + "px" } }, items);

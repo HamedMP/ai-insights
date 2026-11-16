@@ -944,7 +944,7 @@ export function buildView(input: RenderInput, zone: string, extras: RenderExtras
       unpriced: count(report.usage?.unpriced),
       cacheHitRate: maybe(report.usage?.cacheHitRate),
       pricingVersion: str(report.usage?.pricingVersion, 60),
-      gap: gap ? `${Math.round(gap.unpricedShare * 100)}% of requests (${formatInt(count(report.usage.unpriced))}) have no known price${gap.models.length > 0 ? `: ${unpricedModelsText(gap.models, 6)}` : ""}. They are left out of the estimate, not counted as free, so the real figure is higher.` : null,
+      gap: gap ? `${gap.unpricedShare < 0.01 ? "Under 1%" : `${Math.round(gap.unpricedShare * 100)}%`} of requests (${formatInt(count(report.usage.unpriced))}) have no known price${gap.models.length > 0 ? `: ${unpricedModelsText(gap.models, 6)}` : ""}. They are left out of the estimate, not counted as free, so the real figure is higher.` : null,
       perCommit: usd !== null && usd > 0 && count(a.gitCommits) > 0 ? usd / count(a.gitCommits) : null,
       recorded: recordedSpend(report),
       noTokens,

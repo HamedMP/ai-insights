@@ -22,5 +22,5 @@
 .card .foot { position: absolute; display: flex; justify-content: space-between; align-items: center; gap: 24px; font-family: var(--mono); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; }
 .card .mark { display: inline-flex; align-items: center; gap: 0.45em; font-family: var(--display); font-weight: 800; letter-spacing: -0.02em; text-transform: none; }
 .card .mark svg { height: 1.25em; width: auto; flex: none; }
-.card .mark .by { font-family: var(--text); font-weight: 600; opacity: 0.72; }
-.card .legend { opacity: 0.72; overflow: hidden; text-overflow: clip; }
+.card .mark .by { font-family: var(--text); font-weight: 600; opacity: 0.8; }
+.card .legend { opacity: 0.8; overflow: hidden; text-overflow: clip; }

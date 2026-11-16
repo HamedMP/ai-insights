@@ -564,7 +564,7 @@ AW.append(h("div", { class: "sh" }, h("div", {}, h("div", { class: "eyebrow" }, 
   h("div", { class: "private", html: `${ICON.lock} Only on this machine. Never on a card.` })));
 root.append(analysis);
 let subN = 0;
-const sub = (title, say_) => { const el = h("div", { class: "sub" }, h("h3", {}, h("span", { class: "sn" }, String(++subN).padStart(2, "0")), title), say_ ? h("p", { class: "say", html: say_ }) : null); AW.append(el); return el; };
+const sub = (title, say_) => { const el = h("div", { class: "sub", id: "a-" + title.toLowerCase().replace(/[^a-z]+/g, "-") }, h("h3", {}, h("span", { class: "sn" }, String(++subN).padStart(2, "0")), title), say_ ? h("p", { class: "say", html: say_ }) : null); AW.append(el); return el; };
 const panel = (title, right, ...kids) => h("div", { class: "panel" }, h("h4", {}, h("span", {}, title), right ? h("span", { class: "r" }, right) : null), ...kids);
 const more = (label, ...kids) => h("details", { class: "more" }, h("summary", {}, label || "More detail"), h("div", { class: "more-body" }, ...kids));
 const svgEl = (w, hgt) => s("svg", { class: "chart", viewBox: `0 0 ${w} ${hgt}`, role: "img" });
@@ -590,7 +590,12 @@ const harnessColor = (key) => HCOL[Math.max(0, HORDER.indexOf(key)) % HCOL.lengt
   const el = sub("Rhythm", say0);
   const W = 720, H = 200, max = Math.max(...hours, 1), bw = W / 24;
   const hs = svgEl(W, H + 22); hs.setAttribute("aria-label", `Messages by hour of day, busiest ${hh(peak)}`);
-  if (RC && RC.rhythm.quiet.len >= 3) hs.append(s("rect", { x: RC.rhythm.quiet.start * bw, y: 0, width: Math.min(24 - RC.rhythm.quiet.start, RC.rhythm.quiet.len) * bw, height: H, fill: "var(--surface-2)" }));
+  // Quiet hours can wrap past midnight (23:00 to 05:00): draw both pieces.
+  if (RC && RC.rhythm.quiet.len >= 3) {
+    const q0 = RC.rhythm.quiet.start, q1 = q0 + RC.rhythm.quiet.len;
+    hs.append(s("rect", { x: q0 * bw, y: 0, width: (Math.min(24, q1) - q0) * bw, height: H, fill: "var(--surface-2)" }));
+    if (q1 > 24) hs.append(s("rect", { x: 0, y: 0, width: (q1 - 24) * bw, height: H, fill: "var(--surface-2)" }));
+  }
   for (let i = 0; i < 24; i++) {
     let y = H;
     hp.forEach((p) => { const v = p.hours[i], bh = (v / max) * (H - 14); y -= bh; hs.append(s("rect", { x: i * bw + 3, y, width: bw - 6, height: Math.max(0, bh), rx: 2, fill: harnessColor(p.key) })); });
