@@ -299,3 +299,25 @@ describe("facet judgement snapshots", () => {
     expect(record!.judged).toBeNull();
   });
 });
+
+describe("narrative findingId", () => {
+  it("keeps the finding a suggestion builds on through a save and read", async () => {
+    const store = new Store(home);
+    const narrative = { ...validNarrative(), suggestions: [{ type: "habit", title: "t", action: "a", findingId: "context_resets" }] };
+    await store.saveNarrative(narrative);
+    expect((await store.readNarrative())?.suggestions[0]?.findingId).toBe("context_resets");
+  });
+});
+
+describe("facets saved before snapshots", () => {
+  it("counts a transcript written to after the facet was saved as judged while running", async () => {
+    const store = new Store(home);
+    await mkdir(join(home, "facets", "claude-code"), { recursive: true });
+    await writeFile(join(home, "facets", "claude-code", "a.json"), JSON.stringify(validFacet("a")));
+    const [record] = await store.listFacetRecords();
+    const before = new Date(record!.savedAtMs - 3_600_000).toISOString();
+    const quiet = makeSession({ id: "a", endTime: before, sourceMtimeMs: record!.savedAtMs - 60_000 });
+    expect(isFacetStale(record!, quiet)).toBe(false);
+    expect(isFacetStale(record!, { ...quiet, sourceMtimeMs: record!.savedAtMs + 60_000 })).toBe(true);
+  });
+});

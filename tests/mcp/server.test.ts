@@ -660,3 +660,51 @@ describe("stale facets and facets today's rules skip", () => {
     expect(scanned.json.facets).toMatchObject({ saved: 1, ignored: 2 });
   });
 });
+
+describe("hindsight_save_narrative findingId", () => {
+  const narrativeWith = (findingIds: unknown[]) => ({
+    ...validNarrative(),
+    suggestions: findingIds.map((findingId, index) => ({ type: "habit", title: `Tip ${index}`, action: "Do the thing.", findingId })),
+  });
+
+  it("keeps a findingId that names a current finding", async () => {
+    const { isError, json } = await call("hindsight_save_narrative", { narrative: narrativeWith(["repeated_failed_command:pnpm test"]) });
+    expect(isError).toBe(false);
+    expect(json.droppedFindingIds).toBeUndefined();
+    expect((await new Store(home).readNarrative())!.suggestions[0]!.findingId).toBe("repeated_failed_command:pnpm test");
+  });
+
+  it("drops unknown or malformed findingIds with a note instead of rejecting the save", async () => {
+    const { isError, json } = await call("hindsight_save_narrative", { narrative: narrativeWith(["no_such_finding", "repeated_failed_command:pnpm test", 42]) });
+    expect(isError).toBe(false);
+    expect(json.saved).toBe(true);
+    expect(json.droppedFindingIds).toEqual([
+      { suggestion: 0, findingId: "no_such_finding" },
+      { suggestion: 2, findingId: null },
+    ]);
+    expect(json.note).toContain("hindsight_report");
+    const saved = (await new Store(home).readNarrative())!;
+    expect(saved.suggestions.map((suggestion) => suggestion.findingId ?? null)).toEqual([null, "repeated_failed_command:pnpm test", null]);
+  });
+});
+
+describe("orchestrated sessions and today's facet rules", () => {
+  it("offers a worker session whose brief and waves came from another agent, counting their messages as prompts", async () => {
+    claude.sessions = [makeSession({ id: "worker", sourceMtimeMs: 5, userMessageCount: 1, agentMessageCount: 6 })];
+    codex.sessions = [];
+    const listing = await call("hindsight_sessions", { missingFacets: true });
+    expect(ids(listing.json)).toEqual(["worker"]);
+  });
+
+  it("counts a worker session's facet, but not one for a session with a single message and no prompt from the person", async () => {
+    claude.sessions = [
+      makeSession({ id: "worker", sourceMtimeMs: 5, userMessageCount: 1, agentMessageCount: 6 }),
+      makeSession({ id: "blip", sourceMtimeMs: 4, userMessageCount: 0, agentMessageCount: 1, prompts: [] }),
+    ];
+    codex.sessions = [];
+    await call("hindsight_scan");
+    await call("hindsight_save_facets", { facets: [validFacet("worker"), validFacet("blip")] });
+    const scanned = await call("hindsight_scan");
+    expect(scanned.json.facets).toMatchObject({ saved: 1, ignored: 1 });
+  });
+});

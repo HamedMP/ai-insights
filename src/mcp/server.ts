@@ -256,6 +256,31 @@ export function createServer(deps: ServerDeps): McpServer {
       stale: stale.size,
     };
   };
+  /**
+   * A suggestion's `findingId` must name a finding in the current report; an unknown or malformed one is dropped
+   * so the suggestion still saves on its own, and the response says which.
+   */
+  const checkFindingIds = async (input: Record<string, unknown>) => {
+    const dropped: Array<{ suggestion: number; findingId: string | null }> = [];
+    if (!Array.isArray(input.suggestions) || !input.suggestions.some((item) => item && typeof item === "object" && "findingId" in item)) {
+      return { narrative: input, dropped, checked: true };
+    }
+    let known: Set<string>;
+    try {
+      const { report } = await state.report(await state.current());
+      known = new Set(report.findings.map((finding) => finding.id));
+    } catch {
+      return { narrative: input, dropped, checked: false };
+    }
+    const suggestions = input.suggestions.map((item, index) => {
+      if (!item || typeof item !== "object" || !("findingId" in item)) return item;
+      const { findingId, ...rest } = item as Record<string, unknown>;
+      if (typeof findingId === "string" && known.has(findingId)) return item;
+      dropped.push({ suggestion: index, findingId: typeof findingId === "string" ? clean(findingId, 120) : null });
+      return rest;
+    });
+    return { narrative: { ...input, suggestions }, dropped, checked: true };
+  };
   const facetBacklogFor = async (result: ScanResult) => facetBacklog(result.sessions, await facetView(result), liveIn(result));
   const server = new McpServer(
     { name: "hindsight", version: packageVersion() },
@@ -393,7 +418,7 @@ export function createServer(deps: ServerDeps): McpServer {
         "Sessions from the current scan with counts, whether a facet has been saved, live (still running) and agentDriven " +
         "(other agents sent more messages than the person). Use missingFacets: true to get the next batch to analyse with " +
         "hindsight_excerpt and hindsight_save_facets: by default that listing is a spread sample across harnesses and the whole " +
-        "time range (so facets describe the same history as the findings), skips sessions with fewer than 2 prompts, live sessions " +
+        "time range (so facets describe the same history as the findings), skips sessions with fewer than 2 prompts (the person's plus other agents'), live sessions " +
         "and slash-command-only sessions, and reports how many it skipped and why. Without missingFacets the listing is newest first. " +
         "Paginate with offset; the order is stable while the set is unchanged.",
       inputSchema: {
@@ -410,7 +435,7 @@ export function createServer(deps: ServerDeps): McpServer {
           .min(0)
           .max(10_000)
           .optional()
-          .describe("Skip sessions with fewer prompts from the person than this. Default 2 with missingFacets, else 0."),
+          .describe("Skip sessions with fewer prompts than this, counting the person's and other agents'. Default 2 with missingFacets, else 0."),
         includeLive: z.boolean().optional().describe("With missingFacets: include sessions still running. Default false."),
         includeSlashCommandOnly: z.boolean().optional().describe("With missingFacets: include sessions that were only slash commands. Default false."),
         limit: z.number().int().min(1).max(100).optional().describe("Page size. Default 20."),
@@ -440,7 +465,7 @@ export function createServer(deps: ServerDeps): McpServer {
       const skippedReasons = [
         skipped.live ? `${skipped.live} still running (transcript changed in the last 10 minutes); pass includeLive: true to include them` : null,
         skipped.slashCommandOnly ? `${skipped.slashCommandOnly} were only slash commands; pass includeSlashCommandOnly: true to include them` : null,
-        skipped.fewPrompts ? `${skipped.fewPrompts} had fewer than ${minUserMessages} prompts from the person; lower minUserMessages to include them` : null,
+        skipped.fewPrompts ? `${skipped.fewPrompts} had fewer than ${minUserMessages} prompts (the person's plus other agents'); lower minUserMessages to include them` : null,
       ].filter((reason): reason is string => reason !== null);
 
       const offset = args.offset ?? 0;
@@ -632,7 +657,8 @@ export function createServer(deps: ServerDeps): McpServer {
         "Save the written narrative shown at the top of the report, after facets are saved. Base it on hindsight_report " +
         "(summary, findings, facets sections). Saving again replaces it. Shape: headline (2-3 sentences); workAreas [{name, sessions, description}] (max 12); " +
         "interactionStyle (a short paragraph); wins [{title, description}]; frictions [{title, description, examples: string[]}]; " +
-        `suggestions [{type: ${SUGGESTION_TYPES.join("|")}, title, action, instructionText?, url? (http/https only)}] (max 15); ` +
+        `suggestions [{type: ${SUGGESTION_TYPES.join("|")}, title, action, instructionText?, url? (http/https only), findingId? (the id of the finding it builds on)}] (max 15); ` +
+        "A findingId that is not a current finding is dropped, with a note, and the suggestion is saved on its own. " +
         "instructionText is pasted into an instructions file as is: write the final text, with no angle-bracket placeholders (<n>) or ellipses (…); a save holding one is rejected. " +
         "horizon [{title, description, starterPrompt?}] (max 8).",
       inputSchema: {
@@ -641,8 +667,21 @@ export function createServer(deps: ServerDeps): McpServer {
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
     guarded("save the narrative", async (args) => {
-      await deps.store.saveNarrative(args.narrative);
-      return ok({ saved: true, next: "Call hindsight_render to write the HTML report." });
+      const { narrative, dropped, checked } = await checkFindingIds(args.narrative);
+      await deps.store.saveNarrative(narrative);
+      return ok({
+        saved: true,
+        ...(dropped.length > 0
+          ? {
+              droppedFindingIds: dropped,
+              note:
+                `${plural(dropped.length, "suggestion named", "suggestions named")} a findingId that is not a current finding, so it was dropped and ` +
+                "the suggestion saved on its own. Take ids from the findings in hindsight_report and save again to link them.",
+            }
+          : {}),
+        ...(checked ? {} : { note: "Could not build the findings to check findingId values; they were saved as given." }),
+        next: "Call hindsight_render to write the HTML report.",
+      });
     }),
   );
 

@@ -1,5 +1,5 @@
 import type { Harness, Session } from "../schema/types.js";
-import { isSlashCommandOnly } from "../store/pipeline.js";
+import { isSlashCommandOnly, MIN_FACET_PROMPTS, promptCount } from "../store/pipeline.js";
 
 /** A transcript written to this recently is probably a session that is still running. */
 export const LIVE_WINDOW_MS = 10 * 60 * 1000;
@@ -15,8 +15,8 @@ export function isAgentDriven(session: Session): boolean {
   return (session.agentMessageCount ?? 0) > session.userMessageCount;
 }
 
-/** Default floor of the person's own prompts for a session to be worth a facet. */
-export const DEFAULT_MIN_USER_MESSAGES = 2;
+/** Default floor of prompts (from the person or another agent) for a session to be worth a facet. */
+export const DEFAULT_MIN_USER_MESSAGES = MIN_FACET_PROMPTS;
 
 export interface SkipCounts {
   live: number;
@@ -52,7 +52,7 @@ export function filterCandidates(sessions: Session[], rules: CandidateRules): { 
       skipped.slashCommandOnly += 1;
       return false;
     }
-    if (session.userMessageCount < rules.minUserMessages) {
+    if (promptCount(session) < rules.minUserMessages) {
       skipped.fewPrompts += 1;
       return false;
     }

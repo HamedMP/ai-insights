@@ -56,7 +56,8 @@ const JudgementSchema = z.strictObject({
  */
 export function isFacetStale(record: FacetRecord, session: Session): boolean {
   const end = Date.parse(session.endTime);
-  if (!record.judged) return Number.isFinite(end) && end > record.savedAtMs;
+  // Without a snapshot, a transcript written to after the facet was saved means it was still running, or resumed.
+  if (!record.judged) return (Number.isFinite(end) && end > record.savedAtMs) || session.sourceMtimeMs > record.savedAtMs;
   if (record.judged.live) return true;
   if (session.userMessageCount > record.judged.userMessages) return true;
   const judgedEnd = Date.parse(record.judged.endTime);

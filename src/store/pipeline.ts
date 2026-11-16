@@ -27,12 +27,24 @@ export function isSlashCommandOnly(session: Session): boolean {
   return session.prompts.length > 0 && session.prompts.every((prompt) => prompt.text.trimStart().startsWith("/"));
 }
 
+/** Default floor of prompts for a session to be worth a facet. */
+export const MIN_FACET_PROMPTS = 2;
+
 /**
- * Whether a facet for this session belongs in the aggregates. Sessions with no prompt from the person, or only
- * slash commands, are not judged under today's rules; facets saved for them earlier stay on disk but do not count.
+ * Messages that asked the agent for something: the person's prompts plus those another agent sent. A worker an
+ * orchestrator drives may hold one typed prompt and many briefs; it is still a session worth judging.
+ */
+export function promptCount(session: Session): number {
+  return session.userMessageCount + Math.max(0, session.agentMessageCount ?? 0);
+}
+
+/**
+ * Whether a facet for this session belongs in the aggregates: the same rule the default facet listing applies.
+ * Sessions with almost no prompts, or only slash commands, are not judged today; facets saved for them
+ * earlier stay on disk but do not count.
  */
 export function countsForFacets(session: Session): boolean {
-  return session.userMessageCount > 0 && !isSlashCommandOnly(session);
+  return promptCount(session) >= MIN_FACET_PROMPTS && !isSlashCommandOnly(session);
 }
 
 /** Builds the report from a scan plus whatever facets and narrative the model pass has saved. */
