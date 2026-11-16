@@ -38,14 +38,20 @@ export interface CandidateRules {
 }
 
 /** The sessions a listing offers under `rules`, how many each rule held back, and how many are re-judgements. */
-export function filterCandidates(sessions: Session[], rules: CandidateRules): { matching: Session[]; skipped: SkipCounts; stale: number } {
+export function filterCandidates(
+  sessions: Session[],
+  rules: CandidateRules,
+): { matching: Session[]; skipped: SkipCounts; stale: number; staleStillRunning: number } {
   const skipped: SkipCounts = { live: 0, slashCommandOnly: 0, fewPrompts: 0 };
+  let staleStillRunning = 0;
   const stale = (session: Session) => rules.hasFacet(session) && (rules.staleFacet?.(session) ?? false);
   const matching = sessions.filter((session) => {
     if (rules.harness && session.harness !== rules.harness) return false;
     if (rules.missingOnly && rules.hasFacet(session) && !stale(session)) return false;
     if (rules.skipLive && rules.live(session)) {
       skipped.live += 1;
+      // A changed session that is still running comes back once it stops; say so, or the numbers do not add up.
+      if (rules.missingOnly && stale(session)) staleStillRunning += 1;
       return false;
     }
     if (rules.skipSlashCommandOnly && isSlashCommandOnly(session)) {
@@ -58,7 +64,7 @@ export function filterCandidates(sessions: Session[], rules: CandidateRules): { 
     }
     return true;
   });
-  return { matching, skipped, stale: rules.missingOnly ? matching.filter(stale).length : 0 };
+  return { matching, skipped, stale: rules.missingOnly ? matching.filter(stale).length : 0, staleStillRunning };
 }
 
 /** What a default missing-facet listing would still offer: the number to tell the person, kept in step with that listing. */
@@ -67,7 +73,7 @@ export function facetBacklog(
   facets: { hasFacet: (session: Session) => boolean; staleFacet: (session: Session) => boolean },
   live: (session: Session) => boolean,
 ) {
-  const { matching, skipped, stale } = filterCandidates(sessions, {
+  const { matching, skipped, stale, staleStillRunning } = filterCandidates(sessions, {
     missingOnly: true,
     minUserMessages: DEFAULT_MIN_USER_MESSAGES,
     skipLive: true,
@@ -76,7 +82,7 @@ export function facetBacklog(
     staleFacet: facets.staleFacet,
     live,
   });
-  return { toJudge: matching.length, stale, skipped };
+  return { toJudge: matching.length, stale, staleStillRunning, skipped };
 }
 
 /**

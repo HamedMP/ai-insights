@@ -201,8 +201,23 @@ function countBy(values: string[]): Record<string, number> {
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
+/** Judged sessions per harness and the UTC date range they span: enough to compare with the coverage section. */
+function judgedCoverage(sessions: Session[]) {
+  const byHarness: Record<string, number> = {};
+  let from: string | null = null;
+  let to: string | null = null;
+  for (const session of sessions) {
+    byHarness[session.harness] = (byHarness[session.harness] ?? 0) + 1;
+    const start = Number.isFinite(Date.parse(session.startTime)) ? new Date(session.startTime).toISOString().slice(0, 10) : null;
+    const end = Number.isFinite(Date.parse(session.endTime)) ? new Date(session.endTime).toISOString().slice(0, 10) : start;
+    if (start && (from === null || start < from)) from = start;
+    if (end && (to === null || end > to)) to = end;
+  }
+  return { sessions: sessions.length, byHarness, from, to };
+}
+
 /** What to do after a scan, and for a returning person, what is already there and what a new narrative does to it. */
-function nextAfterScan(state: { sessions: number; withFacets: number; toJudge: number; stale: number; narrativeSaved: boolean }): string {
+function nextAfterScan(state: { sessions: number; withFacets: number; toJudge: number; stale: number; staleStillRunning: number; narrativeSaved: boolean }): string {
   if (state.sessions === 0) return "No sessions found. Run hindsight_scan with a wider since window, or check `hindsight doctor`.";
   const start = "Call hindsight_report for findings, then hindsight_sessions with missingFacets: true to start the qualitative pass.";
   if (state.withFacets === 0 && !state.narrativeSaved) return start;
@@ -212,7 +227,10 @@ function nextAfterScan(state: { sessions: number; withFacets: number; toJudge: n
   ].filter(Boolean);
   const changed =
     state.stale > 0
-      ? ` ${plural(state.stale, "judged session has changed since", "judged sessions have changed since")} (judged while running, or grown since); the listing offers them again to re-judge.`
+      ? ` ${plural(state.stale, "judged session has changed since", "judged sessions have changed since")} (judged while running, or grown since); the listing offers them again to re-judge` +
+        (state.staleStillRunning > 0
+          ? `, except that ${state.staleStillRunning} ${state.staleStillRunning === 1 ? "is" : "are"} still running and held back until ${state.staleStillRunning === 1 ? "it stops" : "they stop"}.`
+          : ".")
       : "";
   const adding =
     state.toJudge > 0
@@ -235,7 +253,7 @@ export function createServer(deps: ServerDeps): McpServer {
     const keys = new Set(result.sessions.map((session) => sessionKey(session.harness, session.id)));
     const records = new Map((await deps.store.listFacetRecords(keys)).map((record) => [sessionKey(record.facet.harness, record.facet.sessionId), record]));
     const stale = new Set<string>();
-    let counted = 0;
+    const judged: Session[] = [];
     let ignored = 0;
     for (const session of result.sessions) {
       const key = sessionKey(session.harness, session.id);
@@ -245,13 +263,14 @@ export function createServer(deps: ServerDeps): McpServer {
         ignored += 1;
         continue;
       }
-      counted += 1;
+      judged.push(session);
       if (isFacetStale(record, session)) stale.add(key);
     }
     return {
       hasFacet: (session: Session) => records.has(sessionKey(session.harness, session.id)),
       staleFacet: (session: Session) => stale.has(sessionKey(session.harness, session.id)),
-      counted,
+      counted: judged.length,
+      judged,
       ignored,
       stale: stale.size,
     };
@@ -346,12 +365,14 @@ export function createServer(deps: ServerDeps): McpServer {
           ignored: view.ignored,
           missing: result.sessions.length - view.counted - view.ignored,
           changedSinceJudged: view.stale,
+          // Changed sessions still running: held back from toJudge until they stop.
+          changedStillRunning: backlog.staleStillRunning,
           toJudge: backlog.toJudge,
           skipped: backlog.skipped,
         },
         narrative: { saved: narrativeSaved },
         scan: { ...result.stats, options: result.options },
-        next: nextAfterScan({ sessions: result.sessions.length, withFacets: view.counted, toJudge: backlog.toJudge, stale: view.stale, narrativeSaved }),
+        next: nextAfterScan({ sessions: result.sessions.length, withFacets: view.counted, toJudge: backlog.toJudge, stale: view.stale, staleStillRunning: backlog.staleStillRunning, narrativeSaved }),
       });
     }),
   );
@@ -404,7 +425,11 @@ export function createServer(deps: ServerDeps): McpServer {
         }));
         if (findings.length > limit) out.findingsTruncated = findings.length - limit;
       }
-      if (sections.has("facets")) out.facets = full ? report.facets : facetsDigest(report.facets);
+      if (sections.has("facets")) {
+        // Which harnesses and dates the facets cover, so the narrative can be checked against the findings' coverage.
+        const judged = judgedCoverage((await facetView(result)).judged);
+        out.facets = { ...(full ? report.facets : facetsDigest(report.facets)), judged };
+      }
       if (sections.has("narrative")) out.narrative = report.narrative;
       return ok(out);
     }),
@@ -451,7 +476,7 @@ export function createServer(deps: ServerDeps): McpServer {
       const choosing = args.missingFacets === true;
       const strategy = args.strategy ?? (choosing ? "spread" : "newest");
       const minUserMessages = args.minUserMessages ?? (choosing ? DEFAULT_MIN_USER_MESSAGES : 0);
-      const { matching, skipped, stale } = filterCandidates(result.sessions, {
+      const { matching, skipped, stale, staleStillRunning } = filterCandidates(result.sessions, {
         harness: args.harness,
         missingOnly: choosing,
         minUserMessages,
@@ -463,7 +488,11 @@ export function createServer(deps: ServerDeps): McpServer {
       });
       const ordered = strategy === "spread" ? spreadOrder(matching) : matching;
       const skippedReasons = [
-        skipped.live ? `${skipped.live} still running (transcript changed in the last 10 minutes); pass includeLive: true to include them` : null,
+        skipped.live
+          ? `${skipped.live} still running (transcript changed in the last 10 minutes)` +
+            (staleStillRunning > 0 ? `; ${staleStillRunning} of them ${staleStillRunning === 1 ? "has a facet that changed since" : "have facets that changed since"} and ${staleStillRunning === 1 ? "comes" : "come"} back once stopped` : "") +
+            "; pass includeLive: true to include them"
+          : null,
         skipped.slashCommandOnly ? `${skipped.slashCommandOnly} were only slash commands; pass includeSlashCommandOnly: true to include them` : null,
         skipped.fewPrompts ? `${skipped.fewPrompts} had fewer than ${minUserMessages} prompts (the person's plus other agents'); lower minUserMessages to include them` : null,
       ].filter((reason): reason is string => reason !== null);
@@ -477,6 +506,7 @@ export function createServer(deps: ServerDeps): McpServer {
         offset,
         nextOffset: offset + page.length < ordered.length ? offset + page.length : null,
         staleFacets: stale,
+        staleStillRunning,
         skipped,
         skippedReasons,
         sessions: page.map((session) => ({

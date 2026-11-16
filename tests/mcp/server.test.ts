@@ -708,3 +708,35 @@ describe("orchestrated sessions and today's facet rules", () => {
     expect(scanned.json.facets).toMatchObject({ saved: 1, ignored: 1 });
   });
 });
+
+describe("wave 7: explaining held-back stale facets and facet coverage", () => {
+  it("says how many changed sessions are still running and so held back, in the scan and the listing", async () => {
+    const running = makeSession({ id: "run", sourceMtimeMs: NOW - 60_000 });
+    claude.sessions = [running, ...history("claude-code", "c", 2, 1)];
+    codex.sessions = [];
+    await call("hindsight_scan");
+    await call("hindsight_save_facets", { facets: [validFacet("run"), validFacet("c0"), validFacet("c1")] });
+    claude.sessions = claude.sessions.map((session) => (session.id === "c0" ? { ...session, userMessageCount: 9, sourceMtimeMs: session.sourceMtimeMs + 1 } : session));
+
+    const scanned = await call("hindsight_scan");
+    expect(scanned.json.facets).toMatchObject({ changedSinceJudged: 2, changedStillRunning: 1, toJudge: 1 });
+    expect(scanned.json.next).toContain("1 is still running");
+    const listing = await call("hindsight_sessions", { missingFacets: true });
+    expect(listing.json).toMatchObject({ total: 1, staleFacets: 1, staleStillRunning: 1 });
+    expect(listing.json.skippedReasons.join(" ")).toContain("1 of them has a facet that changed since");
+  });
+
+  it("gives judged-session counts per harness and the judged date range with the facets digest", async () => {
+    claude.sessions = history("claude-code", "c", 3, 1);
+    codex.sessions = history("codex", "x", 2, 10);
+    await call("hindsight_scan");
+    await call("hindsight_save_facets", { facets: [validFacet("c0"), validFacet("c2"), validFacet("x1", "codex")] });
+    const { json } = await call("hindsight_report", { sections: ["facets"] });
+    expect(json.facets.judged).toEqual({
+      sessions: 3,
+      byHarness: { "claude-code": 2, codex: 1 },
+      from: new Date(NOW - 11 * 86_400_000).toISOString().slice(0, 10),
+      to: new Date(NOW - 1 * 86_400_000 + 3_600_000).toISOString().slice(0, 10),
+    });
+  });
+});
