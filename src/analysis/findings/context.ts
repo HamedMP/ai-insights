@@ -3,6 +3,8 @@ import { clean } from "../../sources/shared.js";
 import type { Clock } from "../time.js";
 import type { OwnedRequest } from "../usage.js";
 
+export { isAgentDriven, projectKey } from "../sessions.js";
+
 export interface DetectorContext {
   /** Sorted by start time, then harness and id. */
   sessions: Session[];
@@ -29,15 +31,6 @@ export function evidence(session: Session, note: string, timestamp?: string): Ev
   const at = timestamp ?? session.startTime;
   if (at) out.timestamp = at;
   return out;
-}
-
-/**
- * True when other agents (an orchestrator, task notifications) sent more messages than the
- * person typed. Such sessions say little about how the person steers an agent.
- */
-export function isAgentDriven(session: Session): boolean {
-  const agent = session.agentMessageCount ?? 0;
-  return agent > 0 && agent > Math.max(session.userMessageCount, session.prompts.length);
 }
 
 export function harnessesOf(sessions: Iterable<Session>): Harness[] {

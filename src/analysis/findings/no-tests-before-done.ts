@@ -1,6 +1,6 @@
 import type { Session } from "../../schema/types.js";
 import { isCheckCommand, isTestOrTypecheck, normalizeCommand } from "./commands.js";
-import { evidence, harnessesOf, MAX_EVIDENCE, percent, plural, type Detector } from "./context.js";
+import { evidence, harnessesOf, MAX_EVIDENCE, percent, plural, projectKey, type Detector } from "./context.js";
 
 /** Enough change that an untested commit could plausibly break something. */
 const MIN_CHANGED_LINES = 50;
@@ -30,10 +30,10 @@ function ranChecks(session: Session): boolean {
 }
 
 /** The check command this person already uses in a project, so the instruction names a real command. */
-function knownCheck(sessions: Session[], projectPath: string | null): string | null {
+function knownCheck(sessions: Session[], project: string | null): string | null {
   const counts = new Map<string, number>();
   for (const session of sessions) {
-    if (projectPath && session.projectPath !== projectPath) continue;
+    if (project && projectKey(session) !== project) continue;
     for (const call of session.toolCalls) {
       if (call.category !== "shell" || !call.command || call.error) continue;
       const command = normalizeCommand(call.command);
@@ -57,7 +57,7 @@ export const noTestsBeforeDone: Detector = ({ sessions }) => {
   const share = unchecked.length / shipping.length;
   if (share < MIN_SHARE) return [];
   const projects = new Map<string | null, number>();
-  for (const session of unchecked) projects.set(session.projectPath, (projects.get(session.projectPath) ?? 0) + 1);
+  for (const session of unchecked) projects.set(projectKey(session), (projects.get(projectKey(session)) ?? 0) + 1);
   const topProject = [...projects].sort((a, b) => b[1] - a[1])[0]![0];
   const check = knownCheck(sessions, topProject) ?? knownCheck(sessions, null);
   const items = [...unchecked]
