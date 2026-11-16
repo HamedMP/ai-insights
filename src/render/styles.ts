@@ -176,6 +176,7 @@ svg .lbl{fill:var(--muted);font:500 11px var(--mono);letter-spacing:.04em}
 .tl-axis span.major{color:var(--text-2)}
 .tl-axis span.first{transform:none}
 .tl-axis span.last{transform:translateX(-100%)}
+.tl-idle{flex-basis:100%;color:var(--text-2)}
 .tl-list{margin-top:16px}
 .tl-list summary{cursor:pointer;color:var(--text-2)}
 .tl-list table{margin-top:12px}

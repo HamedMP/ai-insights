@@ -110,7 +110,7 @@ export function parallelChapter({ context, story, tips, actions, index }: Chapte
       ? html`<div class="versus reveal"><div><b>${formatHours(wall)}</b><span class="micro">your hours with AI at work</span></div><div class="vs-bar"><span class="you" style="width:${Math.max(4, Math.round((wall / Math.max(wall, count(activity.totalActiveMinutes))) * 100))}%"></span><span class="agents"></span></div><div><b>${formatHours(activity.totalActiveMinutes)}</b><span class="micro">agent-hours, summed across sessions</span></div></div>`
       : null;
   const visual = timeline
-    ? html`${panel("Side by side", spanTimeline(timeline, context.zone, count(activity.sessions)), { className: "timeline-panel", aside: timeline.window.kind === "all" ? "your whole history" : timeline.window.days === 1 ? "the busiest day" : "the busiest days" })}${
+    ? html`${panel("Side by side", spanTimeline(timeline, context.zone, count(activity.sessions), parallel?.maxConcurrent), { className: "timeline-panel", aside: timeline.window.kind === "all" ? "your whole history" : timeline.window.days === 1 ? "the busiest day" : "the busiest days" })}${
         parallel && count(parallel.overlapEvents) > 0 ? parallelFacts(count(activity.sessions), count(parallel.sessionsInvolved), count(parallel.maxConcurrent), count(parallel.overlapEvents)) : null
       }`
     : (() => {
@@ -122,7 +122,7 @@ export function parallelChapter({ context, story, tips, actions, index }: Chapte
 
 /** A lead from the spans alone, for a report that has spans but no aggregate overlap counts. */
 function timelineLead(timeline: Timeline): Line {
-  return [{ text: "At the busiest moment, " }, { text: `${formatInt(timeline.peak.count)} of your sessions`, strong: true }, { text: " were running at the same time." }];
+  return [{ text: "At the busiest moment, " }, { text: `${formatInt(timeline.peak.count)} of your sessions`, strong: true }, { text: " were open at the same time." }];
 }
 
 /** Long paths keep their last folder, the part that names the project; the full path stays in the tooltip. */

@@ -231,16 +231,18 @@ function projectName(project: string | null): string {
 function windowText(timeline: Timeline, zone: string): string {
   const { window } = timeline;
   if (window.kind === "all") return `All ${formatInt(timeline.total)} sessions, ${formatLocalDay(window.start, zone)} ${formatClock(window.start, zone)} to ${formatLocalDay(window.end, zone)} ${formatClock(window.end, zone)}`;
-  return `${window.label}, ${window.days === 1 ? "the day" : "the days"} with the most sessions at once`;
+  return `${window.label}, ${window.days === 1 ? "the day" : "the days"} with the most sessions open at once`;
 }
 
 /** The plain-language description used as the timeline's accessible name. */
-export function timelineSummary(timeline: Timeline, zone: string): string {
+export function timelineSummary(timeline: Timeline, zone: string, working?: number | null): string {
   const parts = [
     `${windowText(timeline, zone)}.`,
-    `${plural(timeline.inWindow, "session")} drawn in ${plural(timeline.lanes, "lane")}, one lane per session running at the same time.`,
-    `At most ${formatInt(timeline.peak.count)} ran at once, at ${timeline.peak.label}.`,
+    `${plural(timeline.inWindow, "session")} drawn in ${plural(timeline.lanes, "lane")}, one lane per session open at the same time.`,
+    `At most ${formatInt(timeline.peak.count)} were open at once, at ${timeline.peak.label}.`,
   ];
+  const idleNote = openVersusWorking(timeline, working);
+  if (idleNote) parts.push(idleNote);
   if (timeline.agentDriven > 0) parts.push(`${plural(timeline.agentDriven, "session")} ${timeline.agentDriven === 1 ? "was" : "were"} driven by another agent.`);
   if (timeline.hidden > 0) parts.push(`${plural(timeline.hidden, "session")} beyond ${MAX_LANES} lanes ${timeline.hidden === 1 ? "is" : "are"} not drawn.`);
   return parts.join(" ");
@@ -251,10 +253,23 @@ export function timelineCaption(timeline: Timeline, zone: string): string {
 }
 
 /**
- * Draw the timeline. `sessions` is the report's session count, so the caption can say
- * when the spans are only the newest part of the history.
+ * Why the marker can show more than the headline: a span runs from a session's first to
+ * last entry, idle time included, while `working` (the report's `maxConcurrent`) counts
+ * only sessions active at the same moment. Null when the two agree or `working` is unknown.
  */
-export function spanTimeline(timeline: Timeline, zone: string, sessions: number): SafeHtml {
+export function openVersusWorking(timeline: Timeline, working: number | null | undefined): string | null {
+  const active = count(working);
+  if (active <= 0 || active === timeline.peak.count) return null;
+  return `A bar runs from a session's first to last message, idle time included; at most ${plural(active, "session was", "sessions were")} actively working at the same moment.`;
+}
+
+/**
+ * Draw the timeline. `sessions` is the report's session count, so the caption can say
+ * when the spans are only the newest part of the history; `working` is the report's
+ * most-sessions-active-at-once, to explain a higher count of sessions open at once.
+ */
+export function spanTimeline(timeline: Timeline, zone: string, sessions: number, working?: number | null): SafeHtml {
+  const idleNote = openVersusWorking(timeline, working);
   const laneHeight = timeline.lanes <= 6 ? 18 : timeline.lanes <= 12 ? 12 : 9;
   const gap = timeline.lanes <= 12 ? 4 : 3;
   const height = timeline.lanes * (laneHeight + gap) - gap;
@@ -280,11 +295,11 @@ export function spanTimeline(timeline: Timeline, zone: string, sessions: number)
     timeline.agentDriven > 0 ? html`<li><i class="sw ad"></i><span>Driven by another agent</span></li>` : null
   }</ul>
 <div class="tl-plot">
-<span class="tl-peak-label micro${peakSide}" style="left:${pct(timeline.peak.x)}"><b>${formatInt(timeline.peak.count)}</b> at once · ${timeline.peak.label}</span>
-<svg viewBox="0 0 ${VIEW_WIDTH} ${height}" preserveAspectRatio="none" style="height:${height}px" role="img" aria-label="${timelineSummary(timeline, zone)}">${raw(grid.join(""))}${bars}<line class="tl-peak" x1="${peakX}" x2="${peakX}" y1="0" y2="${height}" vector-effect="non-scaling-stroke"/></svg>
+<span class="tl-peak-label micro${peakSide}" style="left:${pct(timeline.peak.x)}"><b>${formatInt(timeline.peak.count)}</b> open · ${timeline.peak.label}</span>
+<svg viewBox="0 0 ${VIEW_WIDTH} ${height}" preserveAspectRatio="none" style="height:${height}px" role="img" aria-label="${timelineSummary(timeline, zone, working)}">${raw(grid.join(""))}${bars}<line class="tl-peak" x1="${peakX}" x2="${peakX}" y1="0" y2="${height}" vector-effect="non-scaling-stroke"/></svg>
 <div class="tl-axis micro" aria-hidden="true">${timeline.ticks.map((tick, index) => html`<span class="${[tick.major ? "major" : "", index % 2 === 1 ? "odd" : "", tick.x < 0.05 ? "first" : tick.x > 0.95 ? "last" : ""].filter(Boolean).join(" ")}" style="left:${pct(tick.x)}">${tick.label}</span>`)}</div>
 </div>
-<figcaption class="micro"><span>${timelineCaption(timeline, zone)}</span><span>One bar per session · one lane per session running at the same time${
+<figcaption class="micro"><span>${timelineCaption(timeline, zone)}</span>${idleNote ? html`<span class="tl-idle">${idleNote}</span>` : null}<span>One bar per session · one lane per session open at the same time${
     timeline.hidden > 0 ? ` · ${plural(timeline.hidden, "more session")} beyond ${MAX_LANES} lanes not drawn` : ""
   }${spansOnly ? ` · drawn from the newest ${formatInt(timeline.total)} sessions` : ""}</span></figcaption>
 ${list}
