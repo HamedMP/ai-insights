@@ -352,10 +352,13 @@ html.capture #root { position: relative; width: 100vw; height: 100vh; overflow: 
 .keep { margin: 26px 0; padding: 22px 24px; border-radius: 18px; background: var(--surface-2); }
 .keep.urgent { background: var(--bad-soft); }
 .keep .ph3 { margin: 10px 0 8px; }
-.keep-rows { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; margin: 12px 0; }
-.keep-row { background: var(--surface); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 3px; font-size: 14px; }
-.keep-row.risk { box-shadow: inset 0 0 0 2px var(--bad); }
-.keep-row .risk-t { color: var(--bad); font-weight: 650; }
+.keep-tbl { overflow-x: auto; margin: 12px 0; background: var(--surface); border-radius: 12px; padding: 4px 10px; }
+.keep-tbl .tbl td { vertical-align: top; }
+.keep .risk-t { color: var(--bad); font-weight: 650; }
+.keep-cache { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 12px 0; font-size: 14px; }
+.keep-cache .k { font: 600 11px/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.keep-cache ul { margin: 6px 0 0; padding-left: 18px; }
+@media (max-width: 720px) { .keep-cache { grid-template-columns: 1fr; } }
 .recorded { margin-top: 8px; font-size: 14px; }
 .sugg .why a, .note a, .see { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 2px; }
 .closing > * { min-width: 0; overflow-wrap: anywhere; }
