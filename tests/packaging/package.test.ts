@@ -21,7 +21,7 @@ describe("npm package", () => {
   it("starts the MCP server from the bin that `npx -y <package> mcp` runs", () => {
     // With a scoped name, npx runs the bin named after the unscoped part.
     const bin = pkg.bin[pkg.name.split("/").pop()];
-    expect(bin).toBe("./dist/cli/main.js");
+    expect(bin).toBe("dist/cli/main.js");
     const cli = readFileSync(join(ROOT, "src", "cli", "main.ts"), "utf8");
     expect(cli.startsWith("#!/usr/bin/env node\n")).toBe(true);
     expect(cli).toMatch(/COMMANDS = new Set\(\[[^\]]*"mcp"/);
