@@ -1,10 +1,10 @@
 import type { UsageTotals } from "../../schema/types.js";
 import { columnChart, monthTicks } from "../charts.js";
 import { chapter, panel, type RenderContext } from "../components.js";
-import { clip, count, dayNumber, formatBytes, formatCompact, formatDate, formatDay, formatHours, formatInt, formatSeconds, formatUsd, parseInstant, plural, shortenPath } from "../format.js";
+import { clip, count, dayNumber, formatBytes, formatCompact, formatDate, formatDay, formatHours, formatInt, formatSeconds, formatUsd, plural, shortenPath } from "../format.js";
 import { html, type SafeHtml } from "../html.js";
 import { harnessLabel, keyLabel } from "../labels.js";
-import { peakWindow, pricingGap, unpricedModelsText, weekdayTotals, type Line, type Story } from "../story.js";
+import { historyDaysOf, peakWindow, pricingGap, unpricedModelsText, weekdayTotals, type Line, type Story } from "../story.js";
 import { buildTimeline, spanTimeline, type Timeline } from "../timeline.js";
 import { dayGrid, dayStacks, delegationFan, denseDays, dotColumns, hourClock, parallelFacts, pixelBars, sessionField, splitBar, tokenFlow, waffle, weekStacks } from "../visuals.js";
 import { tryThis, type ActionIndex } from "./common.js";
@@ -41,7 +41,7 @@ export function rhythmChapter({ context, story, tips, actions, index }: ChapterI
     (activity.daily ?? []).map((entry) => ({
       day: entry.day,
       value: entry.sessions,
-      tooltip: `${entry.day}: ${plural(count(entry.sessions), "session")}, ${plural(count(entry.userMessages), "message")}, ${formatHours(entry.activeMinutes)} agent time`,
+      tooltip: `${entry.day}: ${plural(count(entry.sessions), "session")} started, ${plural(count(entry.userMessages), "message")}, ${formatHours(entry.activeMinutes)} agent time`,
     })),
     MAX_DAYS,
   ).map((entry) => {
@@ -54,7 +54,7 @@ export function rhythmChapter({ context, story, tips, actions, index }: ChapterI
   const week = weekStacks(totals);
   const series = days.map((entry) => ({ day: entry.day, value: entry.value, ...(entry.tooltip ? { tooltip: entry.tooltip } : {}) }));
   // A calendar needs months to read as one; a few weeks read better as day columns.
-  const grid = series.length <= 92 ? dayStacks("calendar", series) : dayGrid("calendar", series, "sessions");
+  const grid = series.length <= 92 ? dayStacks("calendar", series) : dayGrid("calendar", series, "sessions started");
   if (!story.hours && !story.week && !clock && !grid) return null;
   const pair = [panel("Hour by hour", clock), panel("Week by week", week)].filter(Boolean);
   const body = html`${pair.length > 0 ? html`<div class="row${pair.length === 1 ? " one" : ""}">${pair}</div>` : null}${panel("Every day", grid, {
@@ -127,9 +127,12 @@ function timelineLead(timeline: Timeline): Line {
 
 /** Long paths keep their last folder, the part that names the project; the full path stays in the tooltip. */
 function tailOfPath(path: string): string {
-  if (path.length <= 22) return path;
-  const last = path.split(/[\\/]/).filter(Boolean).pop() ?? path;
-  return clip(`…/${last}`, 60);
+  return path.length <= 22 ? path : clip(`…/${folderName(path)}`, 60);
+}
+
+/** The last folder of a path: the project's own name, for rows that also carry a worktree note. */
+function folderName(path: string): string {
+  return clip(path.split(/[\\/]/).filter(Boolean).pop() ?? path, 60);
 }
 
 function list(names: string[]): string {
@@ -146,10 +149,8 @@ export function coverageChapter({ context, story, tips, actions, index }: Chapte
     (report.activity.byHarness ?? []).map((entry) => ({ label: harnessLabel(entry.harness), value: count(entry.sessions), display: plural(count(entry.sessions), "session") })),
   );
   const rows = found.map((entry) => {
-    const oldest = parseInstant(entry.oldest);
-    const newest = parseInstant(entry.newest);
-    const days = oldest !== null && newest !== null ? Math.max(1, Math.round((newest - oldest) / 86_400_000) + 1) : null;
-    return html`<li><b>${entry.label || harnessLabel(entry.harness)}</b><span>${plural(count(entry.sessions), "session")}</span><span>${days !== null ? `${plural(days, "day")} back, to ${formatDate(entry.oldest, context.zone)}` : "—"}</span><span>${typeof entry.bytes === "number" && Number.isFinite(entry.bytes) && entry.bytes > 0 ? html`On disk ${formatBytes(entry.bytes)}` : ""}</span>${count(entry.issues) > 0 ? html`<span class="muted">${plural(count(entry.issues), "record")} skipped</span>` : html`<span></span>`}</li>`;
+    const days = historyDaysOf(entry);
+    return html`<li><b>${entry.label || harnessLabel(entry.harness)}</b><span>${plural(count(entry.sessions), "session")}</span><span>${days !== null ? `${plural(days, "day")} of history, since ${formatDate(entry.oldest, context.zone)}` : "—"}</span><span>${typeof entry.bytes === "number" && Number.isFinite(entry.bytes) && entry.bytes > 0 ? html`On disk ${formatBytes(entry.bytes)}` : ""}</span>${count(entry.issues) > 0 ? html`<span class="muted">${plural(count(entry.issues), "record")} skipped</span>` : html`<span></span>`}</li>`;
   });
   const tools = html`${split}${rows.length > 0 ? html`<ul class="sources-list">${rows}</ul>` : html`<p class="muted">No coding-agent history was found on this machine.</p>`}${
     missing.length > 0 ? html`<p class="not-found micro"><span>Not found</span>${missing.map((entry) => html`<span class="chip">${entry.label || harnessLabel(entry.harness)}</span>`)}</p>` : null
@@ -159,7 +160,7 @@ export function coverageChapter({ context, story, tips, actions, index }: Chapte
     (report.activity.projects ?? []).map((entry) => {
       const full = clip(shortenPath(String(entry.projectPath ?? "")), 120);
       const worktrees = count(entry.worktrees);
-      return { label: tailOfPath(full), title: full, value: count(entry.activeMinutes) || count(entry.sessions), display: plural(count(entry.sessions), "session"), note: worktrees > 1 ? plural(worktrees, "worktree") : undefined };
+      return { label: worktrees > 1 ? folderName(full) : tailOfPath(full), title: full, value: count(entry.activeMinutes) || count(entry.sessions), display: plural(count(entry.sessions), "session"), note: worktrees > 1 ? plural(worktrees, "worktree") : undefined };
     }),
     8,
     { mono: true },

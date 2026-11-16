@@ -1,4 +1,4 @@
-import type { Finding, FindingKind, Report, Suggestion } from "../schema/types.js";
+import type { Coverage, Finding, FindingKind, Report, Suggestion } from "../schema/types.js";
 import { count, dayNumber, formatCompact, formatDay, formatHours, formatInt, formatUsd, plural, shortenPath } from "./format.js";
 import { harnessLabel } from "./labels.js";
 
@@ -182,7 +182,7 @@ function numbers(report: Report): HookNumber[] {
     out.push({
       value: `${gap ? "≈ " : ""}${formatUsd(usd)}`,
       label: gap ? `For the ${pct(gap.pricedShare)} of requests with a known price` : "At API list prices",
-      ...(gap ? { note: `${pct(gap.unpricedShare)} unpriced${gap.models.length > 0 ? `: ${unpricedModelsText(gap.models, 2)}` : ""}` } : {}),
+      ...(gap ? { note: `${pct(gap.unpricedShare)} of requests unpriced${gap.models.length > 0 ? `: ${unpricedModelsText(gap.models, 2)}` : ""}` } : {}),
     });
   } else {
     out.push({ value: formatCompact(usage.tokens), label: "Tokens" });
@@ -240,7 +240,7 @@ function weekLine(report: Report): Line | null {
   if (sum === 0 || spanDays < MIN_SPAN_DAYS_FOR_WEEK || activeDays < MIN_ACTIVE_DAYS_FOR_WEEK) return null;
   const busiest = totals.indexOf(Math.max(...totals));
   const weekend = (totals[5]! + totals[6]!) / sum;
-  return [s("Your busiest day is "), b(WEEKDAYS[busiest]!), s(", and "), b(pct(weekend)), s(" of your sessions fall on weekends.")];
+  return [s("Your busiest day is "), b(WEEKDAYS[busiest]!), s(", and "), b(pct(weekend)), s(" of your sessions start on weekends.")];
 }
 
 function delegationLine(report: Report): Line | null {
@@ -350,13 +350,22 @@ function frictionLine(report: Report): Line | null {
   return line.length > 0 ? line : null;
 }
 
+/**
+ * Days of history for one harness: analysis's `historyDays` when present, so the page and the
+ * short-history finding agree; otherwise oldest to newest session, counted inclusively.
+ */
+export function historyDaysOf(entry: Pick<Coverage, "historyDays" | "oldest" | "newest">): number | null {
+  if (typeof entry.historyDays === "number" && Number.isFinite(entry.historyDays) && entry.historyDays >= 1) return Math.round(entry.historyDays);
+  const oldest = Date.parse(entry.oldest ?? "");
+  const newest = Date.parse(entry.newest ?? "");
+  if (!Number.isFinite(oldest) || !Number.isFinite(newest)) return null;
+  return Math.max(1, Math.round((newest - oldest) / 86_400_000) + 1);
+}
+
 function historyLine(report: Report): Line | null {
-  const found = (report.coverage ?? []).filter((entry) => entry.found);
-  const oldest = found.map((entry) => Date.parse(entry.oldest ?? "")).filter(Number.isFinite);
-  const newest = found.map((entry) => Date.parse(entry.newest ?? "")).filter(Number.isFinite);
-  if (oldest.length === 0 || newest.length === 0) return null;
-  const days = Math.max(1, Math.round((Math.max(...newest) - Math.min(...oldest)) / 86_400_000) + 1);
-  return [s("Your local history goes back "), b(plural(days, "day")), s(".")];
+  const days = (report.coverage ?? []).filter((entry) => entry.found).map(historyDaysOf).filter((value): value is number => value !== null);
+  if (days.length === 0) return null;
+  return [s("Your local history goes back "), b(plural(Math.max(...days), "day")), s(".")];
 }
 
 export function buildStory(report: Report, _zone: string): Story {

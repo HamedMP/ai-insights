@@ -178,12 +178,14 @@ svg .lbl{fill:var(--muted);font:500 11px var(--mono);letter-spacing:.04em}
 .tl-axis span.last{transform:translateX(-100%)}
 .tl-idle{flex-basis:100%;color:var(--text-2)}
 .tl-list{margin-top:16px}
+.copy-label{margin:14px 0 -4px;color:var(--muted)}
+.copy-label code{font-size:12px;text-transform:none;letter-spacing:0}
 .tl-list summary{cursor:pointer;color:var(--text-2)}
 .tl-list table{margin-top:12px}
 .tl-list td.mono{font:13px var(--mono);overflow-wrap:anywhere;white-space:normal}
-.px-label.noted{display:flex;gap:6px;min-width:0}
+.px-label.noted{display:flex;flex-direction:column;min-width:0;line-height:1.3}
 .px-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-.px-note{flex:none;color:var(--muted);font:12px var(--mono)}
+.px-note{color:var(--muted);font:11px var(--mono)}
 .versus{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:24px;align-items:center;padding:24px;border:1px solid var(--line);border-radius:var(--radius);background:var(--panel)}
 .versus b{display:block;font-size:1.9rem;font-weight:600;letter-spacing:-.03em;line-height:1.1}
 .versus div:last-child{text-align:right}
@@ -283,7 +285,7 @@ details[open] summary::before{content:"− "}
 .why{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 12px;color:var(--text)}
 .why .micro{color:var(--accent)}
 .why .metric b{font-size:1.15rem}
-.more-actions{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+.more-actions{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;align-items:start}
 .more-actions li{display:grid;gap:6px;align-content:start;padding:20px;border:1px solid var(--line);border-radius:var(--radius);background:var(--panel)}
 .more-actions span:not(.micro){color:var(--text-2);font-size:15px}
 .learn{font-size:14px;color:var(--muted);overflow-wrap:anywhere}
@@ -358,7 +360,7 @@ tr.unpriced td:last-child{color:var(--accent)}
 /* ---------- motion ---------- */
 @keyframes rise{from{transform:translateY(14px)}}
 @keyframes lit{from{opacity:.35}}
-@keyframes grow{from{transform:scale(.7)}}
+@keyframes grow{from{transform:scale(.85)}}
 @media (prefers-reduced-motion:no-preference){
   .rise{animation:rise .9s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--d,0) * 110ms)}
   .px-hero g{animation:lit .45s ease-out both;animation-delay:calc(450ms + var(--w,0) * 32ms)}
@@ -376,8 +378,6 @@ tr.unpriced td:last-child{color:var(--accent)}
   .topbar{padding:20px 0}
   .topbar .micro{max-width:12ch;text-align:right}
   .tl-axis span.odd{display:none}
-  .px-label.noted{flex-direction:column;gap:0}
-  .px-label.noted .px-note{font-size:11px}
   .hook-grid{grid-template-columns:minmax(0,1fr);gap:36px;padding:3vh 0 28px}
   .numbers{grid-template-columns:repeat(2,minmax(0,1fr))}
   .number:nth-child(3){padding-left:0;border-left:0}

@@ -85,7 +85,7 @@ export function pixelHero(days: DayValue[]): SafeHtml | null {
   const height = rows * cell - gap;
   const active = days.filter((entry) => entry.value > 0).length;
   return html`<figure class="hero-art"><svg class="px-hero" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" aria-label="${`${plural(active, "active day")} out of ${plural(days.length, "day")}, one square per day`}">${raw(groups.join(""))}</svg>
-<figcaption class="micro">One square per day · brighter means more sessions</figcaption></figure>`;
+<figcaption class="micro">One square per day · brighter means more sessions started</figcaption></figure>`;
 }
 
 /** A labelled calendar for the rhythm chapter: weeks as columns, months on top, hover for the day. */
@@ -189,11 +189,11 @@ export function weekStacks(totals: number[]): SafeHtml | null {
       rects.push(`<rect x="${x}" y="${height - (row + 1) * cell}" width="${cell - gap}" height="${cell - gap}"/>`);
     }
     const cls = index === busiest ? "p4" : index >= 5 ? "p2" : "p3";
-    return html`<g class="${cls}" style="--w:${index}"><title>${["Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays", "Sundays"][index]}: ${plural(total, "session")}</title>${raw(rects.join(""))}</g><text class="lbl" x="${x + (cell - gap) / 2}" y="${height + 16}" text-anchor="middle">${DAY_LETTERS[index]}</text>`.value;
+    return html`<g class="${cls}" style="--w:${index}"><title>${["Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays", "Sundays"][index]}: ${plural(total, "session")} started</title>${raw(rects.join(""))}</g><text class="lbl" x="${x + (cell - gap) / 2}" y="${height + 16}" text-anchor="middle">${DAY_LETTERS[index]}</text>`.value;
   });
   const width = 6 * colWidth + 8 + cell - gap;
   return html`<figure class="viz week"><svg data-chart="weekdays" viewBox="0 0 ${width} ${height + 20}" role="img" aria-label="Sessions by day of the week">${raw(cols.join(""))}</svg>
-<figcaption class="micro">Sessions by weekday · 1 square = ${plural(unit, "session")}</figcaption></figure>`;
+<figcaption class="micro">Sessions started, by weekday · 1 square = ${plural(unit, "session")}</figcaption></figure>`;
 }
 
 /** One message in, many agent steps out. */
@@ -330,7 +330,7 @@ export function pixelBars(id: string, items: PixelBarItem[], limit: number, opti
   const shown = rows.slice(0, limit);
   const max = count(shown[0]!.value);
   return html`<ol class="px-bars${options.mono ? " mono" : ""}" data-chart="${id}">${shown.map(
-    (row, index) => html`<li>${row.note ? html`<span class="px-label noted" title="${`${row.title ?? row.label} · ${row.note}`}"><span class="px-name">${row.label}</span><span class="px-note">· ${row.note}</span></span>` : html`<span class="px-label" title="${row.title ?? row.label}">${row.label}</span>`}<span class="px-track"><span class="px-run${index === 0 ? " lead" : ""}" style="width:${pctText(Math.max(0.015, count(row.value) / max))}"></span></span><span class="px-value">${row.display}</span></li>`,
+    (row, index) => html`<li>${row.note ? html`<span class="px-label noted" title="${`${row.title ?? row.label} · ${row.note}`}"><span class="px-name">${row.label}</span><span class="px-note">${row.note}</span></span>` : html`<span class="px-label" title="${row.title ?? row.label}">${row.label}</span>`}<span class="px-track"><span class="px-run${index === 0 ? " lead" : ""}" style="width:${pctText(Math.max(0.015, count(row.value) / max))}"></span></span><span class="px-value">${row.display}</span></li>`,
   )}</ol>${rows.length > shown.length ? html`<p class="micro more">+ ${formatInt(rows.length - shown.length)} more</p>` : null}`;
 }
 
@@ -427,7 +427,7 @@ export function dayStacks(id: string, days: DayValue[]): SafeHtml | null {
     const rects: string[] = [];
     if (pixels === 0) rects.push(`<rect class="p0" x="${x}" y="${height - size}" width="${size}" height="${size}"/>`);
     for (let row = 0; row < pixels; row += 1) rects.push(`<rect x="${x}" y="${height - (row + 1) * cell + (cell - size)}" width="${size}" height="${size}"/>`);
-    const tip = entry.tooltip ?? `${formatDay(entry.day, { weekday: "short", month: "short", day: "numeric" })}: ${plural(entry.value, "session")}`;
+    const tip = entry.tooltip ?? `${formatDay(entry.day, { weekday: "short", month: "short", day: "numeric" })}: ${plural(entry.value, "session")} started`;
     return html`<g class="p${Math.max(2, level(entry.value))}" style="--w:${index}"><title>${tip}</title>${raw(rects.join(""))}</g>`.value;
   });
   const width = days.length * cell - (cell - size);
@@ -437,7 +437,7 @@ export function dayStacks(id: string, days: DayValue[]): SafeHtml | null {
     const isMonthStart = formatDay(entry.day, { day: "numeric" }) === "1";
     if (days.length <= 45 ? isMonday : isMonthStart) labels.push({ index, text: formatDay(entry.day, days.length <= 45 ? { month: "short", day: "numeric" } : { month: "short" }) });
   });
-  return html`<figure class="viz day-stacks"><div class="stack-wrap" style="width:${width}px"><svg data-chart="${id}" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" aria-label="${`Sessions per day over ${plural(days.length, "day")}`}">${raw(columns.join(""))}</svg>
+  return html`<figure class="viz day-stacks"><div class="stack-wrap" style="width:${width}px"><svg data-chart="${id}" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" aria-label="${`Sessions started per day over ${plural(days.length, "day")}`}">${raw(columns.join(""))}</svg>
 <div class="stack-axis" aria-hidden="true">${labels.map((label) => html`<span style="left:${pctText((label.index * cell) / width)}">${label.text}</span>`)}</div></div>
-<figcaption class="micro">Sessions per day · 1 square = ${plural(unit, "session")}${days.length <= 45 ? " · labels mark Mondays" : ""}</figcaption></figure>`;
+<figcaption class="micro">Sessions started per day · 1 square = ${plural(unit, "session")}${days.length <= 45 ? " · labels mark Mondays" : ""}</figcaption></figure>`;
 }
