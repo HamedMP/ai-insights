@@ -6,10 +6,49 @@ import { assistant, prompt, tempRoot, text, writeLines } from "./helpers.js";
 const lines = [prompt("2026-01-01T10:00:00Z", "hi"), assistant("2026-01-01T10:01:00Z", "m1", [text("hello")])];
 
 describe("claude source: finding history", () => {
-  it("looks in ~/.claude/projects, or under CLAUDE_CONFIG_DIR when set", () => {
-    expect(claudeDefaultRoots({}, "/home/me")).toEqual(["/home/me/.claude/projects", "/home/me/.config/claude/projects"]);
-    expect(claudeDefaultRoots({ CLAUDE_CONFIG_DIR: "/opt/claude" }, "/home/me")).toEqual(["/opt/claude/projects"]);
-    expect(claudeDefaultRoots({ CLAUDE_CONFIG_DIR: "/a, /b" }, "/home/me")).toEqual(["/a/projects", "/b/projects"]);
+  it("looks in ~/.claude/projects, the XDG location and Claude Desktop's session stores", () => {
+    expect(claudeDefaultRoots({}, "/Users/me", "darwin")).toEqual([
+      "/Users/me/.claude/projects",
+      "/Users/me/.config/claude/projects",
+      "/Users/me/Library/Application Support/Claude/local-agent-mode-sessions",
+      "/Users/me/Library/Application Support/Claude/claude-code-sessions",
+    ]);
+    expect(claudeDefaultRoots({ XDG_CONFIG_HOME: "/x" }, "/home/me", "linux").slice(1)).toEqual([
+      "/x/claude/projects",
+      "/x/Claude/local-agent-mode-sessions",
+      "/x/Claude/claude-code-sessions",
+    ]);
+    expect(claudeDefaultRoots({ APPDATA: "/c/Users/me/AppData/Roaming" }, "/c/Users/me", "win32").slice(2)).toEqual([
+      "/c/Users/me/AppData/Roaming/Claude/local-agent-mode-sessions",
+      "/c/Users/me/AppData/Roaming/Claude/claude-code-sessions",
+    ]);
+  });
+
+  it("reads CLAUDE_CONFIG_DIR as one literal directory, as Claude Code does, commas included", () => {
+    const desktop = ["/Users/me/Library/Application Support/Claude/local-agent-mode-sessions", "/Users/me/Library/Application Support/Claude/claude-code-sessions"];
+    expect(claudeDefaultRoots({ CLAUDE_CONFIG_DIR: "/opt/claude" }, "/Users/me", "darwin")).toEqual(["/opt/claude/projects", ...desktop]);
+    expect(claudeDefaultRoots({ CLAUDE_CONFIG_DIR: "/a,b" }, "/Users/me", "darwin")).toEqual(["/a,b/projects", ...desktop]);
+    expect(claudeDefaultRoots({ CLAUDE_CONFIG_DIR: "" }, "/Users/me", "darwin")[0]).toBe("/Users/me/.claude/projects");
+  });
+
+  it("finds Claude Desktop and Cowork transcripts nested in the session stores", async () => {
+    const store = join(tempRoot(), "..", "local-agent-mode-sessions");
+    writeLines(join(store, "acct", "org", "local_1", ".claude", "projects", "-sandbox", "cowork-1.jsonl"), lines);
+    // Workspace output and dependency folders are never searched.
+    writeLines(join(store, "acct", "org", "local_1", "outputs", ".claude", "projects", "-x", "stray.jsonl"), lines);
+    writeLines(join(store, "acct", "org", "local_1", "audit.jsonl"), lines);
+    const files = await claudeSource.discover({ roots: [store] });
+    expect(files.map((file) => file.path.split("/").pop())).toEqual(["cowork-1.jsonl"]);
+  });
+
+  it("lists a session found under two roots once, keeping the fuller copy", async () => {
+    const first = tempRoot();
+    const second = tempRoot();
+    writeLines(join(first, "-p", "same-session.jsonl"), lines.slice(0, 1));
+    writeLines(join(second, "-q", "same-session.jsonl"), lines);
+    writeLines(join(second, "-q", "other.jsonl"), lines);
+    const files = await claudeSource.discover({ roots: [first, second] });
+    expect(files.map((file) => file.path).sort()).toEqual([join(second, "-q", "other.jsonl"), join(second, "-q", "same-session.jsonl")]);
   });
 
   it("lists one file per session, newest first, without listing subagent transcripts as sessions", async () => {

@@ -1,6 +1,6 @@
 import { readdir, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import type { DiscoverOptions, Session, SessionFile, Source } from "../../schema/types.js";
 import { excerptClaudeTranscript } from "./excerpt.js";
 import { parseClaudeTranscript, subagentFiles } from "./parse.js";
@@ -8,18 +8,75 @@ import { parseClaudeTranscript, subagentFiles } from "./parse.js";
 const MAX_PROJECT_DIRS = 5_000;
 const MAX_FILES_SCANNED = 100_000;
 
+/** Claude Desktop keeps the Code and Cowork sessions it runs in these stores, each with embedded `.claude/projects` roots. */
+const DESKTOP_STORES = ["local-agent-mode-sessions", "claude-code-sessions"];
+
 /**
- * Claude Code writes transcripts to `$CLAUDE_CONFIG_DIR/projects` (default
- * `~/.claude/projects`). Some versions used the XDG location instead.
+ * Claude Desktop is an Electron app named "Claude", so its data lives in Electron's per-user `userData`
+ * folder: `~/Library/Application Support/Claude` on macOS, `%APPDATA%\\Claude` on Windows and
+ * `$XDG_CONFIG_HOME/Claude` (default `~/.config/Claude`) on Linux
+ * (https://www.electronjs.org/docs/latest/api/app#appgetpathname).
  */
-export function claudeDefaultRoots(env: NodeJS.ProcessEnv = process.env, home: string = homedir()): string[] {
-  const configured = (env.CLAUDE_CONFIG_DIR ?? "")
-    .split(",")
-    .map((part) => part.trim())
-    .filter(Boolean);
-  if (configured.length > 0) return configured.map((dir) => join(resolve(dir), "projects"));
+function desktopHome(env: NodeJS.ProcessEnv, home: string, platform: NodeJS.Platform): string {
+  if (platform === "darwin") return join(home, "Library", "Application Support", "Claude");
+  if (platform === "win32") return join(env.APPDATA?.trim() ? env.APPDATA.trim() : join(home, "AppData", "Roaming"), "Claude");
+  return join(env.XDG_CONFIG_HOME?.trim() ? env.XDG_CONFIG_HOME.trim() : join(home, ".config"), "Claude");
+}
+
+/**
+ * Claude Code writes transcripts to `$CLAUDE_CONFIG_DIR/projects`, default `~/.claude/projects`; some
+ * versions used the XDG location instead. Claude Code reads `CLAUDE_CONFIG_DIR` as one literal directory
+ * (`process.env.CLAUDE_CONFIG_DIR || ~/.claude`), so a comma is part of the path, not a separator.
+ * Claude Desktop's session stores are listed as well; `discover` finds the project roots nested in them.
+ */
+export function claudeDefaultRoots(env: NodeJS.ProcessEnv = process.env, home: string = homedir(), platform: NodeJS.Platform = process.platform): string[] {
+  const configured = env.CLAUDE_CONFIG_DIR;
   const xdg = env.XDG_CONFIG_HOME?.trim() ? env.XDG_CONFIG_HOME.trim() : join(home, ".config");
-  return [join(home, ".claude", "projects"), join(xdg, "claude", "projects")];
+  const cli = configured ? [join(resolve(configured), "projects")] : [join(home, ".claude", "projects"), join(xdg, "claude", "projects")];
+  const desktop = desktopHome(env, home, platform);
+  return [...cli, ...DESKTOP_STORES.map((store) => join(desktop, store))];
+}
+
+/** Folders inside a Desktop session store that hold workspace files, never transcripts. */
+const SKIPPED_DIRS = new Set([".build", ".git", "build", "DerivedData", "node_modules", "outputs", "target"]);
+const MAX_STORE_DEPTH = 4;
+const MAX_STORE_DIRS = 5_000;
+
+/** The `.claude/projects` roots nested in a Claude Desktop session store, breadth first and bounded. */
+async function desktopProjectRoots(store: string): Promise<string[]> {
+  const found: string[] = [];
+  let queue: string[] = [store];
+  let visited = 0;
+  for (let depth = 0; depth <= MAX_STORE_DEPTH && queue.length; depth += 1) {
+    const next: string[] = [];
+    for (const dir of queue) {
+      if (visited >= MAX_STORE_DIRS) return found;
+      visited += 1;
+      const entries = await listDir(dir);
+      for (const entry of entries) {
+        // Dirent.isDirectory() is false for symlinks, so links out of the store are not followed.
+        if (!entry.isDirectory()) continue;
+        if (entry.name === ".claude") {
+          const projects = join(dir, ".claude", "projects");
+          if ((await listDir(projects)).length) found.push(projects);
+          continue;
+        }
+        if (!SKIPPED_DIRS.has(entry.name)) next.push(join(dir, entry.name));
+      }
+    }
+    queue = next;
+  }
+  return found;
+}
+
+/** Roots to scan: a Desktop session store expands into its nested project roots; anything else is a projects root. */
+async function projectRoots(roots: string[]): Promise<string[]> {
+  const out: string[] = [];
+  for (const root of roots) {
+    if (DESKTOP_STORES.includes(basename(root))) out.push(...(await desktopProjectRoots(root)));
+    else out.push(root);
+  }
+  return out;
 }
 
 async function listDir(path: string) {
@@ -36,10 +93,12 @@ async function listDir(path: string) {
  * their parent, so they are not listed as sessions of their own.
  */
 async function discover(options: DiscoverOptions = {}): Promise<SessionFile[]> {
-  const roots = options.roots ?? claudeDefaultRoots();
+  const roots = await projectRoots(options.roots ?? claudeDefaultRoots());
   const sinceMs = options.since ? options.since.getTime() : Number.NEGATIVE_INFINITY;
   const seenRoots = new Set<string>();
   const files: SessionFile[] = [];
+  // Session id to the file kept for it and the root it came from: one session copied into two roots is listed once.
+  const bySession = new Map<string, { file: SessionFile; root: string }>();
   let scanned = 0;
 
   for (const root of roots) {
@@ -75,7 +134,19 @@ async function discover(options: DiscoverOptions = {}): Promise<SessionFile[]> {
             }
           }
           if (mtimeMs < sinceMs) continue;
-          files.push({ harness: "claude-code", path, mtimeMs, sizeBytes });
+          const file: SessionFile = { harness: "claude-code", path, mtimeMs, sizeBytes };
+          const sessionId = entry.name.slice(0, -".jsonl".length);
+          const kept = bySession.get(sessionId);
+          if (kept && kept.root !== real) {
+            // The fuller copy wins; requests are de-duplicated by response id downstream either way.
+            if (sizeBytes > kept.file.sizeBytes || (sizeBytes === kept.file.sizeBytes && mtimeMs > kept.file.mtimeMs)) {
+              files[files.indexOf(kept.file)] = file;
+              bySession.set(sessionId, { file, root: real });
+            }
+            continue;
+          }
+          if (!kept && bySession.size < MAX_FILES_SCANNED) bySession.set(sessionId, { file, root: real });
+          files.push(file);
         } catch {
           continue;
         }
@@ -98,7 +169,7 @@ async function parse(file: SessionFile): Promise<Session | null> {
 
 export const claudeSource: Source = {
   // Bump when the same transcript would parse to a different Session, so the store re-parses cached history.
-  parserVersion: "4",
+  parserVersion: "5",
   harness: "claude-code",
   label: "Claude Code",
   defaultRoots: () => claudeDefaultRoots(),
