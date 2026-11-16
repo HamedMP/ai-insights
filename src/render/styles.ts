@@ -123,6 +123,8 @@ svg .lbl{fill:var(--muted);font:500 11px var(--mono);letter-spacing:.04em}
 /* ---------- visuals ---------- */
 .viz{margin:0}
 .viz figcaption{margin-top:12px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.flow-viz .flow-def{grid-column:1/-1;margin:16px 0 0}
+.fan-def,.flow-def{flex-basis:100%;text-transform:none;letter-spacing:0;color:var(--text-2)}
 .clock svg{display:block;width:100%;max-width:330px;margin:0 auto}
 .clock .ring{fill:none;stroke:var(--line);stroke-width:1}
 .clock .clock-big{fill:var(--text);font:600 26px var(--font);letter-spacing:-.02em}
@@ -178,6 +180,7 @@ svg .lbl{fill:var(--muted);font:500 11px var(--mono);letter-spacing:.04em}
 .tl-axis span.last{transform:translateX(-100%)}
 .tl-idle{flex-basis:100%;color:var(--text-2)}
 .tl-list{margin-top:16px}
+.also-covers{margin:10px 0 0;color:var(--text-2);font-size:14px;padding-left:12px;border-left:2px solid var(--line-strong)}
 .micro.agreed,.action-body .micro.agreed{color:var(--accent);margin:2px 0 0}
 .copy-label{margin:14px 0 -4px;color:var(--muted)}
 .copy-label code{font-size:12px;text-transform:none;letter-spacing:0}
@@ -398,7 +401,7 @@ tr.unpriced td:last-child{color:var(--accent)}
   .flow-rows .micro{display:none}
   .flow-rows b{font-size:14px;white-space:nowrap}
   .week svg{max-width:240px}
-  .flow-total b{font-size:1.4rem}
+  .flow-total b{font-size:1.15rem}
   .flow-cost{font-size:12px}
   .px-bars li{grid-template-columns:minmax(0,7.5rem) minmax(0,1fr) auto;gap:10px}
   .sources-list li{grid-template-columns:minmax(0,1fr) auto;gap:4px 12px}

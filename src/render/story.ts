@@ -1,5 +1,5 @@
 import type { Coverage, Finding, FindingKind, Report, Suggestion } from "../schema/types.js";
-import { count, dayNumber, formatCompact, formatDay, formatHours, formatInt, formatUsd, plural, shortenPath } from "./format.js";
+import { count, dayNumber, formatCacheRate, formatCompact, formatDay, formatHours, formatInt, formatUsd, plural, shortenPath } from "./format.js";
 import { harnessLabel } from "./labels.js";
 
 /**
@@ -58,6 +58,13 @@ const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Satur
 /** Kinds that are opportunities or history notes, not problems. */
 export const NOT_A_PROBLEM: ReadonlySet<string> = new Set(["unused_feature", "history_disk_usage", "short_history", "single_harness_only"]);
 
+const OTHER_FINDING_PHRASES: Record<string, string> = {
+  history_disk_usage: "your history on disk",
+  short_history: "how far back your history goes",
+  unused_feature: "features you have not tried",
+  single_harness_only: "other coding agents",
+};
+
 const ERROR_PHRASES: Record<string, string> = {
   command_failed: "a failed command",
   file_not_found: "a missing file",
@@ -110,10 +117,19 @@ export function unpricedModelsText(models: string[], limit = 3): string {
   return models.length > limit ? `${shown.join(", ")} and ${models.length - limit} more` : list(shown);
 }
 
+/**
+ * Tool calls per message the person typed: the two totals the page shows side by side, so a
+ * reader can redo the division. (Assistant messages are not shown anywhere, so a ratio built
+ * on them could not be checked.)
+ */
+export function delegationRatio(report: Report): { toolCalls: number; messages: number; perMessage: number } | null {
+  const messages = count(report.activity.userMessages);
+  const toolCalls = (report.activity.toolCategories ?? []).reduce((sum, entry) => sum + count(entry.count), 0);
+  return messages > 0 && toolCalls > 0 ? { toolCalls, messages, perMessage: toolCalls / messages } : null;
+}
+
 function stepsPerMessage(report: Report): number | null {
-  const user = count(report.activity.userMessages);
-  const agent = count(report.activity.assistantMessages);
-  return user > 0 && agent > 0 ? agent / user : null;
+  return delegationRatio(report)?.perMessage ?? null;
 }
 
 function harnessNames(report: Report): string[] {
@@ -147,7 +163,7 @@ function headline(report: Report): Line {
   }
   const steps = stepsPerMessage(report);
   if (steps !== null && steps >= HEADLINE_MIN_STEPS) {
-    return [s("Every message you sent set off about "), b(`${formatInt(steps)} agent steps`), s(".")];
+    return [s("Every message you sent set off about "), b(`${formatInt(steps)} tool calls`), s(".")];
   }
   const days = count(activity.activeDays);
   if (wall === null) {
@@ -249,7 +265,7 @@ function delegationLine(report: Report): Line | null {
   const lines = count(report.activity.linesAdded) + count(report.activity.linesRemoved);
   const sessions = count(report.activity.sessions);
   const tail: Line = lines > 0 && sessions > 0 ? [s(", and your agents changed "), b(`${formatCompact(lines)} lines`), s(` across ${plural(sessions, "session")}.`)] : [s(".")];
-  return [s("Each message you send gets about "), b(`${formatInt(Math.max(1, steps))} agent ${Math.round(steps) === 1 ? "step" : "steps"}`), s(" back"), ...tail];
+  return [s("Each message you send sets off about "), b(`${formatInt(Math.max(1, steps))} ${Math.round(steps) === 1 ? "tool call" : "tool calls"}`), ...tail];
 }
 
 function parallelLine(report: Report): Line | null {
@@ -309,7 +325,7 @@ function tokensLine(report: Report): Line | null {
   const line: Line = [s("Your agents moved "), b(`${formatCompact(usage.tokens)} tokens`)];
   const rate = typeof usage.cacheHitRate === "number" && Number.isFinite(usage.cacheHitRate) ? usage.cacheHitRate : null;
   line.push(rate !== null ? s("; ") : s("."));
-  if (rate !== null) line.push(b(pct(rate)), s(" of their input came from cache."));
+  if (rate !== null) line.push(b(formatCacheRate(rate)), s(" of their input came from cache."));
   return line;
 }
 
@@ -346,6 +362,12 @@ function frictionLine(report: Report): Line | null {
   if (problems > 0) {
     if (line.length > 0) line.push(s(" "));
     line.push(s("Hindsight found "), b(plural(problems, "pattern")), s(problems === 1 ? " worth fixing; it is below." : " worth fixing; each is below."));
+    // Say what the remaining findings are, so this count and the report's total both make sense.
+    const others = [...new Set((report.findings ?? []).filter((finding) => NOT_A_PROBLEM.has(finding.kind)).map((finding) => OTHER_FINDING_PHRASES[finding.kind]!))];
+    const otherCount = (report.findings ?? []).length - problems;
+    if (otherCount > 0 && others.length > 0) {
+      line.push(s(` ${otherCount === 1 ? "The other finding is" : `The other ${formatInt(otherCount)} findings are`} about ${list(others)}.`));
+    }
   }
   return line.length > 0 ? line : null;
 }
@@ -445,6 +467,25 @@ export interface RankedAction {
   url?: string;
   /** True when the person's agent suggested the same idea in its review. */
   agreed?: boolean;
+  /** Findings folded into this card because analysis says they are mostly the same pattern; one line each. */
+  alsoCovers?: Array<{ suggestion: Suggestion; note: string }>;
+}
+
+/**
+ * The finding a demoted one folds into. Analysis ranks long_sessions down to `info` when most of
+ * those sessions also ran out of context, and says so in the detail; the fix for one fixes both,
+ * so the page shows one card. Read from the detail because the contract has no field for it.
+ */
+export function foldTarget(finding: Finding, findings: Finding[]): Finding | null {
+  if (finding.kind !== "long_sessions" || finding.severity !== "info") return null;
+  if (!/same pattern|context[- ]resets?|ran out of context/i.test(String(finding.detail ?? ""))) return null;
+  return findings.find((other) => other.kind === "context_resets" && usable(other.suggestion)) ?? null;
+}
+
+function foldNote(finding: Finding): string {
+  const metric = finding.metric && Number.isFinite(finding.metric.value) ? `${formatInt(finding.metric.value)} ${String(finding.metric.label || finding.metric.unit || "").trim()}` : finding.title.toLowerCase();
+  const title = finding.suggestion?.title ?? "";
+  return `Also covers the ${metric}, mostly the same sessions${title ? `: ${title.charAt(0).toLowerCase()}${title.slice(1)}` : ""}.`;
 }
 
 /** Kinds whose suggestion belongs to a closing card rather than the action list. */
@@ -489,13 +530,24 @@ export function rankActions(report: Report): { top: RankedAction[]; rest: Ranked
     cards.push(card);
     return card;
   };
+  const folded: Array<{ finding: Finding; into: Finding }> = [];
   for (const finding of report.findings ?? []) {
     if (CLOSING_KINDS.has(finding.kind) || !usable(finding.suggestion)) continue;
+    const into = foldTarget(finding, report.findings ?? []);
+    if (into) {
+      folded.push({ finding, into });
+      continue;
+    }
     const suggestion = finding.suggestion;
     const card = add({ suggestion, finding, why: finding.title, score: 0, base: SEVERITY_WEIGHT[finding.severity] ?? 0, order: order++, action: suggestion.action });
     if (suggestion.instructionText) card.instructionText = suggestion.instructionText;
     if (suggestion.url) card.url = suggestion.url;
     if (typeof finding.id === "string" && !byFinding.has(finding.id)) byFinding.set(finding.id, card);
+  }
+  for (const { finding, into } of folded) {
+    const card = byFinding.get(into.id) ?? cards.find((candidate) => candidate.finding === into);
+    if (card) (card.alsoCovers ??= []).push({ suggestion: finding.suggestion!, note: foldNote(finding) });
+    if (card && typeof finding.id === "string") byFinding.set(finding.id, card);
   }
   const findingsById = new Map((report.findings ?? []).filter((finding) => typeof finding.id === "string" && !CLOSING_KINDS.has(finding.kind)).map((finding) => [finding.id, finding] as const));
   for (const suggestion of report.narrative?.suggestions ?? []) {

@@ -4,7 +4,7 @@ import { chapter, panel, type RenderContext } from "../components.js";
 import { clip, count, dayNumber, formatBytes, formatCompact, formatDate, formatDay, formatHours, formatInt, formatSeconds, formatUsd, plural, shortenPath } from "../format.js";
 import { html, type SafeHtml } from "../html.js";
 import { harnessLabel, keyLabel } from "../labels.js";
-import { historyDaysOf, peakWindow, pricingGap, unpricedModelsText, weekdayTotals, type Line, type Story } from "../story.js";
+import { delegationRatio, historyDaysOf, peakWindow, pricingGap, unpricedModelsText, weekdayTotals, type Line, type Story } from "../story.js";
 import { buildTimeline, spanTimeline, type Timeline } from "../timeline.js";
 import { dayGrid, dayStacks, delegationFan, denseDays, dotColumns, hourClock, parallelFacts, pixelBars, sessionField, splitBar, tokenFlow, waffle, weekStacks } from "../visuals.js";
 import { tryThis, type ActionIndex } from "./common.js";
@@ -41,7 +41,7 @@ export function rhythmChapter({ context, story, tips, actions, index }: ChapterI
     (activity.daily ?? []).map((entry) => ({
       day: entry.day,
       value: entry.sessions,
-      tooltip: `${entry.day}: ${plural(count(entry.sessions), "session")} started, ${plural(count(entry.userMessages), "message")}, ${formatHours(entry.activeMinutes)} agent time`,
+      tooltip: `${entry.day}: ${plural(count(entry.sessions), "session")} started, ${plural(count(entry.userMessages), "message")}, ${formatHours(entry.activeMinutes)} with AI at work`,
     })),
     MAX_DAYS,
   ).map((entry) => {
@@ -66,7 +66,7 @@ export function rhythmChapter({ context, story, tips, actions, index }: ChapterI
 export function delegationChapter({ context, story, tips, actions, index }: ChapterInput): SafeHtml | null {
   const { activity } = context.report;
   if (!story.delegation) return null;
-  const steps = count(activity.assistantMessages) / Math.max(1, count(activity.userMessages));
+  const ratio = delegationRatio(context.report);
   const mix = waffle(
     "tool-mix",
     (activity.toolCategories ?? []).map((entry) => ({ label: CATEGORY_LABELS[entry.key] ?? keyLabel(String(entry.key)), value: count(entry.count) })),
@@ -93,7 +93,7 @@ export function delegationChapter({ context, story, tips, actions, index }: Chap
 <dt>Sessions with web search</dt><dd>${formatInt(features?.sessionsWithWeb ?? 0)} <span>of ${formatInt(sessions)}</span></dd>
 <dt>Context compactions</dt><dd>${formatInt(features?.compactions ?? 0)}</dd>
 </dl>${chips.length > 0 ? html`<div class="chips">${chips.map((chip) => html`<span class="chip">${chip.label}<b>${formatInt(chip.value)}</b></span>`)}</div>` : null}`;
-  const body = html`<div class="row">${panel("One message in", delegationFan(steps))}${panel("Where the steps go", mix)}</div>
+  const body = html`<div class="row">${panel("One message in", ratio ? delegationFan(ratio.perMessage, ratio.toolCalls, ratio.messages) : null)}${panel("Where the tool calls go", mix)}</div>
 <div class="row">${panel("When the agent stops", replies, { aside: `median ${formatSeconds(activity.medianResponseTimeSec)} before you reply` })}${panel("What you already use", using, { className: "features-in-use" })}</div>`;
   return chapter({ id: "delegation", index, kicker: "How you delegate", lead: story.delegation, body, tip: tryThis(tips.delegation, actions) });
 }
@@ -195,6 +195,7 @@ export function usageChapter({ context, story, tips, actions, index }: ChapterIn
       { key: "output", label: "Output", value: count(usage.output), note: "what the models wrote" },
     ],
     costLabel,
+    typeof usage.cacheHitRate === "number" && Number.isFinite(usage.cacheHitRate) ? usage.cacheHitRate : null,
   );
 
   const daily = usage.daily ?? [];

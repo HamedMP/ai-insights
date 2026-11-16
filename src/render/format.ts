@@ -68,6 +68,11 @@ export function formatSeconds(seconds: number | null | undefined): string {
   return `${trimZeros((s / 3600).toFixed(1))} h`;
 }
 
+/** The cache hit rate everywhere on the page: one source (`usage.cacheHitRate`), one decimal. */
+export function formatCacheRate(rate: number): string {
+  return `${(Math.round(num(rate) * 1000) / 10).toFixed(1)}%`;
+}
+
 export function plural(n: number, one: string, many = `${one}s`): string {
   return `${formatInt(n)} ${Math.round(num(n)) === 1 ? one : many}`;
 }

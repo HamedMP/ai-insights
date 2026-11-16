@@ -8,7 +8,12 @@ export type ActionIndex = Map<Suggestion, { anchor: string; rank: number }>;
 
 export function indexActions(actions: RankedAction[]): ActionIndex {
   const index: ActionIndex = new Map();
-  actions.forEach((action, position) => index.set(action.suggestion, { anchor: `action-${position + 1}`, rank: position + 1 }));
+  actions.forEach((action, position) => {
+    const entry = { anchor: `action-${position + 1}`, rank: position + 1 };
+    index.set(action.suggestion, entry);
+    // A folded finding's own "what to do" link lands on the card that now carries it.
+    for (const folded of action.alsoCovers ?? []) index.set(folded.suggestion, entry);
+  });
   return index;
 }
 

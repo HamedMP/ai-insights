@@ -1,4 +1,4 @@
-import { clip, count, dayNumber, formatCompact, formatDay, formatInt, plural } from "./format.js";
+import { clip, count, dayNumber, formatCacheRate, formatCompact, formatDay, formatInt, plural } from "./format.js";
 import { html, raw, type SafeHtml } from "./html.js";
 import { weekday } from "./charts.js";
 
@@ -197,7 +197,8 @@ export function weekStacks(totals: number[]): SafeHtml | null {
 }
 
 /** One message in, many agent steps out. */
-export function delegationFan(steps: number): SafeHtml {
+/** One message fanning out into its tool calls; the caption carries the division behind the number. */
+export function delegationFan(steps: number, toolCalls: number, messages: number): SafeHtml {
   const shown = Math.max(1, Math.min(64, Math.round(steps)));
   const perRow = 8;
   const cell = 14;
@@ -218,8 +219,8 @@ export function delegationFan(steps: number): SafeHtml {
     lines.push(`<path class="fan" d="M44 ${r2(midY)}C96 ${r2(midY)} 100 ${y} ${gridX - 8} ${y}"/>`);
   }
   const more = Math.round(steps) > shown ? html`<text class="lbl" x="${gridX + perRow * cell + 4}" y="${r2(height - 4)}">+${formatInt(Math.round(steps) - shown)}</text>` : html``;
-  return html`<figure class="viz fan-viz"><svg data-chart="delegation" viewBox="0 0 ${gridX + perRow * cell + 34} ${height}" role="img" aria-label="${`One message from you leads to about ${formatInt(steps)} agent steps`}">${raw(lines.join(""))}<rect class="p5" x="12" y="${r2(midY - 16)}" width="32" height="32"/>${raw(squares.join(""))}${more}</svg>
-<figcaption class="micro"><span>1 message from you</span><span>≈ ${formatInt(steps)} agent steps</span></figcaption></figure>`;
+  return html`<figure class="viz fan-viz"><svg data-chart="delegation" viewBox="0 0 ${gridX + perRow * cell + 34} ${height}" role="img" aria-label="${`One message from you leads to about ${formatInt(steps)} tool calls`}">${raw(lines.join(""))}<rect class="p5" x="12" y="${r2(midY - 16)}" width="32" height="32"/>${raw(squares.join(""))}${more}</svg>
+<figcaption class="micro"><span>1 message from you</span><span>≈ ${formatInt(steps)} tool calls</span><span class="fan-def">${formatInt(toolCalls)} tool calls ÷ ${plural(messages, "message")} you typed</span></figcaption></figure>`;
 }
 
 export interface WaffleItem {
@@ -356,7 +357,7 @@ export interface FlowStream {
  * Band thickness uses a square-root scale so a 97% stream does not erase the rest;
  * the exact numbers sit beside every band.
  */
-export function tokenFlow(total: number, streams: FlowStream[], costLabel: string | null): SafeHtml | null {
+export function tokenFlow(total: number, streams: FlowStream[], costLabel: string | null, cacheHitRate: number | null = null): SafeHtml | null {
   const rows = streams.filter((stream) => count(stream.value) > 0);
   const sum = rows.reduce((acc, stream) => acc + count(stream.value), 0);
   if (sum <= 0) return null;
@@ -383,6 +384,9 @@ export function tokenFlow(total: number, streams: FlowStream[], costLabel: strin
 <ol class="flow-rows">${rows.map(
     (stream, index) => html`<li style="height:${rowHeight}px"><i class="sw f${index}"></i><div><b>${stream.label}</b><span class="flow-num">${formatCompact(stream.value)} · ${pctText(count(stream.value) / sum)}</span><span class="micro">${stream.note}</span></div></li>`,
   )}</ol>
+<p class="micro flow-def">Percentages are shares of all ${formatCompact(sum)} tokens.${
+    cacheHitRate !== null ? ` Cache hit rate ${formatCacheRate(cacheHitRate)}: cache reads ÷ all input, cache writes included.` : ""
+  }</p>
 </div>`;
 }
 
