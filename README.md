@@ -66,7 +66,7 @@ Then start a new session and ask your agent to **analyze my AI usage** (or run `
 
 | Harness | Where |
 | --- | --- |
-| Claude Code | `~/.claude/projects/**/*.jsonl` (or under `CLAUDE_CONFIG_DIR`) |
+| Claude Code | `~/.claude/projects/**/*.jsonl` (or under `CLAUDE_CONFIG_DIR`), `~/.config/claude/projects`, and Claude Desktop's Code and Cowork session stores |
 | Codex | `~/.codex/sessions` and `~/.codex/archived_sessions` (or under `CODEX_HOME`) |
 | OpenCode | `~/.local/share/opencode/opencode.db` (or `OPENCODE_DB`, `XDG_DATA_HOME`), plus the older `storage/` files. The database needs Node 22.5 or later. |
 | Pi | `~/.pi/agent/sessions` (or `PI_CODING_AGENT_DIR`, `PI_CODING_AGENT_SESSION_DIR`), and OMP's `~/.omp` sessions and profiles |
@@ -116,3 +116,5 @@ Bugs and ideas go to [GitHub issues](https://github.com/hamedmp/ai-insights/issu
 ## License
 
 MIT
+
+Token accounting draws on [CodexBar](https://github.com/steipete/CodexBar) (MIT, Peter Steinberger): where Claude Desktop keeps its session stores, and how to recognise a proxy's incomplete Claude usage record.

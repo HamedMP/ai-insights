@@ -298,7 +298,8 @@ class SessionBuilder {
     }
     // A proxy's placeholder for a response still in flight: explicit null stop reason, the prompt as plain input,
     // no output and no cache counters. Its input is not the billed split, so it never counts on its own and a
-    // completed copy replaces it instead of merging with it.
+    // completed copy replaces it instead of merging with it. The signature is CodexBar's (docs/claude.md,
+    // https://github.com/steipete/CodexBar, MIT).
     const placeholder = m.stop_reason === null && usage.input > 0 && usage.output === 0 && usage.cachedInput === 0 && usage.cacheWrite === 0;
     if (placeholder) {
       if (!this.requests.has(id) && this.placeholders.size < CAPS.requests) this.placeholders.add(id);

@@ -8,7 +8,12 @@ import { parseClaudeTranscript, subagentFiles } from "./parse.js";
 const MAX_PROJECT_DIRS = 5_000;
 const MAX_FILES_SCANNED = 100_000;
 
-/** Claude Desktop keeps the Code and Cowork sessions it runs in these stores, each with embedded `.claude/projects` roots. */
+/**
+ * Claude Desktop keeps the Code and Cowork sessions it runs in these stores, each with embedded `.claude/projects`
+ * roots. The store names, search depth and skipped folders follow CodexBar's ClaudeDesktopProjectsLocator
+ * (https://github.com/steipete/CodexBar, MIT). Cowork's `audit.jsonl` files are not read: on the history this was
+ * checked against they repeated the embedded transcripts' responses and nothing else.
+ */
 const DESKTOP_STORES = ["local-agent-mode-sessions", "claude-code-sessions"];
 
 /**
