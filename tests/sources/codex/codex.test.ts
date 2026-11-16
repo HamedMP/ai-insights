@@ -16,6 +16,7 @@ import {
   rolloutName,
   shell,
   tokenCount,
+  tokenCountWithLast,
   Tree,
   turnContext,
   userMessage,
@@ -218,6 +219,74 @@ describe("codex token usage", () => {
     ]);
     expect(session.requests.every((request) => request.model === "gpt-test")).toBe(true);
     expect(session.issues).toBe(1);
+  });
+
+  it("keeps counting when a rewritten thread restarts its counter from zero below the old high-water mark", async () => {
+    const session = await parseOne([
+      meta(uuid(1)),
+      turnContext("gpt-test"),
+      ...userMessage("go"),
+      tokenCountWithLast([1000, 200, 50], [1000, 200, 50]),
+      tokenCountWithLast([3000, 1200, 150], [2000, 1000, 100]),
+      // The counter starts again: the snapshot is exactly its own latest response, so it continues from zero.
+      tokenCountWithLast([400, 100, 20], [400, 100, 20]),
+      tokenCountWithLast([900, 300, 30], [500, 200, 10]),
+      // Replays of snapshots already seen are not usage.
+      tokenCountWithLast([900, 300, 30], [500, 200, 10]),
+      tokenCountWithLast([3000, 1200, 150], [2000, 1000, 100]),
+    ]);
+    expect(session.requests.map((request) => [request.usage.input, request.usage.cachedInput, request.usage.output])).toEqual([
+      [800, 200, 50],
+      [1000, 1000, 100],
+      [300, 100, 20],
+      [300, 200, 10],
+    ]);
+    expect(session.issues).toBe(0);
+  });
+
+  it("never counts the gap between two interleaved counter lineages", async () => {
+    const session = await parseOne([
+      meta(uuid(1)),
+      turnContext("gpt-test"),
+      ...userMessage("go"),
+      tokenCountWithLast([10_000, 0, 100], [10_000, 0, 100]),
+      tokenCountWithLast([500, 0, 10], [500, 0, 10]),
+      // Back on the first lineage: only this response's own 1,000 tokens are new, not the 10,500 gap.
+      tokenCountWithLast([11_000, 0, 110], [1000, 0, 10]),
+      tokenCountWithLast([800, 0, 20], [300, 0, 10]),
+    ]);
+    expect(session.requests.map((request) => request.usage.input + request.usage.cachedInput)).toEqual([10_000, 500, 1000, 300]);
+  });
+
+  it("still refuses a backwards counter whose own latest usage does not explain it", async () => {
+    const session = await parseOne([
+      meta(uuid(1)),
+      turnContext("gpt-test"),
+      ...userMessage("go"),
+      tokenCountWithLast([3000, 0, 100], [3000, 0, 100]),
+      tokenCountWithLast([2900, 0, 90], [100, 0, 5]),
+    ]);
+    expect(session.requests).toHaveLength(1);
+    expect(session.issues).toBe(1);
+  });
+
+  it("records the service tier a thread's settings selected for the turns that follow", async () => {
+    const settings = (serviceTier: string) => event({ type: "thread_settings_applied", thread_settings: { model: "gpt-test", service_tier: serviceTier } });
+    const session = await parseOne([
+      meta(uuid(1)),
+      settings("priority"),
+      event({ type: "task_started", turn_id: "t1" }),
+      turnContext("gpt-test", { turn_id: "t1" }),
+      ...userMessage("go"),
+      tokenCountWithLast([1000, 0, 10], [1000, 0, 10]),
+      // A change mid-turn applies from the next turn.
+      settings("default"),
+      tokenCountWithLast([2000, 0, 20], [1000, 0, 10]),
+      event({ type: "task_started", turn_id: "t2" }),
+      turnContext("gpt-test", { turn_id: "t2" }),
+      tokenCountWithLast([3000, 0, 30], [1000, 0, 10]),
+    ]);
+    expect(session.requests.map((request) => request.serviceTier ?? "standard")).toEqual(["priority", "priority", "standard"]);
   });
 
   it("counts a response once when both a native record and a cumulative counter describe it", async () => {
@@ -525,6 +594,6 @@ describe("codex excerpts", () => {
 
 describe("codex parser version", () => {
   it("declares a parser version so the store re-parses cached history after a parser fix", () => {
-    expect(codexSource.parserVersion).toBe("3");
+    expect(codexSource.parserVersion).toBe("4");
   });
 });

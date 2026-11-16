@@ -39,6 +39,13 @@ const MAX_RESPONSE_GAP_SEC = 24 * 60 * 60;
 const MAX_MODELS = 50;
 const MAX_TURN_MODELS = 20_000;
 
+/** A recorded service tier that can change the price; the standard tier (and none) is undefined. */
+function priceTier(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const tier = value.trim().toLowerCase().slice(0, 40);
+  return !tier || tier === "default" || tier === "standard" || tier === "auto" ? undefined : tier;
+}
+
 /** What kind of thread a rollout holds. Guardian reviews and spawned subagents belong to a parent. */
 export type ThreadKind = "main" | "guardian" | "subagent";
 
@@ -173,6 +180,9 @@ export class RolloutBuilder {
   private permissionMode: string | null = null;
   private planMode = false;
   private sawTurnEvents = false;
+  /** The tier the current turn runs on, and the one the latest settings chose for the next turn. Absent: standard. */
+  private serviceTier: string | undefined;
+  private pendingTier: string | undefined;
 
   private state: TurnState = { turnOpen: false, lastDoneMs: null, interruptions: 0 };
   private tracks = { item: new PromptTrack(), event: new PromptTrack(), response: new PromptTrack() };
@@ -238,7 +248,7 @@ export class RolloutBuilder {
         this.readEvent(payload, record, time);
         break;
       case "token_usage_record":
-        this.usage.push(record, this.modelFor(payload.turn_id));
+        this.usage.push(record, this.modelFor(payload.turn_id), this.serviceTier);
         break;
       case "compacted":
         this.compacted += 1;
@@ -274,6 +284,8 @@ export class RolloutBuilder {
   }
 
   private readTurnContext(payload: Record<string, unknown>): void {
+    if (typeof payload.service_tier === "string" && payload.service_tier) this.pendingTier = priceTier(payload.service_tier);
+    this.serviceTier = this.pendingTier;
     const model = str(payload.model);
     if (model) {
       this.model = model;
@@ -496,9 +508,16 @@ export class RolloutBuilder {
         this.readItem(obj(payload.item), payload, time);
         return;
       case "token_count":
-        this.usage.push(record, this.modelFor(payload.turn_id));
+        this.usage.push(record, this.modelFor(payload.turn_id), this.serviceTier);
         return;
+      case "thread_settings_applied": {
+        // Settings apply to new turns, so a change made mid-turn waits for the next one.
+        const settings = obj(payload.thread_settings);
+        this.pendingTier = priceTier(settings.service_tier);
+        return;
+      }
       case "task_started":
+        this.serviceTier = this.pendingTier;
         this.sawTurnEvents = true;
         this.state.turnOpen = true;
         if (payload.collaboration_mode_kind === "plan") this.planMode = true;

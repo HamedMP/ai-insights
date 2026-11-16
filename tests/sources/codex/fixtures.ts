@@ -51,6 +51,12 @@ export function shell(callId: string, command: string, exitCode: number, output 
   ];
 }
 
+/** A cumulative counter that also reports the latest response's own usage, as current Codex builds do. */
+export function tokenCountWithLast(total: [number, number, number], last: [number, number, number]): Rec {
+  const usage = ([input, cached, output]: [number, number, number]) => ({ input_tokens: input, cached_input_tokens: cached, output_tokens: output, total_tokens: input + output });
+  return event({ type: "token_count", info: { total_token_usage: usage(total), last_token_usage: usage(last), model_context_window: 272000 } });
+}
+
 export function tokenCount(input: number, cached: number, output: number): Rec {
   return event({
     type: "token_count",

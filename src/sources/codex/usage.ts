@@ -3,13 +3,24 @@
  *
  * Codex records usage two ways. Newer builds write a `token_usage_record` per model response with a
  * native response id. Every build writes `event_msg`/`token_count` with cumulative thread counters.
- * Cumulative counters become per-request deltas against a high-water mark; when native records exist,
- * the counter ranges they already cover are subtracted so a response is counted once.
+ * Cumulative counters become per-request deltas; when native records exist, the counter ranges they
+ * already cover are subtracted so a response is counted once.
+ *
+ * A cumulative snapshot can go backwards: a resumed or rewritten thread restarts its counter, and a
+ * thread can interleave snapshots from more than one counter lineage. Each `token_count` also reports
+ * the latest response's own usage (`last_token_usage`), so a snapshot names its predecessor: total minus
+ * last. A snapshot already seen is a replay and counts nothing. A new snapshot whose predecessor is a
+ * snapshot already seen (or zero, a fresh counter) is one new response on that lineage and counts its
+ * own usage, wherever the lineage sits relative to the others; the gap between lineages is never usage.
+ * Only when the predecessor is unknown does the delta fall back to the previous snapshot, and a
+ * backwards counter that nothing explains is skipped and counted as an issue.
  */
 import type { ModelRequest } from "../../schema/types.js";
 import type { RawRecord } from "./read.js";
 
 export const MAX_REQUESTS = 50_000;
+/** Snapshots remembered per rollout for replay and lineage detection; past this, the plain delta rule applies. */
+export const MAX_SNAPSHOTS = 60_000;
 
 type Counters = { input: number; cached: number; output: number };
 const FIELDS = ["input", "cached", "output"] as const;
@@ -25,6 +36,7 @@ export interface UsageEvent {
   output: number;
   sourceKind: "response" | "cumulative";
   cumulative?: Counters;
+  serviceTier?: string;
 }
 
 const obj = (value: unknown): Record<string, unknown> =>
@@ -33,6 +45,22 @@ const str = (value: unknown, fallback = ""): string =>
   typeof value === "string" && value.length > 0 && value.length <= 256 ? value : fallback;
 
 class BadCounter extends Error {}
+
+const key = (counters: Counters): string => `${counters.input}:${counters.cached}:${counters.output}`;
+const minus = (a: Counters, b: Counters): Counters => ({ input: a.input - b.input, cached: a.cached - b.cached, output: a.output - b.output });
+
+/** The latest response's own usage, or null when the record does not carry a usable one. */
+function lastUsage(value: unknown): Counters | null {
+  const usage = obj(value);
+  if (typeof usage.input_tokens !== "number" || typeof usage.output_tokens !== "number") return null;
+  try {
+    const counters = { input: count(usage.input_tokens), cached: count(usage.cached_input_tokens), output: count(usage.output_tokens) };
+    return counters.cached > counters.input ? null : counters;
+  } catch (error) {
+    if (error instanceof BadCounter) return null;
+    throw error;
+  }
+}
 
 function count(value: unknown): number {
   if (value === undefined || value === null) return 0;
@@ -45,6 +73,7 @@ export class UsageParser {
   private session: string;
   private nativeTotals: Counters | undefined;
   private previous: Counters = { input: 0, cached: 0, output: 0 };
+  private snapshots = new Set<string>(["0:0:0"]);
   private inherited = false;
   private readonly events = new Map<string, UsageEvent>();
   issues = 0;
@@ -65,8 +94,8 @@ export class UsageParser {
     this.inherited = true;
   }
 
-  /** `model` is whatever the caller knows to be active for this record's turn. */
-  push(record: RawRecord, model: string): void {
+  /** `model` and `serviceTier` are whatever the caller knows to be active for this record's turn. */
+  push(record: RawRecord, model: string, serviceTier?: string): void {
     const payload = obj(record.payload);
     const isNative = record.type === "token_usage_record";
     const isCumulative = record.type === "event_msg" && payload.type === "token_count";
@@ -75,6 +104,7 @@ export class UsageParser {
     try {
       if (!timestamp) throw new BadCounter();
       const event = isNative ? this.native(payload, model, timestamp) : this.cumulative(payload, model, timestamp);
+      if (event && serviceTier) event.serviceTier = serviceTier;
       if (event) this.add(event);
     } catch (error) {
       if (!(error instanceof BadCounter)) throw error;
@@ -94,6 +124,7 @@ export class UsageParser {
     if (session !== this.session) {
       this.session = session;
       this.previous = { input: 0, cached: 0, output: 0 };
+      this.snapshots = new Set(["0:0:0"]);
     }
     const event: UsageEvent = {
       id: `codex-response:${id}`,
@@ -132,42 +163,50 @@ export class UsageParser {
     if (this.inherited) {
       this.inherited = false;
       this.previous = next;
+      this.remember(next);
       return null;
     }
     const native = this.nativeTotals;
     if (native && next.input === native.input && next.cached === native.cached && next.output === native.output) {
       this.previous = next;
+      this.remember(next);
       return null;
     }
-    // A counter that goes backwards is a reset (a resumed or rewritten thread), never negative usage.
-    // The high-water mark stays, so replayed counters below it are not counted twice.
-    if (
-      next.cached > next.input ||
-      next.input < this.previous.input ||
-      next.cached < this.previous.cached ||
-      next.output < this.previous.output
-    ) {
+    if (next.cached > next.input) throw new BadCounter();
+    if (this.snapshots.has(key(next))) {
+      this.previous = next;
+      return null;
+    }
+    const last = lastUsage(info.last_token_usage);
+    const predecessor = last && FIELDS.every((field) => next[field] >= last[field]) ? minus(next, last) : null;
+    let delta: Counters;
+    if (last && predecessor && this.snapshots.has(key(predecessor))) delta = last;
+    else if (FIELDS.every((field) => next[field] >= this.previous[field])) delta = minus(next, this.previous);
+    else {
+      // Backwards, and the snapshot's own latest usage does not lead back to anything seen: not countable.
       this.issues += 1;
       return null;
     }
-    const input = next.input - this.previous.input;
-    const cached = next.cached - this.previous.cached;
-    const output = next.output - this.previous.output;
-    if (input === 0 && cached === 0 && output === 0) return null;
-    if (cached > input) throw new BadCounter();
     this.previous = next;
+    this.remember(next);
+    if (delta.input === 0 && delta.cached === 0 && delta.output === 0) return null;
+    if (delta.cached > delta.input) throw new BadCounter();
     return {
       id: `codex:${this.session}:${next.input}:${next.cached}:${next.output}`,
       session: this.session,
       model,
       timestamp,
-      input: input - cached,
-      cachedInput: cached,
+      input: delta.input - delta.cached,
+      cachedInput: delta.cached,
       cacheWrite: 0,
-      output,
+      output: delta.output,
       sourceKind: "cumulative",
       cumulative: { ...next },
     };
+  }
+
+  private remember(counters: Counters): void {
+    if (this.snapshots.size < MAX_SNAPSHOTS) this.snapshots.add(key(counters));
   }
 
   private add(event: UsageEvent): void {
@@ -196,6 +235,7 @@ export class UsageParser {
         timestamp: event.timestamp,
         model: event.model,
         usage: { input: event.input, cachedInput: event.cachedInput, cacheWrite: event.cacheWrite, output: event.output },
+        ...(event.serviceTier ? { serviceTier: event.serviceTier } : {}),
       }));
   }
 }
