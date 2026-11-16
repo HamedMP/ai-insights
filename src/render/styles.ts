@@ -1,5 +1,5 @@
 /**
- * Hindsight's look: a near-black canvas (or warm paper in light mode), one ember
+ * AI Insights' look: a near-black canvas (or warm paper in light mode), one ember
  * accent, and the pixel as the motif. Every colour is a token; the light theme is
  * its own palette, not an inversion. Text tokens hold at least 4.5:1 on their
  * surfaces. Motion is CSS only, off for reduced motion and print.

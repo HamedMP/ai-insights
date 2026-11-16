@@ -37,10 +37,10 @@ jobs:
 
       - run: pnpm typecheck
 
-      # Static export under /hindsight; the build fails if the export would load anything from another host.
+      # Static export under /ai-insights; the build fails if the export would load anything from another host.
       - run: pnpm build
         env:
-          PAGES_BASE_PATH: /hindsight
+          PAGES_BASE_PATH: /ai-insights
 
       - uses: actions/configure-pages@v5
 

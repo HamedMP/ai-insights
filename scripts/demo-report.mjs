@@ -6,7 +6,7 @@
 //
 // Everything here is synthetic: invented projects (acme-api, web-app, ...), invented prompts,
 // generated session ids and a fixed seed and clock, so the output is the same on every run.
-// Nothing is read from ~/.claude, ~/.codex or ~/.hindsight. The sessions go through the real
+// Nothing is read from ~/.claude, ~/.codex, ~/.ai-insights or ~/.hindsight. The sessions go through the real
 // analysis (`buildReport`) and renderer, so findings, wording and charts match the product.
 // Needs Node 22.18+ (built-in TypeScript type stripping and module.registerHooks).
 import { mkdirSync, writeFileSync } from "node:fs";

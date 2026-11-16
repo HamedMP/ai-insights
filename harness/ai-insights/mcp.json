@@ -1,12 +1,12 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
   "mcpServers": {
-    "hindsight": {
+    "ai-insights": {
       "type": "stdio",
       "command": "npx",
       "args": [
         "-y",
-        "@matrix-os/hindsight",
+        "ai-insights",
         "mcp"
       ]
     }

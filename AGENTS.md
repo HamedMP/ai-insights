@@ -1,13 +1,13 @@
-# Hindsight
+# AI Insights
 
-Hindsight reads a person's local AI coding-agent history (Claude Code, Codex, later Cursor, Pi, OpenCode) and turns it into insights and actionable tips. It ships as an npm package (`@matrix-os/hindsight`) with a CLI, a stdio MCP server, agent skills, and plugin manifests for each harness. `CLAUDE.md` points here.
+AI Insights reads a person's local AI coding-agent history (Claude Code, Codex, later Cursor, Pi, OpenCode) and turns it into insights and actionable tips. It ships as an npm package (`ai-insights`) with a CLI, a stdio MCP server, agent skills, and plugin manifests for each harness. `CLAUDE.md` points here.
 
 ## How it works
 
 1. **Sources** (`src/sources/<harness>/`) discover transcripts and parse each into a `Session`: numbers, tool metadata and the person's own prompts. No assistant text, no tool output.
-2. **Store** (`src/store/`) caches parsed sessions, facets and reports under `~/.hindsight/` (`HINDSIGHT_HOME` overrides).
+2. **Store** (`src/store/`) caches parsed sessions, facets and reports under `~/.ai-insights/` (`AI_INSIGHTS_HOME` overrides; an existing pre-0.2 `~/.hindsight/` and `HINDSIGHT_HOME` are still used, see `resolveHome`).
 3. **Analysis** (`src/analysis/`) turns sessions into a `Report`: activity, token usage and cost, and deterministic `Finding`s with evidence. No model involved.
-4. **Model-run pass**: the insights skill has the person's own agent read redacted excerpts through the MCP server, write one `SessionFacet` per session using the fixed taxonomy, then a `Narrative`. Hindsight never calls a model API itself.
+4. **Model-run pass**: the `analyze-ai-usage` skill has the person's own agent read redacted excerpts through the MCP server, write one `SessionFacet` per session using the fixed taxonomy, then a `Narrative`. AI Insights never calls a model API itself.
 5. **Render** (`src/render/`) writes one self-contained HTML report.
 6. **MCP + CLI** (`src/mcp/`, `src/cli/`) expose all of it.
 

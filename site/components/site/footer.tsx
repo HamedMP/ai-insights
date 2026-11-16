@@ -7,7 +7,7 @@ export function Footer() {
       <div className="mx-auto flex max-w-6xl flex-col gap-10 px-4 py-14 md:flex-row md:items-end md:justify-between md:px-8">
         <div className="flex flex-col gap-1.5 font-mono text-[13px]">
           <span className="group/logo mb-3 inline-flex items-center gap-2.5 font-sans text-base font-semibold tracking-tight">
-            <LogoMark className="size-6" /> hindsight
+            <LogoMark className="size-6" /> ai insights
           </span>
           <span className="mono-comment">look back at how you work with AI coding agents</span>
           <span className="mono-comment">

@@ -19,7 +19,7 @@ import {
 
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const SKILLS = join(ROOT, "skills");
-const REQUIRED = ["hindsight", "hindsight-coach", "hindsight-setup"];
+const REQUIRED = ["analyze-ai-usage", "ai-insights-coach", "ai-insights-setup"];
 
 // The facet fields a skill may list values for, mapped to the contract array the values must come from.
 const FACET_FIELDS: Record<string, readonly string[]> = {
@@ -48,15 +48,15 @@ const TAXONOMY = new Set<string>([
   ...TOOL_ERROR_CATEGORIES,
 ]);
 
-// The MCP tools the integration brief defines. A skill naming any other `hindsight_*` tool would send the agent after something that does not exist.
+// The MCP tools the integration brief defines. A skill naming any other `ai_insights_*` tool would send the agent after something that does not exist.
 const MCP_TOOLS = new Set([
-  "hindsight_scan",
-  "hindsight_report",
-  "hindsight_sessions",
-  "hindsight_excerpt",
-  "hindsight_save_facets",
-  "hindsight_save_narrative",
-  "hindsight_render",
+  "ai_insights_scan",
+  "ai_insights_report",
+  "ai_insights_sessions",
+  "ai_insights_excerpt",
+  "ai_insights_save_facets",
+  "ai_insights_save_narrative",
+  "ai_insights_render",
 ]);
 
 function skillDirs(): string[] {
@@ -126,7 +126,7 @@ describe("skills", () => {
     for (const skill of skillDirs()) {
       for (const span of codeSpans(read(skill))) {
         if (!/^[a-z]+(?:_[a-z0-9]+)+$/.test(span)) continue;
-        if (span.startsWith("hindsight_")) {
+        if (span.startsWith("ai_insights_")) {
           expect(MCP_TOOLS, `${skill} names tool ${span}`).toContain(span);
         } else {
           expect(TAXONOMY, `${skill} names ${span}`).toContain(span);
@@ -135,15 +135,22 @@ describe("skills", () => {
     }
   });
 
+  it("the main skill is found by the words people use for it, including the old name", () => {
+    const description = read("analyze-ai-usage").match(/^description:(.*)$/m)?.[1] ?? "";
+    for (const phrase of ["analyze my AI usage", "AI insights", "how do I use my coding agents", "hindsight"]) {
+      expect(description.toLowerCase(), phrase).toContain(phrase.toLowerCase());
+    }
+  });
+
   it("the main skill walks the whole flow with the real tool names", () => {
-    const text = read("hindsight");
+    const text = read("analyze-ai-usage");
     for (const tool of MCP_TOOLS) expect(text, tool).toContain(`\`${tool}\``);
     expect(text).toMatch(/nothing is uploaded|nothing leaves/i);
     expect(text).toMatch(/Matrix OS/);
   });
 
   it("facet budget goes to sessions that matter: spread sampling, skipped sessions reported, excerpts kept small", () => {
-    const text = read("hindsight");
+    const text = read("analyze-ai-usage");
     expect(text).toMatch(/spread/i);
     expect(text).not.toMatch(/missing a facet, newest first|no facet, newest first/i);
     expect(text).toMatch(/skipped/i);
@@ -152,7 +159,7 @@ describe("skills", () => {
   });
 
   it("the narrative is written from the digest and matches the findings' period and harnesses", () => {
-    const text = read("hindsight");
+    const text = read("analyze-ai-usage");
     expect(text).toMatch(/digest/i);
     expect(text).toMatch(/same period and harnesses/i);
     expect(text).toMatch(/headline/);
@@ -161,19 +168,19 @@ describe("skills", () => {
   });
 
   it("explains when to use drivenBy, in_progress, orchestration and tooling", () => {
-    const text = read("hindsight");
+    const text = read("analyze-ai-usage");
     for (const term of ["`drivenBy`", "`in_progress`", "`orchestration`", "`tooling`"]) expect(text, term).toContain(term);
     expect(text).toMatch(/role `agent`|`agent` role|agent turns/i);
   });
 
   it("the coach handles a missing global instructions file by proposing the whole new file", () => {
-    const text = read("hindsight-coach");
+    const text = read("ai-insights-coach");
     expect(text).toMatch(/does not exist/i);
     expect(text).toMatch(/full new file|whole new file/i);
   });
 
   it("the coach skips placeholder suggestions and needs two sessions of evidence for an instruction", () => {
-    const text = read("hindsight-coach");
+    const text = read("ai-insights-coach");
     expect(text).toMatch(/placeholder/i);
     expect(text).toMatch(/temp(orary)? path|\/tmp/i);
     expect(text).toMatch(/at least two sessions/i);
@@ -196,7 +203,7 @@ describe("skills", () => {
   });
 
   it("the main skill uses the verified listing and report arguments", () => {
-    const text = read("hindsight");
+    const text = read("analyze-ai-usage");
     for (const span of ['`strategy: "spread"`', "`minUserMessages`", "`skippedReasons`", '`detail: "full"`', "`agentDriven`", "`live`", "`agentHours`"]) {
       expect(text, span).toContain(span);
     }
@@ -205,15 +212,15 @@ describe("skills", () => {
   });
 
   it("the coach never writes without asking", () => {
-    const text = read("hindsight-coach");
+    const text = read("ai-insights-coach");
     expect(text).toMatch(/diff/i);
     expect(text).toMatch(/ask/i);
     expect(text).toMatch(/never apply/i);
   });
 
   it("the setup skill checks the server and runs doctor", () => {
-    const text = read("hindsight-setup");
-    expect(text).toContain("hindsight_scan");
-    expect(text).toContain("npx -y @matrix-os/hindsight doctor");
+    const text = read("ai-insights-setup");
+    expect(text).toContain("ai_insights_scan");
+    expect(text).toContain("npx -y ai-insights doctor");
   });
 });

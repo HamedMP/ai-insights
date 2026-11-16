@@ -7,7 +7,7 @@ import { MAX_GIT_FILE_BYTES, resolveProjectRoots } from "../../src/store/project
 let base: string;
 
 beforeEach(async () => {
-  base = await mkdtemp(join(tmpdir(), "hindsight-roots-"));
+  base = await mkdtemp(join(tmpdir(), "ai-insights-roots-"));
 });
 afterEach(async () => rm(base, { recursive: true, force: true }));
 

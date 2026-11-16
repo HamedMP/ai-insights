@@ -151,7 +151,7 @@ function rangePhrase(report: Report): string | null {
 function headline(report: Report): Line {
   const { activity } = report;
   const sessions = count(activity.sessions);
-  if (sessions === 0) return [s("Hindsight did not find any coding-agent history on this machine yet.")];
+  if (sessions === 0) return [s("AI Insights did not find any coding-agent history on this machine yet.")];
   const wall = wallClockMinutes(report);
   const agent = count(activity.totalActiveMinutes);
   if (wall !== null && agent / wall >= HEADLINE_MIN_AGENT_RATIO) {
@@ -361,7 +361,7 @@ function frictionLine(report: Report): Line | null {
   }
   if (problems > 0) {
     if (line.length > 0) line.push(s(" "));
-    line.push(s("Hindsight found "), b(plural(problems, "pattern")), s(problems === 1 ? " worth fixing; it is below." : " worth fixing; each is below."));
+    line.push(s("AI Insights found "), b(plural(problems, "pattern")), s(problems === 1 ? " worth fixing; it is below." : " worth fixing; each is below."));
     // Say what the remaining findings are, so this count and the report's total both make sense.
     const others = [...new Set((report.findings ?? []).filter((finding) => NOT_A_PROBLEM.has(finding.kind)).map((finding) => OTHER_FINDING_PHRASES[finding.kind]!))];
     const otherCount = (report.findings ?? []).length - problems;

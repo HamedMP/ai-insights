@@ -114,7 +114,7 @@ export function Header() {
       )}
     >
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 md:px-8">
-        <a href="#top" aria-label="Hindsight, back to the top" className="-m-1 rounded-md p-1 outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+        <a href="#top" aria-label="AI Insights, back to the top" className="-m-1 rounded-md p-1 outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
           <Logo />
         </a>
         <nav ref={nav} aria-label="Sections" className="relative hidden h-16 items-center md:flex">
@@ -140,7 +140,7 @@ export function Header() {
             size="lg"
             className="size-10 rounded-full bg-secondary/70 backdrop-blur sm:h-9 sm:w-auto sm:gap-2 sm:px-3.5"
             nativeButton={false}
-            render={<a href={REPO} aria-label="Hindsight on GitHub" />}
+            render={<a href={REPO} aria-label="AI Insights on GitHub" />}
           >
             <HugeiconsIcon icon={GithubIcon} strokeWidth={2} />
             <span className="max-sm:hidden" aria-hidden>

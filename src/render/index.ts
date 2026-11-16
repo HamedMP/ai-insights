@@ -66,8 +66,8 @@ export function renderReport(report: Report): string {
 <meta http-equiv="Content-Security-Policy" content="${raw(CSP)}">
 <meta name="color-scheme" content="dark light">
 <meta name="referrer" content="no-referrer">
-<meta name="generator" content="Hindsight">
-<title>${generated ? `Hindsight · ${generated}` : "Hindsight report"}</title>
+<meta name="generator" content="AI Insights">
+<title>${generated ? `AI Insights · ${generated}` : "AI Insights report"}</title>
 <style>${raw(STYLES)}</style>
 </head>
 <body>
@@ -76,7 +76,7 @@ ${hookSection(context, story, nav)}
 ${built.map((entry) => entry.content)}
 ${closing}
 </main>
-<footer><span class="brand small">${MARK}<span>hindsight</span></span><p>Generated${generated ? ` on ${generated}` : ""} from your local agent history. Days and hours are in ${context.zone}. Nothing in this report was uploaded, and it loads nothing from the network.</p></footer>
+<footer><span class="brand small">${MARK}<span>ai insights</span></span><p>Generated${generated ? ` on ${generated}` : ""} from your local agent history. Days and hours are in ${context.zone}. Nothing in this report was uploaded, and it loads nothing from the network.</p></footer>
 <script>${raw(SCRIPT)}</script>
 </body>
 </html>

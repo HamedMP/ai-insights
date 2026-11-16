@@ -6,12 +6,12 @@ import { describe, expect, it } from "vitest";
 
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8"));
-const SITE = "https://hamedmp.github.io/hindsight/";
+const SITE = "https://hamedmp.github.io/ai-insights/";
 
 describe("npm package", () => {
   it("points people at the site and the issue tracker", () => {
     expect(pkg.homepage).toBe(SITE);
-    expect(pkg.bugs.url).toBe("https://github.com/hamedmp/hindsight/issues");
+    expect(pkg.bugs.url).toBe("https://github.com/hamedmp/ai-insights/issues");
   });
 
   it("cannot be published without passing every check and a fresh build", () => {
@@ -19,13 +19,15 @@ describe("npm package", () => {
   });
 
   it("starts the MCP server from the bin that `npx -y <package> mcp` runs", () => {
-    // With a scoped name, npx runs the bin named after the unscoped part.
+    // With more than one bin, npx runs the one named after the (unscoped) package.
     const bin = pkg.bin[pkg.name.split("/").pop()];
     expect(bin).toBe("dist/cli/main.js");
+    // Installs from before the rename to AI Insights still type `hindsight`; it is the same file.
+    expect(pkg.bin.hindsight).toBe(bin);
     const cli = readFileSync(join(ROOT, "src", "cli", "main.ts"), "utf8");
     expect(cli.startsWith("#!/usr/bin/env node\n")).toBe(true);
     expect(cli).toMatch(/COMMANDS = new Set\(\[[^\]]*"mcp"/);
-    const mcp = JSON.parse(readFileSync(join(ROOT, "harness", "hindsight", ".mcp.json"), "utf8")).mcpServers.hindsight;
+    const mcp = JSON.parse(readFileSync(join(ROOT, "harness", "ai-insights", ".mcp.json"), "utf8")).mcpServers["ai-insights"];
     expect([mcp.command, ...mcp.args]).toEqual(["npx", "-y", pkg.name, "mcp"]);
   });
 
@@ -41,7 +43,7 @@ describe("npm package", () => {
     const files: string[] = JSON.parse(result.stdout)[0].files.map((entry: { path: string }) => entry.path);
 
     for (const path of ["package.json", "README.md", "LICENSE", "pi/extension.ts"]) expect(files).toContain(path);
-    for (const skill of ["hindsight", "hindsight-coach", "hindsight-setup"]) expect(files).toContain(`skills/${skill}/SKILL.md`);
+    for (const skill of ["analyze-ai-usage", "ai-insights-coach", "ai-insights-setup"]) expect(files).toContain(`skills/${skill}/SKILL.md`);
     // CI runs the tests before the build, so the compiled files are only listed once dist/ exists.
     if (existsSync(join(ROOT, "dist", "cli", "main.js"))) {
       expect(files).toContain("dist/cli/main.js");
@@ -57,13 +59,18 @@ describe("README", () => {
 
   it("shows the report screenshot near the top from an absolute URL, so it also renders on npm", () => {
     const top = readme.split("\n").slice(0, 12).join("\n");
-    expect(top).toContain("https://raw.githubusercontent.com/hamedmp/hindsight/main/assets/report.png");
+    expect(top).toContain("https://raw.githubusercontent.com/hamedmp/ai-insights/main/assets/report.png");
     expect(readme).not.toMatch(/!\[[^\]]*\]\((?!https:\/\/)/);
   });
 
   it("links the site and the sample report", () => {
     expect(readme).toContain(SITE);
-    expect(readme).toContain("https://hamedmp.github.io/hindsight/demo/report.html");
+    expect(readme).toContain("https://hamedmp.github.io/ai-insights/demo/report.html");
+  });
+
+  it("tells people who know the old name where it went", () => {
+    const top = readme.split("\n").slice(0, 12).join("\n");
+    expect(top).toContain("AI Insights was called Hindsight until v0.2; `@matrix-os/hindsight` is deprecated in favour of `ai-insights`.");
   });
 
   it("says plainly which history is parsed and which installs are untested", () => {

@@ -49,7 +49,7 @@ function pinTheme(doc: Document, theme: "light" | "dark") {
       }
     }
   } catch (error) {
-    console.warn("hindsight: could not read the sample report's palette", error)
+    console.warn("ai-insights: could not read the sample report's palette", error)
     return
   }
   const palette = palettes[theme]

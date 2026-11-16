@@ -21,10 +21,10 @@ function sources(dir: string): string[] {
 const SITE_SOURCES = ["site/app", "site/components", "site/hooks", "site/lib"].flatMap(sources);
 
 describe("the public site", () => {
-  it("is a static export served from /hindsight, kept out of the package build and tests", () => {
+  it("is a static export served from /ai-insights, kept out of the package build and tests", () => {
     const config = read("site/next.config.ts");
     expect(config).toContain('output: "export"');
-    expect(config).toContain('"/hindsight"');
+    expect(config).toContain('"/ai-insights"');
     const root = JSON.parse(read("package.json"));
     expect(root.files.some((entry: string) => entry.startsWith("site"))).toBe(false);
     expect(JSON.parse(read("tsconfig.json")).include).toEqual(["src", "tests"]);
@@ -42,10 +42,10 @@ describe("the public site", () => {
     expect(read("site/package.json")).toContain("scripts/check-export.mjs");
   });
 
-  it("deploys the export from site/out with the /hindsight base path", () => {
+  it("deploys the export from site/out with the /ai-insights base path", () => {
     const workflow = read(".github/workflows/pages.yml");
     expect(workflow).toContain("working-directory: site");
-    expect(workflow).toContain("PAGES_BASE_PATH: /hindsight");
+    expect(workflow).toContain("PAGES_BASE_PATH: /ai-insights");
     expect(workflow).toContain("path: site/out");
     expect(workflow).toContain("actions/deploy-pages");
   });
@@ -59,10 +59,10 @@ describe("the public site", () => {
     for (const file of ["site/public/og.png", "site/public/llms.txt", "site/app/icon.svg"]) expect(existsSync(join(ROOT, file)), file).toBe(true);
   });
 
-  it("gives the README's install commands and claims only the history Hindsight reads today", () => {
+  it("gives the README's install commands and claims only the history AI Insights reads today", () => {
     const install = read("site/components/site/install.tsx");
     const readme = read("README.md");
-    for (const line of ["/plugin marketplace add hamedmp/hindsight", "/plugin install hindsight@hindsight", "codex plugin marketplace add hamedmp/hindsight", "codex plugin add hindsight@hindsight", "scripts/install.sh --harness cursor", "pi install git:github.com/hamedmp/hindsight", "scripts/install.sh --harness opencode"]) {
+    for (const line of ["/plugin marketplace add hamedmp/ai-insights", "/plugin install ai-insights@ai-insights", "codex plugin marketplace add hamedmp/ai-insights", "codex plugin add ai-insights@ai-insights", "scripts/install.sh --harness cursor", "pi install git:github.com/hamedmp/ai-insights", "scripts/install.sh --harness opencode"]) {
       expect(install, line).toContain(line);
       expect(readme, line).toContain(line);
     }

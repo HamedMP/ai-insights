@@ -54,7 +54,7 @@ describe("one repository, one project, whichever harness was used", () => {
   });
 
   it("keeps a repository under the home directory as the same absolute path in both", async () => {
-    const repo = join(homedir(), "hindsight-cross-harness-fixture");
+    const repo = join(homedir(), "ai-insights-cross-harness-fixture");
     const codex = await codexProject([meta(uuid(1), { cwd: repo }), ...userMessage("fix the bug")]);
     expect(codex).toBe(repo);
     expect(codex).toBe(await claudeProject(repo));

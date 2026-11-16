@@ -67,7 +67,7 @@ describe("story lines on rich data", () => {
   });
 
   it("puts a share on failed tool calls and counts the patterns worth fixing", () => {
-    expect(lineText(story.friction!)).toMatch(/^[\d.]+% of your agents' tool calls failed, most often a failed command\. Hindsight found 4 patterns worth fixing; each is below\. The other \d+ findings are about [a-z ,]+\.$/);
+    expect(lineText(story.friction!)).toMatch(/^[\d.]+% of your agents' tool calls failed, most often a failed command\. AI Insights found 4 patterns worth fixing; each is below\. The other \d+ findings are about [a-z ,]+\.$/);
   });
 
   it("never shows a bare cost when requests are unpriced: it names the share and the models", () => {
@@ -150,7 +150,7 @@ describe("story lines on empty data", () => {
   const story = buildStory(makeEmptyReport(), ZONE);
 
   it("says plainly that nothing was found, without numbers it does not have", () => {
-    expect(lineText(story.headline)).toBe("Hindsight did not find any coding-agent history on this machine yet.");
+    expect(lineText(story.headline)).toBe("AI Insights did not find any coding-agent history on this machine yet.");
     expect(story.numbers).toEqual([]);
   });
 

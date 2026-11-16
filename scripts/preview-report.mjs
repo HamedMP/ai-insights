@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Write the synthetic fixture reports to HTML files so a person can open them.
 // Usage: node scripts/preview-report.mjs [outDir] [report.json ...]
-// Extra report.json paths (for example a real one from ~/.hindsight/reports) render as report-real-<n>.html.
+// Extra report.json paths (for example a real one from ~/.ai-insights/reports) render as report-real-<n>.html.
 // Needs Node 22.18+ (built-in TypeScript type stripping and module.registerHooks).
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import * as nodeModule from "node:module";
@@ -28,7 +28,7 @@ nodeModule.registerHooks({
 const { renderReport } = await import("../src/render/index.ts");
 const fixtures = await import("../tests/render/fixtures.ts");
 
-const outDir = process.argv[2] ?? join(tmpdir(), "hindsight-preview");
+const outDir = process.argv[2] ?? join(tmpdir(), "ai-insights-preview");
 mkdirSync(outDir, { recursive: true });
 
 const variants = {

@@ -1,16 +1,17 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
-  "name": "hindsight",
-  "version": "0.1.0",
+  "name": "ai-insights",
+  "version": "0.2.0",
   "description": "Look back at how you work with AI coding agents. Local insights and actionable tips from your Claude Code and Codex history.",
   "author": {
     "name": "Matrix OS",
     "url": "https://matrix-os.com"
   },
-  "homepage": "https://hamedmp.github.io/hindsight/",
-  "repository": "https://github.com/hamedmp/hindsight",
+  "homepage": "https://hamedmp.github.io/ai-insights/",
+  "repository": "https://github.com/hamedmp/ai-insights",
   "license": "MIT",
   "keywords": [
+    "ai-insights",
     "insights",
     "history",
     "usage",
@@ -23,7 +24,7 @@
   "extensions": {
     "com.openai": {
       "interface": {
-        "displayName": "Hindsight",
+        "displayName": "AI Insights",
         "shortDescription": "Learn from your agent history",
         "longDescription": "Reads your local Claude Code and Codex history, finds what slows you down and what it costs, and writes a private HTML report with tips. The analysis runs in your own agent; nothing is uploaded.",
         "developerName": "Matrix OS",
@@ -33,11 +34,11 @@
           "Read",
           "Write"
         ],
-        "websiteURL": "https://hamedmp.github.io/hindsight/",
+        "websiteURL": "https://hamedmp.github.io/ai-insights/",
         "defaultPrompt": [
-          "Run hindsight on my agent history.",
+          "Analyze my AI usage.",
           "What slows me down when I work with agents?",
-          "Turn my hindsight findings into CLAUDE.md edits."
+          "Turn my AI Insights findings into CLAUDE.md edits."
         ],
         "composerIcon": "./assets/icon.svg",
         "logo": "./assets/icon.png"
