@@ -19,6 +19,7 @@
     "mcp",
     "agent-skills"
   ],
+  "logo": "assets/icon.svg",
   "category": "developer-tools",
   "tags": [
     "insights",

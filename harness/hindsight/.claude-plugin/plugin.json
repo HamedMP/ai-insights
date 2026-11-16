@@ -19,6 +19,7 @@
     "mcp",
     "agent-skills"
   ],
+  "icon": "./assets/icon.png",
   "skills": "./skills/",
   "mcpServers": "./.mcp.json"
 }

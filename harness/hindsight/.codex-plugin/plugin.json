@@ -37,6 +37,8 @@
       "Run hindsight on my agent history.",
       "What slows me down when I work with agents?",
       "Turn my hindsight findings into CLAUDE.md edits."
-    ]
+    ],
+    "composerIcon": "./assets/icon.svg",
+    "logo": "./assets/icon.png"
   }
 }
