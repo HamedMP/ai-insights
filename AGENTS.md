@@ -19,14 +19,13 @@ Hindsight reads a person's local AI coding-agent history (Claude Code, Codex, la
 - **Never store or show secrets.** Run prompt and command text through `redact`/`clean` from `src/sources/shared.ts` before it is stored or returned.
 - **Parsers never throw on bad input.** Transcript formats are internal and change between versions. Skip what you do not understand and count it in `issues`. Ignore unknown record types.
 - **Bound everything.** Cap files scanned, bytes per file, events, array sizes and string lengths. Stream large files; do not read a 60 MB transcript into one string.
-- **Stay in your module.** Work inside the directories your task names. Do not edit other modules or `src/schema/types.ts`. If the contract is wrong or missing something, say exactly what in your report instead of working around it.
+- **Keep changes inside one module where you can.** `src/schema/types.ts` is shared by every module: change it deliberately and say why in the pull request.
 - **No new dependencies** beyond `zod` and `@modelcontextprotocol/sdk` without asking. Node built-ins only otherwise. Node 20+ must work; newer APIs (for example `node:zlib` zstd) need a graceful fallback.
 - TypeScript strict, ES modules, `.js` import suffixes, Zod 4 (`import { z } from "zod"`).
 - **Tests first.** Vitest, in `tests/<module>/`. Name the user outcome each test protects. Fixtures are small, hand-written and synthetic: never copy real transcript content, real paths with usernames, or real prompts into the repo.
 - Real history on this machine may be read to learn the format and to sanity-check results. Never commit it, quote it in reports, or paste its content anywhere.
 - Comments explain why, not what. No comment narrating the change you made.
-- Commit early and often on your branch with Conventional Commits (`feat(sources): parse codex rollouts`). Do not push, do not merge, do not touch `main`.
-- Do not start other agents.
+- Commit early and often on your branch with Conventional Commits (`feat(sources): parse codex rollouts`). Changes reach `main` through a pull request.
 
 ## Commands
 
@@ -40,4 +39,4 @@ pnpm build
 
 ## Finishing
 
-Your work is done when `pnpm typecheck` and your module's tests pass and everything is committed. Then report back the way your task asks: what you built, what you verified and how, anything you could not do, and any contract change you need. Report honestly; a known gap stated plainly is worth more than a claim of completeness.
+A change is done when `pnpm check` passes and it is committed. In the pull request say what you built, what you verified and how, and anything you could not do. A known gap stated plainly is worth more than a claim of completeness.
