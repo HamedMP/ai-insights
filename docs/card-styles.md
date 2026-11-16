@@ -154,12 +154,17 @@ layout audit render that frame). Entrance animations should finish by about
 
 ### Fonts
 
-Three families are embedded and are the only ones you may use:
+Three families are embedded for every style:
 `"Brico"` (Bricolage Grotesque, display, 200–800), `"GeistR"` (Geist, text,
 100–900), `"GeistM"` (Geist Mono, 100–900). CSS custom properties on `.card`:
 `--display`, `--text`, `--mono`. Text in SVG must name the family explicitly
-(`font-family="GeistM, monospace"`). A new font needs an OFL (or similar)
-licence, a latin subset under 40 KB as woff2, and a word with the page owner.
+(`font-family="GeistM, monospace"`). A style may bring its own fonts (agreed with the page owner first): put the
+latin-subset woff2 files and their licence texts (`<family>-OFL.txt`, where the
+font file name starts with `<family>-`) in `src/render/client/fonts/`, list them
+in `styles/<id>.fonts.json` as `[{ "family", "file", "weight" }]`, and name the
+faces to wait for in the registration: `fonts: ["800 100px PanelCond"]`. The
+page adds those @font-face rules to the card CSS only when the style is first
+used, and waits for them before laying out or exporting.
 
 ## The stylesheet
 
@@ -215,7 +220,10 @@ voice {prompts, excludedAgentSessions, words[{key,count}], openers[{key,count}],
        leverage{words, toolCalls}}
 interrupted, slash[{key,count}], slashTotal
 shell {calls, programs[{key,count}], tests, testPass?, rmrf, forcePush, sleeps}
-parallel {max, overlapEvents, subagents}
+parallel {max, overlapEvents, subagents, lanes?}   lanes: [[start, end]] shares (0..1) of a window
+                                         around the peak, one per session open then. A chart that looks
+                                         like data must be data: draw lanes from this, or when it is null a
+                                         plain schematic (N identical marks, no time axis), never random.
 longestSession {activeMinutes, wallMinutes, prompts, toolCalls, toolCallsCapped, harness, compactions}?
 topProjectShare
 failures {total, calls, rate, categories[{key,label,count}], nemesis[{key,count,runs}]}
