@@ -26,7 +26,8 @@ export interface ScanResult {
   coverage: Coverage[];
   /** `harness:id` to the transcript it came from, for excerpts. */
   files: Map<string, SessionFile>;
-  stats: { discovered: number; parsed: number; cached: number; failed: number; skippedEmpty: number; duplicates: number };
+  /** `orphaned`: cached sessions kept although their transcript is gone. */
+  stats: { discovered: number; parsed: number; cached: number; failed: number; skippedEmpty: number; duplicates: number; orphaned: number };
   scannedAt: string;
   options: { since: string | null; harness: Harness[] | null; maxSessions: number };
 }
@@ -125,7 +126,7 @@ export async function scan(deps: ScanDeps, options: ScanOptions = {}): Promise<S
 
   const all = [...discovered.values()].flat().sort((a, b) => b.mtimeMs - a.mtimeMs).slice(0, maxSessions);
   const byHarness = new Map(deps.sources.map((source) => [source.harness, source]));
-  const stats = { discovered: all.length, parsed: 0, cached: 0, failed: 0, skippedEmpty: 0, duplicates: 0 };
+  const stats = { discovered: all.length, parsed: 0, cached: 0, failed: 0, skippedEmpty: 0, duplicates: 0, orphaned: 0 };
 
   const parsed = await mapLimit(all, concurrency, async (file): Promise<ScannedEntry | null> => {
     const source = byHarness.get(file.harness);
@@ -157,6 +158,18 @@ export async function scan(deps: ScanDeps, options: ScanOptions = {}): Promise<S
   });
 
   const entries = parsed.filter((entry): entry is ScannedEntry => entry !== null);
+  // History the harness deleted lives on in the cache; without it a long recap would shrink to the harness's retention.
+  const known = new Set(all.map((file) => file.path));
+  let room = maxSessions - all.length;
+  for (const source of active) {
+    if (room <= 0) break;
+    const orphans = await deps.store
+      .orphanSessions(source.harness, known, { limit: room, ...(options.since ? { sinceMs: options.since.getTime() } : {}) })
+      .catch(() => []);
+    for (const orphan of orphans) entries.push({ file: orphan.file, session: orphan.session, fresh: false });
+    stats.orphaned += orphans.length;
+    room -= orphans.length;
+  }
   await assignProjectRoots(entries);
   // New parses are cached only now, with their root, so a first scan writes each session once.
   await mapLimit(entries, concurrency, async (entry) => {

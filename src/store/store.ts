@@ -4,7 +4,7 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { z } from "zod";
 import { HARNESSES, type Harness, type Narrative, type Report, type Session, type SessionFacet, type SessionFile } from "../schema/types.js";
-import { ensureDir, readJsonFile, writeFileAtomic } from "./fs.js";
+import { ensureDir, mapLimit, readJsonFile, writeFileAtomic } from "./fs.js";
 import { NarrativeInputSchema, NarrativeSchema, SessionFacetSchema, SessionSchema, isSafeId } from "./schemas.js";
 
 /**
@@ -197,6 +197,37 @@ export class Store {
     return true;
   }
 
+  /**
+   * Cached sessions whose transcript no longer exists: Claude Code deletes transcripts after about 30 days, and
+   * the cache is then the only copy. Paths in `discovered` are skipped, and so is any path still on disk (it
+   * merely fell outside the scan's window). Any parser version is accepted: there is nothing left to re-parse.
+   */
+  async orphanSessions(
+    harness: Harness,
+    discovered: ReadonlySet<string>,
+    options: { sinceMs?: number; limit: number },
+  ): Promise<Array<{ file: SessionFile; session: Session }>> {
+    if (options.limit <= 0) return [];
+    const candidates = [...(await this.index(harness))]
+      .filter(([path, entry]) => entry.id !== null && !discovered.has(path) && (options.sinceMs === undefined || entry.mtimeMs >= options.sinceMs))
+      .sort((a, b) => b[1].mtimeMs - a[1].mtimeMs);
+    const found: Array<{ file: SessionFile; session: Session }> = [];
+    const BATCH = 64;
+    for (let start = 0; start < candidates.length && found.length < options.limit; start += BATCH) {
+      const batch = await mapLimit(candidates.slice(start, start + BATCH), 16, async ([path, entry]) => {
+        if (!(await sourceIsGone(path))) return null;
+        const parsed = SessionSchema.safeParse(await readJsonFile(this.sessionPath(harness, entry.id!)));
+        if (!parsed.success) return null;
+        const session = parsed.data as Session;
+        if (session.sourcePath !== path || session.harness !== harness) return null;
+        if (options.sinceMs !== undefined && !(Date.parse(session.endTime) >= options.sinceMs)) return null;
+        return { file: { harness, path, mtimeMs: entry.mtimeMs, sizeBytes: 0 }, session };
+      });
+      for (const hit of batch) if (hit && found.length < options.limit) found.push(hit);
+    }
+    return found;
+  }
+
   async flush(): Promise<void> {
     for (const harness of [...this.dirtyIndexes]) {
       const index = this.indexes.get(harness);
@@ -332,6 +363,21 @@ export class Store {
       await rm(join(this.reportsDir, name), { force: true }).catch(() => undefined);
     }
   }
+}
+
+/**
+ * True only when the transcript is certainly gone. For database-backed paths (`db#key`) that means the database
+ * file itself; a row removed from a database that still exists cannot be told apart cheaply, so it counts as there.
+ */
+async function sourceIsGone(path: string): Promise<boolean> {
+  const missing = (target: string) =>
+    stat(target).then(
+      () => false,
+      (error: NodeJS.ErrnoException) => error.code === "ENOENT" || error.code === "ENOTDIR",
+    );
+  if (!(await missing(path))) return false;
+  const hash = path.lastIndexOf("#");
+  return hash > 0 ? missing(path.slice(0, hash)) : true;
 }
 
 export function sessionKey(harness: Harness, id: string): string {

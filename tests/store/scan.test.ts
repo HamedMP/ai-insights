@@ -321,3 +321,59 @@ describe("scan parser versions", () => {
     expect(result.sessions.map((session) => session.id)).toEqual(["a"]);
   });
 });
+
+describe("history the harness has deleted", () => {
+  /** A real transcript file on disk, so "deleted" can mean the file is really gone. */
+  async function onDisk(id: string, extra: Partial<Parameters<typeof makeSession>[0]> = {}) {
+    const path = join(home, "transcripts", `${id}.jsonl`);
+    await mkdir(join(home, "transcripts"), { recursive: true });
+    await writeFile(path, "{}\n");
+    return makeSession({ id, sourcePath: path, ...extra });
+  }
+
+  it("keeps counting a cached session after its transcript is deleted, so a year recap survives Claude Code's 30-day cleanup", async () => {
+    const kept = await onDisk("kept");
+    const gone = await onDisk("gone", { startTime: "2026-08-01T09:00:00.000Z", endTime: "2026-08-01T10:00:00.000Z" });
+    const source = fakeSource("claude-code", [kept, gone]);
+    await scan({ sources: [source], store });
+
+    await rm(gone.sourcePath);
+    source.sessions = [kept];
+    source.parseCalls.length = 0;
+    const result = await scan({ sources: [source], store: new Store(home) });
+    expect(result.sessions.map((session) => session.id).sort()).toEqual(["gone", "kept"]);
+    expect(source.parseCalls).toEqual([]);
+    expect(result.stats.orphaned).toBe(1);
+    expect(result.coverage.find((entry) => entry.harness === "claude-code")).toMatchObject({ sessions: 2, oldest: "2026-08-01T09:00:00.000Z" });
+  });
+
+  it("keeps an orphan even after a parser bump, because there is nothing left to re-parse", async () => {
+    const gone = await onDisk("gone");
+    const source = fakeSource("claude-code", [gone]);
+    await scan({ sources: [source], store });
+    await rm(gone.sourcePath);
+    source.sessions = [];
+    source.parserVersion = "99";
+    const result = await scan({ sources: [source], store: new Store(home) });
+    expect(result.sessions.map((session) => session.id)).toEqual(["gone"]);
+  });
+
+  it("does not resurrect a session whose transcript still exists but fell outside the window", async () => {
+    const old = await onDisk("old", { sourceMtimeMs: 10 });
+    const source = fakeSource("claude-code", [old]);
+    await scan({ sources: [source], store });
+    const result = await scan({ sources: [source], store: new Store(home) }, { since: new Date(1_000) });
+    expect(result.sessions).toHaveLength(0);
+  });
+
+  it("applies since and the harness filter to orphans too", async () => {
+    const gone = await onDisk("gone", { endTime: "2026-01-01T10:00:00.000Z", startTime: "2026-01-01T09:00:00.000Z" });
+    const source = fakeSource("claude-code", [gone]);
+    await scan({ sources: [source], store });
+    await rm(gone.sourcePath);
+    source.sessions = [];
+    expect((await scan({ sources: [source], store: new Store(home) }, { since: new Date("2026-06-01T00:00:00Z") })).sessions).toHaveLength(0);
+    expect((await scan({ sources: [source], store: new Store(home) }, { harness: "codex" })).sessions).toHaveLength(0);
+    expect((await scan({ sources: [source], store: new Store(home) })).sessions).toHaveLength(1);
+  });
+});
