@@ -15,6 +15,8 @@ export interface ScanOptions {
   refresh?: boolean;
   /** Parallel parses. */
   concurrency?: number;
+  /** Transcript bytes parsed at once, at most; one larger transcript is parsed on its own. */
+  parseBudgetBytes?: number;
 }
 
 export interface ScanDeps {
@@ -45,6 +47,47 @@ export interface ScanResult {
 export const DEFAULT_MAX_SESSIONS = 5_000;
 export const HARD_MAX_SESSIONS = 50_000;
 export const DEFAULT_CONCURRENCY = 6;
+/**
+ * A 400 MB Codex rollout with its guardian threads needs about 300 MB of live parse state, so several of them at
+ * once are the worst case; the parsed sessions themselves are small (about 150 MB for 545 sessions of a 4 GB
+ * history). Most of the peak resident size seen on large histories is V8 deferring collection, not live data:
+ * the same scan under `--max-old-space-size=400` gives the same result in the same time.
+ */
+export const DEFAULT_PARSE_BUDGET_BYTES = 512 * 1024 * 1024;
+
+/** Admits work while the bytes in flight stay within the budget; something larger than it waits to run alone. */
+class ByteBudget {
+  private used = 0;
+  private readonly waiting: Array<{ bytes: number; resolve: () => void }> = [];
+
+  constructor(private readonly limit: number) {}
+
+  async run<T>(bytes: number, work: () => Promise<T>): Promise<T> {
+    const cost = Math.max(0, Number.isFinite(bytes) ? bytes : 0);
+    // The bytes are reserved before the work starts, here or by `wake` when a waiter is let in.
+    if (this.fits(cost) && this.waiting.length === 0) this.used += cost;
+    else await new Promise<void>((resolve) => this.waiting.push({ bytes: cost, resolve }));
+    try {
+      return await work();
+    } finally {
+      this.used -= cost;
+      this.wake();
+    }
+  }
+
+  private fits(cost: number): boolean {
+    return this.used === 0 || this.used + cost <= this.limit;
+  }
+
+  /** First come, first served, so a large transcript is not starved by a stream of small ones. */
+  private wake(): void {
+    while (this.waiting.length && this.fits(this.waiting[0]!.bytes)) {
+      const next = this.waiting.shift()!;
+      this.used += next.bytes;
+      next.resolve();
+    }
+  }
+}
 
 /** Labels for harnesses that have no source yet, so coverage can still name them. */
 const FALLBACK_LABELS: Record<Harness, string> = {
@@ -144,6 +187,7 @@ export async function scan(deps: ScanDeps, options: ScanOptions = {}): Promise<S
   const byHarness = new Map(deps.sources.map((source) => [source.harness, source]));
   const stats = { discovered: all.length, parsed: 0, cached: 0, failed: 0, skippedEmpty: 0, duplicates: 0, orphaned: 0 };
 
+  const budget = new ByteBudget(Math.max(1, options.parseBudgetBytes ?? DEFAULT_PARSE_BUDGET_BYTES));
   const parsed = await mapLimit(all, concurrency, async (file): Promise<ScannedEntry | null> => {
     const source = byHarness.get(file.harness);
     if (!source) return null;
@@ -157,7 +201,7 @@ export async function scan(deps: ScanDeps, options: ScanOptions = {}): Promise<S
     }
     let session: Session | null;
     try {
-      session = await source.parse(file);
+      session = await budget.run(file.sizeBytes, () => source.parse(file));
     } catch {
       stats.failed += 1;
       bump(file.harness);

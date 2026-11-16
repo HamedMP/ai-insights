@@ -396,3 +396,35 @@ describe("history the harness has deleted", () => {
     expect((await scan({ sources: [source], store: new Store(home) })).sessions).toHaveLength(1);
   });
 });
+
+describe("memory while parsing", () => {
+  it("never parses more than the byte budget of transcripts at once, and gives the same sessions as an unbounded scan", async () => {
+    const MB = 1_000_000;
+    const sessions = Array.from({ length: 12 }, (_, n) => makeSession({ id: `s${n}`, sourceMtimeMs: 1_000 + n }));
+    const source = fakeSource("claude-code", sessions);
+    const discover = source.discover;
+    source.discover = async (options) => (await discover(options)).map((file, n) => ({ ...file, sizeBytes: (n % 3 === 0 ? 300 : 40) * MB }));
+    let inFlight = 0;
+    let peak = 0;
+    const parse = source.parse;
+    source.parse = async (file) => {
+      inFlight += file.sizeBytes;
+      peak = Math.max(peak, inFlight);
+      await new Promise((resolve) => setTimeout(resolve, 2));
+      inFlight -= file.sizeBytes;
+      return parse(file);
+    };
+    const bounded = await scan({ sources: [source], store, retentionPolicies: false }, { concurrency: 6, parseBudgetBytes: 400 * MB });
+    expect(peak).toBeLessThanOrEqual(400 * MB);
+    const free = await scan({ sources: [source], store: new Store(join(home, "other")), retentionPolicies: false }, { concurrency: 6, refresh: true });
+    expect(bounded.sessions).toEqual(free.sessions);
+  });
+
+  it("still parses a transcript larger than the whole budget, on its own", async () => {
+    const source = fakeSource("claude-code", [makeSession({ id: "huge" })]);
+    const discover = source.discover;
+    source.discover = async (options) => (await discover(options)).map((file) => ({ ...file, sizeBytes: 5_000_000_000 }));
+    const result = await scan({ sources: [source], store, retentionPolicies: false }, { parseBudgetBytes: 1_000_000 });
+    expect(result.sessions.map((session) => session.id)).toEqual(["huge"]);
+  });
+});
