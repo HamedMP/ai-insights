@@ -768,6 +768,34 @@ export interface RecapLongestSession {
   compactions: number;
   /** The source kept only part of the session's tool calls: show `toolCalls` as "10,000+". */
   toolCallsCapped: boolean;
+  /**
+   * Longer sessions left out because a script or another agent drove them: most prompts were script-filled
+   * templates (an XML-style wrapper such as a Codex `<heartbeat>`), or other agents sent more messages than the
+   * person. Absent when the longest session overall was the person's.
+   */
+  skippedAutomated?: number;
+}
+
+/**
+ * The sessions open around the moment the most ran at once, for drawing lanes. Share-safe: relative minutes
+ * and harness names only, no ids, projects or clock times. Lanes active at `peakAt` number exactly `atPeak`,
+ * which equals `parallel.max`.
+ */
+export interface RecapLanes {
+  /** Length of the window drawn, in minutes, centred on the peak where the history allows. */
+  windowMinutes: number;
+  /** Minutes from the window start to the peak instant. */
+  peakAt: number;
+  atPeak: number;
+  /** Oldest start first. Every lane active at the peak is kept; others fill up to 20 lanes. */
+  lanes: Array<{
+    harness: Harness;
+    /** Minutes from the window start, clipped to the window. */
+    start: number;
+    end: number;
+    /** When the session was working inside the window, [from, to) in minutes, at most 20. */
+    active: Array<[number, number]>;
+  }>;
 }
 
 export interface RecapFailures {
@@ -893,7 +921,7 @@ export interface Recap {
   /** Skills by invocations, public names only; anything else is "a custom one". */
   skills: RecapCount[];
   shell: RecapShell;
-  parallel: { max: number; overlapEvents: number; subagents: number };
+  parallel: { max: number; overlapEvents: number; subagents: number; lanes?: RecapLanes };
   longestSession?: RecapLongestSession;
   /** The top project's share of agent time, 0..1, never its name. Absent without projects. */
   topProjectShare?: number;

@@ -329,3 +329,63 @@ describe("recap: determinism and absence", () => {
     expect(recapOf([s]).interrupted).toBe(1);
   });
 });
+
+describe("recap: the marathon card", () => {
+  const heartbeats = (count: number) => Array.from({ length: count }, (_, n) => prompt(`<heartbeat>\ncheck the queue ${n}\n</heartbeat>`, at(n * 10)));
+
+  it("leaves out sessions a script or another agent drove, and says how many longer ones it left out", () => {
+    const automated = session({ id: "loop", harness: "codex", activeMinutes: 14_000, prompts: [...heartbeats(40), prompt("hi", at(500))] });
+    const orchestrated = session({ id: "worker", activeMinutes: 3_000, agentMessageCount: 50, prompts: [prompt("go", at(0))] });
+    const person = session({ id: "me", activeMinutes: 600, prompts: [prompt("fix the build", at(0)), prompt("now the tests", at(30))] });
+    const recap = recapOf([automated, orchestrated, person, session({ id: "short", activeMinutes: 10 })]);
+    expect(recap.longestSession).toMatchObject({ activeMinutes: 600, prompts: 2, skippedAutomated: 2 });
+  });
+
+  it("has no skipped count when the longest session was the person's", () => {
+    const recap = recapOf([session({ activeMinutes: 600 }), session({ activeMinutes: 10 })]);
+    expect(recap.longestSession!.skippedAutomated).toBeUndefined();
+  });
+});
+
+describe("recap: the most-agents-at-once card", () => {
+  /** A session busy from `from` to `to` minutes after the base time, with a tool call every 5 minutes. */
+  const busy = (id: string, from: number, to: number, harness: Session["harness"] = "claude-code") =>
+    session({
+      id,
+      harness,
+      startTime: at(from),
+      endTime: at(to),
+      prompts: [prompt("go", at(from))],
+      toolCalls: Array.from({ length: Math.floor((to - from) / 5) + 1 }, (_, n) => tool("read", { timestamp: at(from + n * 5) })),
+    });
+
+  it("draws the real sessions around the peak, as relative minutes, and as many are active at the peak as the headline says", () => {
+    const recap = recapOf([busy("a", 0, 120), busy("b", 30, 90, "codex"), busy("c", 60, 200), busy("d", 600, 700)]);
+    const lanes = recap.parallel.lanes!;
+    expect(recap.parallel.max).toBe(3);
+    expect(lanes.atPeak).toBe(3);
+    const activeAtPeak = lanes.lanes.filter((lane) => lane.active.some(([from, to]) => from <= lanes.peakAt && lanes.peakAt < to));
+    expect(activeAtPeak).toHaveLength(3);
+    expect(lanes.lanes.every((lane) => lane.start >= 0 && lane.end <= lanes.windowMinutes)).toBe(true);
+    expect(lanes.lanes.map((lane) => lane.harness)).toContain("codex");
+    // Nothing that could identify a session: no ids, names or timestamps.
+    expect(JSON.stringify(lanes)).not.toMatch(/"a"|"b"|"c"|2026-|sessionId|project/);
+    // Deterministic for the same history.
+    expect(recapOf([busy("a", 0, 120), busy("b", 30, 90, "codex"), busy("c", 60, 200), busy("d", 600, 700)]).parallel.lanes).toEqual(lanes);
+  });
+
+  it("is absent when no two sessions ever ran at once", () => {
+    const recap = recapOf([busy("a", 0, 60), busy("b", 300, 360)]);
+    expect(recap.parallel.lanes).toBeUndefined();
+  });
+
+  it("caps lanes and stretches but keeps every lane active at the peak", () => {
+    const many = Array.from({ length: 30 }, (_, n) => busy(`s${n}`, n * 2, 400 + n));
+    const recap = recapOf(many);
+    const lanes = recap.parallel.lanes!;
+    expect(lanes.atPeak).toBe(recap.parallel.max);
+    expect(lanes.lanes.length).toBeLessThanOrEqual(Math.max(20, lanes.atPeak));
+    expect(lanes.lanes.filter((lane) => lane.active.some(([from, to]) => from <= lanes.peakAt && lanes.peakAt < to))).toHaveLength(lanes.atPeak);
+    expect(lanes.lanes.every((lane) => lane.active.length <= 20)).toBe(true);
+  });
+});

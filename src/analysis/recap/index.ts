@@ -16,7 +16,8 @@ import { buildRhythm, weekdayOf } from "./rhythm.js";
 import { modelLabel } from "./text.js";
 import { AUTO_REVIEW_MODEL, TIP_TITLES } from "./vocabulary.js";
 import { buildVoice } from "./voice.js";
-import { buildApprovals, buildFailures, buildFeatures, buildLongest, buildReplies, buildShell, buildSlash, buildThinking, toolCallsCapped } from "./work.js";
+import { buildLanes } from "./lanes.js";
+import { buildApprovals, buildFailures, buildFeatures, buildLongestSession, buildReplies, buildShell, buildSlash, buildThinking, toolCallsCapped } from "./work.js";
 
 export { MAX_REPLY_SEC, toolCallsCapped } from "./work.js";
 
@@ -238,7 +239,9 @@ export function buildRecap(input: RecapInput): Recap | undefined {
     });
   }
   if (bigDay) recap.bigDay = bigDay;
-  const longest = buildLongest(sessions);
+  const lanes = buildLanes(sessions, activity.parallelSessions.maxConcurrent);
+  if (lanes) recap.parallel.lanes = lanes;
+  const longest = buildLongestSession(sessions);
   if (longest) recap.longestSession = longest;
   const top = activity.projects[0];
   if (top && activity.totalActiveMinutes > 0) recap.topProjectShare = top.activeMinutes / activity.totalActiveMinutes;
