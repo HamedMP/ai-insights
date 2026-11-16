@@ -139,6 +139,8 @@ async function excerpt(file: SessionFile, options: ExcerptOptions = {}): Promise
 }
 
 export const codexSource: Source = {
+  // Bump whenever a parser change would give a different Session from the same rollout, so cached history is re-parsed.
+  parserVersion: "2",
   harness: "codex",
   label: "Codex",
   defaultRoots,

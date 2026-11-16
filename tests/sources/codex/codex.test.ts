@@ -522,3 +522,9 @@ describe("codex excerpts", () => {
     expect(near.at(-1)!.timestamp).toBe(all.at(-1)!.timestamp);
   });
 });
+
+describe("codex parser version", () => {
+  it("declares a parser version so the store re-parses cached history after a parser fix", () => {
+    expect(codexSource.parserVersion).toBe("2");
+  });
+});
