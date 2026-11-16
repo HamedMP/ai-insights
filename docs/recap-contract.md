@@ -151,3 +151,97 @@ daily?[<=30]         {day, sessions, prompts, minutes}
 
 `RunComparison` gives `deltas[{ key, previous, current, delta }]` (delta null when either side is null) and
 `resolved`, `stillOpen` and `new` findings, matching the page's "Looks resolved / Still open / New" columns.
+
+## Additions (2026-11-16)
+
+All additive and optional: a renderer that ignores them keeps working. Types in `src/schema/types.ts`.
+
+### Keep your history
+
+`report.retention?: Retention` (absent in tests and older reports):
+
+```
+windowDays: 7
+atRisk { sessions, bytes, nextDeletion|null }     summed over harnesses
+cachedOnly                                         sessions only AI Insights' cache still holds
+coversFrom|null                                    earliest session start a recap can still cover
+cache { keeps: string[], drops: string[] }         fixed text: what a cached session keeps / loses
+harnesses[] {
+  harness, policy: "deletes"|"kept"|"unknown", days?, source?: "default"|"settings"|"managed",
+  setting? { name, file (home as ~), value|null }, clock?: "modified"|"last-updated",
+  basis (one or two sentences), url?, transcripts, bytes, oldestOnDisk|null,
+  atRisk? { sessions, bytes, nextDeletion|null }   only for "deletes"
+  due?[<=5] { sessionId, eligibleAt }              for citing evidence; never show ids on a card
+  exempt? { sessions, reason }                     due by age but kept anyway (Claude Desktop / Cowork)
+  cachedOnly, coversFrom|null
+}
+```
+
+- `nextDeletion` in the past means "the next time the agent starts": both Claude Code and Gemini CLI delete
+  at startup.
+- Facts per harness (read 2026-11-16): Claude Code deletes a transcript `cleanupPeriodDays` (default 30)
+  after it last changed, at startup; sessions started or last continued in Claude Desktop or Cowork are kept at
+  any age since v2.1.248 unless `desktopSessionCleanupPeriodDays` or managed settings say otherwise
+  (https://code.claude.com/docs/en/claude-directory#cleaned-up-automatically). Gemini CLI deletes a project's
+  chats after `general.sessionRetention.maxAge` (documented default 30 days) when it starts in that project.
+  Codex, OpenCode and Pi keep sessions until you delete them. Cursor: unknown.
+
+Finding `history_retention` (id `history_retention`) replaces `short_history`, which no detector emits any more
+(the kind stays in `FINDING_KINDS` so old reports type-check). Severity: `medium` when sessions are due within 7
+days, `low` when a deleting harness is at its default, `info` when history is merely short. Its suggestion has
+`title: "Keep your history"` and `steps`:
+
+```
+Suggestion.steps?: SuggestionStep[]   { title, action, command?, undo?, url?, instructionText? }
+```
+
+1. "Keep Claude Code transcripts longer" (or Gemini CLI): `command` is the line to paste,
+   `"cleanupPeriodDays": 365`, `action` names the file, `undo` says how to go back. With managed settings the
+   step has no command and says an administrator must change it.
+2. "Archive them compactly": packmem, `action` is the agreed packmem wording word for word, `command`
+   `npx packmem archive --dry-run`, `url` the packmem docs.
+3. "Keep them for good across machines": Matrix OS, `matrix chats import` only.
+
+When `history_retention` fires, `history_disk_usage` keeps its number but has no `suggestion`, so the packmem
+pitch shows once. Show the disk card from its `detail`/`metric`.
+
+`recap.history?: { days, firstDay, cachedOnly }` (absent without `retention`): "N days of history kept";
+`days` is counted as `Coverage.historyDays` is.
+
+### Cost the harness recorded
+
+`usage.recorded?: { usd, requests, zeroRequests }` and `usage.recordedByHarness?[]` (`{ harness, usd, requests,
+zeroRequests }`): what OpenCode and Pi recorded themselves (`ModelRequest.costUsd`). Not the estimate and never
+added to it. A recorded $0 is a subscription or coding plan, not free use: say "recorded $X (N requests
+recorded $0, typical of subscriptions)". Not in the recap.
+
+### Coverage
+
+`coverage[].skippedUsageRecords?`: usage counters read but not counted (Codex counter resets with nothing to
+explain them). Show apart from `issues`, which now means unreadable lines only.
+
+### Approvals and thinking
+
+- `approvals.autoBlocked?` (session and recap): Codex actions the automatic reviewer blocked or let time out.
+  Not the person declining.
+- `thinking` now also comes from OpenCode (reasoning parts, timed), Pi (assistant messages with a thinking block,
+  no durations) and Gemini CLI (answers with `thoughts`, no durations).
+
+### Marathon card
+
+`recap.longestSession` is now the longest session the person drove. Sessions where most prompts are
+script-filled templates (an XML-style wrapper such as Codex `<heartbeat>`) or where other agents sent more
+messages than the person are skipped; `longestSession.skippedAutomated?` says how many longer ones were left out.
+
+### Most agents at once
+
+`recap.parallel.lanes?: RecapLanes` (absent when no two sessions overlapped):
+
+```
+{ windowMinutes: 360, peakAt, atPeak, lanes[<=20, more only if atPeak needs them] {
+    harness, start, end, active[<=20]: [from, to) } }
+```
+
+All times are minutes from the window start, rounded to 0.01; no ids, projects or clock times. The lanes with
+a stretch where `from <= peakAt < to` are exactly `atPeak`, which equals `parallel.max`. Lanes are ordered by
+first stretch; deterministic for the same history.
