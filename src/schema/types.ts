@@ -181,6 +181,12 @@ export interface TranscriptTurn {
 
 /** One per harness. Sources never throw on bad input; they skip and count. */
 export interface Source {
+  /**
+   * Bump whenever this source's parser would produce a different `Session` from the same transcript. The store
+   * keeps it with each cached session and re-parses when it differs, so a parser fix reaches history that has
+   * not changed on disk. A missing version counts as "0".
+   */
+  parserVersion?: string;
   harness: Harness;
   /** Human name, e.g. "Claude Code". */
   label: string;
