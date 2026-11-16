@@ -232,3 +232,26 @@ describe("narrative placeholders", () => {
     await expect(store.saveNarrative(old)).rejects.toThrow(/placeholder/);
   });
 });
+
+describe("session cache index", () => {
+  it("keeps every entry when many parses are cached at once on a fresh store", async () => {
+    const store = new Store(home);
+    const sessions = Array.from({ length: 12 }, (_, index) => makeSession({ id: `s${index}`, sourceMtimeMs: index + 1 }));
+    const empty = { harness: "claude-code" as const, path: "/fake/claude-code/empty.jsonl", mtimeMs: 99, sizeBytes: 1 };
+    await Promise.all([...sessions.map((session) => store.cacheSession(fileFor(session), session)), store.cacheSession(empty, null)]);
+    await store.flush();
+    const reader = new Store(home);
+    for (const session of sessions) expect((await reader.cachedSession(fileFor(session)))?.id).toBe(session.id);
+    expect(await reader.cachedSession(empty)).toBeNull();
+  });
+
+  it("misses the cache when the parser version differs, counting a missing version as \"0\"", async () => {
+    const store = new Store(home);
+    const session = makeSession({ id: "v" });
+    await store.cacheSession(fileFor(session), session);
+    await store.flush();
+    const reader = new Store(home);
+    expect((await reader.cachedSession(fileFor(session), "0"))?.id).toBe("v");
+    expect(await reader.cachedSession(fileFor(session), "2")).toBeUndefined();
+  });
+});

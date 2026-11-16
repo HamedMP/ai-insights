@@ -130,7 +130,7 @@ export async function scan(deps: ScanDeps, options: ScanOptions = {}): Promise<S
     const source = byHarness.get(file.harness);
     if (!source) return null;
     if (!options.refresh) {
-      const cached = await deps.store.cachedSession(file).catch(() => undefined);
+      const cached = await deps.store.cachedSession(file, source.parserVersion).catch(() => undefined);
       if (cached !== undefined) {
         stats.cached += 1;
         if (cached === null) stats.skippedEmpty += 1;
@@ -149,7 +149,7 @@ export async function scan(deps: ScanDeps, options: ScanOptions = {}): Promise<S
     if (session && session.harness !== file.harness) session = null;
     if (!session) {
       stats.skippedEmpty += 1;
-      await deps.store.cacheSession(file, null).catch(() => false);
+      await deps.store.cacheSession(file, null, source.parserVersion).catch(() => false);
       return null;
     }
     return { file, session, fresh: true };
@@ -159,7 +159,7 @@ export async function scan(deps: ScanDeps, options: ScanOptions = {}): Promise<S
   await assignProjectRoots(entries);
   // New parses are cached only now, with their root, so a first scan writes each session once.
   await mapLimit(entries, concurrency, async (entry) => {
-    if (entry.fresh || entry.rootChanged) await deps.store.cacheSession(entry.file, entry.session).catch(() => false);
+    if (entry.fresh || entry.rootChanged) await deps.store.cacheSession(entry.file, entry.session, byHarness.get(entry.file.harness)?.parserVersion).catch(() => false);
   });
   await deps.store.flush().catch(() => undefined);
 
