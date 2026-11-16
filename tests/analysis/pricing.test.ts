@@ -42,9 +42,31 @@ describe("Anthropic list prices", () => {
     expect(estimateUsd("claude-haiku-5-5", usage({ input: 1, cacheWrite: 100_000, cacheWrite1h: 100_000 }))).toBeCloseTo(0.5 / M + 0.1, 9);
   });
 
-  it("keeps older models' long prompts unpriced, since the page gives no basis for them", () => {
-    expect(estimateUsd("claude-sonnet-4-5-20250929", usage({ input: 250_000 }))).toBeNull();
+  it("prices Sonnet 4 and 4.5 prompts over 200k at their published long-context rates", () => {
+    // $6 input, $22.50 output above 200k; cache multipliers apply to the long-context input price
+    expect(estimateUsd("claude-sonnet-4-5-20250929", usage({ input: 250_000, output: 1000 }))).toBeCloseTo(1.5 + 0.0225, 9);
+    expect(estimateUsd("claude-sonnet-4-20250514", usage({ input: 1, cachedInput: 250_000 }))).toBeCloseTo(6 / M + 0.15, 9);
     expect(estimateUsd("claude-sonnet-4-5-20250929", usage({ input: 150_000 }))).toBeCloseTo(0.45, 9);
+  });
+
+  it("keeps long prompts unpriced on models whose window never went past 200k", () => {
+    expect(estimateUsd("claude-opus-4-5", usage({ input: 250_000 }))).toBeNull();
+    expect(estimateUsd("claude-haiku-4-5", usage({ input: 250_000 }))).toBeNull();
+  });
+
+  it("prices Opus 4.6 and Sonnet 4.6 long prompts at the surcharge in force before 13 March 2026, standard after", () => {
+    const before = { timestamp: "2026-03-12T23:59:59Z" };
+    const after = { timestamp: "2026-03-13T00:00:00Z" };
+    expect(estimateUsd("claude-sonnet-4-6", usage({ input: 250_000 }), after)).toBeCloseTo(0.75, 9);
+    expect(estimateUsd("claude-sonnet-4-6", usage({ input: 250_000 }), before)).toBeCloseTo(1.5, 9);
+    // Opus 4.6 over 200k: $10 input, $37.50 output, cache hits at 0.1x and 5m writes at 1.25x of $10
+    expect(estimateUsd("claude-opus-4-6", usage({ input: 100_000, cachedInput: 100_000, cacheWrite: 100_000, output: 1000 }), before)).toBeCloseTo(1 + 0.1 + 1.25 + 0.0375, 9);
+    expect(estimateUsd("claude-opus-4-6", usage({ input: 100_000, cachedInput: 100_000, cacheWrite: 100_000, output: 1000 }), after)).toBeCloseTo(0.5 + 0.05 + 0.625 + 0.025, 9);
+    // Short prompts never paid the surcharge.
+    expect(estimateUsd("claude-opus-4-6", usage({ input: 100_000 }), before)).toBeCloseTo(0.5, 9);
+  });
+
+  it("prices a request with no timestamp at today's rates", () => {
     expect(estimateUsd("claude-sonnet-4-6", usage({ input: 250_000 }))).toBeCloseTo(0.75, 9);
   });
 
@@ -88,6 +110,47 @@ describe("OpenAI list prices", () => {
     expect(estimateUsd("gpt-6-astra", usage({ input: 300_000, output: 1000 }))).toBeCloseTo(6 + 0.075, 9);
   });
 
+  it("bills Codex cache writes at 1.25x input on models that list a cache-write price", () => {
+    expect(estimateUsd("gpt-6.1-sol", usage({ input: 1, cacheWrite: 100_000 }))).toBeCloseTo(2 / M + 0.25, 9);
+    expect(estimateUsd("gpt-5.6-sol", usage({ cacheWrite: 100_000 }), { timestamp: "2026-10-01T00:00:00Z" })).toBeCloseTo(0.5, 9);
+    // Models whose row lists no write price bill written tokens as ordinary input.
+    expect(estimateUsd("gpt-5.5", usage({ cacheWrite: 100_000 }))).toBeCloseTo(0.5, 9);
+  });
+
+  it("prices Fast (priority) requests from the published Fast table, not a flat multiplier", () => {
+    const fast = { serviceTier: "priority", timestamp: "2026-11-01T00:00:00Z" };
+    expect(estimateUsd("gpt-6.1-sol", usage({ input: 100_000, cachedInput: 100_000, output: 1000 }), fast)).toBeCloseTo(0.44, 9);
+    expect(estimateUsd("gpt-6.1-sol", usage({ input: 100_000 }), { ...fast, serviceTier: "fast" })).toBeCloseTo(0.4, 9);
+    // gpt-5.5 Fast is 2.5x Standard on the page.
+    expect(estimateUsd("gpt-5.5", usage({ input: 100_000 }), fast)).toBeCloseTo(1.25, 9);
+    // Long-context Fast rows exist for gpt-6.1-sol, not for gpt-5.5.
+    expect(estimateUsd("gpt-6.1-sol", usage({ input: 300_000 }), fast)).toBeCloseTo(2.4, 9);
+    expect(estimateUsd("gpt-5.5", usage({ input: 300_000 }), fast)).toBeNull();
+    expect(estimateUsd("gpt-6.1-sol", usage({ input: 100_000 }), { ...fast, serviceTier: "default" })).toBeCloseTo(0.2, 9);
+  });
+
+  it("prices Ultrafast from its own rows and leaves tiers without a published row unpriced", () => {
+    expect(estimateUsd("gpt-6.1-sol", usage({ input: 100_000, output: 1000 }), { serviceTier: "ultrafast" })).toBeCloseTo(1.2 + 0.06, 9);
+    expect(estimateUsd("gpt-5.6-sol", usage({ input: 10 }), { serviceTier: "ultrafast" })).toBeNull();
+    expect(estimateUsd("gpt-6.1-sol", usage({ input: 10 }), { serviceTier: "mystery" })).toBeNull();
+  });
+
+  it("prices GPT-5.6 history at the rates in force on the day", () => {
+    const day = (timestamp: string, serviceTier?: string) => ({ timestamp, ...(serviceTier ? { serviceTier } : {}) });
+    // Sol: $5/$30 until the 21 August 2026 promotion, $4/$20 after.
+    expect(estimateUsd("gpt-5.6-sol", usage({ input: 100_000, output: 100_000 }), day("2026-08-20T23:59:59Z"))).toBeCloseTo(3.5, 9);
+    expect(estimateUsd("gpt-5.6-sol", usage({ input: 100_000, output: 100_000 }), day("2026-08-21T00:00:00Z"))).toBeCloseTo(2.4, 9);
+    // Fast mode cost twice Standard when it replaced Priority processing on 30 July 2026.
+    expect(estimateUsd("gpt-5.6-sol", usage({ input: 100_000 }), day("2026-08-01T00:00:00Z", "priority"))).toBeCloseTo(1, 9);
+    // Before 30 July a priority request ran on Priority processing, whose rates the page no longer lists.
+    expect(estimateUsd("gpt-5.6-sol", usage({ input: 100_000 }), day("2026-07-20T00:00:00Z", "priority"))).toBeNull();
+    // Terra was 20% and Luna 80% dearer before 30 July 2026.
+    expect(estimateUsd("gpt-5.6-terra", usage({ input: 100_000, output: 100_000 }), day("2026-07-29T12:00:00Z"))).toBeCloseTo(1.75, 9);
+    expect(estimateUsd("gpt-5.6-terra", usage({ input: 100_000, output: 100_000 }), day("2026-07-30T00:00:00Z"))).toBeCloseTo(1.4, 9);
+    expect(estimateUsd("gpt-5.6-luna", usage({ input: 100_000, output: 100_000 }), day("2026-07-29T12:00:00Z"))).toBeCloseTo(0.7, 9);
+    expect(estimateUsd("gpt-5.6-luna", usage({ input: 100_000, output: 100_000 }), day("2026-07-30T00:00:00Z"))).toBeCloseTo(0.14, 9);
+  });
+
   it("keeps models without a published price or long-context rate unpriced", () => {
     expect(estimateUsd("codex-auto-review", usage({ input: 10 }))).toBeNull();
     expect(estimateUsd("gpt-5-codex", usage({ input: 10 }))).toBeNull();
@@ -97,6 +160,6 @@ describe("OpenAI list prices", () => {
 });
 
 it("names the price table revision", () => {
-  expect(PRICING_VERSION).not.toBe("api-list-2026-11-09");
+  expect(PRICING_VERSION).not.toBe("api-list-2026-11-15");
   expect(PRICING_VERSION).toMatch(/^api-list-\d{4}-\d{2}-\d{2}/);
 });

@@ -29,7 +29,7 @@ describe("usage and cost", () => {
   });
 
   it("does not price long prompts on models whose long-context price is unknown", () => {
-    expect(estimateUsd("claude-sonnet-4-5-20250929", { input: 250_000, cachedInput: 0, cacheWrite: 0, output: 5 })).toBeNull();
+    expect(estimateUsd("claude-opus-4-5-20251101", { input: 250_000, cachedInput: 0, cacheWrite: 0, output: 5 })).toBeNull();
   });
 
   it("counts a response copied into a resumed session only once", () => {
@@ -82,14 +82,14 @@ describe("usage and cost", () => {
           request({ model: "claude-opus-5-5" }),
           request({ model: "mystery-model-9" }),
           request({ model: "mystery-model-9" }),
-          request({ model: "claude-sonnet-4-5-20250929", usage: { input: 250_000 } }),
+          request({ model: "claude-opus-4-5-20251101", usage: { input: 250_000 } }),
         ],
       }),
     ]);
     const rows = Object.fromEntries(report.usage.models.map((row) => [row.model, row]));
     expect(rows["mystery-model-9"]).toMatchObject({ requests: 2, unpriced: 2, estimatedUsd: null });
     expect(rows["claude-opus-5-5"]).toMatchObject({ requests: 1, unpriced: 0 });
-    expect(rows["claude-sonnet-4-5-20250929"]).toMatchObject({ requests: 1, unpriced: 1, estimatedUsd: null });
+    expect(rows["claude-opus-4-5-20251101"]).toMatchObject({ requests: 1, unpriced: 1, estimatedUsd: null });
     expect(report.usage.models.reduce((sum, row) => sum + row.unpriced, 0)).toBe(report.usage.unpriced);
     expect(report.usage.unpriced).toBe(3);
   });

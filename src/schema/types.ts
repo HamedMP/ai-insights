@@ -32,6 +32,11 @@ export interface ModelRequest {
    * subscription or free models and is not an API bill. Absent when the harness records no cost.
    */
   costUsd?: number;
+  /**
+   * The provider's service tier, when the transcript records one that changes the price (Codex `priority`
+   * for Fast mode, `ultrafast`). Absent for the standard tier and when unknown.
+   */
+  serviceTier?: string;
 }
 
 export const TOOL_CATEGORIES = [
