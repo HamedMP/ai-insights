@@ -202,7 +202,10 @@ async function build(file: SessionFile, turnChars?: number): Promise<{ session: 
           // The provider's response id is the same in every copy of a forked session, so a fork is not billed twice.
           const requestId = str(message.responseId) || `${id ?? basename(file.path)}:${str(entry.id)}`;
           if (message.usage) builder.request(requestId, timestamp, name, usageOf(message.usage), costOf(message.usage));
-          for (const block of Array.isArray(message.content) ? message.content : []) {
+          const blocks = Array.isArray(message.content) ? message.content : [];
+          // Pi keeps the thinking text but no duration.
+          if (blocks.some((block) => obj(block).type === "thinking")) builder.thought();
+          for (const block of blocks) {
             const part = obj(block);
             if (part.type === "text" && timestamp) builder.turn({ role: "assistant", timestamp, text: str(part.text) });
             if (part.type !== "toolCall" || !timestamp) continue;
@@ -254,7 +257,7 @@ async function excerpt(file: SessionFile, options: ExcerptOptions = {}): Promise
 
 export const piSource: Source = {
   // Bump whenever a parser change would give a different Session from the same transcript.
-  parserVersion: "2",
+  parserVersion: "3",
   harness: "pi",
   label: "Pi",
   defaultRoots: () => piDefaultRoots(),

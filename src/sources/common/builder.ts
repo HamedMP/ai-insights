@@ -121,6 +121,7 @@ export class SessionBuilder {
   private assistantSincePrompt = false;
   private gitCommits = 0;
   private gitPushes = 0;
+  private thinking = { blocks: 0, totalMs: 0, longestMs: 0, timed: false };
 
   constructor(
     readonly harness: Harness,
@@ -270,6 +271,19 @@ export class SessionBuilder {
     return this.options.turnChars !== undefined;
   }
 
+  /**
+   * One stretch of model thinking: an assistant message holding a thinking block (Pi) or one reasoning part
+   * (OpenCode, Gemini thoughts). `ms` is its duration when the harness recorded one.
+   */
+  thought(ms: number | null = null): void {
+    this.thinking.blocks += 1;
+    if (ms !== null && Number.isFinite(ms) && ms >= 0 && ms < 86_400_000) {
+      this.thinking.timed = true;
+      this.thinking.totalMs += ms;
+      this.thinking.longestMs = Math.max(this.thinking.longestMs, ms);
+    }
+  }
+
   /** Null when the transcript held nothing a person or model said. */
   build(file: SessionFile, id: string): Session | null {
     if (this.start === null || this.end === null) return null;
@@ -330,6 +344,15 @@ export class SessionBuilder {
       gitPushes: this.gitPushes,
       issues: this.issues,
       ...(this.toolCallsDropped ? { toolCallsDropped: this.toolCallsDropped } : {}),
+      ...(this.thinking.blocks
+        ? {
+            thinking: {
+              blocks: this.thinking.blocks,
+              totalMs: this.thinking.timed ? Math.round(this.thinking.totalMs) : null,
+              longestMs: this.thinking.timed ? Math.round(this.thinking.longestMs) : null,
+            },
+          }
+        : {}),
     };
   }
 }
