@@ -67,9 +67,13 @@ try {
     page.on("pageerror", (error) => { problems++; console.log(`${name}: page error ${error.message}`); });
     await page.goto(pathToFileURL(join(work, `${name}.html`)).href);
     await page.waitForFunction(() => window.recap && window.recap.ready(), null, { timeout: 60_000 });
-    const result = await page.evaluate((secrets) => {
-      const out = { audit: [], nondeterministic: [], leaks: [], cards: 0 };
-      for (const { id: style } of window.recap.styles().length ? window.recap.styles() : [{ id: "pop" }]) {
+    const styles = await page.evaluate(() => (window.recap.styles().length ? window.recap.styles() : [{ id: "pop" }]).map((style) => style.id));
+    const result = { audit: [], nondeterministic: [], leaks: [], cards: 0 };
+    for (const style of styles) {
+      // Switching waits for the style's own fonts, so layout is measured with the faces it will be drawn with.
+      await page.evaluate((id) => window.recap.setStyle(id), style);
+      const part = await page.evaluate(([secrets, style]) => {
+        const out = { audit: [], nondeterministic: [], leaks: [], cards: 0 };
         for (const ratio of ["1:1", "9:16", "4:5", "16:9"]) {
           for (const [card, issues] of Object.entries(window.recap.audit(style, ratio))) out.audit.push(`${style} ${ratio} ${card}: ${issues.join("; ")}`);
           for (const card of window.recap.cards()) {
@@ -80,13 +84,22 @@ try {
             for (const secret of secrets) if (end.includes(secret)) out.leaks.push(`${style} ${card}: ${secret.slice(0, 40)}`);
           }
         }
-      }
+        return out;
+      }, [privateStrings, style]);
+      for (const key of ["audit", "nondeterministic", "leaks"]) result[key].push(...part[key]);
+      result.cards += part.cards;
+    }
+    const cap = await page.evaluate((secrets) => {
+      const out = { leaks: [] };
       const caption = window.recap.caption();
       for (const secret of secrets) if (caption.includes(secret)) out.leaks.push(`caption: ${secret.slice(0, 40)}`);
       out.captionLength = caption.replace(/https?:\/\/\S+/g, "x".repeat(23)).length;
       out.intentOk = decodeURIComponent(window.recap.intents().x.split("?text=")[1]) === caption && window.recap.intents().x.startsWith("https://x.com/intent/post?text=");
       return out;
     }, privateStrings);
+    result.leaks.push(...cap.leaks);
+    result.captionLength = cap.captionLength;
+    result.intentOk = cap.intentOk;
     const bad = result.audit.length + result.nondeterministic.length + result.leaks.length + (result.captionLength > 280 ? 1 : 0) + (result.intentOk ? 0 : 1);
     problems += bad;
     console.log(`${name}: ${result.cards} card renders, ${result.audit.length} layout issues, ${result.nondeterministic.length} non-deterministic, ${result.leaks.length} leaks, caption ${result.captionLength}/280, X intent ${result.intentOk ? "ok" : "WRONG"}`);

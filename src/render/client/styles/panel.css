@@ -1,0 +1,60 @@
+/* panel: "Instrument panel" card style. An engineer's logbook: grid paper, ink, one accent per chapter.
+   Fonts: GeistM / GeistR from the base set, plus PanelCond (Barlow Condensed 800) and PanelHand (Caveat 700), OFL. */
+.card[data-style="panel"] {
+  --paper: #f3f0e6; --ink: #1b1d22; --ink-2: #565a62; --rule: rgba(27, 29, 34, 0.4);
+  --grid: rgba(43, 80, 150, 0.085); --grid-major: rgba(43, 80, 150, 0.18);
+  --c-rhythm: #2848c8; --c-voice: #0a7a56; --c-work: #ad5800; --c-friction: #cc2f22;
+  --cond: "PanelCond", "Arial Narrow", sans-serif; --hand: "PanelHand", cursive;
+  --acc: var(--ink);
+  background-color: var(--bg); color: var(--fg); font-family: var(--text); line-height: 1.2;
+  background-image: linear-gradient(var(--grid-major) 1.5px, transparent 1.5px), linear-gradient(90deg, var(--grid-major) 1.5px, transparent 1.5px),
+    linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 120px 120px, 120px 120px, 24px 24px, 24px 24px;
+  background-position: 40px 40px, 40px 40px, 40px 40px, 40px 40px;
+}
+.card[data-style="panel"][data-card="outro"] {
+  --paper: var(--brand-deep); --ink: var(--brand-lime); --ink-2: #a9c48c; --rule: rgba(190, 215, 123, 0.5);
+  --grid: rgba(190, 215, 123, 0.07); --grid-major: rgba(190, 215, 123, 0.15);
+}
+.card[data-style="panel"] .pn-lab { font-family: var(--mono); font-weight: 600; font-size: max(22px, calc(var(--k) * 28px)); letter-spacing: 0.13em; text-transform: uppercase; color: var(--ink-2); line-height: 1.25; }
+.card[data-style="panel"] .pn-lab b { color: var(--acc); font-weight: 700; }
+.card[data-style="panel"] .pn-hero { padding-bottom: 0.06em; font-family: var(--cond); font-weight: 800; line-height: 0.88; letter-spacing: -0.005em; white-space: nowrap; color: var(--ink); }
+.card[data-style="panel"] .pn-hero .pn-u { font-size: 0.42em; letter-spacing: 0.01em; margin-left: 0.12em; }
+.card[data-style="panel"] .pn-hero.pn-mono { font-family: var(--mono); font-weight: 700; letter-spacing: -0.04em; line-height: 1.14; }
+.card[data-style="panel"] .pn-acc { color: var(--acc); }
+.card[data-style="panel"] .pn-note { font-family: var(--hand); font-weight: 700; color: var(--acc); line-height: 1.02; }
+.card[data-style="panel"] .pn-body { font-family: var(--text); font-weight: 500; font-size: max(25px, calc(var(--k) * 40px)); line-height: 1.24; letter-spacing: -0.01em; color: var(--ink); }
+.card[data-style="panel"] .pn-body b { font-weight: 750; }
+.card[data-style="panel"] .pn-body .pn-dim { color: var(--ink-2); }
+.card[data-style="panel"] .pn-sp1 { margin-top: max(10px, calc(var(--k) * 22px)); }
+.card[data-style="panel"] .pn-sp2 { margin-top: max(14px, calc(var(--k) * 36px)); }
+/* readouts: boxed instrument values */
+.card[data-style="panel"] .pn-ros { display: grid; gap: max(10px, calc(var(--k) * 18px)); }
+.card[data-style="panel"] .pn-ro { border: 2px solid var(--ink); background: var(--paper); min-width: 0; }
+.card[data-style="panel"] .pn-ro-l { font-family: var(--mono); font-weight: 600; font-size: 22px; letter-spacing: 0.13em; text-transform: uppercase; color: var(--ink-2); padding: 8px 14px 7px; border-bottom: 1.5px solid var(--rule); white-space: nowrap; overflow: hidden; }
+.card[data-style="panel"] .pn-ro-v { font-family: var(--cond); font-weight: 800; line-height: 0.92; padding: 10px 14px 12px; white-space: nowrap; display: flex; align-items: baseline; gap: 0.18em; }
+.card[data-style="panel"] .pn-ro-v .pn-u { font-family: var(--hand); font-size: max(30px, 0.36em); color: var(--ink-2); }
+.card[data-style="panel"] .pn-slab { background: var(--ink); color: var(--paper); padding: max(14px, calc(var(--k) * 22px)) max(18px, calc(var(--k) * 28px)); }
+.card[data-style="panel"] .pn-slab .pn-lab { color: #c9ccd3; }
+.card[data-style="panel"] .pn-slab .pn-hero { color: var(--paper); }
+.card[data-style="panel"] .pn-key { display: flex; flex-direction: column; gap: max(6px, calc(var(--k) * 10px)); font-family: var(--mono); font-weight: 600; font-size: max(22px, calc(var(--k) * 26px)); }
+.card[data-style="panel"] .pn-key > div { display: flex; align-items: center; gap: 16px; }
+.card[data-style="panel"] .pn-key span { min-width: 0; }
+.card[data-style="panel"] .pn-key svg { flex: none; }
+.card[data-style="panel"] .pn-tag { display: inline-block; border: 2px solid currentColor; padding: 0.22em 0.6em 0.26em; font-family: var(--mono); font-weight: 600; white-space: nowrap; }
+/* the title block: CardKit's foot, restyled and pinned to the sheet border */
+.card[data-style="panel"] .foot { left: 40px !important; right: 40px !important; bottom: 40px !important; top: auto !important; height: 104px !important; display: grid !important; grid-template-columns: auto minmax(0, 1fr); align-items: stretch !important; gap: 0 !important; background: var(--paper); color: var(--ink); border-top: 2.5px solid var(--ink); font-family: var(--mono); letter-spacing: 0; text-transform: none; font-size: 26px !important; }
+.card[data-style="panel"][data-card="summary"] .foot { height: 132px !important; }
+.card[data-style="panel"] .mark { display: grid !important; grid-template-columns: auto auto; grid-template-rows: 1fr 1fr; column-gap: 18px; align-items: center; padding: 0 30px 0 22px; font-family: var(--cond) !important; font-weight: 800; font-size: 46px !important; line-height: 0.9; letter-spacing: 0 !important; color: var(--ink); }
+.card[data-style="panel"][data-card="summary"] .mark { font-size: 66px !important; column-gap: 24px; }
+.card[data-style="panel"] .mark svg { grid-row: 1 / span 2; height: 60px !important; width: auto !important; color: var(--brand-lime); background: var(--brand-deep); padding: 8px 11px; border-radius: 8px; box-sizing: content-box; }
+.card[data-style="panel"][data-card="summary"] .mark svg { height: 84px !important; padding: 9px 13px; }
+.card[data-style="panel"][data-card="outro"] .mark svg { outline: 2px solid var(--brand-lime); }
+.card[data-style="panel"] .mark > span:not(.by) { align-self: end; }
+.card[data-style="panel"] .mark .by { align-self: start; margin-top: 7px; font-family: var(--mono); font-weight: 600; font-size: 22px !important; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-2); opacity: 1; }
+.card[data-style="panel"][data-card="summary"] .mark .by { font-size: 26px !important; }
+.card[data-style="panel"] .legend { border-left: 2px solid var(--ink); padding: 0 26px; display: flex; flex-direction: column; justify-content: center; gap: 6px; opacity: 1; color: var(--ink); font-weight: 600; font-size: 26px; letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; overflow: hidden; line-height: 1.2; }
+.card[data-style="panel"] .legend::before { content: "Key"; font-size: 22px; letter-spacing: 0.18em; color: var(--ink-2); }
+.card[data-style="panel"][data-card="summary"] .legend { text-transform: none; letter-spacing: 0; }
+.card[data-style="panel"][data-card="summary"] .legend::before { content: "Run it yourself"; text-transform: uppercase; letter-spacing: 0.18em; }
+.card[data-style="panel"][data-card="outro"] .legend::before { content: "Find it at"; }

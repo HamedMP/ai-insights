@@ -392,18 +392,20 @@ add({ id: "parallel", title: "Parallel", bg: "var(--orange)", fg: "var(--ink)", 
     const big = h("div", { class: "huge", style: { fontSize: 460 * c.k * c.u + "px" } }, int(n));
     const p = h("div", { class: "p gap1" }, "sessions running side by side. Plus ", h("b", {}, `${int(D.parallel.subagents)} subagents`), " launched along the way.");
     c.tl.in(k, 100).pop(big, 200, { dur: 1000 }).in(p, 700);
-    return { head: head(k, big, p), artMin: 0.3, split: 0.46, legend: "one lane = one session",
+    // Lanes are drawn from the recap's real start and end shares when it has them; otherwise N identical
+    // bars, a plain picture of N sessions with no time axis, so nothing looks like data that is not.
+    const lanes = D.parallel.lanes;
+    return { head: head(k, big, p), artMin: 0.3, split: 0.46, legend: lanes ? "one lane = one session, around the peak" : "one bar = one session",
       art(w, hgt) {
-        const svg = svgBox(w, hgt), r = rng(n * 977 + D.parallel.overlapEvents);
-        const lh = Math.min(48 * c.u, (hgt - 40) / n * 0.8), gap = Math.min(14 * c.u, (hgt - 40) / n * 0.2);
-        const y0 = (hgt - n * (lh + gap)) / 2, nowX = w * 0.6;
-        for (let i = 0; i < n; i++) {
-          const a = r() * w * 0.3, b = w * 0.66 + r() * w * 0.32, y = y0 + i * (lh + gap) + lh / 2;
+        const svg = svgBox(w, hgt), m = Math.min(n, lanes ? lanes.length : 40);
+        const lh = Math.min(48 * c.u, (hgt - 40) / m * 0.8), gap = Math.min(14 * c.u, (hgt - 40) / m * 0.2);
+        const y0 = (hgt - m * (lh + gap)) / 2, nowX = w * 0.5;
+        for (let i = 0; i < m; i++) {
+          const a = lanes ? lanes[i][0] * w : 0, b = lanes ? lanes[i][1] * w : w, y = y0 + i * (lh + gap) + lh / 2;
           const ln = s("line", { x1: a + lh / 2, y1: y, x2: b - lh / 2, y2: y, stroke: ["var(--ink)", "var(--paper)", "var(--purple)"][i % 3], "stroke-width": lh, "stroke-linecap": "round" });
           svg.append(ln); c.tl.draw(ln, 400 + i * 70, 900, "out5");
         }
-        const now = s("line", { x1: nowX, y1: y0 - 20, x2: nowX, y2: y0 + n * (lh + gap) + 10, stroke: "var(--ink)", "stroke-width": 6 * c.u, "stroke-dasharray": "14 12" });
-        svg.append(now); c.tl.in(now, 1300, { y: 0, dur: 400 });
+        if (lanes) { const now = s("line", { x1: nowX, y1: y0 - 20, x2: nowX, y2: y0 + m * (lh + gap) + 10, stroke: "var(--ink)", "stroke-width": 6 * c.u, "stroke-dasharray": "14 12" }); svg.append(now); c.tl.in(now, 1300, { y: 0, dur: 400 }); }
         return svg;
       } };
   } });

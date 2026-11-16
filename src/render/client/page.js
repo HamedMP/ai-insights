@@ -43,7 +43,7 @@ function makeInst(id, ratio = S.ratio, style = S.style, mark = S.mark) { const [
 if (params.get("capture") && RC) {
   const id = params.get("capture");
   document.documentElement.classList.add("capture");
-  fontsReady().then(() => {
+  fontsReady(S.style).then(() => {
     if (!avail(id)) { document.body.textContent = `No card "${id}" in this report.`; return; }
     const inst = makeInst(id);
     document.getElementById("root").append(inst.el);
@@ -933,8 +933,8 @@ if (window.IntersectionObserver) {
 }
 
 function switchStyle(id) {
-  if (!styleOk(id) || id === S.style) { refreshStudio(); return; }
-  S.style = id; saveStudio(); buildWall(); refreshStudio(); heroPlayer.reload(true);
+  if (!styleOk(id) || id === S.style) { refreshStudio(); return Promise.resolve(); }
+  return fontsReady(id).then(() => { S.style = id; saveStudio(); buildWall(); refreshStudio(); heroPlayer.reload(true); });
 }
 window.addEventListener("resize", () => { heroPlayer.size(); thPlayer.size(); });
 
@@ -944,7 +944,7 @@ function spanTxt(a, b) {
 }
 
 // ---------- boot
-fontsReady().then(async () => {
+fontsReady(S.style).then(async () => {
   if (RC) {
     buildWall(); refreshStudio();
     heroPlayer.reload();

@@ -6,7 +6,7 @@ const Exporter = (() => {
 
   /** Rasterise one card instance at its current frame onto ctx. */
   async function rasterize(inst, ctx) {
-    cssCache ??= cardCss();
+    cssCache = cardCss();
     const { W, H } = inst;
     const html = new XMLSerializer().serializeToString(inst.el);
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><foreignObject x="0" y="0" width="${W}" height="${H}"><div xmlns="http://www.w3.org/1999/xhtml" style="position:relative;width:${W}px;height:${H}px;overflow:hidden"><style>${cssCache}</style>${html.replace(/transform: scale\([^)]*\);?/, "")}</div></foreignObject></svg>`;

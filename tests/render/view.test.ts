@@ -52,6 +52,12 @@ describe("the share-safe recap", () => {
     expect(recap.usage.usd).toBeNull();
   });
 
+  it("passes real parallel lanes through, and none at all rather than invented ones", () => {
+    expect(recapView(withRecap())!.parallel.lanes).toBeNull();
+    const lanes = recapView(withRecap(makeReport(), { parallel: { ...RECAP.parallel, lanes: [[0.1, 0.6], { start: 0.2, end: 0.9 }, [0.5, 0.4]] } } as never))!.parallel.lanes;
+    expect(lanes).toEqual([[0.1, 0.6], [0.2, 0.9]]);
+  });
+
   it("keeps the 10,000+ flag for capped tool counts and the full span of long histories", () => {
     const recap = recapView(withRecap(makeReport(), { totals: { ...RECAP.totals, toolCallsCapped: true }, range: { from: "2026-02-03", to: "2026-11-16", days: 287 } }))!;
     expect(recap.totals.toolCallsCapped).toBe(true);

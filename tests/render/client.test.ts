@@ -15,7 +15,9 @@ const D = recapView({ ...makeReport(), recap: RECAP })!;
 /** The engine and the given style scripts in a fresh global scope, as the page loads them, without a DOM. */
 function engineWith(styles: string[]): { CardStyles: { list(): Array<{ id: string; ok: boolean }>; specs(id: string): Record<string, { id: string; build: unknown; dur: number }> | null; setData(d: unknown): void }; errors: string[] } {
   const errors: string[] = [];
-  const context = createContext({ console: { error: (...args: unknown[]) => errors.push(args.map(String).join(" ")), warn: () => {}, log: () => {} }, Math, Object, Array, JSON, Number, String, Map, Set, Date, Intl, Promise });
+  // Just enough DOM for a style that measures text on a detached canvas while building its specs.
+  const document = { createElement: () => ({ getContext: () => ({ font: "", measureText: (text: string) => ({ width: String(text).length * 10 }) }) }) };
+  const context = createContext({ document, console: { error: (...args: unknown[]) => errors.push(args.map(String).join(" ")), warn: () => {}, log: () => {} }, Math, Object, Array, JSON, Number, String, Map, Set, Date, Intl, Promise });
   for (const code of [read("rabbit.js"), read("engine.js"), ...styles]) new Script(code).runInContext(context);
   const CardStyles = new Script("CardStyles").runInContext(context);
   CardStyles.setData(JSON.parse(JSON.stringify(D)));

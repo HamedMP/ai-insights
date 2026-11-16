@@ -1,0 +1,12 @@
+[
+  {
+    "family": "PanelCond",
+    "file": "barlow-condensed-800-latin.woff2",
+    "weight": "800"
+  },
+  {
+    "family": "PanelHand",
+    "file": "caveat-700-latin.woff2",
+    "weight": "700"
+  }
+]

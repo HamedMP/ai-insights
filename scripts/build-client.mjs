@@ -6,7 +6,7 @@
 // Checks: every script parses as a classic script (they share one global scope, so no import/export), every
 // card style is a <id>.js + <id>.css pair that registers itself and scopes its CSS, no source contains a
 // closing </script> or </style>, and every font has its licence beside it.
-import { cpSync, existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { cpSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Script } from "node:vm";
@@ -70,9 +70,10 @@ for (const id of styles) {
     }
   }
 }
+// Every font ships with its licence: fonts/<family>-OFL.txt, where the font's file name starts with <family>.
+const licences = readdirSync(join(src, "fonts")).filter((name) => name.endsWith("-OFL.txt")).map((name) => name.slice(0, -"-OFL.txt".length));
 for (const font of readdirSync(join(src, "fonts")).filter((name) => name.endsWith(".woff2"))) {
-  const family = font.split("-")[0];
-  if (!existsSync(join(src, "fonts", `${family}-OFL.txt`))) problems.push(`fonts/${font}: ship its licence as fonts/${family}-OFL.txt`);
+  if (!licences.some((family) => font.startsWith(`${family}-`))) problems.push(`fonts/${font}: ship its licence as fonts/<family>-OFL.txt`);
 }
 
 if (problems.length > 0) {

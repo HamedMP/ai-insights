@@ -49,6 +49,7 @@ export function renderReport(report: RenderInput, extras: RenderExtras = {}): st
 <div id="root"></div>
 <div id="measure" aria-hidden="true"></div>
 <script id="report-data" type="application/json">${dataJson(view)}</script>
+${Object.entries(assets.styleFonts).map(([id, css]) => `<script id="style-fonts-${id}" type="text/plain">${css}</script>`).join("\n")}
 <script>${assets.script}</script>
 </body>
 </html>

@@ -1,6 +1,6 @@
 /* ===== card stylesheet: everything a card needs to render, and nothing else.
    It is also what the exporter inlines into each SVG foreignObject frame, so keep it small.
-   Swatch names (--orange, --lilac...) are SLOTS: a card asks for a slot, the theme fills it. ===== */
+   Swatch names (--orange, --lilac...) are SLOTS: a card asks for a slot, a style may redefine it. ===== */
 .card {
   --paper: #f7f3ea; --ink: #141210; --lilac: #c9b8ff; --purple: #3d1bb3; --mint: #8ff0c3; --yellow: #ffe14a;
   --coral: #ff6b57; --orange: #ff7a2f; --sky: #8ad3ff; --pink: #ffb6d9; --lime: #d6f25c; --red: #e8361f;
@@ -9,6 +9,8 @@
   --text: "GeistR", "Helvetica Neue", Arial, system-ui, sans-serif;
   --mono: "GeistM", ui-monospace, Menlo, monospace;
   --k: 1;
+  /* Pinned so page CSS cannot leak in: an exported frame has only this stylesheet, and must look the same. */
+  line-height: normal; font-size: 16px; letter-spacing: normal; text-align: left; font-style: normal;
   position: absolute; left: 0; top: 0; overflow: hidden; box-sizing: border-box;
   background: var(--bg); color: var(--fg); font-family: var(--display);
   -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision;

@@ -131,10 +131,14 @@ function fitAll(root) {
   });
 }
 
-/** Layout measures text, so every face must be loaded first, not just "whatever is loading now". */
-function fontsReady() {
+/**
+ * Layout measures text, so every face must be loaded first, not just "whatever is loading now". With a style id,
+ * that style's own fonts too (they are added to the card CSS the first time the style is used).
+ */
+function fontsReady(style) {
   if (!document.fonts) return Promise.resolve();
-  return Promise.all(["800 100px Brico", "700 100px Brico", "500 40px GeistR", "750 40px GeistR", "600 30px GeistM", "700 30px GeistM"].map((f) => document.fonts.load(f))).then(() => document.fonts.ready);
+  const extra = style ? CardStyles.fontsOf(style) : [];
+  return Promise.all(["800 100px Brico", "700 100px Brico", "500 40px GeistR", "750 40px GeistR", "600 30px GeistM", "700 30px GeistM", ...extra].map((f) => document.fonts.load(f))).then(() => document.fonts.ready);
 }
 
 // ------------------------------------------------------------------ CardKit: the layout kernel
@@ -321,7 +325,7 @@ const CardStyles = (() => {
     const ok = def && /^[a-z0-9-]{1,24}$/.test(def.id) && typeof def.name === "string" && typeof def.specs === "function";
     if (!ok) { console.error("registerCardStyle: ignored a style without id, name and specs()", def && def.id); return; }
     if (defs.some((d) => d.id === def.id)) { console.error(`registerCardStyle: duplicate style ${def.id}`); return; }
-    defs.push({ id: def.id, name: def.name.slice(0, 20), swatch: def.swatch || "var(--ink)", specs: def.specs });
+    defs.push({ id: def.id, name: def.name.slice(0, 20), swatch: def.swatch || "var(--ink)", specs: def.specs, fonts: Array.isArray(def.fonts) ? def.fonts.filter((f) => typeof f === "string").slice(0, 8) : [] });
   }
   function specs(id) {
     if (built.has(id)) return built.get(id);
@@ -339,8 +343,20 @@ const CardStyles = (() => {
     built.set(id, out);
     return out;
   }
+  /** Add the style's own @font-face rules to the card CSS once, and say which faces to wait for. */
+  const injected = new Set();
+  function fontsOf(id) {
+    const def = defs.find((d) => d.id === id);
+    if (!def || !def.fonts.length) return [];
+    if (!injected.has(id) && typeof document !== "undefined") {
+      injected.add(id);
+      const src = document.getElementById(`style-fonts-${id}`), css = document.getElementById("card-css");
+      if (src && css) css.textContent += "\n" + src.textContent;
+    }
+    return def.fonts;
+  }
   return {
-    register, specs,
+    register, specs, fontsOf,
     setData(d) { data = d; built.clear(); },
     list: () => defs.map(({ id, name, swatch }) => ({ id, name, swatch, ok: !!specs(id) })),
     has: (id) => !!specs(id),

@@ -13,7 +13,8 @@ function data(html: string): Record<string, unknown> {
   const match = /<script id="report-data" type="application\/json">([\s\S]*?)<\/script>/.exec(html);
   return JSON.parse(match![1]!);
 }
-const scripts = (html: string) => [...html.matchAll(/<script(?![^>]*application\/json)[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]!);
+/** Scripts that run: data blocks (JSON, a style's font CSS as text/plain) carry a type and never execute. */
+const scripts = (html: string) => [...html.matchAll(/<script(?![^>]*\stype=)[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]!);
 
 describe("one self-contained file", () => {
   const html = renderReport(full());
@@ -73,7 +74,7 @@ describe("hostile report text", () => {
   it("can never close the data block or become markup: every < in the data is escaped", () => {
     const block = /<script id="report-data" type="application\/json">([\s\S]*?)<\/script>/.exec(html)![1]!;
     expect(block).not.toContain("<");
-    expect(html.match(/<script/g)).toHaveLength(2);
+    expect(scripts(html)).toHaveLength(1);
     expect(html).not.toContain(HOSTILE.script);
     expect(html).not.toContain("<img src=x");
   });

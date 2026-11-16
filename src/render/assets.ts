@@ -29,6 +29,8 @@ export interface ClientAssets {
   script: string;
   scriptHash: string;
   styles: string[];
+  /** @font-face rules for fonts only one style uses, injected into the card CSS when that style is first used. */
+  styleFonts: Record<string, string>;
 }
 
 const read = (file: string) => readFileSync(CLIENT + file, "utf8");
@@ -58,7 +60,21 @@ export function clientAssets(): ClientAssets {
   // `</` cannot appear inside an inline <script>; none of our sources need it, and a check keeps it that way.
   const script = [...BEFORE_STYLES.map(read), ...styles.map((id) => read(`styles/${id}.js`)), ...AFTER_STYLES.map(read)].join("\n;\n");
   if (/<\/script/i.test(script) || /<\/style/i.test(cardCss + read("page.css"))) throw new Error("client assets must not contain a closing script or style tag");
+  // A style's own fonts (styles/<id>.fonts.json: [{ family, file, weight }]) stay out of the card CSS until the
+  // style is picked, so exported frames of other styles do not carry them.
+  const styleFonts: Record<string, string> = {};
+  for (const id of styles) {
+    let list: Array<{ family: string; file: string; weight: string }>;
+    try {
+      list = JSON.parse(read(`styles/${id}.fonts.json`));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+      throw error;
+    }
+    styleFonts[id] = list.map(({ family, file, weight }) => `@font-face{font-family:"${family}";src:url(data:font/woff2;base64,${readFileSync(CLIENT + "fonts/" + file).toString("base64")}) format("woff2");font-weight:${weight};font-display:block}`).join("\n");
+  }
   cached = {
+    styleFonts,
     cardCss,
     pageCss: read("page.css"),
     script,

@@ -92,7 +92,11 @@ export interface RecapView {
   shell: { calls: number; programs: KeyCount[]; tests: number; testPass: number | null; rmrf: number; forcePush: number; sleeps: number };
   /** False when no prompt had a timestamp: the rhythm numbers are zeros, and cards built on them are off. */
   hasRhythm: boolean;
-  parallel: { max: number; overlapEvents: number; subagents: number };
+  /**
+   * `lanes`: the sessions open around the busiest moment as [start, end] shares (0..1) of a window around it,
+   * share-safe (no names). Null until the data layer sends them: cards then draw a plain schematic, never data.
+   */
+  parallel: { max: number; overlapEvents: number; subagents: number; lanes: Array<[number, number]> | null };
   longestSession: { activeMinutes: number; wallMinutes: number; prompts: number; toolCalls: number; toolCallsCapped: boolean; harness: string; compactions: number } | null;
   topProjectShare: number | null;
   failures: { total: number; calls: number; rate: number; categories: Array<{ key: string; label: string; count: number }>; nemesis: Array<{ key: string; count: number; runs: number }> };
@@ -429,7 +433,7 @@ export function recapView(input: RenderInput): RecapView | null {
     slashTotal: count(raw.slashTotal),
     shell: { calls: count(shell.calls), programs: keyCounts(shell.programs, 5, 24), tests: count(shell.tests), testPass: maybe(shell.testPass), rmrf: count(shell.rmrf), forcePush: count(shell.forcePush), sleeps: count(shell.sleeps) },
     hasRhythm,
-    parallel: { max: count(parallel.max), overlapEvents: count(parallel.overlapEvents), subagents: count(parallel.subagents) },
+    parallel: { max: count(parallel.max), overlapEvents: count(parallel.overlapEvents), subagents: count(parallel.subagents), lanes: lanesOf(parallel.lanes) },
     longestSession: longest && count(longest.activeMinutes) > 0
       ? { activeMinutes: count(longest.activeMinutes), wallMinutes: count(longest.wallMinutes), prompts: count(longest.prompts), toolCalls: count(longest.toolCalls), toolCallsCapped: longest.toolCallsCapped === true, harness: str(longest.harness, 20), compactions: count(longest.compactions) }
       : null,
@@ -464,6 +468,11 @@ export function recapView(input: RenderInput): RecapView | null {
   view.tips = tipsFor(raw.tips, input.findings ?? []);
   view.avail = availability(view);
   return view;
+}
+
+function lanesOf(raw: unknown): Array<[number, number]> | null {
+  const lanes = arr(raw, 40).map((entry) => (Array.isArray(entry) ? entry : [obj(entry).start, obj(entry).end])).map(([a, b]) => [ratio(a), ratio(b)] as [number, number]).filter(([a, b]) => b > a);
+  return lanes.length >= 2 ? lanes : null;
 }
 
 /** The recap's own tips, else up to three from the findings, worded per kind so no command text reaches a card. */
