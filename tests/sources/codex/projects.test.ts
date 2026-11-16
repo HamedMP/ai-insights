@@ -69,6 +69,45 @@ describe("codex project attribution", () => {
     expect(session.projectPath).toBe(worktree);
   });
 
+  const worktreeOf = (repo: string, name: string): string => {
+    const folder = join(work, name);
+    const admin = join(work, repo, ".git", "worktrees", name);
+    mkdirSync(folder, { recursive: true });
+    mkdirSync(admin, { recursive: true });
+    writeFileSync(join(admin, "commondir"), "../..\n");
+    writeFileSync(join(folder, ".git"), `gitdir: ${admin}\n`);
+    return folder;
+  };
+
+  it("files a session that worked across several worktrees of one repository under that repository", async () => {
+    // Started in the parent folder, the work hopped between three worktrees and the main checkout: no single
+    // folder holds a clear majority, but one repository holds all of it.
+    const trees = ["app-one", "app-two", "app-three"].map((name) => worktreeOf("app", name));
+    const session = await parseOne([
+      meta(uuid(1), { cwd: work }),
+      ...userMessage("land the stack"),
+      ...trees.flatMap((tree) => [edit(join(tree, "a.ts")), command(tree, "pnpm test")]),
+      edit(join(work, "app", "src", "main.ts")),
+    ]);
+    expect(session.projectPath).toBe(join(work, "app"));
+  });
+
+  it("keeps the start folder when worktrees of two repositories share the work evenly", async () => {
+    const one = worktreeOf("app", "app-one");
+    const two = worktreeOf("lib", "lib-one");
+    const session = await parseOne([meta(uuid(1), { cwd: work }), ...userMessage("sync"), edit(join(one, "a.ts")), edit(join(one, "b.ts")), edit(join(two, "a.ts")), edit(join(two, "b.ts"))]);
+    expect(session.projectPath).toBe(work);
+  });
+
+  it("treats a worktree whose repository admin folder is gone as its own checkout and never throws", async () => {
+    const orphan = join(work, "orphan");
+    mkdirSync(orphan, { recursive: true });
+    writeFileSync(join(orphan, ".git"), `gitdir: ${join(work, "gone", ".git", "worktrees", "orphan")}\n`);
+    const other = worktreeOf("app", "app-one");
+    const session = await parseOne([meta(uuid(1), { cwd: work }), ...userMessage("x"), edit(join(orphan, "a.ts")), edit(join(orphan, "b.ts")), edit(join(orphan, "c.ts")), edit(join(other, "a.ts"))]);
+    expect(session.projectPath).toBe(orphan);
+  });
+
   it("groups work in a plain folder below a parent cwd under that folder", async () => {
     mkdirSync(join(work, "notes"), { recursive: true });
     const session = await parseOne([meta(uuid(1), { cwd: work }), ...userMessage("write it up"), edit(join(work, "notes", "draft.md")), edit(join(work, "notes", "outline.md"))]);

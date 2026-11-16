@@ -16,16 +16,30 @@ export function firstLine(text: unknown, max = 160): string {
   return oneLine(line, max);
 }
 
+const MAX_ARG_CHARS = 60;
+/** Routine tool lines longer than this are cut by the excerpt budget anyway, so a connector line fits in it. */
+export const MAX_CONNECTOR_LINE = 160;
+
 /** `(repo: acme/widgets, pr: 12)`: scalar arguments only, so nested payloads never flood the excerpt. */
 export function argsSummary(args: unknown, limit = 3): string {
   if (!args || typeof args !== "object" || Array.isArray(args)) return "";
   const parts: string[] = [];
   for (const [key, value] of Object.entries(args as Record<string, unknown>)) {
     if (parts.length >= limit) break;
-    if (typeof value === "string" && value.length > 0 && value.length <= 80 && !value.includes("\n")) parts.push(`${key}: ${value}`);
+    if (typeof value === "string" && value.length > 0 && value.length <= 2000 && !value.includes("\n")) parts.push(`${key}: ${oneLine(value, MAX_ARG_CHARS)}`);
     else if (typeof value === "number" || typeof value === "boolean") parts.push(`${key}: ${value}`);
   }
   return parts.length ? ` (${parts.join(", ")})` : "";
+}
+
+/** Codex's own app connectors; their tool names (`github.fetch`) already say what they reach. */
+const APP_CONNECTORS = new Set(["codex_apps", "codex_app"]);
+
+/** `github.get_pr_info (repo: acme/widgets, pr_number: 12)`, or `figma get_design` for any other server. */
+export function connectorLine(server: string | null | undefined, tool: string, args: unknown, suffix = ""): string {
+  const label = !server || APP_CONNECTORS.has(server) ? tool : `${server} ${tool}`;
+  const head = oneLine(`${label}${argsSummary(args)}`, Math.max(40, MAX_CONNECTOR_LINE - suffix.length));
+  return oneLine(`${head}${suffix}`, MAX_CONNECTOR_LINE + 80);
 }
 
 export function failure(reason: string): string {

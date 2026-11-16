@@ -56,6 +56,8 @@ async function parse(file: SessionFile): Promise<Session | null> {
 
 type Indexed = { turn: TranscriptTurn; index: number };
 
+const INTERRUPTED = "[interrupted]";
+
 function pickEvenly<T>(items: T[], count: number): T[] {
   if (count <= 0) return [];
   if (items.length <= count) return items;
@@ -90,6 +92,7 @@ function selectTurns(turns: TranscriptTurn[], maxTurns: number, around?: string)
     }
   }
   const users = indexed.filter(({ turn }) => turn.role === "user");
+  const brief = users.findIndex(({ turn }) => turn.text !== INTERRUPTED);
   const signals = indexed.filter(({ turn, index }) => index !== finalIndex && (turn.isError || turn.role === "agent"));
   const rest = indexed.filter(({ turn, index }) => index !== finalIndex && turn.role !== "user" && !turn.isError && turn.role !== "agent");
   const picked: Indexed[] = [];
@@ -100,7 +103,9 @@ function selectTurns(turns: TranscriptTurn[], maxTurns: number, around?: string)
   }
   const others = signals.length + rest.length;
   const userTake = Math.min(users.length, room, Math.max(Math.ceil(maxTurns / 2), room - others));
-  picked.push(...pickEvenly(users, userTake));
+  // The first prompt is usually the brief: without it the rest of the session cannot be judged.
+  if (brief >= 0 && userTake > 0) picked.push(users[brief]!, ...pickEvenly([...users.slice(0, brief), ...users.slice(brief + 1)], userTake - 1));
+  else picked.push(...pickEvenly(users, userTake));
   room -= userTake;
   const signalTake = Math.min(signals.length, Math.max(Math.ceil(room / 2), room - rest.length));
   picked.push(...pickEvenly(signals, signalTake));
@@ -114,8 +119,18 @@ async function excerpt(file: SessionFile, options: ExcerptOptions = {}): Promise
   const maxChars = Math.max(20, Math.min(options.maxCharsPerTurn ?? 1200, 20_000));
   try {
     const built = await buildRollout(file.path, file.mtimeMs, { turnChars: maxChars });
+    // Later prompts get half the room, so a long pasted log further on cannot squeeze the brief out of the budget.
+    const laterPromptChars = Math.max(200, Math.floor(maxChars / 2));
+    let briefSeen = false;
     const turns = built.turns
-      .map((turn) => ({ ...turn, text: scrub(turn.text, maxChars) }))
+      .map((turn) => {
+        let cap = maxChars;
+        if (turn.role === "user" && turn.text !== INTERRUPTED) {
+          if (briefSeen) cap = Math.min(maxChars, laterPromptChars);
+          briefSeen = true;
+        }
+        return { ...turn, text: scrub(turn.text, cap) };
+      })
       .filter((turn) => turn.text.length > 0);
     return selectTurns(turns, maxTurns, options.around);
   } catch {
