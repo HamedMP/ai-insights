@@ -3,7 +3,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { DRIVERS, GOAL_CATEGORIES, OUTCOMES, type BuildReportInput, type Report, type Session, type TranscriptTurn } from "../../src/schema/types.js";
+import { DRIVERS, HARNESSES, GOAL_CATEGORIES, OUTCOMES, type BuildReportInput, type Report, type Session, type TranscriptTurn } from "../../src/schema/types.js";
 import { createServer } from "../../src/mcp/server.js";
 import { MAX_OUTPUT_CHARS } from "../../src/mcp/bound.js";
 import { Store } from "../../src/store/store.js";
@@ -86,7 +86,7 @@ describe("ai_insights_scan", () => {
   it("returns coverage for every harness and headline numbers", async () => {
     const { json, isError } = await call("ai_insights_scan");
     expect(isError).toBe(false);
-    expect(json.coverage).toHaveLength(5);
+    expect(json.coverage).toHaveLength(HARNESSES.length);
     expect(json.coverage.find((entry: any) => entry.harness === "codex")).toMatchObject({ found: true, sessions: 1, bytes: 100 });
     expect(json.coverage.find((entry: any) => entry.harness === "claude-code")).toMatchObject({ bytes: 200 });
     expect(json.coverage.find((entry: any) => entry.harness === "pi")).toMatchObject({ found: false });

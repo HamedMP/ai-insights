@@ -7,6 +7,7 @@ const HARNESS_LABELS: Record<Harness, string> = {
   cursor: "Cursor",
   pi: "Pi",
   opencode: "OpenCode",
+  gemini: "Gemini CLI",
 };
 
 export function harnessLabel(harness: string): string {

@@ -4,7 +4,7 @@
  * modules depend on it.
  */
 
-export const HARNESSES = ["claude-code", "codex", "cursor", "pi", "opencode"] as const;
+export const HARNESSES = ["claude-code", "codex", "cursor", "pi", "opencode", "gemini"] as const;
 export type Harness = (typeof HARNESSES)[number];
 
 // ---------------------------------------------------------------------------

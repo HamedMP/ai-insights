@@ -70,6 +70,7 @@ export const HARNESS_LABELS: Record<Harness, string> = {
   cursor: "Cursor",
   pi: "Pi",
   opencode: "OpenCode",
+  gemini: "Gemini CLI",
 };
 
 export const SEVERITY_RANK: Record<Severity, number> = { high: 3, medium: 2, low: 1, info: 0 };
