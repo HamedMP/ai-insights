@@ -17,6 +17,7 @@ import {
   type Report,
   type Session,
   type Source,
+  type TranscriptTurn,
 } from "../schema/types.js";
 import { clean } from "../sources/shared.js";
 import { buildFromScan, describeHeadline, headline, renderFromScan, type BuildReportFn, type RenderReportFn } from "../store/pipeline.js";
@@ -517,14 +518,17 @@ export function createServer(deps: ServerDeps): McpServer {
         },
       };
       // The budget is for the whole response, so the JSON around the text counts too.
-      const build = (textBudget: number) => {
-        const fitted = fitTurns(cleaned, Math.max(200, textBudget));
-        const body = { ...header, turns: fitted.turns, ...(fitted.omitted > 0 ? { omittedToolTurns: fitted.omitted } : {}) };
-        return { body, size: JSON.stringify(body).length, text: fitted.turns.reduce((sum, turn) => sum + turn.text.length, 0) };
+      // Each turn's own JSON (timestamp, role, keys) counts against the budget, so the fit sees it too.
+      const overhead = (turn: TranscriptTurn) => JSON.stringify({ ...turn, text: "" }).length + 1;
+      const build = (turnsBudget: number) => {
+        const fitted = fitTurns(cleaned, Math.max(200, turnsBudget), { overhead });
+        const body = { ...header, turns: fitted.turns, ...(fitted.omitted > 0 ? { omittedTurns: fitted.omitted } : {}) };
+        return { body, size: JSON.stringify(body).length, turnsBudget };
       };
-      let attempt = build(budget - JSON.stringify({ ...header, turns: cleaned.map((turn) => ({ ...turn, text: "" })) }).length);
-      for (let tries = 0; tries < 3 && attempt.size > budget && attempt.text > 200; tries += 1) {
-        attempt = build(attempt.text - (attempt.size - budget));
+      let attempt = build(budget - JSON.stringify({ ...header, turns: [], omittedTurns: 99 }).length);
+      // Escaped quotes and newlines make the JSON a little longer than the text; trim by the overshoot.
+      for (let tries = 0; tries < 3 && attempt.size > budget && attempt.turnsBudget > 200; tries += 1) {
+        attempt = build(attempt.turnsBudget - (attempt.size - budget));
       }
       return ok(attempt.body);
     }),

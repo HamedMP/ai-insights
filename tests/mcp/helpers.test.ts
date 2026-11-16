@@ -78,3 +78,22 @@ describe("activityDigest", () => {
     expect(activityDigest(activity).projects).toEqual({ "r/big-repo": { sessions: 9, worktrees: 4 }, "r/small": 2, "r/single": 1 });
   });
 });
+
+describe("fitTurns with many important turns", () => {
+  const turn = (role: TranscriptTurn["role"], text: string): TranscriptTurn => ({ timestamp: "t", role, text });
+
+  it("pins the first prompt and samples the others instead of cutting every turn to a sliver", () => {
+    const turns = [turn("user", "b".repeat(600)), ...Array.from({ length: 30 }, (_, index) => turn(index % 2 ? "user" : "assistant", "x".repeat(600)))];
+    const fitted = fitTurns(turns, 2_400);
+    expect(fitted.turns[0]!.text).toBe("b".repeat(600));
+    expect(fitted.turns.reduce((sum, item) => sum + item.text.length, 0)).toBeLessThanOrEqual(2_400);
+    for (const item of fitted.turns.slice(1)) expect(item.text.length).toBeGreaterThanOrEqual(160);
+    expect(fitted.omitted).toBeGreaterThan(0);
+  });
+
+  it("counts per-turn overhead when asked, so a budget for JSON is not overrun", () => {
+    const turns = Array.from({ length: 10 }, () => turn("user", "y".repeat(300)));
+    const fitted = fitTurns(turns, 2_000, { overhead: () => 100 });
+    expect(fitted.turns.reduce((sum, item) => sum + item.text.length + 100, 0)).toBeLessThanOrEqual(2_000);
+  });
+});

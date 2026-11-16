@@ -574,3 +574,37 @@ describe("returning users with nothing new", () => {
     expect(json.next).not.toContain("up to 0");
   });
 });
+
+describe("hindsight_excerpt: long briefs at the default budget", () => {
+  /** An orchestrated session: a long brief, then many prompts and replies, as a source returns them. */
+  function orchestrated(): TranscriptTurn[] {
+    const words = (seed: string, length: number) => `${seed} `.repeat(Math.ceil(length / (seed.length + 1))).slice(0, length).trim();
+    const turns: TranscriptTurn[] = [{ timestamp: "2026-10-01T09:00:00.000Z", role: "user", text: words("brief", 600) }];
+    for (let index = 1; index < 24; index += 1) {
+      const role: TranscriptTurn["role"] = index % 3 === 0 ? "user" : index % 3 === 1 ? "assistant" : "tool";
+      turns.push({ timestamp: `2026-10-01T09:${String(index).padStart(2, "0")}:00.000Z`, role, text: words(role, 600), ...(role === "tool" ? { toolName: "Bash" } : {}) });
+    }
+    return turns;
+  }
+
+  it("keeps the first prompt whole up to about 600 characters and the response near the 4k budget", async () => {
+    claude.excerpt = async () => orchestrated();
+    const { json, text } = await call("hindsight_excerpt", { sessionId: "c1", harness: "claude-code" });
+    expect(text.length).toBeLessThanOrEqual(4_000);
+    expect(text.length).toBeGreaterThan(3_400);
+    expect(json.turns[0].role).toBe("user");
+    expect(json.turns[0].text.length).toBeGreaterThanOrEqual(590);
+    // The rest are sampled rather than all cut to a few dozen characters.
+    for (const turn of json.turns.slice(1)) expect(turn.text.length).toBeGreaterThanOrEqual(120);
+    expect(json.omittedTurns).toBeGreaterThan(0);
+    expect(json.turns.at(-1).role).toBe("assistant");
+  });
+
+  it("still gives the first prompt the most room in a smaller budget", async () => {
+    claude.excerpt = async () => orchestrated();
+    const { json, text } = await call("hindsight_excerpt", { sessionId: "c1", harness: "claude-code", maxChars: 3_000 });
+    expect(text.length).toBeLessThanOrEqual(3_000);
+    expect(json.turns[0].text.length).toBeGreaterThanOrEqual(590);
+    for (const turn of json.turns.slice(1)) expect(turn.text.length).toBeGreaterThanOrEqual(120);
+  });
+});
