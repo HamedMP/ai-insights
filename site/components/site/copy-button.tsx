@@ -7,7 +7,7 @@ import { Copy01Icon, Tick02Icon } from "@hugeicons/core-free-icons"
 import { cn } from "@/lib/utils"
 
 /** Copies `text`; the icon turns into a tick and the label into "Copied" for a moment. */
-export function CopyButton({ text, label = "Copy", className }: { text: string; label?: string; className?: string }) {
+export function CopyButton({ text, label = "Copy", className, ariaLabel }: { text: string; label?: string; className?: string; ariaLabel?: string }) {
   const [state, setState] = React.useState<"idle" | "copied" | "failed">("idle")
   const timer = React.useRef<number | undefined>(undefined)
   React.useEffect(() => () => window.clearTimeout(timer.current), [])
@@ -27,8 +27,9 @@ export function CopyButton({ text, label = "Copy", className }: { text: string; 
     <button
       type="button"
       onClick={copy}
+      aria-label={ariaLabel}
       className={cn(
-        "group/copy inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border bg-background/80 px-2 font-mono text-[11px] text-muted-foreground transition-[color,border-color,background-color] outline-none hover:border-input hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
+        "group/copy relative inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border bg-background/80 px-2 font-mono text-[11px] text-muted-foreground transition-[color,border-color,background-color] outline-none hover:border-input hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 before:absolute before:-inset-1.5 before:content-[''] active:translate-y-px",
         state === "copied" && "border-primary/40 text-primary hover:text-primary",
         className,
       )}
@@ -45,7 +46,7 @@ export function CopyButton({ text, label = "Copy", className }: { text: string; 
           className={cn("absolute size-3.5 scale-50 opacity-0 transition-[transform,opacity] duration-200", state === "copied" && "scale-100 opacity-100")}
         />
       </span>
-      <span aria-live="polite">{state === "copied" ? "Copied" : state === "failed" ? "Select and copy" : label}</span>
+      <span aria-live="polite" aria-atomic>{state === "copied" ? "Copied" : state === "failed" ? "Select and copy" : label}</span>
     </button>
   )
 }

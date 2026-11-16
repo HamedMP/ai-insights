@@ -34,6 +34,8 @@ nodeModule.registerHooks({
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const { buildReport } = await import("../src/analysis/index.ts");
 const { renderReport } = await import("../src/render/index.ts");
+const { rankActions } = await import("../src/render/story.ts");
+const { settingsSnippet } = await import("../src/render/chapters/advice.ts");
 
 const args = process.argv.slice(2);
 const jsonAt = args.indexOf("--json");
@@ -489,7 +491,40 @@ function siteData(report) {
       findings: report.findings.length,
     },
     findings: top.map((finding) => ({ title: finding.title.replace(/`/g, ""), value: finding.metric?.value ?? null, label: finding.metric?.label ?? "" })),
+    payoff: payoff(report),
   };
+}
+
+/**
+ * Three changes as the report's "What to improve" chapter shows them: two instruction blocks and
+ * one allow rule, each with the evidence behind it and the text to paste. `anchor` is the card's
+ * id in the sample report.
+ */
+function payoff(report) {
+  const { top, rest } = rankActions(report);
+  const ranked = [...top, ...rest].map((action, index) => ({ action, anchor: `action-${index + 1}` }));
+  const card = ({ action, anchor }) => {
+    const snippet = action.instructionText ? null : settingsSnippet(action.action) ?? settingsSnippet(action.suggestion.action);
+    const finding = action.finding;
+    return {
+      anchor,
+      type: action.suggestion.type,
+      title: action.suggestion.title,
+      why: finding ? finding.title.replace(/`/g, "") : action.why,
+      metric: finding?.metric ? { value: finding.metric.value, label: finding.metric.label } : null,
+      evidence: finding ? finding.detail.split(/(?<=\.)\s/)[0].replace(/`/g, "") : null,
+      action: (snippet ? `Add the commands you keep approving to ${snippet.file ?? "your settings"}.` : action.action).replace(/`/g, ""),
+      paste: action.instructionText
+        ? { into: "CLAUDE.md or AGENTS.md", text: action.instructionText }
+        : snippet
+          ? { into: snippet.file ?? "settings", text: snippet.text }
+          : null,
+    };
+  };
+  const withPaste = ranked.map(card).filter((entry) => entry.paste);
+  const instructions = withPaste.filter((entry) => entry.type === "instructions").slice(0, 2);
+  const settings = withPaste.filter((entry) => entry.paste.into.endsWith(".json")).slice(0, 1);
+  return [...instructions, ...settings];
 }
 console.log(
   `wrote ${outPath} (${Math.round(htmlText.length / 1024)} KB): ${sessions.length} sessions, ${report.findings.length} findings [${report.findings.map((finding) => finding.kind).join(", ")}], peak ${report.activity.parallelSessions.maxConcurrent} at once`,

@@ -24,7 +24,7 @@ export function Footer() {
             </a>
           </span>
         </div>
-        <nav aria-label="Links" className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+        <nav aria-label="Links" className="flex flex-wrap gap-x-6 text-sm [&>a]:inline-flex [&>a]:min-h-10 [&>a]:items-center md:[&>a]:min-h-0">
           <a className="link-underline" href={REPO}>GitHub</a>
           <a className="link-underline" href={NPM}>npm</a>
           <a className="link-underline" href={SAMPLE}>Sample report</a>

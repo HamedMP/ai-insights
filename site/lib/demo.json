@@ -356,5 +356,55 @@
       "value": 25,
       "label": "tool calls blocked or refused"
     }
+  ],
+  "payoff": [
+    {
+      "anchor": "action-1",
+      "type": "instructions",
+      "title": "Tell the agent how this command should be run",
+      "why": "pnpm test:e2e keeps failing",
+      "metric": {
+        "value": 111,
+        "label": "failed runs"
+      },
+      "evidence": "pnpm test:e2e failed 111 times out of 119 runs across 32 sessions.",
+      "action": "Find out why it fails (missing setup, wrong directory, wrong script name) and write the correct invocation into your instructions file so the agent stops guessing.",
+      "paste": {
+        "into": "CLAUDE.md or AGENTS.md",
+        "text": "## End-to-end tests\n- Start the app with `pnpm dev` in the background before running `pnpm test:e2e`.\n- If the suite fails twice with the same error, stop and report the error instead of rerunning it."
+      }
+    },
+    {
+      "anchor": "action-3",
+      "type": "instructions",
+      "title": "Write it down once",
+      "why": "You keep telling the agent: \"run the linter and the type check before you say it is done\"",
+      "metric": {
+        "value": 7,
+        "label": "sessions with this instruction"
+      },
+      "evidence": "You typed this, or something nearly identical, in 7 sessions over 5 days.",
+      "action": "You keep asking for the linter and type check before 'done'. Put it in the project instructions.",
+      "paste": {
+        "into": "CLAUDE.md or AGENTS.md",
+        "text": "## Before you say a change is done\n- Run `pnpm lint` and `pnpm typecheck` and fix what they report."
+      }
+    },
+    {
+      "anchor": "action-5",
+      "type": "feature",
+      "title": "Allow the commands you keep approving",
+      "why": "Claude Code keeps asking about the same commands",
+      "metric": {
+        "value": 25,
+        "label": "tool calls blocked or refused"
+      },
+      "evidence": "25 tool calls in Claude Code were denied by permission settings or rejected by you, across 8 sessions (0.4 per 100 tool calls).",
+      "action": "Add the commands you keep approving to .claude/settings.json.",
+      "paste": {
+        "into": ".claude/settings.json",
+        "text": "{\n  \"permissions\": {\n    \"allow\": [\n      \"Bash(kubectl get:*)\",\n      \"Bash(gh pr create --draft --fill:*)\"\n    ]\n  }\n}"
+      }
+    }
   ]
 }

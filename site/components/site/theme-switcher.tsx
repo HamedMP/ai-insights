@@ -16,21 +16,23 @@ const OPTIONS = [
 ] as const
 
 /** Light, system and dark as one segmented control; a thumb slides to the active choice. */
-export function ThemeSwitcher({ className }: { className?: string }) {
+export function ThemeSwitcher({ className, size = "default" }: { className?: string; size?: "default" | "lg" }) {
+  const step = size === "lg" ? 2.5 : 2
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = React.useState(false)
   React.useEffect(() => setMounted(true), [])
   const active = mounted ? OPTIONS.findIndex((option) => option.value === theme) : -1
 
   return (
-    <div role="radiogroup" aria-label="Colour theme" className={cn("relative inline-flex h-9 items-center rounded-full border bg-secondary/70 p-0.5 backdrop-blur", className)}>
+    <div role="radiogroup" aria-label="Colour theme" className={cn("relative inline-flex items-center rounded-full border bg-secondary/70 p-0.5 backdrop-blur", size === "lg" ? "h-11" : "h-9", className)}>
       <span
         aria-hidden
         className={cn(
-          "absolute top-0.5 left-0.5 size-8 rounded-full border bg-background shadow-sm transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none",
+          "absolute top-0.5 left-0.5 rounded-full border bg-background shadow-sm transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none",
+          size === "lg" ? "size-10" : "size-8",
           active < 0 && "opacity-0",
         )}
-        style={{ transform: `translateX(${Math.max(0, active) * 2}rem)` }}
+        style={{ transform: `translateX(${Math.max(0, active) * step}rem)` }}
       />
       {OPTIONS.map((option) => {
         const selected = mounted && theme === option.value
@@ -45,7 +47,8 @@ export function ThemeSwitcher({ className }: { className?: string }) {
                   aria-label={`${option.label} theme`}
                   onClick={() => fadeTheme(() => setTheme(option.value))}
                   className={cn(
-                    "relative z-10 grid size-8 place-items-center rounded-full text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
+                    "relative z-10 grid place-items-center rounded-full text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
+                    size === "lg" ? "size-10" : "size-8",
                     selected && "text-foreground",
                   )}
                 />
