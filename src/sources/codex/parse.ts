@@ -2,9 +2,9 @@ import { isAbsolute, join } from "node:path";
 import type { ModelRequest, Session, SessionFeatures, ToolCall, TranscriptTurn, UserPrompt } from "../../schema/types.js";
 import { activeMinutes, languageForPath, scrub, truncate } from "../shared.js";
 import { normalise, readRecords, type RawRecord } from "./read.js";
-import { agentText, contentText, hasImage, isQuestionReply, promptText } from "./prompts.js";
+import { agentText, contentText, hasImage, isQuestionReply, promptText, subagentNotice } from "./prompts.js";
 import { localPath, MAX_EVIDENCE, scriptDirs, type ProjectEvidence } from "./project.js";
-import { connectorLine, editLine, failure, firstLine, lastSegment, oneLine, parsedLine, shellLine } from "./summary.js";
+import { connectorLine, editLine, failure, firstLine, lastSegment, oneLine, parsedLine, shellLine, subagentReplyLine } from "./summary.js";
 import {
   categoryForName,
   categoryForParsed,
@@ -20,6 +20,15 @@ import {
   type PatchStats,
 } from "./tools.js";
 import { UsageParser } from "./usage.js";
+
+/** `toolName` of an excerpt turn holding a reply from one of the session's own subagents. */
+export const SUBAGENT_REPLY = "subagent_reply";
+
+/** True when `author` sits below `recipient` in Codex's agent tree (`/root/tests` writing to `/root`). */
+function isOwnSubagent(author: unknown, recipient: unknown): boolean {
+  if (typeof author !== "string" || typeof recipient !== "string" || !recipient.startsWith("/")) return false;
+  return author.startsWith(recipient.endsWith("/") ? recipient : `${recipient}/`);
+}
 
 export const MAX_PROMPTS = 2_000;
 export const MAX_TOOL_CALLS = 10_000;
@@ -113,6 +122,11 @@ class PromptTrack {
   /** Another agent wrote into the thread. It may start a turn, but it is not the person and has no reply time. */
   agent(): void {
     this.agents += 1;
+    this.sinceDone = true;
+  }
+
+  /** The harness wrote into the thread (a subagent of this session reporting back): neither the person nor another agent. */
+  harness(): void {
     this.sinceDone = true;
   }
 
@@ -310,6 +324,12 @@ export class RolloutBuilder {
 
   /** A user-role message: the person's prompt, or a message another agent or an automation wrote. */
   private userText(stream: "item" | "event" | "response", time: string, raw: string, image: boolean): void {
+    const notice = subagentNotice(raw);
+    if (notice) {
+      this.tracks[stream].harness();
+      this.subagentReply(time, notice.agent, notice.text, stream);
+      return;
+    }
     const typed = promptText(raw, image);
     const fromAgent = agentText(raw) ?? (typed ? agentText(typed) : null) ?? (this.automated ? typed : null);
     if (fromAgent !== null) {
@@ -318,6 +338,10 @@ export class RolloutBuilder {
       return;
     }
     if (typed) this.prompt(stream, time, typed, isQuestionReply(raw));
+  }
+
+  private subagentReply(timestamp: string, agent: string, text: string, stream: TurnEntry["stream"]): void {
+    this.addTurn({ timestamp, role: "tool", toolName: SUBAGENT_REPLY, text: subagentReplyLine(agent, text), stream });
   }
 
   private prompt(stream: "item" | "event" | "response", timestamp: string, text: string, reply = false): void {
@@ -339,10 +363,16 @@ export class RolloutBuilder {
       return;
     }
     if (kind === "agent_message") {
-      // Subagents report back to the main thread this way; it is another agent talking, not the person.
-      this.agentMessages += 1;
       const author = lastSegment(payload.author);
       const text = contentText(payload.content, "input_text");
+      // A subagent this session spawned reporting back is the session's own machinery, not another agent driving
+      // it: an orchestrating person would otherwise look agent-driven. Anything else (the parent instructing this
+      // subagent, a sibling) is another agent talking.
+      if (isOwnSubagent(payload.author, payload.recipient)) {
+        this.subagentReply(time, author, text, "always");
+        return;
+      }
+      this.agentMessages += 1;
       this.addTurn({ timestamp: time, role: "agent", text: author ? `${author}: ${text}` : text, stream: "always" });
       return;
     }
@@ -704,7 +734,7 @@ export class RolloutBuilder {
     const turns: TranscriptTurn[] = this.turns
       .filter((turn) => {
         if (turn.stream === "always") return true;
-        if (turn.role === "user" || turn.role === "agent") return turn.stream === stream;
+        if (turn.role === "user" || turn.role === "agent" || turn.toolName === SUBAGENT_REPLY) return turn.stream === stream;
         return turn.role === "tool" ? turn.stream === callStream : turn.stream === assistantStream;
       })
       .map(({ stream: _stream, ...turn }) => turn);

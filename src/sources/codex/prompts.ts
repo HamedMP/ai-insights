@@ -103,6 +103,31 @@ export function isQuestionReply(raw: string): boolean {
   return QUESTION_REPLY.test(raw);
 }
 
+const SUBAGENT_NOTICE = /^<subagent_notification\b[^>]*>([\s\S]*?)(?:<\/subagent_notification>\s*$|$)/;
+
+/**
+ * Codex's notice that one of this session's own subagents finished: `{agent_path, status}` as JSON, or text.
+ * Returns who and what, or null when the message is not such a notice.
+ */
+export function subagentNotice(raw: string): { agent: string; text: string } | null {
+  const match = SUBAGENT_NOTICE.exec(raw.trim());
+  if (!match) return null;
+  const inner = (match[1] ?? "").trim();
+  try {
+    const value = JSON.parse(inner) as Record<string, unknown>;
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      const path = [value.agent_path, value.agent, value.name].find((part): part is string => typeof part === "string") ?? "";
+      const status = value.status;
+      const text =
+        typeof status === "string" ? status : status && typeof status === "object" ? (Object.keys(status as object)[0] ?? "") : typeof value.message === "string" ? value.message : "";
+      return { agent: path.slice(path.lastIndexOf("/") + 1), text };
+    }
+  } catch {
+    // Plain text notice; fall through.
+  }
+  return { agent: "", text: inner };
+}
+
 /** Envelopes other agents and automations use when they write into a thread: a terminal hub, cross-session relays, notifications. */
 const AGENT_ENVELOPE = /^<(hc|cross-session-message|teammate-message|task-notification|subagent_notification|inter_agent_message|agent_message)\b[^>]*>([\s\S]*?)(?:<\/\1>\s*$|$)/;
 const AGENT_PREFIX = /^(Another (?:Claude|Codex|agent) session sent a message:|Message from (?:another )?agent\b|\[(?:orchestrator|automation|agent)[^\]]*\])/i;
