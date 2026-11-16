@@ -179,12 +179,110 @@ html.theme-fade *::after {
     opacity: 0.35;
     transform: translateY(16px);
   }
+  .js [data-reveal="left"]:not([data-shown]) {
+    opacity: 0.25;
+    transform: translateX(-20px);
+  }
+  .js [data-reveal="rise"]:not([data-shown]) {
+    opacity: 0.4;
+    transform: translateY(40px) scale(0.975);
+  }
   .js [data-reveal] {
     transition:
       opacity 700ms cubic-bezier(0.2, 0.7, 0.2, 1),
       transform 700ms cubic-bezier(0.2, 0.7, 0.2, 1);
     transition-delay: var(--reveal-delay, 0ms);
   }
+  .js [data-reveal="rise"] {
+    transition-duration: 1100ms;
+    transform-origin: 50% 0;
+  }
+}
+
+/* ---------- hero glow: warm light behind the first screen, stronger at night ---------- */
+.hero-glow {
+  background:
+    radial-gradient(48rem 26rem at 78% 18%, rgb(194 65 12 / 0.08), transparent 70%),
+    radial-gradient(30rem 20rem at 8% 0%, rgb(194 65 12 / 0.04), transparent 70%);
+  mask-image: linear-gradient(#000 60%, transparent);
+}
+.dark .hero-glow {
+  background:
+    radial-gradient(48rem 26rem at 78% 20%, rgb(255 122 47 / 0.13), transparent 70%),
+    radial-gradient(30rem 20rem at 8% 0%, rgb(255 122 47 / 0.05), transparent 70%);
+}
+.closing::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(40rem 26rem at 95% 110%, rgb(255 122 47 / 0.22), transparent 70%),
+    radial-gradient(24rem 16rem at 0% 0%, rgb(255 122 47 / 0.07), transparent 70%),
+    radial-gradient(var(--dot) 1px, transparent 1px);
+  background-size: auto, auto, 18px 18px;
+}
+
+/* ---------- how it works: nodes light in order while a packet runs the rail ---------- */
+.flow-node {
+  opacity: 0;
+  transform: scale(0.4);
+}
+.flow-run .flow-node,
+.flow-run .flow-num {
+  transition:
+    opacity 450ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 450ms cubic-bezier(0.2, 0.8, 0.2, 1.3),
+    color 300ms ease;
+  transition-delay: var(--d, 0ms);
+}
+.flow-run .flow-node {
+  opacity: 1;
+  transform: none;
+}
+.flow-run .flow-num {
+  color: var(--primary-foreground);
+}
+.flow-packet-x,
+.flow-packet-y {
+  opacity: 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .flow-run .flow-packet-x {
+    animation: flow-x 2800ms cubic-bezier(0.55, 0, 0.35, 1) 400ms infinite;
+  }
+  .flow-run .flow-packet-y {
+    animation: flow-y 2800ms cubic-bezier(0.55, 0, 0.35, 1) 400ms infinite;
+  }
+  .js .flow-idle .flow-chip {
+    opacity: 0.3;
+    transform: translateY(6px);
+  }
+  .flow-run .flow-chip {
+    animation: chip-in 520ms cubic-bezier(0.2, 0.8, 0.2, 1.2) both;
+    animation-delay: var(--d, 0ms);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .flow-node {
+    opacity: 1;
+    transform: none;
+  }
+  .flow-num {
+    color: var(--primary-foreground);
+  }
+}
+@keyframes flow-x {
+  0% { transform: translateX(0); opacity: 0; }
+  8% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { transform: translateX(100%); opacity: 0; }
+}
+@keyframes flow-y {
+  0% { transform: translateY(0); opacity: 0; }
+  8% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { transform: translateY(100%); opacity: 0; }
 }
 
 /* ---------- hero timeline: lanes draw themselves left to right ---------- */

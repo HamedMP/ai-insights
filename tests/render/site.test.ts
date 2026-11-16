@@ -85,4 +85,16 @@ describe("the public site", () => {
     expect(data.note).toMatch(/invented sessions/);
     expect(read("site/public/demo/report.html")).toContain(`<b>${data.numbers.sessions} sessions</b>`);
   });
+
+  it("shows only changes the sample report gives, with the text to paste exactly as it appears there", () => {
+    const report = read("site/public/demo/report.html");
+    const escape = (text: string) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    const { payoff } = JSON.parse(read("site/lib/demo.json"));
+    expect(payoff.length).toBe(3);
+    for (const tip of payoff) {
+      expect(report, tip.title).toContain(`id="${tip.anchor}"`);
+      expect(report, tip.title).toContain(escape(tip.paste.text));
+    }
+    expect(read("site/components/site/tips.tsx")).toContain("demo.payoff");
+  });
 });
