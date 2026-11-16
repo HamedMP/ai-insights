@@ -1,0 +1,57 @@
+/* Sticker sheet: every stat is a die-cut sticker on a light dotted sheet. All effects are CSS backgrounds,
+   box-shadows and inline SVG paint, which survive the SVG foreignObject exporter. No filters, masks or blends. */
+.card[data-style="sticker"] {
+  --sheet: #f2ede3; --paper: #fffaf0; --ink: #1f1c22; --muted: #5f5960;
+  --tomato: #ff5b3d; --cobalt: #2d5bff; --lemon: #ffdf3d; --mint: #6fe0b0; --pink: #ff9fd0; --lilac: #b7a5ff; --sky: #8fd3ff;
+  --holo: linear-gradient(115deg, #ffb1dc 0%, #ffe68a 17%, #a6f7d6 34%, #9cc2ff 51%, #d9a6ff 68%, #ffb1dc 85%, #ffe68a 100%);
+  background-color: var(--bg); color: var(--fg);
+  background-image: radial-gradient(rgba(60, 45, 30, 0.12) 2.3px, transparent 2.8px); background-size: 40px 40px; background-position: 20px 20px;
+}
+.card[data-style="sticker"][data-card="outro"] { background-image: radial-gradient(rgba(190, 215, 123, 0.13) 2.3px, transparent 2.8px); }
+.card[data-style="sticker"] .sk-head { display: flex; flex-direction: column; align-items: flex-start; }
+.card[data-style="sticker"] .sk-tape {
+  display: inline-block; max-width: 100%; font-family: var(--mono); font-weight: 800; letter-spacing: 0.13em; text-transform: uppercase;
+  color: #fff; background: var(--ink); padding: 0.4em 0.75em 0.42em 0.85em; border-radius: 0.2em; white-space: nowrap; line-height: 1.1;
+  box-shadow: inset 0 0.08em 0 rgba(255, 255, 255, 0.16), 0 3px 0 rgba(60, 40, 20, 0.1), 0 8px 16px rgba(60, 40, 20, 0.14);
+}
+.card[data-style="sticker"] .sk-cut {
+  position: relative; display: block; max-width: 100%; white-space: nowrap; color: transparent; font-family: var(--display);
+  font-weight: 800; letter-spacing: -0.045em; line-height: 1; padding: 0.09em 0.11em 0.13em;
+}
+.card[data-style="sticker"] .sk-cut.mono { font-family: var(--mono); font-weight: 700; letter-spacing: -0.04em; }
+.card[data-style="sticker"] .sk-cut i { display: inline-block; width: 0; height: 0; }
+.card[data-style="sticker"] .sk-ov { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.card[data-style="sticker"] .sk-note {
+  display: inline-block; max-width: 100%; background: var(--paper); border: 7px solid #fff; border-radius: 20px; padding: 0.5em 0.7em 0.58em;
+  font-family: var(--text); font-weight: 500; line-height: 1.24; letter-spacing: -0.01em; color: var(--ink);
+  box-shadow: 0 3px 0 rgba(60, 40, 20, 0.07), 0 10px 22px rgba(60, 40, 20, 0.12);
+}
+.card[data-style="sticker"] .sk-note b { font-weight: 760; }
+.card[data-style="sticker"] .sk-stk {
+  position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
+  border: var(--b, 10px) solid #fff; border-radius: var(--r, 30px); overflow: hidden; color: var(--ink);
+  box-shadow: 0 calc(3px + var(--lift, 0) * 30px) calc(5px + var(--lift, 0) * 30px) rgba(60, 40, 20, 0.2), 0 calc(10px + var(--lift, 0) * 24px) calc(22px + var(--lift, 0) * 24px) rgba(60, 40, 20, 0.11);
+}
+.card[data-style="sticker"] .sk-round { border-radius: 50%; }
+.card[data-style="sticker"] .sk-bare { border: 0; border-radius: 0; overflow: visible; box-shadow: none; background: none; }
+.card[data-style="sticker"] .sk-bare > svg { position: absolute; left: 0; top: 0; overflow: visible; }
+.card[data-style="sticker"] .sk-in { position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.card[data-style="sticker"] .sk-holo { background-image: var(--holo); background-size: 260% 260%; }
+.card[data-style="sticker"] .sk-half { background-image: radial-gradient(rgba(31, 28, 34, 0.17) 27%, transparent 31%); background-size: 17px 17px; }
+.card[data-style="sticker"] .sk-gold { background-image: linear-gradient(135deg, #f6d27a 0%, #fff1bf 22%, #d9a43a 45%, #fbe39a 62%, #b98322 82%, #f6d27a 100%); }
+.card[data-style="sticker"] .sk-silver { background-image: linear-gradient(135deg, #d9dde4 0%, #fff 22%, #a9b0bb 45%, #eef1f5 62%, #8f97a3 82%, #d9dde4 100%); }
+.card[data-style="sticker"] .sk-bronze { background-image: linear-gradient(135deg, #e7a77a 0%, #ffd9bd 22%, #b9693d 45%, #f2bf97 62%, #9a5530 82%, #e7a77a 100%); }
+.card[data-style="sticker"] .sk-sheen { position: absolute; left: -60%; top: -60%; width: 220%; height: 220%; pointer-events: none; background: linear-gradient(115deg, transparent 42%, rgba(255, 255, 255, 0.55) 49%, transparent 56%); }
+.card[data-style="sticker"] .sk-num { display: block; width: 100%; font-family: var(--display); font-weight: 800; letter-spacing: -0.05em; line-height: 0.92; white-space: nowrap; }
+.card[data-style="sticker"] .sk-lbl { display: block; width: 100%; font-family: var(--mono); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; line-height: 1.12; white-space: nowrap; }
+.card[data-style="sticker"] .sk-txt { display: block; width: 100%; font-family: var(--text); font-weight: 600; line-height: 1.2; letter-spacing: -0.01em; }
+.card[data-style="sticker"] .sk-mono { font-family: var(--mono); }
+.card[data-style="sticker"] .sk-row { display: flex; align-items: center; width: 100%; white-space: nowrap; }
+/* maker's mark: a small white sticker, same place on every card */
+.card[data-style="sticker"] .foot { color: var(--ink); }
+.card[data-style="sticker"] .mark { background: #fff; color: var(--ink); padding: 0.16em 0.6em 0.16em 0.16em; border-radius: 0.4em; transform: rotate(-1.5deg); box-shadow: 0 3px 0 rgba(60, 40, 20, 0.08), 0 8px 18px rgba(60, 40, 20, 0.16); }
+.card[data-style="sticker"] .mark svg { height: 1.5em; background: #0e3422; color: #bed77b; border-radius: 0.26em; padding: 0.14em 0.2em; box-sizing: border-box; }
+.card[data-style="sticker"] .mark .by { font-size: max(22px, 0.62em) !important; color: var(--muted); opacity: 1; }
+.card[data-style="sticker"] .legend { opacity: 1; color: var(--muted); }
+.card[data-style="sticker"][data-card="outro"] .foot { display: none; }
+.card[data-style="sticker"] .legend { display: block; font-size: inherit; margin: 0; }
