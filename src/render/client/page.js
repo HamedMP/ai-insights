@@ -32,7 +32,9 @@ const S = {
 { const sl = store.get("sel", null); if (Array.isArray(sl)) S.sel = new Set(sl.filter((id) => ALL_IDS.includes(id))); }
 if (params.get("cards")) { const ids = params.get("cards").split(",").filter((id) => ALL_IDS.includes(id)); if (ids.length) { S.sel = new Set(ids); S.order = [...ids, ...S.order.filter((id) => !ids.includes(id))]; } }
 const saveStudio = () => { store.set("order", S.order); store.set("sel", [...S.sel]); store.set("ratio", S.ratio); store.set("pace", S.pace); store.set("preset", S.preset); store.set("style", S.style); store.set("mark", S.mark); };
-const seqIds = () => S.order.filter((id) => S.sel.has(id));
+/** An optional card is offered only in styles that draw it; the 21 required ones are in every style. */
+const hasCard = (id, style = S.style) => CARD_IDS.includes(id) || !!(CardStyles.specs(style) || {})[id];
+const seqIds = () => S.order.filter((id) => S.sel.has(id) && hasCard(id));
 const specOf = (id, style = S.style) => { const set = CardStyles.specs(style) || CardStyles.specs("pop"); return set[id] || CardStyles.specs("pop")[id]; };
 const durOf = (id) => (S.pace === "quick" ? Math.min(specOf(id).dur, 4000) : specOf(id).dur);
 const fmtSec = (ms) => { const sec = Math.round(ms / 1000); return sec >= 60 ? `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}` : `${sec} s`; };
@@ -328,7 +330,7 @@ function buildWall() {
   wall.classList.toggle("wide", S.ratio === "16:9");
   for (const t of tiles.values()) t.inst.el.remove();
   wall.replaceChildren(); tiles = new Map();
-  for (const id of S.order) {
+  for (const id of S.order.filter((cid) => hasCard(cid))) {
     const inst = makeInst(id);
     render(inst, inst.dur);
     const thumb = h("div", { class: "thumb", style: { aspectRatio: `${W} / ${H}` } }, inst.el);
@@ -368,7 +370,7 @@ function placeNear(from, to, after) {
   S.order.splice(S.order.indexOf(to) + (after ? 1 : 0), 0, from);
   reorderDom(); saveStudio(); refreshStudio();
 }
-function reorderDom() { for (const id of S.order) wall.append(tiles.get(id).tile); }
+function reorderDom() { for (const id of S.order) if (tiles.has(id)) wall.append(tiles.get(id).tile); }
 let hovering = null;
 function hoverStart(id) { hovering = { id, t0: null }; }
 function hoverStop(id) { if (hovering && hovering.id === id) { const t = tiles.get(id); t && render(t.inst, t.inst.dur); hovering = null; } }
@@ -706,6 +708,23 @@ const harnessColor = (key) => HCOL[Math.max(0, HORDER.indexOf(key)) % HCOL.lengt
   extra.push(h("div", { class: "grid g2" },
     panel("What the agents did", `${int(A2.toolCalls)} tool calls`, hbars(A2.toolCategories.slice(0, 8).map((c) => ({ key: c.key, label: keyLabel(c.key), count: c.count })), { fmt: (r) => compact(r.count) })),
     panel("Projects", "by agent time · home folder shown as ~", hbars(A2.projects.map((p) => ({ key: p.label, title: p.title, note: p.note, count: p.minutes || p.sessions, tip: `${esc(p.title)}<br>${plural(p.sessions, "session")}${p.note ? ` · ${esc(p.note)}` : ""}` })), { fmt: (r) => `${one(r.count / 60)} h`, empty: "No project folders recorded." }))));
+  if (RC && (RC.connectors.length || RC.skills.length)) extra.push(h("div", { class: "grid g2" },
+    panel("Connectors", "MCP servers · by sessions using them", hbars(RC.connectors.map((c) => ({ key: c.key, count: c.count })), { fmt: (r) => plural(r.count, "session"), empty: "No MCP servers used." })),
+    panel("Skills", "by times used", hbars(RC.skills.map((c) => ({ key: c.key, count: c.count })), { fmt: (r) => int(r.count), empty: "No skills used." }))));
+  if (RC) {
+    const TH = RC.thinking, AP = RC.approvals, RP = RC.replies, hrs = (ms) => (ms >= 3_600_000 ? `${one(ms / 3_600_000)} h` : ms >= 60_000 ? `${int(ms / 60_000)} min` : `${int(ms / 1000)} s`);
+    const facts = [
+      TH ? h("div", {}, h("b", {}, compact(TH.blocks)), ` thinking blocks in ${plural(TH.sessions, "session")}`, TH.totalMs != null ? [", ", h("b", {}, hrs(TH.totalMs)), " of thinking"] : "", TH.longestMs != null ? [", the longest ", h("b", {}, hrs(TH.longestMs))] : "") : null,
+      AP && AP.auto != null ? h("div", {}, h("b", {}, int(AP.auto)), " actions let through by your settings or mode") : null,
+      AP && AP.byPerson != null ? h("div", {}, h("b", {}, int(AP.byPerson)), " approved by you") : null,
+      AP && AP.denied != null ? h("div", {}, h("b", {}, int(AP.denied)), " declined by you") : null,
+      AP && AP.autoBlocked != null ? h("div", {}, h("b", {}, int(AP.autoBlocked)), " blocked or timed out in Codex's automatic review (not you)") : null,
+      AP && AP.guardianReviews != null ? h("div", {}, h("b", {}, int(AP.guardianReviews)), " automatic reviews in Codex") : null,
+      RP ? h("div", {}, "You replied in ", h("b", {}, RP.medianSec >= 60 ? `${one(RP.medianSec / 60)} min` : `${int(RP.medianSec)} s`), ` (median of ${plural(RP.count, "reply", "replies")}), ${pct(RP.fastShare)} within a minute`) : null,
+      RC.voice.excludedWrapped ? h("div", {}, h("b", {}, int(RC.voice.excludedWrapped)), " script-filled prompts left out of your voice stats") : null,
+    ].filter(Boolean);
+    if (facts.length) extra.push(panel("Thinking, approvals and replies", AP ? `approvals from ${plural(AP.sessions, "session")} that record them` : null, h("div", { class: "facts" }, facts)));
+  }
   if (N && N.wins.length) extra.push(panel("Wins your agent noticed", null, h("div", { class: "facts" }, N.wins.map((w) => h("div", {}, h("b", { html: md(w.title) }), " ", h("span", { class: "muted", html: md(w.description) }))))));
   if (F && F.goals.length) extra.push(panel("What you worked on", `${plural(F.sessions, "session")} judged`, hbars(F.goals.slice(0, 8).map((g) => ({ key: g.key, label: keyLabel(g.key), count: g.count })))));
   el.append(more("More detail: tools, projects and work areas", ...extra));
@@ -726,7 +745,9 @@ const harnessColor = (key) => HCOL[Math.max(0, HORDER.indexOf(key)) % HCOL.lengt
     const stack = h("div", { class: "stackbar tall" }, parts.map(([k, l, c]) => { const sg = h("span", { style: { width: Math.max(0.4, (U[k] / totalTok) * 100) + "%", background: c } }); bindTip(sg, `<b>${l}</b> · ${compact(U[k])} tokens (${one((U[k] / totalTok) * 100)}%)`); return sg; }));
     el.append(h("div", { class: "grid g3" },
       panel("At list prices", U.recorded ? "an estimate" : null, h("div", { class: "kpi" }, U.usdText),
-        U.recorded ? h("div", { class: "recorded" }, h("b", {}, U.recorded.text), ` recorded by ${U.recorded.harnesses.length ? listOf(U.recorded.harnesses) : "the tools themselves"}${U.recorded.usd > 0 ? ", at their own prices" : ": subscription or free models, not free work"}`) : null, h("div", { class: "muted small" }, [U.perCommit != null ? `$${one(U.perCommit)} per commit` : null, U.unpriced ? `${int(U.unpriced)} requests had no known price and are left out` : null].filter(Boolean).join(" · ") || `pricing table ${U.pricingVersion}`)),
+        U.recorded ? h("div", { class: "recorded" }, h("b", {}, "Recorded by the tools: "), U.recorded.harnesses.length > 1 || !U.recorded.harnesses.length ? U.recorded.text : `${U.recorded.harnesses[0].label} ${U.recorded.text}`,
+          U.recorded.harnesses.length > 1 ? h("ul", { class: "small" }, U.recorded.harnesses.map((x) => h("li", {}, `${x.label}: ${x.text}`))) : null,
+          h("div", { class: "muted small" }, "What OpenCode and Pi log at their own prices. Not added to the estimate above.")) : null, h("div", { class: "muted small" }, [U.perCommit != null ? `$${one(U.perCommit)} per commit` : null, U.unpriced ? `${int(U.unpriced)} requests had no known price and are left out` : null].filter(Boolean).join(" · ") || `pricing table ${U.pricingVersion}`)),
       panel("Tokens", null, h("div", { class: "kpi" }, compact(U.tokens)), stack, h("div", { class: "plegend" }, parts.map(([, l, c]) => h("span", {}, h("i", { style: { background: c } }), l)))),
       panel("Cache", null, h("div", { class: "kpi" }, U.cacheHitRate != null ? `${one(U.cacheHitRate * 100)}%` : "n/a", h("small", {}, "of input from cache")), h("div", { class: "muted small" }, "Cached input is billed at a fraction of fresh input. Long sessions that keep their prefix stable get the most from it."))));
     if (U.gap) el.append(h("p", { class: "note" }, U.gap));
@@ -800,7 +821,8 @@ const sinceTag = (f) => { if (!prevRun) return null; const p = prevOf(f); if (!p
     c.found && c.days != null ? h("span", { class: "muted" }, `${plural(c.days, "day")} of history${c.since ? `, since ${c.since}` : ""}`) : null,
     c.disk ? h("span", { class: "muted" }, `on disk ${c.disk}`) : null,
     c.found && !c.tokens ? h("span", { class: "muted" }, "no token counts, so no cost") : null,
-    c.skipped ? h("span", { class: "muted" }, `${plural(c.skipped, "record")} skipped`) : null,
+    c.skipped ? h("span", { class: "muted" }, `${plural(c.skipped, "unreadable line")} skipped`) : null,
+    c.skippedUsage ? h("span", { class: "muted" }, `${plural(c.skippedUsage, "usage counter")} not counted (a counter reset)`) : null,
     c.note ? h("span", { class: "muted", html: md(c.note) }) : null))));
 }
 if (!VIEW.narrative) {
@@ -837,7 +859,7 @@ if (!VIEW.narrative) {
   // the closing pair: disk space, then long-term memory with Matrix OS
   const CL = VIEW.closing;
   const metric = (m, extra = "") => (m ? h("div", { class: "metric" }, h("b", {}, m.value), h("span", {}, m.label + extra)) : null);
-  W0.append(h("div", { class: "closing" + (CL.disk ? "" : " single") },
+  if (CL.show) W0.append(h("div", { class: "closing" + (CL.disk ? "" : " single") },
     CL.disk ? h("article", { class: "closing-card", id: "packmem" }, h("span", { class: "k" }, "Your history on disk"), metric(CL.disk.metric), h("h3", { html: md(CL.disk.title) }), h("p", { html: md(CL.disk.action) }), CL.disk.url ? ext(CL.disk.url, CL.disk.urlLabel, "btn small") : null) : null,
     h("article", { class: "closing-card matrix", id: "matrix" }, h("span", { class: "k" }, "Long-term memory"), metric(CL.matrix.metric, CL.matrix.since ? `, back to ${CL.matrix.since}` : ""),
       h("h3", {}, "Store your conversations long term"),
@@ -855,22 +877,30 @@ function stepCards(steps) {
 }
 if (VIEW.retention) {
   const R0 = VIEW.retention;
+  const eyebrow = R0.urgent ? "Keep your history · this week" : "Keep your history";
+  const cell = (v, cls) => h("td", cls ? { class: cls } : {}, v == null || v === "" ? "–" : v);
+  const table = R0.rows.length ? h("div", { class: "keep-tbl" }, h("table", { class: "tbl" },
+    h("thead", {}, h("tr", {}, ["Tool", "Keeps transcripts", "Set by", "On disk", "Oldest on disk", "Can go soon", "Only in AI Insights"].map((t) => h("th", {}, t)))),
+    h("tbody", {}, R0.rows.map((r) => h("tr", { class: r.atRisk ? "risk" : "" },
+      cell(h("b", {}, r.label)), cell(r.keeps), cell(r.source), cell(r.disk ? `${r.disk} · ${plural(r.transcripts, "transcript")}` : plural(r.transcripts, "transcript")), cell(r.oldest),
+      cell(r.atRisk ? h("span", { class: "risk-t" }, r.atRisk) : null), cell(r.cacheOnly ? plural(r.cacheOnly, "session") : null)))))) : null;
+  const notes = R0.rows.filter((r) => r.exempt).map((r) => h("p", { class: "muted small" }, `${r.label}: ${r.exempt}`));
+  const how = R0.rows.length ? more("How each tool decides", h("div", { class: "cards3" }, R0.rows.map((r) => h("div", { class: "mini" }, h("b", {}, r.label), h("span", { html: md(r.basis) }),
+    r.setting ? h("p", { class: "muted small mono" }, r.setting) : null, r.url ? h("p", { class: "small" }, ext(r.url, r.urlLabel, "")) : null)))) : null;
+  const cache = R0.cache && (R0.cache.keeps.length || R0.cache.drops.length) ? h("div", { class: "keep-cache" },
+    h("div", {}, h("span", { class: "k" }, "AI Insights' cache keeps"), h("ul", {}, R0.cache.keeps.map((x) => h("li", {}, x)))),
+    h("div", {}, h("span", { class: "k" }, "It does not keep"), h("ul", {}, R0.cache.drops.map((x) => h("li", {}, x))))) : null;
   const block = h("div", { class: "keep" + (R0.urgent ? " urgent" : ""), id: "keep-history" },
-    h("div", { class: "eyebrow" }, h("span", { class: "dot" }), R0.urgent ? "Keep your history · this week" : "Keep your history"),
-    h("h3", { class: "ph3" }, R0.urgent ? "Some of your history is about to be deleted." : "Keep the history a yearly look back needs."),
-    h("p", {}, R0.sentence),
-    R0.rows.length ? h("div", { class: "keep-rows" }, R0.rows.map((r) => h("div", { class: "keep-row" + (r.atRisk ? " risk" : "") },
-      h("b", {}, r.label),
-      h("span", {}, r.kept || "keeps transcripts"), r.oldest ? h("span", { class: "muted" }, `oldest on disk: ${r.oldest}`) : null,
-      r.atRisk ? h("span", { class: "risk-t" }, r.atRisk) : null,
-      r.cacheOnly ? h("span", { class: "muted" }, `${plural(r.cacheOnly, "session")} now only in AI Insights' cache`) : null))) : null,
-    R0.cache ? h("p", { class: "muted small" }, R0.cache) : null,
-    R0.steps.length ? stepCards(R0.steps) : null);
+    h("div", { class: "eyebrow" }, h("span", { class: "dot" }), eyebrow),
+    h("h3", { class: "ph3" }, R0.title),
+    h("p", { html: md(R0.sentence) }),
+    R0.disk ? h("p", { class: "small" }, h("b", {}, R0.disk.value), ` ${R0.disk.label}.`) : null,
+    table, ...notes, cache,
+    R0.steps.length ? stepCards(R0.steps) : null,
+    how);
   const change = document.getElementById("change").firstChild;
-  // At risk this week: first thing under "What to change". Otherwise after the ranked changes, replacing the closing cards.
+  // Can go this week: first thing under "What to change". Otherwise after the ranked changes.
   if (R0.urgent) change.insertBefore(block, change.children[1]); else change.append(block);
-  const closing = change.querySelector(".closing");
-  if (closing && R0.steps.length) closing.remove();
 }
 
 // ================================================================== OVER TIME
@@ -969,7 +999,7 @@ fontsReady(S.style).then(async () => {
 window.recap = {
   ready: () => document.documentElement.dataset.ready === "1",
   styles: () => STYLES.map(({ id, name }) => ({ id, name })),
-  cards: () => ALL_IDS.slice(),
+  cards: () => ALL_IDS.filter((id) => hasCard(id)),
   state: () => ({ style: S.style, ratio: S.ratio, pace: S.pace, mark: S.mark, order: [...S.order], selected: seqIds(), totalMs: seqIds().reduce((a, id) => a + durOf(id), 0) }),
   setStyle: switchStyle, setRatio,
   setPace: (p) => { S.pace = p === "quick" ? "quick" : "full"; refreshStudio(); },
@@ -980,7 +1010,7 @@ window.recap = {
   /** The card's markup at time t: the same input always gives the same string. */
   frame: (id, t, ratio = S.ratio, style = S.style) => { const inst = makeInst(id, ratio, style); render(inst, t); const out = inst.el.outerHTML; inst.el.remove(); return out; },
   seek: (i, ms) => { heroPlayer.setPlaying(false); heroPlayer.mount(i, ms); },
-  audit: (style = S.style, ratio = S.ratio) => { const out = {}; for (const id of ALL_IDS) { const inst = makeInst(id, ratio, style); render(inst, inst.dur); const iss = CardKit.audit(inst); if (iss.length) out[id] = iss; inst.el.remove(); } return out; },
+  audit: (style = S.style, ratio = S.ratio) => { const out = {}; for (const id of ALL_IDS.filter((cid) => hasCard(cid, style))) { const inst = makeInst(id, ratio, style); render(inst, inst.dur); const iss = CardKit.audit(inst); if (iss.length) out[id] = iss; inst.el.remove(); } return out; },
   caption, share: SHARE, intents: (text = caption()) => ({ x: INTENT.x(text), linkedin: INTENT.linkedin(text) }),
   support: () => Exporter.support(),
   png: async (id, ms, ratio = S.ratio, style = S.style) => { const inst = makeInst(id, ratio, style); const b = await Exporter.png(inst, ms); inst.el.remove(); const u8 = new Uint8Array(await b.arrayBuffer()); let s2 = ""; for (let i = 0; i < u8.length; i += 0x8000) s2 += String.fromCharCode(...u8.subarray(i, i + 0x8000)); return btoa(s2); },

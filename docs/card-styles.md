@@ -70,11 +70,21 @@ available as globals, but prefer `kit`):
 
 ## A card spec
 
-The 21 card ids are fixed. A style must provide all 21 (any order), so a
+The 21 required card ids are fixed. A style must provide all 21 (any order), so a
 person's selection and order carry over when they switch style. A style that
-misses one is not offered (the console says which). Optional ids may be added:
-today only `history` ("N days of history kept", from `D.history`); a style
-without it simply does not offer that card.
+misses one is not offered (the console says which).
+
+Optional ids are cards any style may implement. They are never in the default
+selection, and the page offers one only when its data exists (`D.avail[id]`)
+and the current style draws it: a style without it simply does not offer that
+card. Build an optional card only when its data is present (`if (D.thinking)
+add(...)`). Today:
+
+| id | title | from | offered when |
+| --- | --- | --- | --- |
+| `thinking` | Deep thoughts | `D.thinking` | at least 10 thinking blocks |
+| `approvals` | Rubber stamp | `D.approvals` | `auto` and `byPerson` both recorded |
+| `history` | History kept | `D.history` | retention data exists |
 
 ```
 intro hours clock weekday streak words manners slash shell tests danger
@@ -215,16 +225,23 @@ rhythm {hours[24], peakHour, nightShare, earlyShare, verdict{key,label},
 daily [{day, sessions, prompts, minutes}]          one per day in range, can be 287+
 streak {days, start, end}
 bigDay {day, prompts, weekday}?
-voice {prompts, excludedAgentSessions, words[{key,count}], openers[{key,count}],
+voice {prompts, excludedAgentSessions, excludedWrapped, words[{key,count}], openers[{key,count}],
        polite{please,thanks,sorry}, questionShare, wordsTyped, oneWord,
        leverage{words, toolCalls}}
 interrupted, slash[{key,count}], slashTotal
 shell {calls, programs[{key,count}], tests, testPass?, rmrf, forcePush, sleeps}
-parallel {max, overlapEvents, subagents, lanes?}   lanes: [[start, end]] shares (0..1) of a window
-                                         around the peak, one per session open then. A chart that looks
-                                         like data must be data: draw lanes from this, or when it is null a
-                                         plain schematic (N identical marks, no time axis), never random.
-longestSession {activeMinutes, wallMinutes, prompts, toolCalls, toolCallsCapped, harness, compactions}?
+parallel {max, overlapEvents, subagents, lanes?}
+  lanes {windowMinutes, peak, atPeak, rows[{harness, start, end, active[[from, to]], atPeak}]}
+                                         all shares (0..1) of a window around the busiest moment (about
+                                         6 h); `peak` is that moment. The rows with atPeak number exactly
+                                         `atPeak`, which equals `max`: show that count. At most 40 rows. A
+                                         chart that looks like data must be data: draw lanes from this, or
+                                         when it is null a plain schematic (N identical marks, no time axis),
+                                         never random.
+longestSession {activeMinutes, wallMinutes, prompts, toolCalls, toolCallsCapped, harness, compactions,
+                skippedAutomated}?       skippedAutomated > 0: longer sessions a script or another agent
+                                         drove were left out; say so in a small line ("N longer automated
+                                         sessions left out")
 topProjectShare
 failures {total, calls, rate, categories[{key,label,count}], nemesis[{key,count,runs}]}
 models [{key, harness, requests, share}]
@@ -234,7 +251,16 @@ winRate?, facetSessions                   winRate null without agent review face
 persona {title, time, role, reason}
 tips [{title, kind, metric{value,unit,label}?}]   1..3, titles from a fixed list; word the "why" line
                                          per kind from the number alone (label may be "")
-history {days, firstDay?}?                days of transcripts kept (optional card)
+history {days, firstDay?, cachedOnly}?    days of sessions AI Insights still has, back to firstDay;
+                                         cachedOnly: sessions whose transcript is gone (optional card)
+thinking {blocks, sessions, totalMs?, longestMs?}?   totalMs/longestMs null when no harness timed it
+approvals {auto?, byPerson?, denied?, autoBlocked?, guardianReviews?, sessions}?
+                                         each counter null when no harness here records it: never read
+                                         null as 0. auto: let through by settings or mode; byPerson:
+                                         approved by the person; denied: declined by the person;
+                                         autoBlocked: Codex's automatic reviewer blocked it (not the person)
+replies {count, medianSec, fastShare, longestSec}?
+connectors [{key,count}], skills [{key,count}]       public names only
 avail {<cardId>: boolean}                 false = the page will not build that card
 ```
 
@@ -254,6 +280,7 @@ counts fit in titles.
 registered style with the demo data and with a large-history fixture, renders
 the frame at `t = dur`, and fails on any `CardKit.audit` issue: text outside
 the card, text overflowing its box or column, cut single-line text, text blocks
-overlapping. `pnpm test` also checks that each style registers 21 specs with the
-ids above, that seek is deterministic (same `t` → same markup) and that no
+overlapping. The large-history fixture also carries a year's thinking, approvals
+and 300 days of history, so optional cards are audited at scale. `pnpm test` also
+checks that each style registers 21 specs with the ids above, that seek is deterministic (same `t` → same markup) and that no
 string outside `D` reaches card markup.

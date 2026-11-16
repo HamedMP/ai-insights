@@ -9,6 +9,7 @@ registerCardStyle({
   fonts: ["800 100px PanelCond", "700 40px PanelHand"],
   specs(D, kit) {
     const { h, s, clamp, lerp, E, int, one, pct, compact, capped, dshort, hh, DAYNAME, rng, smooth, rabbitSvg, harnessName } = kit;
+    const SHARE = kit.share;
     const T = D.totals, R = D.rhythm, V = D.voice, U = D.usage || {}, SH = D.shell || {};
     const YEAR = D.range.to.slice(0, 4);
     const rangeLabel = `${dshort(D.range.from)} – ${dshort(D.range.to)}`;
@@ -31,7 +32,7 @@ registerCardStyle({
       friction: { n: 4, name: "Friction", col: "var(--c-friction)" },
       findings: { n: 5, name: "Findings", col: "var(--ink)" },
     };
-    const ORDER = ["intro", "hours", "clock", "weekday", "streak", "words", "manners", "slash", "shell", "tests", "danger", "parallel", "marathon", "failures", "nemesis", "model", "tokens", "persona", "tips", "summary", "outro"];
+    const ORDER = ["intro", "hours", "clock", "weekday", "streak", "words", "manners", "slash", "shell", "tests", "danger", "parallel", "marathon", "failures", "nemesis", "model", "tokens", "persona", "tips", "summary", "outro", "thinking", "approvals", "history"];
 
     // ------------------------------------------------------------ svg helpers
     function tx(c, x, y, str, o = {}) {
@@ -772,7 +773,8 @@ registerCardStyle({
 
     // 12. parallel --------------------------------------------------------
     card({ id: "parallel", title: "Parallel", ch: "work", dur: 6800 }, (c) => {
-      let n = D.parallel.max;
+      // With lanes the count is the lanes open at the peak (the data layer keeps them equal to max).
+      const L = D.parallel.lanes, n = L ? L.atPeak : D.parallel.max;
       const k = lab("Most agents at once");
       const num = h("span", {}, int(n));
       const big = h("div", { class: "pn-hero", style: { fontSize: px(c, 380, 150), lineHeight: 0.8, flex: "none" } }, num);
@@ -780,39 +782,43 @@ registerCardStyle({
       const side = h("div", { class: "pn-body", style: { marginTop: 0, minWidth: 0 } }, "sessions running side by side. Plus ", b(`${int(D.parallel.subagents)} subagents`), " launched along the way.");
       const row = h("div", { style: { display: "flex", alignItems: "flex-end", gap: px(c, 34, 16), marginTop: px(c, 14, 6) } }, big, side);
       enter(c, [k, row], 120, 160);
-      // Real start and end shares around the peak when the recap has them; otherwise identical channels, no time axis.
-      const lanes = D.parallel.lanes;
-      return { head: h("div", {}, k, row), artMin: 0.34, split: 0.42, legend: lanes ? "one channel = one session" : "one channel = one session",
+      // Real lanes when the recap has them: a channel per session, high while it worked, over a window around the
+      // peak. Otherwise identical channels with no time axis, a plain picture of N sessions.
+      return { head: h("div", {}, k, row), artMin: 0.34, split: 0.42, legend: L ? `one channel = one session · ${Math.round(L.windowMinutes / 60)} h` : "one channel = one session",
         art(w, hgt) {
-          const u = c.u, svg = box(w, hgt), nAll = n;
-          n = Math.min(n, 40, lanes ? lanes.length : 40); // past 40 lanes the plot shows the first 40 and says so
-          const pitch = Math.min(64 * u, (hgt - 110 * u) / n), labels = pitch >= 30 * u;
-          const x0 = labels ? tw("CH00", "mono", 22 * u) + 20 * u : 0, x1 = w, cur = lerp(x0, x1, 0.6);
+          const u = c.u, svg = box(w, hgt);
+          const rows = L ? L.rows.slice(0, 40) : Array.from({ length: Math.min(n, 40) }, () => ({ start: 0.03, end: 0.99, active: [[0.03, 0.99]], atPeak: true }));
+          const m = rows.length, pitch = Math.min(64 * u, (hgt - 110 * u) / m), labels = pitch >= 30 * u;
+          const x0 = labels ? tw("CH00", "mono", 22 * u) + 20 * u : 0, x1 = w, X = (f) => lerp(x0, x1, f);
           const y0 = 76 * u;
           const traces = [];
-          for (let i = 0; i < n; i++) {
+          rows.forEach((r, i) => {
             const y = y0 + i * pitch + pitch * 0.5, hi = y - pitch * 0.3, lo = y + pitch * 0.22;
-            const a = lanes ? lerp(x0, x1, lanes[i][0]) : x0 + 20 * u, bb = lanes ? lerp(x0, x1, lanes[i][1]) : x1 - 10 * u;
-            let d = `M${x0},${lo}`;
-            d += ` H${a.toFixed(1)} V${hi.toFixed(1)} H${bb.toFixed(1)} V${lo.toFixed(1)} H${x1}`;
-            const p = s("path", { d, fill: "none", stroke: "var(--ink)", "stroke-width": Math.max(2, Math.min(3 * u, pitch * 0.08)), "stroke-linejoin": "miter" });
-            const band = s("rect", { x: a, y: hi, width: bb - a, height: lo - hi, fill: hatch(c, "var(--acc)", 45, 10, 2), opacity: 0 });
+            let d = `M${x0},${lo.toFixed(1)}`;
+            for (const [a, bb] of r.active) d += ` H${X(a).toFixed(1)} V${hi.toFixed(1)} H${Math.max(X(a) + 2 * u, X(bb)).toFixed(1)} V${lo.toFixed(1)}`;
+            d += ` H${x1}`;
+            const col = r.atPeak ? "var(--ink)" : "var(--ink-2)";
+            const p = s("path", { d, fill: "none", stroke: col, "stroke-width": Math.max(2, Math.min(3 * u, pitch * 0.08)), "stroke-linejoin": "miter" });
+            const band = s("rect", { x: X(r.start), y: hi, width: Math.max(2 * u, X(r.end) - X(r.start)), height: lo - hi, fill: hatch(c, r.atPeak ? "var(--acc)" : "var(--ink-2)", 45, 10, 2), opacity: 0 });
             svg.append(band, p);
             if (labels) svg.append(tx(c, 0, y + 8 * u, `CH${String(i + 1).padStart(2, "0")}`, { size: 22 * u, fill: "var(--ink-2)" }));
             traces.push([p, band]);
-          }
-          c.tl.stagger(traces, 900, Math.min(70, 900 / n), ([p, band], st) => { c.tl.draw(p, st, 1300, "inOut"); c.tl.at(st + 1000, 500, "out", (q) => band.setAttribute("opacity", q.toFixed(3))); });
-          const yEnd = y0 + n * pitch + 8 * u;
+          });
+          c.tl.stagger(traces, 900, Math.min(70, 900 / m), ([p, band], st) => { c.tl.draw(p, st, 1300, "inOut"); c.tl.at(st + 1000, 500, "out", (q) => band.setAttribute("opacity", (q * 0.6).toFixed(3))); });
+          if (!L) return svg;
+          const yEnd = y0 + m * pitch + 8 * u, cur = X(L.peak);
           const cg = s("g");
           cg.append(ln(cur, y0 - 6 * u, cur, yEnd, { stroke: "var(--acc)", w: 3 * u, dash: `${10 * u} ${6 * u}` }));
           cg.append(s("path", { d: `M${cur - 14 * u},${y0 - 22 * u} L${cur + 14 * u},${y0 - 22 * u} L${cur},${y0 - 4 * u}Z`, fill: "var(--acc)" }));
-          cg.append(tx(c, cur + 22 * u, y0 - 18 * u, nAll > n ? `${n} of ${nAll} shown` : `all ${n} high`, { f: "hand", size: 40 * u, fill: "var(--acc)" }));
-          if (lanes) { svg.append(cg); fade(c, cg, 2500); }
+          const lbl = `${n} open at the peak`, lw = tw(lbl, "hand", 40 * u), right = cur + 22 * u + lw <= w;
+          cg.append(tx(c, right ? cur + 22 * u : cur - 22 * u, y0 - 18 * u, lbl, { f: "hand", size: 40 * u, fill: "var(--acc)", a: right ? "start" : "end" }));
+          svg.append(cg); fade(c, cg, 2500);
           const ax = s("g");
           ax.append(ln(x0, yEnd, x1, yEnd, { w: 2 * u }));
-          for (let i = 0; i <= 12; i++) ax.append(ln(lerp(x0, x1, i / 12), yEnd, lerp(x0, x1, i / 12), yEnd + (i % 3 ? 8 : 16) * u, { w: 1.6 * u }));
-          if (yEnd + 46 * u <= hgt) ax.append(tx(c, x1, yEnd + 44 * u, "TIME", { a: "end", size: 22 * u, w: 700, ls: 0.14, fill: "var(--ink-2)" }));
-          if (lanes) { svg.append(ax); fade(c, ax, 800); }
+          const hours = Math.max(1, Math.round(L.windowMinutes / 60));
+          for (let i = 0; i <= hours; i++) ax.append(ln(lerp(x0, x1, i / hours), yEnd, lerp(x0, x1, i / hours), yEnd + 14 * u, { w: 1.6 * u }));
+          if (yEnd + 46 * u <= hgt) ax.append(tx(c, x1, yEnd + 44 * u, "HOURS", { a: "end", size: 22 * u, w: 700, ls: 0.14, fill: "var(--ink-2)" }));
+          svg.append(ax); fade(c, ax, 800);
           return svg;
         } };
     });
@@ -824,10 +830,12 @@ registerCardStyle({
       const k = lab("Longest session");
       const big = heroCount(c, L.activeMinutes / 60, one, "hrs", 300);
       const p = body(`of active work in one ${harnessName(L.harness)} session`, days >= 1 ? [", spread over ", b(`${one(days)} days`), "."] : ".");
-      enter(c, [k, big, p], 120, 160);
+      // Longer sessions a script or another agent drove are not the person's marathon: say they were left out.
+      const skip = L.skippedAutomated > 0 ? h("div", { class: "pn-note", style: { fontSize: px(c, 40, 26), marginTop: px(c, 10, 4) } }, `${int(L.skippedAutomated)} longer automated ${L.skippedAutomated === 1 ? "session" : "sessions"} left out`) : null;
+      enter(c, [k, big, p, skip], 120, 160);
       const calls = L.toolCallsCapped ? `${int(L.toolCalls)}+` : capped(L.toolCalls, 99999);
       const ro = readouts(c, [["Prompts", L.prompts], ["Tool calls", calls], ["Resets", L.compactions]], { size: 84, at: 1600 });
-      return { head: h("div", {}, k, big, p), extra: ro, artMin: 0.2, split: 0.46, legend: "active = gaps under 10 min",
+      return { head: h("div", {}, k, big, p, skip), extra: ro, artMin: 0.2, split: 0.46, legend: "active = gaps under 10 min",
         art(w, hgt) {
           const u = c.u, svg = box(w, hgt), wallH = L.wallMinutes / 60, actH = L.activeMinutes / 60;
           const x0 = 0, x1 = w - 4 * u, X = (v) => lerp(x0, x1, v / Math.max(wallH, actH, 1e-6));
@@ -1046,6 +1054,7 @@ registerCardStyle({
     // 19. tips ------------------------------------------------------------
     card({ id: "tips", title: "Try next", ch: "findings", dur: 8000 }, (c) => {
       const WHY = {
+        history_retention: (m) => (/session/i.test(m.unit) ? `${int(m.value)} transcripts can be deleted this week.` : `History kept: ${int(m.value)} days.`),
         context_resets: (m) => `${int(m.value)} context compactions in ${int(D.range.days)} days.`,
         slow_correction: (m) => `You usually step in after ${one(m.value)} minutes.`,
         repeated_failed_command: (m) => `One command failed ${int(m.value)} times running.`,
@@ -1097,7 +1106,7 @@ registerCardStyle({
       const n = note(c, "with AI, logged.", c.mode === "side" ? 84 : c.tall ? 80 : 60);
       n.style.color = "var(--c-rhythm)";
       c.tl.in(k, 100, { y: 20 * c.u }).in(tt, 200, { y: 30 * c.u }).in(n, 350, { y: 20 * c.u });
-      return { head: h("div", {}, k, tt, n), artMin: c.tall ? 0.6 : 0.52, split: 0.34, legend: "/analyze-ai-usage", center: c.mode === "side",
+      return { head: h("div", {}, k, tt, n), artMin: c.tall ? 0.6 : 0.52, split: 0.34, legend: `${SHARE.skill}  ${SHARE.hashtag}`, center: c.mode === "side",
         art(w, hgt) {
           const u = c.u, svg = box(w, hgt), GAP = 14 * u, ar = w / hgt;
           const L = ar >= 1.75 ? { rows: [["rhythm", "voice", "friction"], ["work", "hours", "prompts", "model"], ["persona"]], wt: [1.3, 0.85, 0.55] }
@@ -1202,6 +1211,64 @@ registerCardStyle({
         } };
     });
 
+    // optional cards: offered only when their data exists, never in the default selection ----------------
+    /** A unit so that n items need at most `max` marks: 1, 2, 5, 10, 20, 50, ... */
+    const unitFor = (n, max = 150) => { let q = 1; for (const step of [2, 2.5, 2]) { if (Math.ceil(n / q) <= max) break; q *= step; } while (Math.ceil(n / q) > max) q *= 10; return q; };
+    const dur = (ms) => (ms >= 3_600_000 ? [one(ms / 3_600_000), "hrs"] : ms >= 60_000 ? [int(ms / 60_000), "min"] : [int(ms / 1000), "sec"]);
+    /** n marks on a grid: circles or squares, hatched with the chapter colour, drawn in order. */
+    function markGrid(c, n, w, hgt, shape) {
+      const u = c.u, svg = box(w, hgt), g = kit.cellGrid(n, w, hgt, 0.3), sz = g.size;
+      const ox = (w - (g.cols * sz + (g.cols - 1) * g.gap)) / 2, oy = (hgt - (g.rows * sz + (g.rows - 1) * g.gap)) / 2;
+      const marks = Array.from({ length: n }, (_, i) => {
+        const x = ox + (i % g.cols) * (sz + g.gap), y = oy + Math.floor(i / g.cols) * (sz + g.gap), sw = Math.max(1.6 * u, sz * 0.06);
+        const m = shape === "circle" ? s("circle", { cx: x + sz / 2, cy: y + sz / 2, r: sz / 2 - sw, fill: hatch(c, "var(--acc)", 45, 9, 2), stroke: "var(--ink)", "stroke-width": sw })
+          : s("rect", { x: x + sw / 2, y: y + sw / 2, width: sz - sw, height: sz - sw, fill: hatch(c, "var(--acc)", 45, 9, 2), stroke: "var(--ink)", "stroke-width": sw });
+        svg.append(m); return m;
+      });
+      c.tl.stagger(marks, 700, Math.min(25, 1300 / n), (m, st) => c.tl.in(m, st, { y: 10 * u, dur: 400 }));
+      return svg;
+    }
+
+    if (D.thinking) card({ id: "thinking", title: "Deep thoughts", ch: "work", dur: 6000 }, (c) => {
+      const TH = D.thinking, timed = TH.totalMs != null;
+      const k = lab("Deep thoughts");
+      const [v, unit] = timed ? dur(TH.totalMs) : [compact(TH.blocks), null];
+      const big = hero(c, [h("span", {}, v), unit ? h("span", { class: "pn-u" }, unit) : null], 300, 110);
+      const p = body(timed ? ["of thinking before answering, over ", b(`${compact(TH.blocks)} thoughts`), "."] : "times the model stopped to think before answering.");
+      enter(c, [k, big, p], 120, 160);
+      const ro = TH.longestMs != null ? readouts(c, [["Longest think", dur(TH.longestMs).join(" ")], ["Sessions", TH.sessions]], { size: 84, at: 1600 }) : null;
+      const per = unitFor(TH.blocks);
+      return { head: h("div", {}, k, big, p), extra: ro, artMin: 0.26, split: 0.46, legend: per === 1 ? "one mark = one thought" : `one mark = ${int(per)} thoughts`,
+        art: (w, hgt) => markGrid(c, Math.ceil(TH.blocks / per), w, hgt, "circle") };
+    });
+
+    if (D.approvals) card({ id: "approvals", title: "Rubber stamp", ch: "friction", dur: 6000 }, (c) => {
+      const A = D.approvals;
+      // the share of permission decisions nobody had to make: settings let them through, against those you answered
+      const all = A.auto + A.byPerson + (A.denied || 0) || 1;
+      const k = lab("Rubber stamp");
+      const big = heroCount(c, (A.auto / all) * 100, (x) => `${Math.round(x)}`, "%", 300);
+      const p = body("of permission checks passed without asking you. You said yes ", b(`${int(A.byPerson)} times`), ".");
+      enter(c, [k, big, p], 120, 160);
+      const rows = [["By your settings", A.auto], ["Approved by you", A.byPerson], ["Declined by you", A.denied], ["Blocked by auto-review", A.autoBlocked]]
+        .filter(([, value], i) => value != null && (i < 2 || value > 0)).map(([label, value]) => ({ label, value, text: compact(value) }));
+      return { head: h("div", {}, k, big, p), artMin: 0.3, split: 0.46, legend: `${int(A.sessions)} sessions recorded it`,
+        art: (w, hgt) => tracks(c, w, hgt, rows, { unit: "DECISIONS", at: 900 }) };
+    });
+
+    if (D.history) card({ id: "history", title: "History kept", ch: "rhythm", dur: 6000 }, (c) => {
+      const Hh = D.history;
+      const k = lab("History kept");
+      const big = heroCount(c, Hh.days, int, Hh.days === 1 ? "day" : "days", 300);
+      const p = body(Hh.firstDay ? ["of sessions AI Insights still has, back to ", b(dshort(Hh.firstDay)), "."] : "of sessions AI Insights still has.",
+        Hh.cachedOnly > 0 ? [" ", b(int(Hh.cachedOnly)), ` ${Hh.cachedOnly === 1 ? "lives" : "live"} on only in its cache.`] : "");
+      enter(c, [k, big, p], 120, 160);
+      // a day per square up to 150 days, then a week, then a month: never more than about 150 marks
+      const [per, word] = Hh.days <= 150 ? [1, "day"] : Hh.days <= 150 * 7 ? [7, "week"] : [30, "month"];
+      return { head: h("div", {}, k, big, p), artMin: 0.26, split: 0.46, legend: `one square = one ${word}`,
+        art: (w, hgt) => markGrid(c, Math.max(1, Math.ceil(Hh.days / per)), w, hgt, "square") };
+    });
+
     // 21. outro: the maker's card, lime on teal -------------------------------------
     card({ id: "outro", title: "Made with", ch: "findings", dur: 3800, noFoot: true, dark: true, bg: "var(--brand-deep)", fg: "var(--brand-lime)" }, (c) => {
       c.el.style.setProperty("--acc", "var(--brand-lime)");
@@ -1213,7 +1280,9 @@ registerCardStyle({
         h("div", { class: "pn-lab", style: { color: "#FCFCF5" } }, "Made with"),
         h("div", { class: "pn-hero", "data-fit": Math.round(200 * c.k * c.u), "data-min": Math.round(80 * c.u), style: { marginTop: px(c, 12, 6) } }, "AI Insights"),
         h("div", { class: "pn-note pn-sp1", style: { fontSize: px(c, 64, 40), color: "#FCFCF5" } }, "by Matrix OS"),
-        h("div", { style: { display: "flex", flexWrap: "wrap", gap: px(c, 16, 10), marginTop: px(c, 36, 16) } }, h("span", { class: "pn-tag", style: { fontSize: px(c, 34, 24) } }, "/analyze-ai-usage"), h("span", { class: "pn-tag", style: { fontSize: px(c, 34, 24), color: "#FCFCF5" } }, "matrix-os.com")),
+        h("div", { class: "pn-lab", style: { color: "#FCFCF5", marginTop: px(c, 36, 16) } }, "Make your own"),
+        h("div", { style: { display: "flex", flexWrap: "wrap", gap: px(c, 16, 10), marginTop: px(c, 12, 6) } }, h("span", { class: "pn-tag", style: { fontSize: px(c, 34, 24) } }, SHARE.command), h("span", { class: "pn-tag", style: { fontSize: px(c, 34, 24) } }, SHARE.skill)),
+        h("div", { class: "pn-note", "data-fit": Math.round(34 * c.k * c.u), "data-min": Math.round(MIN * c.u), style: { fontFamily: "var(--mono)", fontSize: px(c, 34, 24), color: "#FCFCF5", marginTop: px(c, 16, 8), whiteSpace: "nowrap" } }, `${SHARE.site}  ${SHARE.hashtag}`),
       ];
       enter(c, lines, 500, 140);
       return { head: h("div", {}, ...lines), artFirst: true, artMin: 0.34, split: 0.44,

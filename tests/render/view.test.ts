@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { foldTarget, rankActions } from "../../src/render/story.js";
-import { availability, buildView, CARD_IDS, metricOf, recapView, retentionView, settingsSnippet, shortHistoryCoverage, stepsOf } from "../../src/render/view.js";
-import type { Coverage, Finding, Recap, Report, RunSnapshot, Suggestion } from "../../src/schema/types.js";
-import { HOSTILE, makeDeterministicReport, makeEmptyReport, makeHostileReport, makeReport } from "./fixtures.js";
+import { availability, buildView, CARD_IDS, lanesOf, metricOf, OPTIONAL_CARD_IDS, recapView, recordedSpend, retentionView, settingsSnippet, shortHistoryCoverage, stepsOf } from "../../src/render/view.js";
+import type { Coverage, Finding, Recap, RecapLanes, Report, RunSnapshot, Suggestion, UsageSummary } from "../../src/schema/types.js";
+import { HOSTILE, makeDeterministicReport, makeEmptyReport, makeHarnessRetention, makeHostileReport, makeReport, makeRetention, makeRetentionFinding } from "./fixtures.js";
 
 const ZONE = "Europe/Berlin";
 /** A recap built by the real analysis from the synthetic demo history (scripts/demo-report.mjs). */
@@ -40,7 +40,7 @@ describe("the share-safe recap", () => {
 
   it("offers a card only when its data exists, instead of drawing zeros", () => {
     const base = recapView(withRecap())!;
-    expect(Object.keys(base.avail).sort()).toEqual([...CARD_IDS, "history"].sort());
+    expect(Object.keys(base.avail).sort()).toEqual([...CARD_IDS, ...OPTIONAL_CARD_IDS].sort());
     const thin = recapView(withRecap(makeReport(), { rhythm: undefined, persona: undefined, longestSession: undefined, shell: { ...RECAP.shell, testPass: undefined, rmrf: 0, forcePush: 0 }, history: undefined } as never))!;
     const avail = availability(thin);
     expect(avail).toMatchObject({ clock: false, weekday: false, persona: false, summary: false, marathon: false, tests: false, danger: false, history: false, intro: true, outro: true });
@@ -52,10 +52,43 @@ describe("the share-safe recap", () => {
     expect(recap.usage.usd).toBeNull();
   });
 
-  it("passes real parallel lanes through, and none at all rather than invented ones", () => {
-    expect(recapView(withRecap())!.parallel.lanes).toBeNull();
-    const lanes = recapView(withRecap(makeReport(), { parallel: { ...RECAP.parallel, lanes: [[0.1, 0.6], { start: 0.2, end: 0.9 }, [0.5, 0.4]] } } as never))!.parallel.lanes;
-    expect(lanes).toEqual([[0.1, 0.6], [0.2, 0.9]]);
+  it("draws real lanes as shares of the window, and only when they add up to the count on the card", () => {
+    const lanes: RecapLanes = {
+      windowMinutes: 360, peakAt: 180, atPeak: 2,
+      lanes: [
+        { harness: "claude-code", start: 0, end: 240, active: [[0, 60], [150, 240]] },
+        { harness: "codex", start: 120, end: 360, active: [[120, 200]] },
+        { harness: "codex", start: 200, end: 300, active: [[200, 300]] },
+      ],
+    };
+    const view = lanesOf(lanes, 2)!;
+    expect(view).toMatchObject({ windowMinutes: 360, peak: 0.5, atPeak: 2 });
+    expect(view.rows.map((row) => row.atPeak)).toEqual([true, true, false]);
+    expect(view.rows[0]!.active).toEqual([[0, 60 / 360], [150 / 360, 240 / 360]]);
+    expect(lanesOf(lanes, 3)).toBeNull();
+    expect(lanesOf({ ...lanes, atPeak: 3 }, 3)).toBeNull();
+    expect(lanesOf(undefined, 2)).toBeNull();
+    expect(recapView(withRecap(makeReport(), { parallel: { max: 2, overlapEvents: 1, subagents: 0, lanes } }))!.parallel.lanes!.atPeak).toBe(2);
+  });
+
+  it("passes the newer recap fields through and offers their optional cards only with enough data", () => {
+    const recap = recapView(withRecap(makeReport(), {
+      thinking: { blocks: 420, totalMs: 7_200_000, longestMs: 95_000, sessions: 40 },
+      approvals: { auto: 900, byPerson: 120, denied: 7, autoBlocked: 3, sessions: 50 },
+      history: { days: 120, firstDay: "2026-07-20", cachedOnly: 33 },
+      longestSession: { ...RECAP.longestSession!, skippedAutomated: 2 },
+      voice: { ...RECAP.voice, excludedWrapped: 14 },
+    }))!;
+    expect(recap.thinking).toEqual({ blocks: 420, sessions: 40, totalMs: 7_200_000, longestMs: 95_000 });
+    expect(recap.approvals).toEqual({ auto: 900, byPerson: 120, denied: 7, autoBlocked: 3, guardianReviews: null, sessions: 50 });
+    expect(recap.history).toEqual({ days: 120, firstDay: "2026-07-20", cachedOnly: 33 });
+    expect(recap.longestSession!.skippedAutomated).toBe(2);
+    expect(recap.voice.excludedWrapped).toBe(14);
+    expect(recap.avail).toMatchObject({ thinking: true, approvals: true, history: true });
+    const codexOnly = recapView(withRecap(makeReport(), { approvals: { denied: 2, guardianReviews: 5, autoBlocked: 1, sessions: 3 }, thinking: { blocks: 3, sessions: 1 } }))!;
+    expect(codexOnly.approvals!.auto).toBeNull();
+    expect(codexOnly.thinking!.totalMs).toBeNull();
+    expect(codexOnly.avail).toMatchObject({ thinking: false, approvals: false });
   });
 
   it("keeps the 10,000+ flag for capped tool counts and the full span of long histories", () => {
@@ -266,25 +299,121 @@ describe("the closing cards", () => {
 });
 
 describe("keeping history", () => {
-  it("renders nothing until the report carries retention data", () => {
+  const NOW = "2026-11-16T12:00:00Z";
+  const withRetention = (harnesses: Parameters<typeof makeRetention>[0], finding: Finding | null = makeRetentionFinding()): Report => {
+    const report = makeReport({ generatedAt: NOW });
+    return { ...report, retention: makeRetention(harnesses), findings: [...report.findings.filter((f) => f.kind !== "short_history"), ...(finding ? [finding] : [])] };
+  };
+
+  it("renders nothing until the report carries retention data or the finding", () => {
     expect(retentionView(makeReport(), ZONE)).toBeNull();
     expect(buildView(makeReport(), ZONE).retention).toBeNull();
   });
 
-  it("leads with what will be deleted this week, and says the stats survive but the transcripts do not", () => {
-    const report = { ...makeReport(), generatedAt: "2026-11-16T12:00:00Z", retention: [{ harness: "claude-code", keepDays: 30, oldest: "2026-10-17T10:00:00Z", atRisk: { sessions: 4, mb: 120 }, nextDeletion: "2026-11-18T10:00:00Z", cacheOnly: 12 }] } as unknown as Report;
+  it("leads with what can be deleted this week, worded as eligible rather than a promise, and keeps the per-tool table", () => {
+    const report = withRetention([
+      makeHarnessRetention({ atRisk: { sessions: 2, bytes: 12_000_000, nextDeletion: "2026-11-18T10:00:00Z" }, cachedOnly: 4 }),
+      makeHarnessRetention({ harness: "codex", policy: "kept", days: undefined, source: undefined, setting: undefined, clock: undefined, atRisk: undefined, basis: "Codex keeps rollouts until you delete them." }),
+    ]);
     const view = retentionView(report, ZONE)!;
-    expect(view.urgent).toBe(true);
-    expect(view.sentence).toBe("Claude Code will delete 4 sessions (120 MB) by Nov 18, 2026. The numbers stay in AI Insights; the full transcripts do not, unless you keep them.");
-    expect(view.rows[0]).toMatchObject({ label: "Claude Code", kept: "kept 30 days", cacheOnly: 12 });
-    expect(view.limit).toContain("Claude Code kept 30 days");
+    expect(view).toMatchObject({ urgent: true, level: "urgent", title: "2 transcripts can be deleted in the next 7 days." });
+    expect(view.sentence).toBe("Claude Code can delete 2 transcripts (12 MB) from Nov 18, 2026, at its next start after that. AI Insights keeps the stats it already read; the full transcripts go unless you keep or archive them.");
+    expect(view.sentence).not.toMatch(/will be deleted/);
+    expect(view.rows[0]).toMatchObject({ label: "Claude Code", keeps: "deletes after 30 days", source: "its default", setting: "cleanupPeriodDays in ~/.claude/settings.json (not set)", disk: "480 MB", atRisk: "2 transcripts (12 MB) can be deleted from Nov 18, 2026", cacheOnly: 4 });
+    expect(view.rows[1]).toMatchObject({ label: "Codex", keeps: "keeps until you delete them", atRisk: null, source: null });
+    expect(view.cache).toEqual({ keeps: ["When each session ran, how long, and in which project"], drops: ["The agent's replies"] });
+    expect(view.limit).toBe("How far back this goes is limited by retention: Claude Code deletes transcripts after 30 days; AI Insights still has sessions back to Oct 17, 2026.");
   });
 
-  it("renders any finding's steps as separate actions, each with its own text to copy", () => {
-    const steps = stepsOf({ steps: [{ title: "Keep transcripts longer", action: "Raise the cleanup period.", instructionText: '{ "cleanupPeriodDays": 365 }', file: "~/.claude/settings.json", undo: "Remove the line." }, { title: "Archive them", url: "javascript:alert(1)" }, { nope: true }] });
-    expect(steps).toHaveLength(2);
-    expect(steps[0]).toMatchObject({ copy: '{ "cleanupPeriodDays": 365 }', copyLabel: "Add to ~/.claude/settings.json", undo: "Remove the line." });
-    expect(steps[1]!.url).toBeNull();
+  it("words a saved retention title as eligible, not as a promise, wherever the page shows it", () => {
+    const report = withRetention([makeHarnessRetention({ atRisk: { sessions: 2, bytes: 0, nextDeletion: "2026-11-18T10:00:00Z" } })]);
+    const json = JSON.stringify(buildView(report, ZONE));
+    expect(json).not.toContain("will be deleted");
+    expect(json).toContain("2 Claude Code sessions can be deleted within 7 days");
+  });
+
+  it("says 'the next time it starts' when the eligible date has passed", () => {
+    const view = retentionView(withRetention([makeHarnessRetention({ atRisk: { sessions: 1, bytes: 0, nextDeletion: "2026-11-10T10:00:00Z" } })]), ZONE)!;
+    expect(view.sentence).toMatch(/^Claude Code can delete 1 transcript the next time it starts\./);
+    expect(view.rows[0]!.atRisk).toBe("1 transcript can be deleted the next time Claude Code starts");
+  });
+
+  it("names the default, the person's own setting and managed settings truthfully", () => {
+    const atDefault = retentionView(withRetention([makeHarnessRetention()], makeRetentionFinding({ severity: "low" })), ZONE)!;
+    expect(atDefault).toMatchObject({ urgent: false, level: "default" });
+    expect(atDefault.sentence).toMatch(/^Claude Code deletes transcripts 30 days after they last changed, its default\./);
+    const own = retentionView(withRetention([makeHarnessRetention({ source: "settings", days: 90, setting: { name: "cleanupPeriodDays", file: "~/.claude/settings.json", value: 90 } })], null), ZONE)!;
+    expect(own.level).toBe("settings");
+    expect(own.sentence).toMatch(/90 days after they last changed, as set in ~\/\.claude\/settings\.json\./);
+    expect(own.rows[0]!.setting).toBe("cleanupPeriodDays in ~/.claude/settings.json: 90");
+    const managed = retentionView(withRetention([makeHarnessRetention({ source: "managed", days: 14 })]), ZONE)!;
+    expect(managed).toMatchObject({ level: "managed", title: "Your organization sets how long transcripts are kept." });
+    expect(managed.rows[0]!.source).toBe("managed by your organization");
+    const gemini = retentionView(withRetention([makeHarnessRetention({ harness: "gemini", days: 1.5, clock: "last-updated" })]), ZONE)!;
+    expect(gemini.sentence).toMatch(/^Gemini CLI deletes transcripts 1\.5 days after their last update/);
+  });
+
+  it("falls back to the finding's own words when history is only short, and reports tools that keep or do not say", () => {
+    const short = makeRetentionFinding({ severity: "info", detail: "History on this machine goes back: Codex 12 days." });
+    const kept = [makeHarnessRetention({ harness: "codex", policy: "kept", days: undefined, source: undefined, setting: undefined, atRisk: undefined }), makeHarnessRetention({ harness: "cursor", policy: "unknown", days: undefined, source: undefined, setting: undefined, atRisk: undefined, url: undefined })];
+    expect(retentionView(withRetention(kept, short), ZONE)).toMatchObject({ level: "short", sentence: "History on this machine goes back: Codex 12 days.", limit: null });
+    const none = retentionView(withRetention(kept, null), ZONE)!;
+    expect(none).toMatchObject({ level: "kept", sentence: "Codex keeps transcripts until you delete them. Cursor: not documented whether old chats are deleted.", steps: [] });
+    expect(none.rows[1]).toMatchObject({ keeps: "not documented", url: null });
+  });
+
+  it("says why Desktop and Cowork sessions past the age are kept", () => {
+    const view = retentionView(withRetention([makeHarnessRetention({ exempt: { sessions: 3, reason: "Sessions started or last continued in Claude Desktop or Cowork are kept at any age" } })]), ZONE)!;
+    expect(view.rows[0]!.exempt).toBe("3 older sessions kept anyway: Sessions started or last continued in Claude Desktop or Cowork are kept at any age.");
+  });
+
+  it("offers the three steps, each with its own text to copy and how to undo it", () => {
+    const view = retentionView(withRetention([makeHarnessRetention()]), ZONE)!;
+    expect(view.steps.map((step) => [step.title, step.copy, step.copyLabel])).toEqual([
+      ["Keep Claude Code transcripts longer", '"cleanupPeriodDays": 365', "Line to paste"],
+      ["Archive them compactly", "npx packmem archive --dry-run", "Command to run"],
+      ["Keep them for good across machines", "matrix chats discover --json", "Command to run"],
+    ]);
+    expect(view.steps[0]!.undo).toBe("Remove the line to go back to the default of 30 days.");
+    expect(stepsOf({ steps: [{ title: "x", action: "y", url: "javascript:alert(1)", instructionText: "Always run the tests." }] })[0]).toMatchObject({ url: null, copy: "Always run the tests.", copyLabel: "Add to CLAUDE.md or AGENTS.md" });
+  });
+
+  it("shows the packmem pitch once: the disk card loses its pitch and the closing pair goes when the block has steps", () => {
+    const disk: Finding = { id: "history_disk_usage", kind: "history_disk_usage", severity: "info", title: "Agent history takes 1480 MB on disk", detail: "Your agent transcripts take 1480 MB across Claude Code.", harnesses: ["claude-code"], metric: { value: 1480, unit: "MB", label: "agent history on disk" }, evidence: [] };
+    const report = withRetention([makeHarnessRetention()]);
+    const view = buildView({ ...report, findings: [...report.findings.filter((f) => f.kind !== "history_disk_usage"), disk] }, ZONE);
+    expect(view.closing.show).toBe(false);
+    expect(view.closing.disk).toMatchObject({ title: "Agent history takes 1480 MB on disk", action: "Your agent transcripts take 1480 MB across Claude Code.", url: null });
+    expect(view.retention!.disk).toEqual({ value: "1.5 GB", label: "agent history on disk" });
+    const json = JSON.stringify(view);
+    expect(json.split("npx packmem archive --dry-run").length - 1).toBe(1);
+    expect(all(view).some((a) => a.findingId === "history_retention" || a.findingId === "history_disk_usage")).toBe(false);
+    expect(view.findings.some((f) => f.kind === "history_retention")).toBe(false);
+    // An older saved report: short_history and a disk card with its own pitch keep the closing pair.
+    expect(buildView(makeDeterministicReport(), ZONE).closing.show).toBe(true);
+  });
+});
+
+describe("recorded spend", () => {
+  it("shows what the tools recorded beside the estimate, and never calls a recorded $0 free", () => {
+    expect(recordedSpend(makeReport().usage)).toBeNull();
+    const usage: Pick<UsageSummary, "recorded" | "recordedByHarness"> = {
+      recorded: { usd: 3.2, requests: 50, zeroRequests: 30 },
+      recordedByHarness: [{ harness: "pi", usd: 3.2, requests: 20, zeroRequests: 0 }, { harness: "opencode", usd: 0, requests: 30, zeroRequests: 30 }],
+    };
+    const view = recordedSpend(usage)!;
+    expect(view.text).toBe("recorded $3.20 (30 requests recorded $0, typical of subscriptions)");
+    expect(view.harnesses.map((h) => [h.label, h.text])).toEqual([["Pi", "recorded $3.20"], ["OpenCode", "nothing billed by the harness (30 requests recorded $0, typical of subscriptions)"]]);
+    expect(JSON.stringify(view)).not.toMatch(/free/i);
+    expect(buildView({ ...makeReport(), usage: { ...makeReport().usage, ...usage } }, ZONE).usage.recorded!.usd).toBe(3.2);
+  });
+});
+
+describe("coverage footer", () => {
+  it("keeps usage counters it did not count apart from unreadable lines", () => {
+    const report = makeReport();
+    const coverage = report.coverage.map((entry, i) => (i === 0 ? { ...entry, issues: 3, skippedUsageRecords: 12 } : entry));
+    expect(buildView({ ...report, coverage }, ZONE).coverage[0]).toMatchObject({ skipped: 3, skippedUsage: 12 });
   });
 });
 

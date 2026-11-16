@@ -1,4 +1,4 @@
-import type { Coverage, Finding, RenderExtras, Report, RunSnapshot } from "../schema/types.js";
+import type { Coverage, Finding, HarnessRetention, RecapLanes, RenderExtras, Report, Retention, RunSnapshot, SuggestionStep, UsageSummary } from "../schema/types.js";
 import { bytesFor, clip, count, formatBytes, formatDate, formatDateTime, formatInt, formatUsd, num, plural, shortenPath } from "./format.js";
 import { harnessLabel, keyLabel, severityRank, suggestionLabel } from "./labels.js";
 import { safeLink, shortUrl } from "./links.js";
@@ -78,6 +78,8 @@ export interface RecapView {
   voice: {
     prompts: number;
     excludedAgentSessions: number;
+    /** Prompts left out of the voice stats because a script filled them (an XML-style wrapper). */
+    excludedWrapped: number;
     words: KeyCount[];
     openers: KeyCount[];
     polite: { please: number; thanks: number; sorry: number };
@@ -93,11 +95,12 @@ export interface RecapView {
   /** False when no prompt had a timestamp: the rhythm numbers are zeros, and cards built on them are off. */
   hasRhythm: boolean;
   /**
-   * `lanes`: the sessions open around the busiest moment as [start, end] shares (0..1) of a window around it,
-   * share-safe (no names). Null until the data layer sends them: cards then draw a plain schematic, never data.
+   * `lanes`: the sessions open around the busiest moment, share-safe (harness names, no ids or clock times).
+   * Null when the recap has none or they do not add up to `max`: cards then draw a plain schematic, never data.
    */
-  parallel: { max: number; overlapEvents: number; subagents: number; lanes: Array<[number, number]> | null };
-  longestSession: { activeMinutes: number; wallMinutes: number; prompts: number; toolCalls: number; toolCallsCapped: boolean; harness: string; compactions: number } | null;
+  parallel: { max: number; overlapEvents: number; subagents: number; lanes: LanesView | null };
+  /** `skippedAutomated`: longer sessions a script or another agent drove, left out (0 when none). */
+  longestSession: { activeMinutes: number; wallMinutes: number; prompts: number; toolCalls: number; toolCallsCapped: boolean; harness: string; compactions: number; skippedAutomated: number } | null;
   topProjectShare: number | null;
   failures: { total: number; calls: number; rate: number; categories: Array<{ key: string; label: string; count: number }>; nemesis: Array<{ key: string; count: number; runs: number }> };
   models: Array<{ key: string; harness: string; requests: number; share: number }>;
@@ -117,12 +120,31 @@ export interface RecapView {
   };
   winRate: number | null;
   facetSessions: number;
-  /** How much history the tools keep: share-safe (a count and a day). Absent until the data layer sends it. */
-  history: { days: number; firstDay: string | null } | null;
+  /** How much history AI Insights still has: share-safe (counts and a day). Null without retention data. */
+  history: { days: number; firstDay: string | null; cachedOnly: number } | null;
+  /** Thinking blocks the harnesses recorded; durations null when no session recorded them. */
+  thinking: { blocks: number; sessions: number; totalMs: number | null; longestMs: number | null } | null;
+  /** Who let actions through. A counter is null when no harness here records it: never read it as zero. */
+  approvals: { auto: number | null; byPerson: number | null; denied: number | null; autoBlocked: number | null; guardianReviews: number | null; sessions: number } | null;
+  /** The person's reply time to finished turns. */
+  replies: { count: number; medianSec: number; fastShare: number; longestSec: number } | null;
+  /** MCP servers by sessions and skills by invocations, public names only. */
+  connectors: KeyCount[];
+  skills: KeyCount[];
   persona: { title: string; time: string; role: string; reason: string } | null;
   tips: Array<{ title: string; kind: string; metric: { value: number; unit: string; label: string } | null }>;
   /** false: the page does not build that card (its data is missing). */
   avail: Record<string, boolean>;
+}
+
+/** `RecapLanes` as shares (0..1) of the window, so a card scales them to any width. */
+export interface LanesView {
+  windowMinutes: number;
+  /** The peak instant as a share of the window. */
+  peak: number;
+  /** Lanes open at the peak: equals `parallel.max`. */
+  atPeak: number;
+  rows: Array<{ harness: string; start: number; end: number; active: Array<[number, number]>; atPeak: boolean }>;
 }
 
 export interface FindingView {
@@ -205,7 +227,7 @@ export interface PageView {
     lede: string;
     harnesses: string[];
   };
-  coverage: Array<{ harness: string; label: string; found: boolean; sessions: number; days: number | null; since: string | null; disk: string | null; skipped: number; note: string | null; tokens: boolean }>;
+  coverage: Array<{ harness: string; label: string; found: boolean; sessions: number; days: number | null; since: string | null; disk: string | null; skipped: number; skippedUsage: number; note: string | null; tokens: boolean }>;
   activity: {
     sessions: number;
     activeDays: number;
@@ -247,7 +269,7 @@ export interface PageView {
     gap: string | null;
     perCommit: number | null;
     /** What the tools themselves logged (OpenCode, Pi), beside the list-price estimate; null when none did. */
-    recorded: { usd: number; text: string; harnesses: string[] } | null;
+    recorded: { usd: number; requests: number; zeroRequests: number; text: string; harnesses: Array<{ label: string; usd: number; requests: number; zeroRequests: number; text: string }> } | null;
     noTokens: string[];
     daily: Array<{ day: string; usd: number | null; tokens: number }>;
     models: Array<{ model: string; harness: string; requests: number; tokens: number; output: number; usd: number | null; unpriced: number }>;
@@ -266,6 +288,7 @@ export interface PageView {
   } | null;
   facets: { sessions: number; outcomes: KeyCount[]; frictions: KeyCount[]; successes: KeyCount[]; goals: KeyCount[] } | null;
   closing: {
+    show: boolean;
     disk: { metric: { value: string; label: string } | null; title: string; action: string; url: string | null; urlLabel: string | null } | null;
     matrix: { metric: { value: string; label: string } | null; since: string | null; url: string };
   };
@@ -274,14 +297,42 @@ export interface PageView {
 }
 
 export interface RetentionView {
-  /** Deletion within 7 days for at least one tool: the block leads "What to change". */
+  /** Transcripts can be deleted within the window for at least one tool: the block leads "What to change". */
   urgent: boolean;
+  /** Which situation the wording describes, most pressing first. */
+  level: "urgent" | "managed" | "default" | "settings" | "short" | "kept";
+  title: string;
   sentence: string;
-  rows: Array<{ label: string; kept: string | null; oldest: string | null; atRisk: string | null; next: string | null; cacheOnly: number }>;
-  cache: string | null;
+  /** One row per tool: what it keeps, from where, and what can go. */
+  rows: RetentionRow[];
+  /** What AI Insights' cache keeps once a transcript is gone, and what it does not. */
+  cache: { keeps: string[]; drops: string[] } | null;
   steps: StepView[];
+  /** The history-on-disk number, shown in the block when it replaces the closing cards. */
+  disk: { value: string; label: string } | null;
   /** One line for "Over time" when retention limits how far back runs and days go; null when it does not. */
   limit: string | null;
+}
+
+export interface RetentionRow {
+  harness: string;
+  label: string;
+  policy: HarnessRetention["policy"];
+  /** "deletes after 30 days", "keeps until you delete them", "not documented". */
+  keeps: string;
+  /** Where the number comes from: "default", "your settings", "managed by your organization". */
+  source: string | null;
+  /** The setting, its file and the value found. */
+  setting: string | null;
+  transcripts: number;
+  disk: string | null;
+  oldest: string | null;
+  atRisk: string | null;
+  exempt: string | null;
+  cacheOnly: number;
+  basis: string;
+  url: string | null;
+  urlLabel: string | null;
 }
 
 export interface TimelineDayView {
@@ -326,11 +377,14 @@ function hours24(value: unknown): number[] {
   return list;
 }
 
+/** Kinds shown in "Keep your history" or the closing cards, never as a tip or a ranked action. */
+const CLOSING_KINDS: ReadonlySet<string> = new Set(["history_retention", "history_disk_usage", "short_history"]);
+
 const WEEKDAY_KEYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 /** Every card id, in the default order. Matches `CARD_IDS` in the client engine. */
 /** Cards a style may leave out; they are never in the default selection. */
-export const OPTIONAL_CARD_IDS = ["history"] as const;
+export const OPTIONAL_CARD_IDS = ["thinking", "approvals", "history"] as const;
 export const CARD_IDS = ["intro", "hours", "clock", "weekday", "streak", "words", "manners", "slash", "shell", "tests", "danger", "parallel", "marathon", "failures", "nemesis", "model", "tokens", "persona", "tips", "summary", "outro"] as const;
 
 /** Generic card wording per finding kind: a card never repeats a finding's own title, which can name a command. */
@@ -348,6 +402,7 @@ const TIP_TITLES: Record<string, string> = {
   tool_error_hotspot: "Fix the tool that fails most",
   unused_feature: "Try a feature that fits your work",
   single_harness_only: "Try a second coding agent",
+  history_retention: "Keep your history",
   short_history: "Keep your history longer",
   history_disk_usage: "Compress your history",
 };
@@ -420,6 +475,7 @@ export function recapView(input: RenderInput): RecapView | null {
     voice: {
       prompts: count(voice.prompts),
       excludedAgentSessions: count(voice.excludedAgentSessions),
+      excludedWrapped: count(voice.excludedWrapped),
       words: keyCounts(voice.words, 5, 24),
       openers: keyCounts(voice.openers, 3, 24),
       polite: { please: count(polite.please), thanks: count(polite.thanks), sorry: count(polite.sorry) },
@@ -433,9 +489,9 @@ export function recapView(input: RenderInput): RecapView | null {
     slashTotal: count(raw.slashTotal),
     shell: { calls: count(shell.calls), programs: keyCounts(shell.programs, 5, 24), tests: count(shell.tests), testPass: maybe(shell.testPass), rmrf: count(shell.rmrf), forcePush: count(shell.forcePush), sleeps: count(shell.sleeps) },
     hasRhythm,
-    parallel: { max: count(parallel.max), overlapEvents: count(parallel.overlapEvents), subagents: count(parallel.subagents), lanes: lanesOf(parallel.lanes) },
+    parallel: { max: count(parallel.max), overlapEvents: count(parallel.overlapEvents), subagents: count(parallel.subagents), lanes: lanesOf(parallel.lanes, count(parallel.max)) },
     longestSession: longest && count(longest.activeMinutes) > 0
-      ? { activeMinutes: count(longest.activeMinutes), wallMinutes: count(longest.wallMinutes), prompts: count(longest.prompts), toolCalls: count(longest.toolCalls), toolCallsCapped: longest.toolCallsCapped === true, harness: str(longest.harness, 20), compactions: count(longest.compactions) }
+      ? { activeMinutes: count(longest.activeMinutes), wallMinutes: count(longest.wallMinutes), prompts: count(longest.prompts), toolCalls: count(longest.toolCalls), toolCallsCapped: longest.toolCallsCapped === true, harness: str(longest.harness, 20), compactions: count(longest.compactions), skippedAutomated: count(longest.skippedAutomated) }
       : null,
     topProjectShare: maybe(raw.topProjectShare),
     failures: {
@@ -460,7 +516,12 @@ export function recapView(input: RenderInput): RecapView | null {
     },
     winRate: maybe(raw.winRate),
     facetSessions: count(raw.facetSessions),
-    history: raw.history && count(obj(raw.history).days) > 0 ? { days: Math.round(count(obj(raw.history).days)), firstDay: day(obj(raw.history).firstDay ?? obj(raw.history).from) } : null,
+    history: historyOf(raw.history),
+    thinking: thinkingOf(raw.thinking),
+    approvals: approvalsOf(raw.approvals),
+    replies: repliesOf(raw.replies),
+    connectors: keyCounts(raw.connectors, 5, 40),
+    skills: keyCounts(raw.skills, 5, 40),
     persona: persona && str(persona.title, 60) ? { title: str(persona.title, 60), time: str(persona.time, 30), role: str(persona.role, 30), reason: str(persona.reason, 160) } : null,
     tips: [],
     avail: {},
@@ -470,9 +531,61 @@ export function recapView(input: RenderInput): RecapView | null {
   return view;
 }
 
-function lanesOf(raw: unknown): Array<[number, number]> | null {
-  const lanes = arr(raw, 40).map((entry) => (Array.isArray(entry) ? entry : [obj(entry).start, obj(entry).end])).map(([a, b]) => [ratio(a), ratio(b)] as [number, number]).filter(([a, b]) => b > a);
-  return lanes.length >= 2 ? lanes : null;
+const MAX_LANE_ROWS = 40;
+const MAX_LANE_STRETCHES = 20;
+
+/**
+ * `RecapLanes` (relative minutes) as shares of the window. Kept only when it is self-consistent: the lanes open
+ * at the peak must number `atPeak`, and `atPeak` must equal the card's headline count, or the picture would
+ * contradict the number beside it.
+ */
+export function lanesOf(raw: RecapLanes | undefined | unknown, max: number): LanesView | null {
+  const lanes = obj(raw);
+  const span = num(lanes.windowMinutes);
+  const peakAt = maybe(lanes.peakAt);
+  const atPeak = count(lanes.atPeak);
+  if (!(span > 0) || peakAt === null || atPeak < 2 || atPeak !== max) return null;
+  const share = (minutes: unknown) => ratio(num(minutes) / span);
+  const rows = arr(lanes.lanes, MAX_LANE_ROWS).map((entry) => obj(entry)).map((lane) => {
+    const stretches = arr(lane.active, MAX_LANE_STRETCHES).filter(Array.isArray).map((pair) => [num((pair as unknown[])[0]), num((pair as unknown[])[1])] as [number, number]).filter(([a, b]) => b > a);
+    return {
+      harness: str(lane.harness, 20),
+      start: share(lane.start),
+      end: share(lane.end),
+      active: stretches.map(([a, b]) => [share(a), share(b)] as [number, number]),
+      atPeak: stretches.some(([a, b]) => a <= peakAt && peakAt < b),
+    };
+  }).filter((lane) => lane.end > lane.start);
+  if (rows.filter((lane) => lane.atPeak).length !== atPeak) return null;
+  return { windowMinutes: span, peak: ratio(peakAt / span), atPeak, rows };
+}
+
+function historyOf(raw: unknown): RecapView["history"] {
+  const history = obj(raw);
+  const days = Math.round(count(history.days));
+  return days > 0 ? { days, firstDay: day(history.firstDay), cachedOnly: count(history.cachedOnly) } : null;
+}
+
+function thinkingOf(raw: unknown): RecapView["thinking"] {
+  const thinking = obj(raw);
+  const blocks = count(thinking.blocks);
+  if (blocks === 0) return null;
+  const total = maybe(thinking.totalMs), longest = maybe(thinking.longestMs);
+  return { blocks, sessions: count(thinking.sessions), totalMs: total !== null && total > 0 ? total : null, longestMs: longest !== null && longest > 0 ? longest : null };
+}
+
+function approvalsOf(raw: unknown): RecapView["approvals"] {
+  if (!raw || typeof raw !== "object") return null;
+  const approvals = obj(raw);
+  const counter = (value: unknown) => (typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.round(value) : null);
+  const view = { auto: counter(approvals.auto), byPerson: counter(approvals.byPerson), denied: counter(approvals.denied), autoBlocked: counter(approvals.autoBlocked), guardianReviews: counter(approvals.guardianReviews), sessions: count(approvals.sessions) };
+  return [view.auto, view.byPerson, view.denied, view.autoBlocked, view.guardianReviews].some((value) => value !== null) ? view : null;
+}
+
+function repliesOf(raw: unknown): RecapView["replies"] {
+  const replies = obj(raw);
+  const replyCount = count(replies.count);
+  return replyCount > 0 ? { count: replyCount, medianSec: count(replies.medianSec), fastShare: ratio(replies.fastShare), longestSec: count(replies.longestSec) } : null;
 }
 
 /** The recap's own tips, else up to three from the findings, worded per kind so no command text reaches a card. */
@@ -484,7 +597,7 @@ function tipsFor(raw: unknown, findings: Finding[]): RecapView["tips"] {
   const own = arr(raw, 3).map((entry) => obj(entry)).map((t) => ({ title: str(t.title, 60) || TIP_TITLES[str(t.kind, 40)] || "", kind: str(t.kind, 40), metric: metricOf(t.metric) })).filter((t) => t.title);
   if (own.length > 0) return own;
   return [...findings]
-    .filter((f) => f.suggestion && TIP_TITLES[f.kind] && f.kind !== "history_disk_usage" && f.kind !== "short_history")
+    .filter((f) => f.suggestion && TIP_TITLES[f.kind] && !CLOSING_KINDS.has(f.kind))
     .sort((a, b) => severityRank(a.severity) - severityRank(b.severity))
     .filter((f, i, all) => all.findIndex((g) => g.kind === f.kind) === i)
     .slice(0, 3)
@@ -516,6 +629,10 @@ export function availability(d: RecapView): Record<string, boolean> {
     tips: d.tips.length > 0,
     summary: d.voice.words.length > 0 && d.shell.programs.length > 0 && d.models.length > 0 && d.persona !== null && d.hasRhythm,
     outro: true,
+    // Optional cards, never in the default selection.
+    thinking: d.thinking !== null && d.thinking.blocks >= 10,
+    // The card compares who let actions through: it needs the automatic and the person's counts both recorded.
+    approvals: d.approvals !== null && d.approvals.auto !== null && d.approvals.byPerson !== null && d.approvals.auto + d.approvals.byPerson > 0,
     history: d.history !== null,
   };
 }
@@ -615,17 +732,21 @@ function actionView(action: RankedAction, index: number, findingAnchors: Map<Fin
   };
 }
 
-/** `suggestion.steps`, read loosely: any finding may carry them, and the field is newer than this renderer. */
-export function stepsOf(suggestion: unknown): StepView[] {
-  return arr(obj(suggestion).steps, 6).map((entry) => obj(entry)).map((step) => {
+/**
+ * `suggestion.steps` (`SuggestionStep`): each step its own action, with the text to copy exactly as given. A
+ * `command` is a line to run or paste; `instructionText` goes in CLAUDE.md or AGENTS.md.
+ */
+export function stepsOf(suggestion: { steps?: SuggestionStep[] } | null | undefined): StepView[] {
+  return arr(suggestion?.steps, 6).map((entry) => obj(entry)).map((step) => {
     const link = safeLink(step.url);
-    const copyText = str(step.instructionText ?? step.copy ?? step.text ?? step.snippet, MAX_COPY) || null;
-    const file = str(step.file ?? step.path, 200);
+    const command = str(step.command, MAX_COPY) || null;
+    const instructions = str(step.instructionText, MAX_COPY) || null;
+    const copyText = command ?? instructions;
     return {
       title: str(step.title, MAX_TITLE),
-      body: str(step.action ?? step.description ?? step.detail, MAX_TEXT),
+      body: str(step.action, MAX_TEXT),
       copy: copyText,
-      copyLabel: copyText ? (file ? `Add to ${file}` : str(step.copyLabel, 80) || "Copy") : null,
+      copyLabel: !copyText ? null : command ? (/^\s*["{]/.test(command) ? "Line to paste" : "Command to run") : "Add to CLAUDE.md or AGENTS.md",
       undo: str(step.undo, 400) || null,
       url: link ? link.href : null,
       urlLabel: link ? shortUrl(link) : null,
@@ -638,6 +759,14 @@ function localDay(iso: string, zone: string): string | null {
   if (!Number.isFinite(ms)) return null;
   const parts = new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).format(ms);
   return day(parts);
+}
+
+/**
+ * A transcript past its age is only eligible: the harness deletes it at its next start, which may never come.
+ * Saved retention titles say "will be deleted"; the page says "can be".
+ */
+export function findingTitle(kind: string, title: string): string {
+  return kind === "history_retention" ? title.replace(/\bwill be deleted\b/g, "can be deleted") : title;
 }
 
 function runView(run: RunSnapshotInput, zone: string): RunView | null {
@@ -653,7 +782,7 @@ function runView(run: RunSnapshotInput, zone: string): RunView | null {
     generatedAt: generated,
     days: maybe(obj(run.window).days),
     metrics,
-    findings: arr(run.findings, 80).map((entry) => obj(entry)).map((f) => ({ id: str(f.id, 200), kind: str(f.kind, 40), title: str(f.title, MAX_TITLE), severity: str(f.severity, 10), value: maybe(obj(f.metric).value), unit: str(obj(f.metric).unit, 30) })).filter((f) => f.id),
+    findings: arr(run.findings, 80).map((entry) => obj(entry)).map((f) => ({ id: str(f.id, 200), kind: str(f.kind, 40), title: findingTitle(str(f.kind, 40), str(f.title, MAX_TITLE)), severity: str(f.severity, 10), value: maybe(obj(f.metric).value), unit: str(obj(f.metric).unit, 30) })).filter((f) => f.id),
   };
 }
 
@@ -727,63 +856,137 @@ function ledeFor(report: Report, recap: RecapView | null, names: string[]): stri
   return parts.join(" ");
 }
 
-/**
- * How long each tool keeps transcripts and what is about to go, from `report.retention` and the
- * `history_retention` finding. Read loosely and defensively: null when the report carries neither.
- */
-export function retentionView(report: Report, zone: string): RetentionView | null {
-  const raw = (report as unknown as { retention?: unknown }).retention;
-  const finding = (report.findings ?? []).find((f) => f.kind === ("history_retention" as never)) ?? null;
-  const entries = (Array.isArray(raw) ? raw : arr(obj(raw).harnesses ?? obj(raw).tools, 8)).map((entry) => obj(entry)).slice(0, 8);
-  if (entries.length === 0 && !finding) return null;
-  const now = Date.parse(report.generatedAt);
-  let urgent = false, soonest: { label: string; sessions: number; mb: number; date: string | null } | null = null;
-  const rows = entries.map((e) => {
-    const label = str(e.label, 40) || harnessLabel(str(e.harness, 30));
-    const keepDays = maybe(e.keepDays ?? e.retentionDays ?? e.cleanupPeriodDays);
-    const forever = e.keepsForever === true || e.forever === true;
-    const risk = obj(e.atRisk ?? e.deletingSoon);
-    const riskSessions = count(risk.sessions ?? e.sessionsAtRisk);
-    const riskMb = count(risk.mb ?? risk.megabytes ?? e.mbAtRisk);
-    const nextIso = str(e.nextDeletion ?? risk.by ?? risk.date, 40);
-    const next = nextIso ? formatDate(nextIso, zone) : null;
-    if (riskSessions > 0 && (!Number.isFinite(Date.parse(nextIso)) || Date.parse(nextIso) - now <= 7 * 86_400_000)) {
-      urgent = true;
-      if (!soonest) soonest = { label, sessions: riskSessions, mb: riskMb, date: next };
-    }
-    return {
-      label,
-      kept: forever ? "kept until you delete it" : keepDays !== null ? `kept ${plural(keepDays, "day")}` : null,
-      oldest: formatDate(str(e.oldest ?? e.oldestTranscript, 40), zone),
-      atRisk: riskSessions > 0 ? `${plural(riskSessions, "session")}${riskMb > 0 ? ` (${formatBytes(riskMb * 1e6)})` : ""} deleted${next ? ` by ${next}` : " this week"}` : null,
-      next,
-      cacheOnly: count(e.cacheOnly ?? e.onlyInCache ?? e.sessionsOnlyInCache),
-    };
-  });
-  const cacheRaw = obj(obj(raw).cache);
-  const cache = str(cacheRaw.note ?? obj(raw).cacheNote, 400) || "AI Insights' cache keeps each session's numbers and your own prompts, so these stats survive. It does not keep the agents' replies or tool output: the full transcripts are gone once a tool deletes them, unless you archive them.";
-  const limited = rows.filter((row) => row.kept && !row.kept.startsWith("kept until"));
-  const s0 = soonest as { label: string; sessions: number; mb: number; date: string | null } | null;
+const SOURCE_LABELS: Record<string, string> = { default: "its default", settings: "your settings", managed: "managed by your organization" };
+
+/** Days as a person reads them: Gemini CLI accepts hours, so 48h is "2 days" and 36h "1.5 days". */
+function daysText(days: number): string {
+  if (Number.isInteger(days)) return plural(days, "day");
+  return `${(Math.round(days * 10) / 10).toFixed(1).replace(/\.0$/, "")} days`;
+}
+
+const ageClock = (entry: HarnessRetention) => (entry.clock === "last-updated" ? "their last update" : "they last changed");
+
+/** "can be deleted from Nov 18, 2026": the harness deletes at its next start after that, so a past date is "the next time it starts". */
+function eligibleText(iso: string | null, nowMs: number, zone: string, label: string): string {
+  const ms = iso ? Date.parse(iso) : Number.NaN;
+  if (!Number.isFinite(ms) || ms <= nowMs) return `can be deleted the next time ${label} starts`;
+  return `can be deleted from ${formatDate(iso, zone)}`;
+}
+
+function retentionRow(entry: HarnessRetention, nowMs: number, zone: string): RetentionRow {
+  const label = harnessLabel(String(entry.harness));
+  const days = maybe(entry.days);
+  const keeps = entry.policy === "deletes" && days !== null ? `deletes after ${daysText(days)}` : entry.policy === "kept" ? "keeps until you delete them" : "not documented";
+  const setting = entry.setting && str(entry.setting.name, 80)
+    ? `${str(entry.setting.name, 80)} in ${str(entry.setting.file, 200)}${entry.setting.value === null || entry.setting.value === undefined ? " (not set)" : `: ${clip(String(entry.setting.value), 40)}`}`
+    : null;
+  const risk = entry.atRisk && count(entry.atRisk.sessions) > 0 ? entry.atRisk : null;
+  const link = safeLink(entry.url);
   return {
-    urgent,
-    sentence: s0
-      ? `${s0.label} will delete ${plural(s0.sessions, "session")}${s0.mb > 0 ? ` (${formatBytes(s0.mb * 1e6)})` : ""}${s0.date ? ` by ${s0.date}` : " this week"}. The numbers stay in AI Insights; the full transcripts do not, unless you keep them.`
-      : limited.length ? `${listText(limited.map((row) => `${row.label} keeps transcripts for ${row.kept!.replace("kept ", "")}`))}. A yearly look back needs them kept longer.` : finding ? clip(finding.detail, MAX_TEXT) : "Your transcripts are kept.",
-    rows,
-    cache,
-    steps: finding ? stepsOf(finding.suggestion) : [],
-    limit: limited.length ? `How far back this goes is limited by retention: ${listText(limited.map((row) => `${row.label} ${row.kept}`))}.` : null,
+    harness: String(entry.harness),
+    label,
+    policy: entry.policy === "deletes" || entry.policy === "kept" ? entry.policy : "unknown",
+    keeps,
+    source: entry.source ? (SOURCE_LABELS[entry.source] ?? null) : null,
+    setting,
+    transcripts: count(entry.transcripts),
+    disk: count(entry.bytes) > 0 ? formatBytes(count(entry.bytes)) : null,
+    oldest: formatDate(entry.oldestOnDisk, zone),
+    atRisk: risk ? `${plural(count(risk.sessions), "transcript")}${count(risk.bytes) > 0 ? ` (${formatBytes(count(risk.bytes))})` : ""} ${eligibleText(risk.nextDeletion, nowMs, zone, label)}` : null,
+    exempt: entry.exempt && count(entry.exempt.sessions) > 0 ? `${plural(count(entry.exempt.sessions), "older session")} kept anyway: ${clip(entry.exempt.reason, 240)}.` : null,
+    cacheOnly: count(entry.cachedOnly),
+    basis: clip(entry.basis, 400),
+    url: link ? link.href : null,
+    urlLabel: link ? shortUrl(link) : null,
   };
 }
 
-function recordedSpend(report: Report): PageView["usage"]["recorded"] {
-  const usage = obj(report.usage);
-  const total = maybe(usage.recordedUsd ?? usage.recordedSpendUsd ?? obj(usage.recorded).usd);
-  if (total === null) return null;
-  const harnesses = arr(obj(usage.recorded).harnesses ?? usage.recordedHarnesses, 6).map((h) => harnessLabel(str(h, 30))).filter(Boolean);
-  // A recorded $0 is a subscription or a free model, not "free work": say so instead of printing $0.
-  const text = total > 0 ? formatUsd(total) : "nothing billed";
-  return { usd: total, text, harnesses };
+/** One sentence per deleting tool: how long, measured from when, and who set it. */
+function deletesSentence(entry: HarnessRetention): string {
+  const label = harnessLabel(String(entry.harness));
+  const days = daysText(num(entry.days));
+  if (entry.source === "managed") return `Your organization's managed settings make ${label} delete transcripts ${days} after ${ageClock(entry)}`;
+  if (entry.source === "settings") return `${label} deletes transcripts ${days} after ${ageClock(entry)}, as set in ${str(entry.setting?.file, 200) || "your settings"}`;
+  return `${label} deletes transcripts ${days} after ${ageClock(entry)}, its default`;
+}
+
+const KEEP_NOTE = "AI Insights keeps the stats it already read; the full transcripts go unless you keep or archive them.";
+
+/**
+ * "Keep your history": how long each tool keeps transcripts and what can go soon, from `report.retention` and the
+ * `history_retention` finding (its three steps). Null when the report carries neither (older reports, which show
+ * the closing cards instead).
+ */
+export function retentionView(report: Report, zone: string): RetentionView | null {
+  const retention: Retention | null = report.retention && Array.isArray(report.retention.harnesses) ? report.retention : null;
+  const finding = (report.findings ?? []).find((f) => f.kind === "history_retention") ?? null;
+  if (!retention && !finding) return null;
+  const nowMs = Date.parse(report.generatedAt);
+  const entries = (retention?.harnesses ?? []).slice(0, 8);
+  const rows = entries.map((entry) => retentionRow(entry, nowMs, zone));
+  const deleting = entries.filter((entry) => entry.policy === "deletes" && maybe(entry.days) !== null && count(entry.transcripts) > 0);
+  const atRisk = deleting.filter((entry) => count(entry.atRisk?.sessions) > 0);
+  const managed = deleting.filter((entry) => entry.source === "managed");
+  const atDefault = deleting.filter((entry) => entry.source === "default");
+
+  let level: RetentionView["level"];
+  let title: string;
+  let sentence: string;
+  if (atRisk.length) {
+    level = "urgent";
+    const total = atRisk.reduce((sum, entry) => sum + count(entry.atRisk!.sessions), 0);
+    title = `${plural(total, "transcript")} can be deleted in the next ${daysText(count(retention!.windowDays) || 7)}.`;
+    const parts = atRisk.map((entry) => {
+      const label = harnessLabel(String(entry.harness));
+      const bytes = count(entry.atRisk!.bytes);
+      const next = entry.atRisk!.nextDeletion ? Date.parse(entry.atRisk!.nextDeletion) : Number.NaN;
+      const when = Number.isFinite(next) && next > nowMs ? `from ${formatDate(entry.atRisk!.nextDeletion, zone)}, at its next start after that` : "the next time it starts";
+      return `${label} can delete ${plural(count(entry.atRisk!.sessions), "transcript")}${bytes > 0 ? ` (${formatBytes(bytes)})` : ""} ${when}`;
+    });
+    sentence = `${listText(parts)}. ${KEEP_NOTE}`;
+  } else if (managed.length || atDefault.length || deleting.length) {
+    level = managed.length ? "managed" : atDefault.length ? "default" : "settings";
+    title = level === "managed" ? "Your organization sets how long transcripts are kept." : "Keep the history a yearly look back needs.";
+    sentence = `${deleting.map(deletesSentence).join(". ")}. ${KEEP_NOTE}`;
+  } else if (finding) {
+    level = "short";
+    title = "Keep the history a yearly look back needs.";
+    sentence = clip(finding.detail, MAX_TEXT);
+  } else {
+    level = "kept";
+    const unknown = rows.filter((row) => row.policy === "unknown").map((row) => row.label);
+    title = "Your tools keep their transcripts.";
+    sentence = `${rows.filter((row) => row.policy === "kept").length ? `${listText(rows.filter((row) => row.policy === "kept").map((row) => row.label))} ${rows.filter((row) => row.policy === "kept").length === 1 ? "keeps" : "keep"} transcripts until you delete them.` : ""}${unknown.length ? ` ${listText(unknown)}: not documented whether old chats are deleted.` : ""}`.trim();
+  }
+  const disk = (report.findings ?? []).find((f) => f.kind === "history_disk_usage") ?? null;
+  const coversFrom = formatDate(retention?.coversFrom, zone);
+  return {
+    urgent: level === "urgent",
+    level,
+    title,
+    sentence,
+    rows,
+    cache: retention?.cache ? { keeps: arr(retention.cache.keeps, 10).map((line) => str(line, 200)).filter(Boolean), drops: arr(retention.cache.drops, 10).map((line) => str(line, 200)).filter(Boolean) } : null,
+    steps: finding ? stepsOf(finding.suggestion) : [],
+    disk: disk ? metricOf(disk) : null,
+    limit: deleting.length ? `How far back this goes is limited by retention: ${listText(deleting.map((entry) => `${harnessLabel(String(entry.harness))} deletes transcripts after ${daysText(num(entry.days))}`))}${coversFrom ? `; AI Insights still has sessions back to ${coversFrom}` : ""}.` : null,
+  };
+}
+
+/** What OpenCode and Pi logged themselves, beside the estimate. A recorded $0 is a subscription or plan, never "free". */
+export function recordedSpend(usage: Pick<UsageSummary, "recorded" | "recordedByHarness"> | undefined): PageView["usage"]["recorded"] {
+  const total = usage?.recorded;
+  if (!total || count(total.requests) === 0) return null;
+  const line = (usd: number, requests: number, zero: number) => {
+    if (usd <= 0) return `nothing billed by the harness (${plural(requests, "request")} recorded $0, typical of subscriptions)`;
+    return `recorded ${formatUsd(usd)}${zero > 0 ? ` (${plural(zero, "request")} recorded $0, typical of subscriptions)` : ""}`;
+  };
+  const harnesses = arr(usage?.recordedByHarness, 6).map((entry) => obj(entry)).map((entry) => {
+    const usd = Math.max(0, num(entry.usd)), requests = count(entry.requests), zero = count(entry.zeroRequests);
+    return { label: harnessLabel(str(entry.harness, 30)), usd, requests, zeroRequests: zero, text: line(usd, requests, zero) };
+  }).filter((entry) => entry.requests > 0);
+  const usd = Math.max(0, num(total.usd));
+  return { usd, requests: count(total.requests), zeroRequests: count(total.zeroRequests), text: line(usd, count(total.requests), count(total.zeroRequests)), harnesses };
 }
 
 function listText(items: string[]): string {
@@ -824,7 +1027,7 @@ export function buildView(input: RenderInput, zone: string, extras: RenderExtras
       anchor: findingAnchors.get(finding)!,
       kind: String(finding.kind),
       severity: ["high", "medium", "low", "info"].includes(String(finding.severity)) ? String(finding.severity) : "info",
-      title: clip(finding.title, MAX_TITLE),
+      title: findingTitle(String(finding.kind), clip(finding.title, MAX_TITLE)),
       detail: clip(finding.detail, MAX_TEXT),
       harnesses: [...new Set((finding.harnesses ?? []).map(harnessLabel))],
       metric: metricOf(finding),
@@ -835,6 +1038,7 @@ export function buildView(input: RenderInput, zone: string, extras: RenderExtras
     };
   });
 
+  const retention = retentionView(report, zone);
   const disk = (report.findings ?? []).find((finding) => finding.kind === "history_disk_usage") ?? null;
   const short = (report.findings ?? []).find((finding) => finding.kind === "short_history") ?? null;
   const diskLink = disk?.suggestion ? safeLink(disk.suggestion.url) : null;
@@ -851,7 +1055,7 @@ export function buildView(input: RenderInput, zone: string, extras: RenderExtras
   const runs = (Array.isArray(extras.runs) ? extras.runs : []).slice(-24).map((run) => runView(run, zone)).filter((run): run is RunView => run !== null).sort((x, y) => (x.generatedAt < y.generatedAt ? -1 : x.generatedAt > y.generatedAt ? 1 : 0));
   const last = runs[runs.length - 1];
   if (!last || last.generatedAt < report.generatedAt) {
-    runs.push({ id: report.generatedAt, day: localDay(report.generatedAt, zone) ?? "", generatedAt: report.generatedAt, days: recap?.range.days ?? null, metrics: currentMetrics(report, recap), findings: (report.findings ?? []).map((f) => ({ id: String(f.id), kind: String(f.kind), title: clip(f.title, MAX_TITLE), severity: String(f.severity), value: maybe(f.metric?.value), unit: String(f.metric?.unit ?? "") })) });
+    runs.push({ id: report.generatedAt, day: localDay(report.generatedAt, zone) ?? "", generatedAt: report.generatedAt, days: recap?.range.days ?? null, metrics: currentMetrics(report, recap), findings: (report.findings ?? []).map((f) => ({ id: String(f.id), kind: String(f.kind), title: findingTitle(String(f.kind), clip(f.title, MAX_TITLE)), severity: String(f.severity), value: maybe(f.metric?.value), unit: String(f.metric?.unit ?? "") })) });
   }
 
   const reviewNote = narrative ? null : facets && count(facets.sessionsWithFacets) > 0
@@ -899,6 +1103,7 @@ export function buildView(input: RenderInput, zone: string, extras: RenderExtras
       since: formatDate(entry.oldest, zone),
       disk: typeof entry.bytes === "number" && Number.isFinite(entry.bytes) && entry.bytes > 0 ? formatBytes(entry.bytes) : null,
       skipped: count(entry.issues),
+      skippedUsage: count(entry.skippedUsageRecords),
       note: entry.note ? clip(entry.note, 200) : null,
       tokens: tokenHarnesses.has(entry.harness),
     })),
@@ -946,7 +1151,7 @@ export function buildView(input: RenderInput, zone: string, extras: RenderExtras
       pricingVersion: str(report.usage?.pricingVersion, 60),
       gap: gap ? `${gap.unpricedShare < 0.01 ? "Under 1%" : `${Math.round(gap.unpricedShare * 100)}%`} of requests (${formatInt(count(report.usage.unpriced))}) have no known price${gap.models.length > 0 ? `: ${unpricedModelsText(gap.models, 6)}` : ""}. They are left out of the estimate, not counted as free, so the real figure is higher.` : null,
       perCommit: usd !== null && usd > 0 && count(a.gitCommits) > 0 ? usd / count(a.gitCommits) : null,
-      recorded: recordedSpend(report),
+      recorded: recordedSpend(report.usage),
       noTokens,
       daily: (report.usage?.daily ?? []).slice(-MAX_DAYS).map((d) => ({ day: d.day, usd: maybe(d.estimatedUsd), tokens: count(d.tokens) })),
       models: usageModels.slice(0, 40).map((m) => ({ model: clip(String(m.model), 60), harness: String(m.harness), requests: count(m.requests), tokens: count(m.tokens), output: count(m.output), usd: maybe(m.estimatedUsd), unpriced: count(m.unpriced) })),
@@ -973,13 +1178,18 @@ export function buildView(input: RenderInput, zone: string, extras: RenderExtras
       ? { sessions: count(facets.sessionsWithFacets), outcomes: keyCounts(facets.outcomes, 6), frictions: keyCounts(facets.frictions, 12, 40), successes: keyCounts(facets.successes, 8, 40), goals: keyCounts(facets.goalCategories, 17, 40) }
       : null,
     closing: {
+      // "Keep your history" carries the packmem and Matrix OS steps when it has them: the closing pair then
+      // goes, so each pitch shows once. Without its suggestion the disk card is the number and the detail only.
+      show: !(retention && retention.steps.length > 0),
       disk: disk
-        ? { metric: metricOf(disk), title: clip(disk.suggestion?.title ?? "Compress and save disk space", MAX_TITLE), action: clip(disk.suggestion?.action ?? disk.detail, MAX_TEXT), url: diskLink ? diskLink.href : null, urlLabel: diskLink ? shortUrl(diskLink) : null }
+        ? disk.suggestion
+          ? { metric: metricOf(disk), title: clip(disk.suggestion.title, MAX_TITLE), action: clip(disk.suggestion.action, MAX_TEXT), url: diskLink ? diskLink.href : null, urlLabel: diskLink ? shortUrl(diskLink) : null }
+          : { metric: metricOf(disk), title: clip(disk.title, MAX_TITLE), action: clip(disk.detail, MAX_TEXT), url: null, urlLabel: null }
         : null,
       matrix: { metric: shortMetric, since: shortMetric ? formatDate(shortHistoryCoverage(coverage, short)?.oldest, zone) : null, url: MATRIX_URL },
     },
     runs,
-    retention: retentionView(report, zone),
+    retention,
   };
 }
 

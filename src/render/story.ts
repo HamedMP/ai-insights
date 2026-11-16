@@ -56,9 +56,10 @@ const PEAK_WINDOW_HOURS = 4;
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 /** Kinds that are opportunities or history notes, not problems. */
-export const NOT_A_PROBLEM: ReadonlySet<string> = new Set(["unused_feature", "history_disk_usage", "short_history", "single_harness_only"]);
+export const NOT_A_PROBLEM: ReadonlySet<string> = new Set(["unused_feature", "history_retention", "history_disk_usage", "short_history", "single_harness_only"]);
 
 const OTHER_FINDING_PHRASES: Record<string, string> = {
+  history_retention: "how long your tools keep transcripts",
   history_disk_usage: "your history on disk",
   short_history: "how far back your history goes",
   unused_feature: "features you have not tried",
@@ -488,8 +489,11 @@ function foldNote(finding: Finding): string {
   return `Also covers the ${metric}, mostly the same sessions${title ? `: ${title.charAt(0).toLowerCase()}${title.slice(1)}` : ""}.`;
 }
 
-/** Kinds whose suggestion belongs to a closing card rather than the action list. */
-const CLOSING_KINDS: ReadonlySet<string> = new Set(["history_disk_usage", "short_history"]);
+/**
+ * Kinds whose suggestion belongs to "Keep your history" or a closing card rather than the action list.
+ * `short_history` is no longer emitted; it stays so saved reports render as they did.
+ */
+const CLOSING_KINDS: ReadonlySet<string> = new Set(["history_retention", "history_disk_usage", "short_history"]);
 
 /**
  * How concrete a piece of advice is: code spans, quoted text, numbers and command- or path-like

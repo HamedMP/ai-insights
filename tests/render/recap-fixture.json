@@ -456,7 +456,292 @@
  "parallel": {
   "max": 7,
   "overlapEvents": 84,
-  "subagents": 59
+  "subagents": 59,
+  "lanes": {
+   "windowMinutes": 360,
+   "peakAt": 180,
+   "atPeak": 7,
+   "lanes": [
+    {
+     "harness": "claude-code",
+     "start": 0,
+     "end": 170.23,
+     "active": [
+      [
+       0,
+       170.23
+      ]
+     ]
+    },
+    {
+     "harness": "claude-code",
+     "start": 42.92,
+     "end": 74.94,
+     "active": [
+      [
+       42.92,
+       74.94
+      ]
+     ]
+    },
+    {
+     "harness": "claude-code",
+     "start": 88,
+     "end": 334.51,
+     "active": [
+      [
+       88,
+       334.51
+      ]
+     ]
+    },
+    {
+     "harness": "claude-code",
+     "start": 103,
+     "end": 184.06,
+     "active": [
+      [
+       103,
+       138.02
+      ],
+      [
+       149.29,
+       160.11
+      ],
+      [
+       170.89,
+       184.06
+      ]
+     ]
+    },
+    {
+     "harness": "claude-code",
+     "start": 107.27,
+     "end": 110.82,
+     "active": [
+      [
+       107.27,
+       110.82
+      ]
+     ]
+    },
+    {
+     "harness": "claude-code",
+     "start": 114,
+     "end": 182.95,
+     "active": [
+      [
+       114,
+       121.48
+      ],
+      [
+       132.13,
+       133.8
+      ],
+      [
+       147.79,
+       148.73
+      ],
+      [
+       161.54,
+       163.3
+      ],
+      [
+       178.69,
+       182.95
+      ]
+     ]
+    },
+    {
+     "harness": "claude-code",
+     "start": 117.85,
+     "end": 189.95,
+     "active": [
+      [
+       117.85,
+       189.95
+      ]
+     ]
+    },
+    {
+     "harness": "claude-code",
+     "start": 125,
+     "end": 242.49,
+     "active": [
+      [
+       125,
+       129.58
+      ],
+      [
+       145.53,
+       148.3
+      ],
+      [
+       164.97,
+       166.93
+      ],
+      [
+       181.79,
+       182.78
+      ],
+      [
+       200.71,
+       201.66
+      ],
+      [
+       218.78,
+       219.11
+      ],
+      [
+       238.17,
+       242.49
+      ]
+     ]
+    },
+    {
+     "harness": "codex",
+     "start": 136,
+     "end": 234.64,
+     "active": [
+      [
+       136,
+       143
+      ],
+      [
+       153.66,
+       156.95
+      ],
+      [
+       167.98,
+       170.76
+      ],
+      [
+       184.16,
+       201.34
+      ],
+      [
+       216.15,
+       217.66
+      ],
+      [
+       230.48,
+       234.64
+      ]
+     ]
+    },
+    {
+     "harness": "claude-code",
+     "start": 147,
+     "end": 266.07,
+     "active": [
+      [
+       147,
+       177.41
+      ],
+      [
+       193.16,
+       194.83
+      ],
+      [
+       206.37,
+       211.3
+      ],
+      [
+       221.73,
+       225.85
+      ],
+      [
+       235.86,
+       237.09
+      ],
+      [
+       249.66,
+       251.94
+      ],
+      [
+       263.17,
+       266.07
+      ]
+     ]
+    },
+    {
+     "harness": "claude-code",
+     "start": 158,
+     "end": 244.34,
+     "active": [
+      [
+       158,
+       160.38
+      ],
+      [
+       177.09,
+       180.78
+      ],
+      [
+       193.31,
+       196.58
+      ],
+      [
+       207.9,
+       209.58
+      ],
+      [
+       224.43,
+       227.34
+      ],
+      [
+       242.23,
+       244.34
+      ]
+     ]
+    },
+    {
+     "harness": "claude-code",
+     "start": 169,
+     "end": 245,
+     "active": [
+      [
+       169,
+       245
+      ]
+     ]
+    },
+    {
+     "harness": "codex",
+     "start": 180,
+     "end": 275.21,
+     "active": [
+      [
+       180,
+       207.87
+      ],
+      [
+       220.79,
+       232.99
+      ],
+      [
+       245.25,
+       246.36
+      ],
+      [
+       257.97,
+       275.21
+      ]
+     ]
+    },
+    {
+     "harness": "claude-code",
+     "start": 226.83,
+     "end": 261.42,
+     "active": [
+      [
+       226.83,
+       261.42
+      ]
+     ]
+    }
+   ]
+  }
  },
  "failures": {
   "total": 447,
@@ -562,11 +847,11 @@
    }
   },
   {
-   "title": "Allow the commands you keep approving",
-   "kind": "permission_prompt_load",
+   "title": "Keep your history",
+   "kind": "history_retention",
    "metric": {
-    "value": 25,
-    "unit": "blocked calls"
+    "value": 9,
+    "unit": "sessions"
    }
   }
  ],
@@ -849,10 +1134,29 @@
  },
  "topProjectShare": 0.4493197930638053,
  "winRate": 0.773109243697479,
+ "thinking": {
+  "blocks": 3785,
+  "sessions": 158,
+  "totalMs": 52152742,
+  "longestMs": 138139
+ },
+ "approvals": {
+  "sessions": 149,
+  "denied": 31,
+  "guardianReviews": 112,
+  "autoBlocked": 9,
+  "auto": 2214,
+  "byPerson": 800
+ },
  "replies": {
   "count": 1991,
   "medianSec": 223,
   "fastShare": 0.131592164741336,
   "longestSec": 420
+ },
+ "history": {
+  "days": 50,
+  "firstDay": "2026-09-24",
+  "cachedOnly": 0
  }
 }

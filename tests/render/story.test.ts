@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildStory, chapterTips, lineText, rankActions } from "../../src/render/story.js";
 import type { Report } from "../../src/schema/types.js";
-import { makeDeterministicReport, makeEmptyReport, makeReport } from "./fixtures.js";
+import { makeDeterministicReport, makeEmptyReport, makeReport, makeRetentionFinding } from "./fixtures.js";
 
 const ZONE = "Europe/Berlin";
 
@@ -190,6 +190,13 @@ describe("ranked actions", () => {
     const titles = [...top, ...rest].map((action) => action.suggestion.title);
     expect(titles).not.toContain("Keep your full history");
     expect(titles).not.toContain("Compress and save disk space");
+  });
+
+  it("keeps 'Keep your history' out of the ranked list: it has its own block, so it is not offered twice", () => {
+    const report = makeReport();
+    const { top, rest } = rankActions({ ...report, findings: [makeRetentionFinding({ severity: "high" }), ...report.findings] });
+    expect([...top, ...rest].map((action) => action.suggestion.title)).not.toContain("Keep your history");
+    expect(allLines({ ...report, findings: [makeRetentionFinding(), ...report.findings] }).join(" ")).not.toContain("will be deleted");
   });
 
   it("de-duplicates suggestions with the same title", () => {

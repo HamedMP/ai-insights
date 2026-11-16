@@ -7,7 +7,7 @@ registerCardStyle({
   swatch: "radial-gradient(circle at 32% 36%,#ff5b3d 0 21%,#fff 22% 27%,transparent 28%),radial-gradient(circle at 68% 64%,#2d5bff 0 21%,#fff 22% 27%,transparent 28%),#f2ede3",
   specs(D, kit) {
     const { h, s, clamp, lerp, E, int, one, pct, compact, capped, dshort, hh, DAYNAME, rng, smooth, rabbitSvg, cellGrid, harnessName } = kit;
-    const T = D.totals, R = D.rhythm, V = D.voice || {}, SH = D.shell || {};
+    const T = D.totals, R = D.rhythm, V = D.voice || {}, SH = D.shell || {}, SHARE = kit.share;
     const YEAR = D.range.to.slice(0, 4);
     const rangeLabel = `${dshort(D.range.from)} – ${dshort(D.range.to)}, ${YEAR}`;
     const has = (x) => x !== undefined && x !== null && !(typeof x === "number" && !Number.isFinite(x));
@@ -644,16 +644,34 @@ registerCardStyle({
     add({ id: "parallel", title: "Parallel", dur: 6500,
       build(c) {
         const K = kitFor(c, "parallel"), F = (n) => n * K.K;
-        const n = D.parallel.max;
+        // With lanes the count is the lanes open at the peak (the data layer keeps them equal to max).
+        const L = D.parallel.lanes, n = L ? L.atPeak : D.parallel.max;
         const hd = head(K, [
           K.tape("most agents at once", "var(--ink)"),
           K.cut(int(n), F(360), "holo"),
           K.note(["sessions running side by side. Plus ", h("b", {}, `${int(D.parallel.subagents)} subagents`), " launched along the way."], { size: 38 }),
         ]);
+        const cols = ["var(--tomato)", "var(--lemon)", "var(--mint)", "var(--pink)", "var(--lilac)", "var(--cobalt)", "var(--sky)"];
+        // Real lanes: one strip per session over the hours around the peak, a pill for each stretch it worked.
+        const strips = (w, hg) => {
+          const pad = Math.round(Math.min(w, hg) * 0.07), el = K.stk(w, hg, { bg: "#fff", pad, r: Math.min(w, hg) * 0.08 });
+          const iw = w - 2 * pad, ih = hg - 2 * pad, rows = L.rows.slice(0, 40), m = rows.length, top = Math.min(56 * c.u, ih * 0.12);
+          const pitch = (ih - top) / m, lh = Math.max(3, pitch * 0.66), sv = s("svg", { width: iw, height: ih, viewBox: `0 0 ${iw} ${ih}`, style: "overflow:visible" });
+          rows.forEach((r, i) => {
+            const y = top + i * pitch + pitch / 2, g = s("g");
+            g.append(s("line", { x1: r.start * iw, y1: y, x2: r.end * iw, y2: y, stroke: "#c9c0b4", "stroke-width": Math.max(2, lh * 0.2), "stroke-linecap": "round" }));
+            for (const [a, b] of r.active) g.append(s("rect", { x: a * iw, y: y - lh / 2, width: Math.max(lh * 0.6, (b - a) * iw), height: lh, rx: lh / 2, fill: r.atPeak ? cols[i % cols.length] : "#d8d0c4", stroke: "var(--ink)", "stroke-width": Math.max(1.5, lh * 0.08) }));
+            sv.append(g);
+          });
+          const px = L.peak * iw;
+          sv.append(s("line", { x1: px, y1: top * 0.7, x2: px, y2: ih, stroke: "var(--ink)", "stroke-width": Math.max(3, 5 * c.u), "stroke-dasharray": `${12 * c.u} ${9 * c.u}` }));
+          el.append(sv, h("div", { style: { position: "absolute", top: pad * 0.4 + "px", left: Math.min(Math.max(pad, pad + px - 50 * c.u), w - pad - 100 * c.u) + "px" } }, K.lbl("peak", Math.max(22, 26 * c.u))));
+          return el;
+        };
         const shown = Math.min(n, 24);
         const faces = (w, hg) => {
           const g = cellGrid(shown, w, hg, 0.16), el = h("div", { style: { position: "relative", width: w + "px", height: hg + "px" } });
-          const gw = g.cols * (g.size + g.gap) - g.gap, gh = g.rows * (g.size + g.gap) - g.gap, cols = ["var(--tomato)", "var(--lemon)", "var(--mint)", "var(--pink)", "var(--lilac)", "var(--cobalt)", "var(--sky)"];
+          const gw = g.cols * (g.size + g.gap) - g.gap, gh = g.rows * (g.size + g.gap) - g.gap;
           for (let i = 0; i < shown; i++) {
             const r = rng(i * 17 + 3), sz = g.size * 0.94;
             const sv = s("svg", { viewBox: "0 0 100 100", width: sz * 0.66, height: sz * 0.66 }), ey = 42 + r() * 6, gp = 14 + r() * 6;
@@ -668,12 +686,14 @@ registerCardStyle({
           return el;
         };
         const items = [
-          { main: true, ars: [0.8, 1.2, 1.8, 2.6, 3.6], wt: 3, make: faces, inset: 0 },
+          L ? { main: true, ars: [1, 1.4, 1.8, 2.4], wt: 3, make: strips } : { main: true, ars: [0.8, 1.2, 1.8, 2.6, 3.6], wt: 3, make: faces, inset: 0 },
           { ar: 1, wt: 0.9, max: 320 * c.u, rmax: 9, make: (w, hg) => starBadge(K, w, hg, int(D.parallel.subagents), "subagents", { fill: "var(--cobalt)" }) },
         ];
-        return done(K, { head: hd, artMin: 0.3, split: 0.46, legend: shown < n ? `first ${shown} of ${int(n)} shown` : "one face = one session", art: (w, hg) => {
+        const legend = L ? `one strip = one session · ${Math.round(L.windowMinutes / 60)} h` : shown < n ? `first ${shown} of ${int(n)} shown` : "one face = one session";
+        return done(K, { head: hd, artMin: 0.3, split: 0.46, legend, art: (w, hg) => {
           const { wrap, placed } = collage(K, w, hg, items);
-          K.slap(placed[1].el, 800 + shown * 70, placed[1].rot);
+          if (L) K.slap(placed[0].el, 800, placed[0].rot);
+          K.slap(placed[1].el, L ? 1100 : 800 + shown * 70, placed[1].rot);
           return wrap;
         } });
       } });
@@ -686,6 +706,8 @@ registerCardStyle({
         const hd = head(K, [
           K.tape("longest session", "var(--tomato)"),
           D.longestSession ? K.note(["Active work in one ", h("b", {}, harnessName(L.harness)), " session", days >= 1 ? [", spread over ", h("b", {}, `${one(days)} days`), "."] : "."], { size: 40 }) : K.note("No session long enough to measure yet.", { size: 40 }),
+          // Longer sessions a script or another agent drove are not the person's marathon: say they were left out.
+          L.skippedAutomated > 0 ? K.note(`${int(L.skippedAutomated)} longer automated ${L.skippedAutomated === 1 ? "session" : "sessions"} left out.`, { size: 30 }) : null,
         ]);
         if (!D.longestSession) return done(K, { head: hd, center: true });
         const tc = L.toolCallsCapped ? `${int(L.toolCalls)}+` : capped(L.toolCalls, CAP);
@@ -828,6 +850,7 @@ registerCardStyle({
       build(c) {
         const K = kitFor(c, "tips"), F = (n) => n * K.K;
         const WHY = {
+          history_retention: (m) => (/session/i.test(m.unit) ? `${int(m.value)} transcripts can be deleted this week.` : `History kept: ${int(m.value)} days.`),
           context_resets: (m) => `${int(m.value)} context compactions in ${int(D.range.days)} days.`,
           slow_correction: (m) => `You usually step in after ${one(m.value)} minutes.`,
           repeated_failed_command: (m) => `One command failed ${int(m.value)} times running.`,
@@ -882,6 +905,75 @@ registerCardStyle({
         return done(K, { head: hd, artMin: 0.55, split: 0.34, center: false, art: art(K, items, { start: 700, gap2: 170, gap: 24, evenSides: true }) });
       } });
 
+    // ================================================================ optional cards (only with their data; never in the default selection)
+    /** A unit so that n items need at most `max` marks: 1, 2, 5, 10, 20, 50, ... */
+    const unitFor = (n, max = 150) => { let q = 1; for (const step of [2, 2.5, 2]) { if (Math.ceil(n / q) <= max) break; q *= step; } while (Math.ceil(n / q) > max) q *= 10; return q; };
+    const dur = (ms) => (ms >= 3_600_000 ? `${one(ms / 3_600_000)} hrs` : ms >= 60_000 ? `${int(ms / 60_000)} min` : `${int(ms / 1000)} sec`);
+    /** A white sheet of n dot or square stickers in order, in the sticker colours. */
+    function markSheet(K, n, shape) {
+      return (w, hg) => {
+        const pad = Math.round(Math.min(w, hg) * 0.08), el = K.stk(w, hg, { bg: "#fff", pad, r: Math.min(w, hg) * 0.08 });
+        const iw = w - 2 * pad, ih = hg - 2 * pad, g = cellGrid(n, iw, ih, 0.28), sv = s("svg", { width: iw, height: ih, viewBox: `0 0 ${iw} ${ih}` });
+        const ox = (iw - (g.cols * g.size + (g.cols - 1) * g.gap)) / 2, oy = (ih - (g.rows * g.size + (g.rows - 1) * g.gap)) / 2, sw = Math.max(1.5, g.size * 0.07);
+        for (let i = 0; i < n; i++) {
+          const x = ox + (i % g.cols) * (g.size + g.gap), y = oy + Math.floor(i / g.cols) * (g.size + g.gap), fill = DOTC[i % DOTC.length];
+          sv.append(shape === "circle" ? s("circle", { cx: x + g.size / 2, cy: y + g.size / 2, r: g.size / 2 - sw / 2, fill, stroke: "var(--ink)", "stroke-width": sw })
+            : s("rect", { x: x + sw / 2, y: y + sw / 2, width: g.size - sw, height: g.size - sw, rx: g.size * 0.2, fill, stroke: "var(--ink)", "stroke-width": sw }));
+        }
+        el.append(sv);
+        return el;
+      };
+    }
+
+    if (D.thinking) add({ id: "thinking", title: "Deep thoughts", dur: 6000,
+      build(c) {
+        const K = kitFor(c, "thinking"), F = (n) => n * K.K, TH = D.thinking, timed = TH.totalMs != null;
+        const hd = head(K, [
+          K.tape("deep thoughts", "var(--lilac)", { fg: "var(--ink)" }),
+          K.cut(timed ? dur(TH.totalMs) : compact(TH.blocks), F(timed ? 200 : 260), "holo"),
+          K.note(timed ? ["of thinking before answering, over ", h("b", {}, `${compact(TH.blocks)} thoughts`), "."] : "times the model stopped to think before answering.", { size: 38 }),
+        ]);
+        const per = unitFor(TH.blocks);
+        const items = [
+          { main: true, ars: [1, 1.4, 1.8], wt: 3, make: markSheet(K, Math.ceil(TH.blocks / per), "circle") },
+          TH.longestMs != null ? { ar: 1, wt: 0.9, max: 340 * c.u, rmax: 9, make: (w, hg) => badge(K, w, hg, dur(TH.longestMs), "longest think", { bg: "var(--lemon)", numK: 0.2 }) } : null,
+        ].filter(Boolean);
+        return done(K, { head: hd, artMin: 0.3, split: 0.46, legend: per === 1 ? "one dot = one thought" : `one dot = ${int(per)} thoughts`, art: art(K, items, { start: 700 }) });
+      } });
+
+    if (D.approvals) add({ id: "approvals", title: "Rubber stamp", dur: 6000,
+      build(c) {
+        const K = kitFor(c, "approvals"), F = (n) => n * K.K, A = D.approvals;
+        // the share of permission decisions nobody had to make: settings let them through, against those you answered
+        const all = A.auto + A.byPerson + (A.denied || 0) || 1;
+        const hd = head(K, [
+          K.tape("rubber stamp", "var(--tomato)"),
+          K.cut(`${Math.round((A.auto / all) * 100)}%`, F(300), "var(--mint)"),
+          K.note(["of permission checks passed without asking you. You said yes ", h("b", {}, `${int(A.byPerson)} times`), "."], { size: 38 }),
+        ]);
+        const rows = [["by your settings", A.auto, "var(--mint)"], ["approved by you", A.byPerson, "var(--lemon)"], ["declined by you", A.denied, "var(--pink)"], ["blocked by auto-review", A.autoBlocked, "var(--sky)"]]
+          .filter(([, v], i) => v != null && (i < 2 || v > 0));
+        const items = rows.map(([label, v, bg], i) => ({ ar: 2.1, wt: i < 2 ? 1.2 : 0.8, max: 520 * c.u, make: (w, hg) => statRect(K, w, hg, compact(v), label, { bg }) }));
+        return done(K, { head: hd, artMin: 0.3, split: 0.46, legend: `${int(A.sessions)} sessions recorded it`, art: art(K, items, { start: 700 }) });
+      } });
+
+    if (D.history) add({ id: "history", title: "History kept", dur: 6000,
+      build(c) {
+        const K = kitFor(c, "history"), F = (n) => n * K.K, Hh = D.history;
+        const hd = head(K, [
+          K.tape("history kept", "var(--cobalt)"),
+          K.cut(`${int(Hh.days)} ${Hh.days === 1 ? "day" : "days"}`, F(200), "var(--sky)"),
+          K.note(Hh.firstDay ? ["of sessions AI Insights still has, back to ", h("b", {}, dshort(Hh.firstDay)), "."] : "of sessions AI Insights still has.", { size: 38 }),
+        ]);
+        // a day per square up to 150 days, then a week, then a month: never more than about 150 marks
+        const [per, word] = Hh.days <= 150 ? [1, "day"] : Hh.days <= 150 * 7 ? [7, "week"] : [30, "month"];
+        const items = [
+          { main: true, ars: [1, 1.4, 1.8], wt: 3, make: markSheet(K, Math.max(1, Math.ceil(Hh.days / per)), "square") },
+          Hh.cachedOnly > 0 ? { ar: 1, wt: 0.9, max: 340 * c.u, rmax: 9, make: (w, hg) => badge(K, w, hg, compact(Hh.cachedOnly), "only in its cache", { bg: "var(--pink)" }) } : null,
+        ].filter(Boolean);
+        return done(K, { head: hd, artMin: 0.3, split: 0.46, legend: `one square = one ${word}`, art: art(K, items, { start: 700 }) });
+      } });
+
     // ================================================================ 21. outro: the maker's card
     add({ id: "outro", title: "Made with", dur: 3500, noFoot: true, squareSide: true, dark: true, bg: "var(--brand-deep)", fg: "var(--brand-lime)",
       build(c) {
@@ -891,7 +983,7 @@ registerCardStyle({
           K.tape("made with", "#FCFCF5", { fg: "#0E3422" }),
           K.cut("AI Insights", F(170), "var(--brand-lime)"),
           K.cut("by Matrix OS", F(84), "#FCFCF5", { plain: true }),
-          pill("/analyze-ai-usage", "#0E3422", "#BED77B"),
+          pill(SHARE.skill, "#0E3422", "#BED77B"),
           pill("matrix-os.com", "#BED77B", "#0E3422"),
         ], 500);
         return done(K, { head: hd, artFirst: true, artMin: 0.32, split: 0.42, art: (w, hg) => {

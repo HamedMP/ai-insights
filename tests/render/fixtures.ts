@@ -4,9 +4,12 @@ import type {
   Coverage,
   FacetAggregate,
   Finding,
+  HarnessRetention,
   Narrative,
   Report,
+  Retention,
   SessionSpan,
+  SuggestionStep,
   UsageSummary,
   UsageTotals,
 } from "../../src/schema/types.js";
@@ -721,5 +724,66 @@ export function makeEmptyReport(): Report {
     findings: [],
     facets: null,
     narrative: null,
+  };
+}
+
+/** One harness's retention, as `measureRetention` writes it (typed, so a contract change breaks the build). */
+export function makeHarnessRetention(overrides: Partial<HarnessRetention> = {}): HarnessRetention {
+  return {
+    harness: "claude-code",
+    policy: "deletes",
+    days: 30,
+    source: "default",
+    setting: { name: "cleanupPeriodDays", file: "~/.claude/settings.json", value: null },
+    clock: "modified",
+    basis: "Claude Code deletes a transcript `cleanupPeriodDays` after it last changed, at startup.",
+    url: "https://code.claude.com/docs/en/claude-directory#cleaned-up-automatically",
+    transcripts: 120,
+    bytes: 480_000_000,
+    oldestOnDisk: "2026-10-17T10:00:00Z",
+    atRisk: { sessions: 0, bytes: 0, nextDeletion: null },
+    cachedOnly: 0,
+    coversFrom: "2026-10-17T10:00:00Z",
+    ...overrides,
+  };
+}
+
+export function makeRetention(harnesses: HarnessRetention[]): Retention {
+  const atRisk = { sessions: 0, bytes: 0, nextDeletion: null as string | null };
+  for (const entry of harnesses) {
+    if (!entry.atRisk) continue;
+    atRisk.sessions += entry.atRisk.sessions;
+    atRisk.bytes += entry.atRisk.bytes;
+    if (entry.atRisk.nextDeletion && (!atRisk.nextDeletion || entry.atRisk.nextDeletion < atRisk.nextDeletion)) atRisk.nextDeletion = entry.atRisk.nextDeletion;
+  }
+  const starts = harnesses.map((entry) => entry.coversFrom).filter((value): value is string => !!value).sort();
+  return {
+    windowDays: 7,
+    harnesses,
+    atRisk,
+    cachedOnly: harnesses.reduce((sum, entry) => sum + entry.cachedOnly, 0),
+    coversFrom: starts[0] ?? null,
+    cache: { keeps: ["When each session ran, how long, and in which project"], drops: ["The agent's replies"] },
+  };
+}
+
+/** The `history_retention` finding with its three steps, worded as the detector writes them. */
+export function makeRetentionFinding(overrides: Partial<Finding> = {}): Finding {
+  const steps: SuggestionStep[] = [
+    { title: "Keep Claude Code transcripts longer", action: "Add this line to the top-level object in ~/.claude/settings.json to keep them for a year.", command: '"cleanupPeriodDays": 365', undo: "Remove the line to go back to the default of 30 days.", url: "https://code.claude.com/docs/en/settings" },
+    { title: "Archive them compactly", action: "packmem compresses agent transcripts into a searchable archive.", command: "npx packmem archive --dry-run", url: "https://github.com/hamedmp/packmem" },
+    { title: "Keep them for good across machines", action: "Matrix OS can hold a private copy.", command: "matrix chats discover --json", url: "https://matrix-os.com" },
+  ];
+  return {
+    id: "history_retention",
+    kind: "history_retention",
+    severity: "medium",
+    title: "2 Claude Code sessions will be deleted within 7 days",
+    detail: "Claude Code deletes transcripts 30 days after they last changed.",
+    harnesses: ["claude-code"],
+    metric: { value: 2, unit: "sessions", label: "sessions due for deletion within 7 days" },
+    evidence: [],
+    suggestion: { type: "feature", title: "Keep your history", action: "Back up your transcripts.", url: "https://code.claude.com/docs/en/settings", steps },
+    ...overrides,
   };
 }

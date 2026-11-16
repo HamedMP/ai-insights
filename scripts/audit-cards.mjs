@@ -52,6 +52,11 @@ try {
   if (long.longestSession) long.longestSession = { ...long.longestSession, activeMinutes: 14000, toolCalls: 10000, toolCallsCapped: true };
   long.usage = { ...long.usage, tokens: 98_700_000_000, novels: 1234 };
   long.voice = { ...long.voice, polite: { please: 456, thanks: 123, sorry: 9 } };
+  // The optional cards at a year's scale: hours of thinking, six-digit approvals, 300 days of history kept.
+  long.thinking = { blocks: 234_567, totalMs: 1_234 * 3_600_000, longestMs: 1_234_000, sessions: 4000 };
+  long.approvals = { auto: 345_678, byPerson: 98_765, denied: 4321, autoBlocked: 987, guardianReviews: 5000, sessions: 4000 };
+  long.history = { days: 300, firstDay: long.daily[0].day, cachedOnly: 2345 };
+  if (long.longestSession) long.longestSession.skippedAutomated = 12;
   writeFileSync(join(work, "long.html"), renderReport({ ...report, recap: long }));
 
   const privateStrings = [
