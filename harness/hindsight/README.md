@@ -1,6 +1,6 @@
 # Hindsight plugin
 
-Look back at how you work with AI coding agents. Local insights and actionable tips from your Claude Code, Codex, Cursor, Pi and OpenCode history.
+Look back at how you work with AI coding agents. Local insights and actionable tips from your Claude Code and Codex history.
 
 Claude Code:
 

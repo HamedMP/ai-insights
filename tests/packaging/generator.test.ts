@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -33,11 +33,31 @@ afterEach(() => {
 function copyRepo(): string {
   const dir = mkdtempSync(join(tmpdir(), "hindsight-gen-"));
   temps.push(dir);
-  for (const path of ["package.json", "LICENSE", "scripts", "skills", "harness", ".claude-plugin", ".agents", ".cursor-plugin", "mcp.json"]) {
-    cpSync(join(ROOT, path), join(dir, path), { recursive: true });
+  for (const path of ["package.json", "LICENSE", "scripts", "skills", "harness", ".claude-plugin", ".agents", ".cursor-plugin", "mcp.json", "assets"]) {
+    if (existsSync(join(ROOT, path))) cpSync(join(ROOT, path), join(dir, path), { recursive: true });
   }
   return dir;
 }
+
+// Only the PNG header is read, so a signature and an IHDR chunk are enough to stand in for an image.
+function png(width: number, height: number): Buffer {
+  const bytes = Buffer.alloc(33);
+  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(bytes, 0);
+  bytes.writeUInt32BE(13, 8);
+  bytes.write("IHDR", 12, "ascii");
+  bytes.writeUInt32BE(width, 16);
+  bytes.writeUInt32BE(height, 20);
+  return bytes;
+}
+
+function withIcon(dir: string, icon = png(512, 512)): void {
+  rmSync(join(dir, "assets"), { recursive: true, force: true });
+  mkdirSync(join(dir, "assets"), { recursive: true });
+  writeFileSync(join(dir, "assets", "icon.png"), icon);
+  writeFileSync(join(dir, "assets", "icon.svg"), '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"/>');
+}
+
+const read = (dir: string, path: string): any => JSON.parse(readFileSync(join(dir, path), "utf8"));
 
 describe("generated harness output", () => {
   it("is committed up to date, so CI and installs see the same skills as the source", () => {
@@ -86,6 +106,74 @@ describe("generated harness output", () => {
     const tree = walk(join(TREE, "skills")).map((path) => relative(TREE, path)).sort();
     expect(tree).toEqual(canonical);
     for (const path of canonical) expect(readFileSync(join(TREE, path)).equals(readFileSync(join(ROOT, path))), path).toBe(true);
+  });
+});
+
+describe("plugin icon", () => {
+  it("shows in every listing that has an icon field, from a copy inside the installed plugin", () => {
+    const dir = copyRepo();
+    withIcon(dir);
+    expect(generate(dir).status).toBe(0);
+    const tree = join(dir, "harness", "hindsight");
+
+    const claude = read(tree, ".claude-plugin/plugin.json");
+    expect(claude.icon).toBe("./assets/icon.png");
+    const codex = read(tree, ".codex-plugin/plugin.json");
+    expect(codex.interface.logo).toBe("./assets/icon.png");
+    expect(codex.interface.composerIcon).toBe("./assets/icon.svg");
+    expect(read(tree, "plugin.json").extensions["com.openai"].interface).toEqual(codex.interface);
+    for (const path of [claude.icon, codex.interface.logo, codex.interface.composerIcon]) {
+      expect(readFileSync(join(tree, path)).equals(readFileSync(join(dir, path))), path).toBe(true);
+    }
+    const cursor = read(dir, ".cursor-plugin/plugin.json");
+    expect(existsSync(join(dir, cursor.logo)), cursor.logo).toBe(true);
+
+    // Claude Code's marketplace reports icon fields on an entry as unknown, and the portable schema has none.
+    expect(read(dir, ".claude-plugin/marketplace.json").plugins[0]).not.toHaveProperty("icon");
+    expect(read(tree, "plugin.json")).not.toHaveProperty("icon");
+    expect(read(tree, "plugin.json")).not.toHaveProperty("logo");
+    expect(generate(dir, "--check").status).toBe(0);
+  });
+
+  it("goes stale when the icon is added or changed, so listings never point at a missing or old image", () => {
+    const dir = copyRepo();
+    withIcon(dir);
+    expect(generate(dir).status).toBe(0);
+    writeFileSync(join(dir, "assets", "icon.png"), png(1024, 1024));
+    const result = generate(dir, "--check");
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("harness/hindsight/assets/icon.png");
+  });
+
+  it("refuses an icon the Claude Code directory would reject: not a square PNG of 512 to 2048 pixels", () => {
+    for (const icon of [png(512, 300), png(256, 256), png(4096, 4096), Buffer.from("<svg/>")]) {
+      const dir = copyRepo();
+      withIcon(dir, icon);
+      const result = generate(dir);
+      expect(result.status).toBe(1);
+      expect(result.stdout).toMatch(/FAIL .*assets\/icon\.png/);
+    }
+  });
+
+  it("is left out of every manifest while the repository has no icon", () => {
+    const dir = copyRepo();
+    rmSync(join(dir, "assets"), { recursive: true, force: true });
+    expect(generate(dir).status).toBe(0);
+    const tree = join(dir, "harness", "hindsight");
+    expect(read(tree, ".claude-plugin/plugin.json")).not.toHaveProperty("icon");
+    expect(read(tree, ".codex-plugin/plugin.json").interface).not.toHaveProperty("logo");
+    expect(read(dir, ".cursor-plugin/plugin.json")).not.toHaveProperty("logo");
+    expect(existsSync(join(tree, "assets"))).toBe(false);
+  });
+
+  it("every icon the committed manifests name exists", () => {
+    const paths = [
+      [TREE, json("harness/hindsight/.claude-plugin/plugin.json").icon],
+      [TREE, json("harness/hindsight/.codex-plugin/plugin.json").interface.logo],
+      [TREE, json("harness/hindsight/.codex-plugin/plugin.json").interface.composerIcon],
+      [ROOT, json(".cursor-plugin/plugin.json").logo],
+    ].filter(([, path]) => path !== undefined);
+    for (const [base, path] of paths) expect(existsSync(join(base, path)), path).toBe(true);
   });
 });
 

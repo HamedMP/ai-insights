@@ -1,13 +1,13 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "hindsight",
-  "version": "0.0.1",
-  "description": "Look back at how you work with AI coding agents. Local insights and actionable tips from your Claude Code, Codex, Cursor, Pi and OpenCode history.",
+  "version": "0.1.0",
+  "description": "Look back at how you work with AI coding agents. Local insights and actionable tips from your Claude Code and Codex history.",
   "author": {
     "name": "Matrix OS",
     "url": "https://matrix-os.com"
   },
-  "homepage": "https://github.com/hamedmp/hindsight",
+  "homepage": "https://hamedmp.github.io/hindsight/",
   "repository": "https://github.com/hamedmp/hindsight",
   "license": "MIT",
   "keywords": [
@@ -33,7 +33,7 @@
           "Read",
           "Write"
         ],
-        "websiteURL": "https://github.com/hamedmp/hindsight",
+        "websiteURL": "https://hamedmp.github.io/hindsight/",
         "defaultPrompt": [
           "Run hindsight on my agent history.",
           "What slows me down when I work with agents?",
