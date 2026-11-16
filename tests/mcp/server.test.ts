@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { DRIVERS, HARNESSES, GOAL_CATEGORIES, OUTCOMES, type BuildReportInput, type Report, type Session, type TranscriptTurn } from "../../src/schema/types.js";
 import { createServer } from "../../src/mcp/server.js";
+import { buildReport as realBuildReport } from "../../src/analysis/index.js";
 import { MAX_OUTPUT_CHARS } from "../../src/mcp/bound.js";
 import { Store } from "../../src/store/store.js";
 import { fakeBuildReport, fakeRenderReport, fakeSource, makeSession, tempHome, validFacet, validNarrative, type FakeSource } from "../store/fixtures.js";
@@ -124,6 +125,18 @@ describe("ai_insights_report", () => {
     expect(Object.keys(json).sort()).toEqual(["activity", "facets", "findings", "narrative", "usage"]);
     expect(json.facets.sessionsWithFacets).toBe(1);
     expect(json.narrative.headline).toBe(validNarrative().headline);
+  });
+
+  it("serves the recap's headline stats as a digest, and the whole recap with detail: full", async () => {
+    await client.close();
+    client = await connect({ buildReport: realBuildReport });
+    const digest = (await call("ai_insights_report", { sections: ["recap"] })).json;
+    expect(Object.keys(digest)).toEqual(["recap"]);
+    expect(digest.recap.totals.sessions).toBe(3);
+    expect(digest.recap.range.days).toBeGreaterThan(0);
+    const full = (await call("ai_insights_report", { sections: ["recap"], detail: "full" })).json;
+    expect(full.recap.version).toBe(1);
+    expect(full.recap.voice).toBeDefined();
   });
 
   it("returns only the requested sections", async () => {

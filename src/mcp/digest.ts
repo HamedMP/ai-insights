@@ -1,4 +1,4 @@
-import type { Activity, Count, FacetAggregate, UsageSummary, UsageTotals } from "../schema/types.js";
+import type { Activity, Count, FacetAggregate, Recap, UsageSummary, UsageTotals } from "../schema/types.js";
 import { shortenPath } from "../render/format.js";
 
 /** Weeks of history a digest series keeps, newest last. */
@@ -131,5 +131,35 @@ export function facetsDigest(facets: FacetAggregate | null) {
     satisfaction: top(facets.satisfaction, 5),
     frictions: top(facets.frictions, 6),
     successes: top(facets.successes, 5),
+  };
+}
+
+/** The recap's headline numbers: what a share card would say, already free of names and text by construction. */
+export function recapDigest(recap: Recap | undefined) {
+  if (!recap) return null;
+  return {
+    range: recap.range,
+    persona: recap.persona?.title ?? null,
+    rhythm: recap.rhythm ? { verdict: recap.rhythm.verdict.label, peakHour: recap.rhythm.peakHour, nightShare: round(recap.rhythm.nightShare, 3) } : null,
+    totals: {
+      sessions: recap.totals.sessions,
+      prompts: recap.totals.prompts,
+      activeDays: recap.totals.activeDays,
+      wallHours: round(recap.totals.wallHours),
+      agentHours: round(recap.totals.agentHours),
+      toolCalls: recap.totals.toolCalls,
+      toolCallsCapped: recap.totals.toolCallsCapped,
+      commits: recap.totals.commits,
+    },
+    streakDays: recap.streak.days,
+    bigDayPrompts: recap.bigDay?.prompts ?? null,
+    topWord: recap.voice.words[0]?.key ?? null,
+    topSlash: recap.slash[0]?.key ?? null,
+    topProgram: recap.shell.programs[0]?.key ?? null,
+    topModel: recap.models[0]?.key ?? null,
+    testPass: recap.shell.testPass === undefined ? null : round(recap.shell.testPass, 3),
+    failureRate: round(recap.failures.rate, 3),
+    maxParallel: recap.parallel.max,
+    winRate: recap.winRate === undefined ? null : round(recap.winRate, 3),
   };
 }

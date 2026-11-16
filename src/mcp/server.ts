@@ -26,7 +26,7 @@ import { describeIssues, isSafeId } from "../store/schemas.js";
 import { parseSince, SINCE_HELP } from "../store/since.js";
 import { isFacetStale, sessionKey, StoreError, type Store } from "../store/store.js";
 import { fitJson } from "./bound.js";
-import { activityDigest, facetsDigest, projectLabel, usageDigest, DIGEST_WEEKS } from "./digest.js";
+import { activityDigest, facetsDigest, projectLabel, recapDigest, usageDigest, DIGEST_WEEKS } from "./digest.js";
 import { DEFAULT_EXCERPT_CHARS, DEFAULT_EXCERPT_CHARS_PER_TURN, DEFAULT_EXCERPT_TURNS, fitTurns } from "./excerpt.js";
 import { DEFAULT_MIN_USER_MESSAGES, facetBacklog, filterCandidates, isAgentDriven, isLive, spreadOrder } from "./select.js";
 import { packageVersion } from "./version.js";
@@ -43,7 +43,7 @@ export interface ServerDeps {
 /** An error whose message is safe to show the agent as-is. */
 class ToolError extends Error {}
 
-const REPORT_SECTIONS = ["summary", "coverage", "activity", "usage", "findings", "facets", "narrative"] as const;
+const REPORT_SECTIONS = ["summary", "coverage", "activity", "usage", "findings", "facets", "narrative", "recap"] as const;
 type ReportSection = (typeof REPORT_SECTIONS)[number];
 
 const MAX_FACETS_PER_CALL = 50;
@@ -386,7 +386,8 @@ export function createServer(deps: ServerDeps): McpServer {
         `(${REPORT_SECTIONS.join(", ")}); the default is summary and findings. Findings carry evidence with session ids you can pass to ai_insights_excerpt. ` +
         "The summary holds the headline numbers (wall-clock and agent hours, cost with its unpriced share). " +
         "facets, activity and usage come as a compact digest by default (top-N lists, weekly series; all three together are about 3k characters), " +
-        "which is what the narrative needs; pass detail: \"full\" for every list and daily series.",
+        "which is what the narrative needs; pass detail: \"full\" for every list and daily series. " +
+        "recap holds the shareable year-in-review numbers (names only from public allowlists); its digest is the headline stats.",
       inputSchema: {
         sections: z.array(z.enum(REPORT_SECTIONS)).min(1).max(REPORT_SECTIONS.length).optional().describe("Sections to return. Default [\"summary\", \"findings\"]."),
         detail: z.enum(["digest", "full"]).optional().describe("Shape of the facets, activity and usage sections. Default \"digest\"."),
@@ -431,6 +432,7 @@ export function createServer(deps: ServerDeps): McpServer {
         out.facets = { ...(full ? report.facets : facetsDigest(report.facets)), judged };
       }
       if (sections.has("narrative")) out.narrative = report.narrative;
+      if (sections.has("recap")) out.recap = full ? (report.recap ?? null) : recapDigest(report.recap);
       return ok(out);
     }),
   );

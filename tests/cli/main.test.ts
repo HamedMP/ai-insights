@@ -1,4 +1,5 @@
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
+import { buildReport as realBuildReport } from "../../src/analysis/index.js";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { formatBytes, run, type CliDeps } from "../../src/cli/main.js";
@@ -156,6 +157,18 @@ describe("ai-insights report", () => {
     expect(report.version).toBe(1);
     expect(report.activity.sessions).toBe(1);
     await expect(readFile(join(home, "reports", "report.html"))).rejects.toThrow();
+  });
+
+  it("includes the shareable recap in --json and records no run, since nothing was rendered", async () => {
+    expect(await run(["report", "--json"], deps({ buildReport: realBuildReport }))).toBe(0);
+    const report = JSON.parse(out);
+    expect(report.recap.totals.sessions).toBe(2);
+    await expect(readdir(join(home, "snapshots"))).rejects.toThrow();
+  });
+
+  it("saves a run snapshot when it writes the HTML", async () => {
+    expect(await run(["report"], deps({ buildReport: realBuildReport }))).toBe(0);
+    expect(await readdir(join(home, "snapshots"))).toEqual(["2026-11-15T00-00-00-000Z.json"]);
   });
 
   it("writes the HTML and prints only the path, so it can be piped", async () => {
