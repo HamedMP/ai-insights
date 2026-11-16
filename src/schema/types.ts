@@ -107,6 +107,12 @@ export interface Session {
   /** mtime of the source in ms, used to decide whether a cached session is stale. */
   sourceMtimeMs: number;
   projectPath: string | null;
+  /**
+   * The main repository root when `projectPath` is a git worktree or a folder inside a repository; absent when
+   * it could not be resolved (the folder is gone, or it is not in a repository). Set while scanning, from the
+   * file system only, never by running git. Group by `projectRoot ?? projectPath`.
+   */
+  projectRoot?: string | null;
   gitBranch: string | null;
   startTime: string;
   endTime: string;
@@ -377,6 +383,18 @@ export interface Count {
   count: number;
 }
 
+export interface SessionSpan {
+  sessionId: string;
+  harness: Harness;
+  /** `projectRoot ?? projectPath`, or null when the session has neither. */
+  project: string | null;
+  start: string;
+  end: string;
+  activeMinutes: number;
+  /** True when the session was driven by another agent, not typed by the person. */
+  agentDriven?: boolean;
+}
+
 export interface Activity {
   sessions: number;
   activeDays: number;
@@ -397,7 +415,13 @@ export interface Activity {
   /** Per local day, newest last. */
   daily: Array<{ day: string; sessions: number; userMessages: number; activeMinutes: number }>;
   byHarness: Array<{ harness: Harness; sessions: number; activeMinutes: number }>;
-  projects: Array<{ projectPath: string; sessions: number; activeMinutes: number }>;
+  /** Grouped by `projectRoot ?? projectPath`; `worktrees` counts the distinct working folders folded into the row. */
+  projects: Array<{ projectPath: string; sessions: number; activeMinutes: number; worktrees?: number }>;
+  /**
+   * One entry per session with a known start and end, oldest first, capped at the newest 400. Lets a renderer
+   * draw which sessions ran side by side. `activeMinutes` is the session's own active time inside the span.
+   */
+  sessionSpans?: SessionSpan[];
   languages: Count[];
   tools: Count[];
   toolCategories: Count[];
