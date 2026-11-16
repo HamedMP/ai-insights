@@ -2,6 +2,7 @@ import { REPORT_VERSION, type BuildReportInput, type Report, type Session } from
 import { buildActivity } from "./activity.js";
 import { aggregateFacets } from "./facets.js";
 import { detectFindings } from "./findings/index.js";
+import { withHistoryDays } from "./history.js";
 import { makeClock, parseMs, resolveTimeZone } from "./time.js";
 import { summarizeUsage, uniqueRequests } from "./usage.js";
 
@@ -56,13 +57,14 @@ export function buildReport(input: BuildReportInput): Report {
   const requests = uniqueRequests(sessions);
   const usage = summarizeUsage(requests, clock);
   const activity = buildActivity(sessions, clock);
-  const findings = detectFindings({ sessions, requests, usage, activity, coverage: input.coverage, now, clock });
+  const coverage = withHistoryDays(input.coverage, sessions, now.getTime(), clock);
+  const findings = detectFindings({ sessions, requests, usage, activity, coverage, now, clock });
   return {
     version: REPORT_VERSION,
     generatedAt: now.toISOString(),
     timeZone,
     range: range(sessions),
-    coverage: input.coverage,
+    coverage,
     activity,
     usage,
     findings,

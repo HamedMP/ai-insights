@@ -26,7 +26,12 @@ export const shortHistory: Detector = ({ sessions, coverage, now, clock }) => {
   }
   // Shortest first: a long Codex history must not hide that Claude Code kept only days of it.
   const spans = [...oldestByHarness]
-    .map(([harness, item]) => ({ harness, ...item, days: historyDaysFrom(item.ms, now.getTime(), clock) }))
+    // Coverage.historyDays is the number the page shows; the fallback covers a harness the coverage list omits.
+    .map(([harness, item]) => ({
+      harness,
+      ...item,
+      days: coverage.find((entry) => entry.harness === harness)?.historyDays ?? historyDaysFrom(item.ms, now.getTime(), clock),
+    }))
     .sort((a, b) => a.days - b.days || a.harness.localeCompare(b.harness));
   const short = spans.filter((span) => span.days < SHORT_HISTORY_DAYS);
   if (short.length === 0) return [];
