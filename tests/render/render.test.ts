@@ -235,7 +235,8 @@ describe("full report with facets and narrative", () => {
 
   it("labels its visuals so a screenshot stands on its own", () => {
     expect(html).toContain("Hour of day");
-    expect(html).toContain("Sessions by weekday");
+    expect(html).toContain("Sessions started, by weekday");
+    expect(html).toContain("Calendar of sessions started per day");
     expect(html).toContain("One square per");
   });
 
@@ -251,7 +252,7 @@ describe("full report with facets and narrative", () => {
     expect(usage).toMatch(/\d+% of requests \([\d,]+\) have no known price/);
     expect(usage).toContain("local-experimental-model");
     expect(usage).toContain("Read from cache");
-    expect(section(html, "overview")).toMatch(/\d+% unpriced: local-experimental-model/);
+    expect(section(html, "overview")).toMatch(/\d+% of requests unpriced: local-experimental-model/);
   });
 
   it("shows facet charts in the story and friction chapters", () => {

@@ -36,7 +36,7 @@ describe("story lines on rich data", () => {
   });
 
   it("describes the shape of the week from the daily buckets", () => {
-    expect(lineText(story.week!)).toMatch(/^Your busiest day is (Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday), and \d+% of your sessions fall on weekends\.$/);
+    expect(lineText(story.week!)).toMatch(/^Your busiest day is (Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday), and \d+% of your sessions start on weekends\.$/);
   });
 
   it("measures delegation as agent steps per message you send", () => {
@@ -72,7 +72,7 @@ describe("story lines on rich data", () => {
     const cost = story.numbers[3]!;
     expect(cost.value).toMatch(/^≈ \$[\d,]+$/);
     expect(cost.label).toMatch(/^For the \d+% of requests with a known price$/);
-    expect(cost.note).toMatch(/^\d+% unpriced: local-experimental-model$/);
+    expect(cost.note).toMatch(/^\d+% of requests unpriced: local-experimental-model$/);
   });
 
   it("gives four headline numbers, with person hours first and agent-hours as the caveat", () => {

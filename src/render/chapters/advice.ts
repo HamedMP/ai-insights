@@ -15,6 +15,8 @@ const MAX_EVIDENCE = 5;
 const MAX_ITEMS = 12;
 const MAX_TITLE = 160;
 const MAX_TEXT = 1600;
+/** Body text can carry a whole settings rule inline; only titles need short code spans. */
+const MAX_INLINE_CODE = 160;
 
 export const MATRIX_URL = "https://matrix-os.com";
 
@@ -125,10 +127,36 @@ ${problems.length > shown.length ? html`<p class="micro more">${plural(problems.
   return chapter({ id: "friction", index, kicker: "Where time is lost", lead: story.friction, body, tip: tryThis(tips.friction, actions) });
 }
 
+/**
+ * A suggestion without `instructionText` may still carry a settings fragment inline, such as
+ * `"permissions": {"allow": [...]}` to add to `.claude/settings.json`. Offer the first fragment
+ * that parses as a JSON object as a copyable, formatted block, named after the file it mentions.
+ */
+export function settingsSnippet(action: string): { text: string; file: string | null } | null {
+  const spans = [...String(action ?? "").matchAll(/`([^`\n]{2,600})`/g)].map((match) => match[1]!.trim());
+  for (const span of spans) {
+    for (const candidate of [span, `{${span}}`]) {
+      try {
+        const parsed: unknown = JSON.parse(candidate);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed) && Object.keys(parsed).length > 0) {
+          const file = spans.find((other) => /^[\w.~/-]+\.(json|jsonc|toml|ya?ml)$/i.test(other)) ?? null;
+          return { text: JSON.stringify(parsed, null, 2), file };
+        }
+      } catch {
+        // Not JSON; try the next form.
+      }
+    }
+  }
+  return null;
+}
+
 function actHow(context: RenderContext, action: RankedAction): SafeHtml | null {
   const { suggestion } = action;
   const link = externalLink(suggestion.url);
-  return html`${suggestion.instructionText ? copyBlock(context, suggestion.instructionText, `instructions: ${clip(suggestion.title, 80)}`) : null}${link ? html`<p class="learn">Learn more: ${link}</p>` : null}`;
+  const snippet = suggestion.instructionText ? null : settingsSnippet(suggestion.action);
+  return html`${suggestion.instructionText ? copyBlock(context, suggestion.instructionText, `instructions: ${clip(suggestion.title, 80)}`) : null}${
+    snippet ? html`<p class="micro copy-label">${snippet.file ? html`Merge into <code>${snippet.file}</code>` : "Settings to merge"}</p>${copyBlock(context, snippet.text, `settings: ${clip(suggestion.title, 80)}`)}` : null
+  }${link ? html`<p class="learn">Learn more: ${link}</p>` : null}`;
 }
 
 export function improveChapter(input: ChapterInput & { ranked: { top: RankedAction[]; rest: RankedAction[] } }): SafeHtml | null {
@@ -145,9 +173,9 @@ export function improveChapter(input: ChapterInput & { ranked: { top: RankedActi
 <span class="rank">${position + 1}</span>
 <div class="action-body"><span class="micro">${suggestionLabel(String(action.suggestion.type))}</span><h3>${rich(action.suggestion.title, MAX_TITLE)}</h3>
 <p class="why"><span class="micro">Why</span>${rich(action.why, MAX_TITLE)}${action.finding ? metricText(action.finding) : null}</p>
-<p>${rich(action.suggestion.action, MAX_TEXT)}</p>${actHow(context, action)}</div>
+<p>${rich(action.suggestion.action, MAX_TEXT, MAX_INLINE_CODE)}</p>${actHow(context, action)}</div>
 </li>`)}</ol>` : null}
-${rest.length > 0 ? html`<h3 class="sub-head reveal">More ideas</h3><ul class="more-actions">${rest.map((action, position) => html`<li class="reveal" id="action-${position + 4}"><span class="micro">${suggestionLabel(String(action.suggestion.type))}</span><b>${rich(action.suggestion.title, MAX_TITLE)}</b><span>${rich(action.suggestion.action, MAX_TEXT)}</span>${actHow(context, action)}</li>`)}</ul>` : null}
+${rest.length > 0 ? html`<h3 class="sub-head reveal">More ideas</h3><ul class="more-actions">${rest.map((action, position) => html`<li class="reveal" id="action-${position + 4}"><span class="micro">${suggestionLabel(String(action.suggestion.type))}</span><b>${rich(action.suggestion.title, MAX_TITLE)}</b><span>${rich(action.suggestion.action, MAX_TEXT, MAX_INLINE_CODE)}</span>${actHow(context, action)}</li>`)}</ul>` : null}
 ${horizon.length > 0 ? html`<h3 class="sub-head reveal">Bigger moves</h3><div class="cards">${horizon.map((item) => html`<article class="card reveal"><h3>${rich(item.title, MAX_TITLE)}</h3><p>${rich(item.description, MAX_TEXT)}</p>${item.starterPrompt ? copyBlock(context, item.starterPrompt, `starter prompt: ${clip(item.title, 80)}`) : null}</article>`)}</div>` : null}`;
   return chapter({ id: "improve", index, kicker: "What to improve", lead, body });
 }
