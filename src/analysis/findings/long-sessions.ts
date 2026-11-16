@@ -34,7 +34,8 @@ export const longSessions: Detector = ({ sessions }) => {
     .map((session) => {
       // Active time is what the threshold measures; wall-clock is shown only so a session left open for days reads correctly.
       const open = leftOpen(session) ? `, open for ${Math.round(session.durationMinutes / 1440)} days` : "";
-      return evidence(session, `${minutes(session.activeMinutes)} of active work, ${plural(session.userMessageCount, "prompt")}${open}`);
+      // Active time counts the agent working, with or without the person at the keyboard, so it is named as agent activity.
+      return evidence(session, `${minutes(session.activeMinutes)} of agent activity, ${plural(session.userMessageCount, "prompt")}${open}`);
     });
   const compacted = new Set(compactedSessions(sessions) ?? []);
   const alsoCompacted = long.filter((session) => compacted.has(session)).length;
@@ -49,7 +50,7 @@ export const longSessions: Detector = ({ sessions }) => {
       // Ranked below its twin so the top of the report holds distinct insights.
       severity: sameStory ? "info" : share >= MEDIUM_SHARE ? "medium" : "low",
       title: "Some sessions run very long",
-      detail: `${plural(long.length, "session")} (${percent(share)}) ran over ${minutes(LONG_ACTIVE_MIN)} of active time or ${LONG_PROMPTS} prompts. Agents tend to lose track of early decisions in sessions this long, and every request carries the whole history, which costs more.${overlap}`,
+      detail: `${plural(long.length, "session")} (${percent(share)}) ran over ${minutes(LONG_ACTIVE_MIN)} of agent activity or ${LONG_PROMPTS} prompts. Agents tend to lose track of early decisions in sessions this long, and every request carries the whole history, which costs more.${overlap}`,
       harnesses: harnessesOf(long),
       metric: { value: long.length, unit: "sessions", label: "very long sessions" },
       evidence: items,

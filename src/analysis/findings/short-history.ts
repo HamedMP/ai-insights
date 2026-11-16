@@ -40,7 +40,8 @@ export const shortHistory: Detector = ({ sessions, coverage, now, clock }) => {
   const items: Evidence[] = spans.map((span) =>
     evidence(span.session, `${HARNESS_LABELS[span.harness]} history goes back to ${clock.dayOfMs(span.ms)} (${plural(span.days, "day")})`),
   );
-  const perHarness = spans.map((span) => `${HARNESS_LABELS[span.harness]} ${plural(span.days, "day")}`).join(", ");
+  // Each harness is described by its own oldest date; a single date across harnesses would misdate the shorter one.
+  const perHarness = spans.map((span) => `${HARNESS_LABELS[span.harness]} ${plural(span.days, "day")} (since ${clock.dayOfMs(span.ms)})`).join(", ");
   return [
     {
       id: "short_history",
@@ -54,7 +55,7 @@ export const shortHistory: Detector = ({ sessions, coverage, now, clock }) => {
       suggestion: {
         type: "matrix",
         title: "Store your conversations long term",
-        action: `Local tools usually delete transcripts after about 30 days. Upload and store your conversations long term in Matrix OS (${MATRIX_URL}) to keep them and see trends over months.`,
+        action: `${leadLabel} history here starts on ${clock.dayOfMs(lead.ms)}, and local tools usually delete transcripts after about 30 days. Upload and store your conversations long term in Matrix OS (${MATRIX_URL}) to keep them and see trends over months.`,
         url: MATRIX_URL,
       },
     },

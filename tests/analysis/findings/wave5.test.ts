@@ -104,7 +104,7 @@ describe("permission_prompt_load names the commands that keep getting denied", (
   const work = (index: number) => Array.from({ length: 300 }, (_, n) => tool("read", { timestamp: day(index, 10 + n / 50) }));
 
   it("lists each repeated pattern with counts and sessions and proposes an allowlist entry", () => {
-    const sessions: Session[] = sessionsOverDays(4, (index) => ({
+    const sessions: Session[] = sessionsOverDays(5, (index) => ({
       toolCalls: [
         shell(`git push --force-with-lease origin feature-${index}`, "permission_denied", day(index, 1)),
         shell(`gh pr ready ${100 + index}`, "permission_denied", day(index, 2)),
@@ -113,15 +113,15 @@ describe("permission_prompt_load names the commands that keep getting denied", (
     }));
     const [finding] = findings("permission_prompt_load", sessions);
     expect(finding).toBeDefined();
-    expect(finding!.detail).toContain("`git push --force-with-lease` (4 times in 4 sessions)");
-    expect(finding!.detail).toContain("`gh pr ready` (4 times in 4 sessions)");
+    expect(finding!.detail).toContain("`git push --force-with-lease` (5 times in 5 sessions)");
+    expect(finding!.detail).toContain("`gh pr ready` (5 times in 5 sessions)");
     expect(finding!.suggestion?.type).toBe("feature");
     expect(finding!.suggestion?.action).toContain('"Bash(git push --force-with-lease:*)"');
     expect(finding!.suggestion?.action).toContain('"Bash(gh pr ready:*)"');
   });
 
   it("never proposes allowing destructive or admin commands", () => {
-    const sessions: Session[] = sessionsOverDays(4, (index) => ({
+    const sessions: Session[] = sessionsOverDays(5, (index) => ({
       toolCalls: [
         shell("rm -rf build", "permission_denied", day(index, 1)),
         shell(`gh pr merge ${index} --admin --squash`, "permission_denied", day(index, 2)),
@@ -138,7 +138,7 @@ describe("permission_prompt_load names the commands that keep getting denied", (
   });
 
   it("does not propose a rule so broad it would also allow force pushes, and names it as left out", () => {
-    const sessions: Session[] = sessionsOverDays(4, (index) => ({
+    const sessions: Session[] = sessionsOverDays(5, (index) => ({
       toolCalls: [shell(`git push -u origin feature-${index}`, "permission_denied", day(index, 1)), shell(`gh pr ready ${index}`, "permission_denied", day(index, 2)), ...work(index)],
     }));
     const [finding] = findings("permission_prompt_load", sessions);
@@ -148,7 +148,7 @@ describe("permission_prompt_load names the commands that keep getting denied", (
   });
 
   it("does not mistake a shell loop for a command name", () => {
-    const sessions: Session[] = sessionsOverDays(4, (index) => ({
+    const sessions: Session[] = sessionsOverDays(5, (index) => ({
       toolCalls: [shell("for f in a b; do cat $f; done", "permission_denied", day(index, 1)), shell(`gh pr ready ${index}`, "permission_denied", day(index, 2)), ...work(index)],
     }));
     const [finding] = findings("permission_prompt_load", sessions);
@@ -156,7 +156,7 @@ describe("permission_prompt_load names the commands that keep getting denied", (
   });
 
   it("stays quiet when the only repeated denials are destructive commands, which are deliberate stops", () => {
-    const sessions: Session[] = sessionsOverDays(4, (index) => ({
+    const sessions: Session[] = sessionsOverDays(5, (index) => ({
       toolCalls: [shell("rm -rf build", "permission_denied", day(index, 1)), shell("git push --force", "permission_denied", day(index, 2)), ...work(index)],
     }));
     expect(findings("permission_prompt_load", sessions)).toEqual([]);
@@ -187,5 +187,58 @@ describe("Coverage.historyDays", () => {
     const report = build(sessionsOverDays(2), input, new Date(day(20)));
     expect(report.coverage[1]).not.toHaveProperty("historyDays");
     expect(input[0]).not.toHaveProperty("historyDays");
+  });
+});
+
+describe("wave 6", () => {
+  const work = (index: number) => Array.from({ length: 300 }, (_, n) => tool("read", { timestamp: day(index, 10 + n / 50) }));
+
+  it("reports permission blocks as a plain count, with the rate in words", () => {
+    const sessions: Session[] = sessionsOverDays(5, (index) => ({
+      toolCalls: [shell(`gh pr ready ${index}`, "permission_denied", day(index, 1)), ...work(index)],
+    }));
+    const [finding] = findings("permission_prompt_load", sessions);
+    expect(finding!.metric).toEqual({ value: 5, unit: "blocked calls", label: "tool calls blocked or refused" });
+    expect(finding!.detail).toMatch(/per 100 tool calls/);
+  });
+
+  it("does not let a command blocked only a few times carry a suggestion on its own", () => {
+    const sessions: Session[] = sessionsOverDays(4, (index) => ({
+      toolCalls: [shell(`gh pr ready ${index}`, "permission_denied", day(index, 1)), ...work(index)],
+    }));
+    expect(findings("permission_prompt_load", sessions)).toEqual([]);
+  });
+
+  it("only proposes allow rules for commands blocked about five times or more, even when the overall rate fires", () => {
+    const sessions: Session[] = sessionsOverDays(4, (index) => ({
+      toolCalls: [
+        shell(`gh pr ready ${index}`, "permission_denied", day(index, 1)),
+        ...[2, 3].map((minute) => shell("rm -rf build", "permission_denied", day(index, minute))),
+        tool("read", { timestamp: day(index, 5) }),
+      ],
+    }));
+    const [finding] = findings("permission_prompt_load", sessions);
+    expect(finding).toBeDefined();
+    expect(finding!.suggestion?.action).not.toContain("Bash(");
+  });
+
+  it("names each harness's own oldest date in the short-history text", () => {
+    const sessions = [...sessionsOverDays(2, (index) => ({ startTime: day(20 + index) })), ...sessionsOverDays(2, (index) => ({ harness: "codex", startTime: day(index) }))];
+    const [finding] = findings("short_history", sessions, { now: new Date(day(26)) });
+    expect(finding!.detail).toContain("Claude Code 6 days (since 2026-06-21)");
+    expect(finding!.detail).toContain("Codex 26 days (since 2026-06-01)");
+    expect(finding!.suggestion?.action).toContain("2026-06-21");
+    expect(finding!.suggestion?.action).not.toContain("2026-06-01");
+    const notes = finding!.evidence.map((item) => [item.harness, item.note]);
+    expect(notes).toEqual([
+      ["claude-code", expect.stringContaining("2026-06-21")],
+      ["codex", expect.stringContaining("2026-06-01")],
+    ]);
+  });
+
+  it("words long-session time as agent activity", () => {
+    const sessions = sessionsOverDays(8, (index) => (index < 3 ? { activeMinutes: 200 } : {}));
+    const [finding] = findings("long_sessions", sessions);
+    expect(finding!.evidence.every((item) => item.note.includes("of agent activity"))).toBe(true);
   });
 });
