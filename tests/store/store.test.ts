@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ZodError } from "zod";
 import { DRIVERS, FRICTION_TYPES, GOAL_CATEGORIES, OUTCOMES } from "../../src/schema/types.js";
 import { SessionSchema, describeIssues } from "../../src/store/schemas.js";
-import { KEEP_REPORT_COPIES, Store, resolveHome } from "../../src/store/store.js";
+import { KEEP_REPORT_COPIES, Store, isFacetStale, resolveHome } from "../../src/store/store.js";
 import { parseSince } from "../../src/store/since.js";
 import { fakeBuildReport, fileFor, makeSession, tempHome, validFacet, validNarrative } from "./fixtures.js";
 
@@ -253,5 +253,71 @@ describe("session cache index", () => {
     const reader = new Store(home);
     expect((await reader.cachedSession(fileFor(session), "0"))?.id).toBe("v");
     expect(await reader.cachedSession(fileFor(session), "2")).toBeUndefined();
+  });
+});
+
+describe("facet judgement snapshots", () => {
+  const session = (overrides: Partial<Parameters<typeof makeSession>[0]> = {}) =>
+    makeSession({ id: "a", userMessageCount: 3, endTime: "2026-10-01T10:00:00.000Z", ...overrides });
+  const judged = { userMessages: 3, endTime: "2026-10-01T10:00:00.000Z", live: false };
+
+  it("stores what the session looked like when judged, without changing the facet read back", async () => {
+    const store = new Store(home);
+    await store.saveFacet(validFacet("a"), judged);
+    expect(await store.readFacet("claude-code", "a")).toEqual(validFacet("a"));
+    const [record] = await store.listFacetRecords();
+    expect(record!.judged).toMatchObject(judged);
+    expect(isFacetStale(record!, session())).toBe(false);
+  });
+
+  it("calls a facet stale when judged while live, or when the session has more prompts or ran later since", async () => {
+    const store = new Store(home);
+    await store.saveFacet(validFacet("a"), { ...judged, live: true });
+    expect(isFacetStale((await store.listFacetRecords())[0]!, session())).toBe(true);
+    await store.saveFacet(validFacet("a"), judged);
+    const [record] = await store.listFacetRecords();
+    expect(isFacetStale(record!, session({ userMessageCount: 5 }))).toBe(true);
+    expect(isFacetStale(record!, session({ endTime: "2026-10-02T10:00:00.000Z" }))).toBe(true);
+  });
+
+  it("judges a facet saved before snapshots existed by whether the session ran on after the facet was written", async () => {
+    const store = new Store(home);
+    await mkdir(join(home, "facets", "claude-code"), { recursive: true });
+    await writeFile(join(home, "facets", "claude-code", "a.json"), JSON.stringify(validFacet("a")));
+    const [record] = await store.listFacetRecords();
+    expect(record!.judged).toBeNull();
+    expect(isFacetStale(record!, session({ endTime: new Date(record!.savedAtMs - 60_000).toISOString() }))).toBe(false);
+    expect(isFacetStale(record!, session({ endTime: new Date(record!.savedAtMs + 60_000).toISOString() }))).toBe(true);
+  });
+
+  it("ignores a planted or broken snapshot instead of trusting it", async () => {
+    const store = new Store(home);
+    await mkdir(join(home, "facets", "claude-code"), { recursive: true });
+    await writeFile(join(home, "facets", "claude-code", "a.json"), JSON.stringify({ ...validFacet("a"), judged: { userMessages: "lots", endTime: 5 } }));
+    const [record] = await store.listFacetRecords();
+    expect(record!.facet).toEqual(validFacet("a"));
+    expect(record!.judged).toBeNull();
+  });
+});
+
+describe("narrative findingId", () => {
+  it("keeps the finding a suggestion builds on through a save and read", async () => {
+    const store = new Store(home);
+    const narrative = { ...validNarrative(), suggestions: [{ type: "habit", title: "t", action: "a", findingId: "context_resets" }] };
+    await store.saveNarrative(narrative);
+    expect((await store.readNarrative())?.suggestions[0]?.findingId).toBe("context_resets");
+  });
+});
+
+describe("facets saved before snapshots", () => {
+  it("counts a transcript written to after the facet was saved as judged while running", async () => {
+    const store = new Store(home);
+    await mkdir(join(home, "facets", "claude-code"), { recursive: true });
+    await writeFile(join(home, "facets", "claude-code", "a.json"), JSON.stringify(validFacet("a")));
+    const [record] = await store.listFacetRecords();
+    const before = new Date(record!.savedAtMs - 3_600_000).toISOString();
+    const quiet = makeSession({ id: "a", endTime: before, sourceMtimeMs: record!.savedAtMs - 60_000 });
+    expect(isFacetStale(record!, quiet)).toBe(false);
+    expect(isFacetStale(record!, { ...quiet, sourceMtimeMs: record!.savedAtMs + 60_000 })).toBe(true);
   });
 });

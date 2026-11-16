@@ -193,10 +193,10 @@ describe("hindsight_sessions", () => {
     expect(second.json.nextOffset).toBeNull();
   });
 
-  it("shows a short project name rather than a full home path", async () => {
+  it("shows the project with home shortened to ~, as the page does, rather than a full home path", async () => {
     const { json } = await call("hindsight_sessions");
     const c2 = json.sessions.find((session: any) => session.sessionId === "c2");
-    expect(c2.project).toBe("code/secret-app");
+    expect(c2.project).toBe("~/code/secret-app");
   });
 
   it("names a worktree session by its repository root, in listings and excerpts alike", async () => {
@@ -570,7 +570,141 @@ describe("returning users with nothing new", () => {
     await call("hindsight_save_facets", { facets: [validFacet("c0"), validFacet("c1")] });
     const { json } = await call("hindsight_scan");
     expect(json.facets.toJudge).toBe(0);
-    expect(json.next).toContain("no new sessions need facets");
+    expect(json.next).toContain("no sessions need facets");
     expect(json.next).not.toContain("up to 0");
+  });
+});
+
+describe("hindsight_excerpt: long briefs at the default budget", () => {
+  /** An orchestrated session: a long brief, then many prompts and replies, as a source returns them. */
+  function orchestrated(): TranscriptTurn[] {
+    const words = (seed: string, length: number) => `${seed} `.repeat(Math.ceil(length / (seed.length + 1))).slice(0, length).trim();
+    const turns: TranscriptTurn[] = [{ timestamp: "2026-10-01T09:00:00.000Z", role: "user", text: words("brief", 600) }];
+    for (let index = 1; index < 24; index += 1) {
+      const role: TranscriptTurn["role"] = index % 3 === 0 ? "user" : index % 3 === 1 ? "assistant" : "tool";
+      turns.push({ timestamp: `2026-10-01T09:${String(index).padStart(2, "0")}:00.000Z`, role, text: words(role, 600), ...(role === "tool" ? { toolName: "Bash" } : {}) });
+    }
+    return turns;
+  }
+
+  it("keeps the first prompt whole up to about 600 characters and the response near the 4k budget", async () => {
+    claude.excerpt = async () => orchestrated();
+    const { json, text } = await call("hindsight_excerpt", { sessionId: "c1", harness: "claude-code" });
+    expect(text.length).toBeLessThanOrEqual(4_000);
+    expect(text.length).toBeGreaterThan(3_400);
+    expect(json.turns[0].role).toBe("user");
+    expect(json.turns[0].text.length).toBeGreaterThanOrEqual(590);
+    // The rest are sampled rather than all cut to a few dozen characters.
+    for (const turn of json.turns.slice(1)) expect(turn.text.length).toBeGreaterThanOrEqual(120);
+    expect(json.omittedTurns).toBeGreaterThan(0);
+    expect(json.turns.at(-1).role).toBe("assistant");
+  });
+
+  it("still gives the first prompt the most room in a smaller budget", async () => {
+    claude.excerpt = async () => orchestrated();
+    const { json, text } = await call("hindsight_excerpt", { sessionId: "c1", harness: "claude-code", maxChars: 3_000 });
+    expect(text.length).toBeLessThanOrEqual(3_000);
+    expect(json.turns[0].text.length).toBeGreaterThanOrEqual(590);
+    for (const turn of json.turns.slice(1)) expect(turn.text.length).toBeGreaterThanOrEqual(120);
+  });
+});
+
+describe("stale facets and facets today's rules skip", () => {
+  it("offers a judged session again once it has grown, and says how many changed", async () => {
+    claude.sessions = history("claude-code", "c", 3, 1);
+    codex.sessions = [];
+    await call("hindsight_scan");
+    await call("hindsight_save_facets", { facets: [validFacet("c0"), validFacet("c1"), validFacet("c2")] });
+    expect((await call("hindsight_sessions", { missingFacets: true })).json.total).toBe(0);
+
+    claude.sessions = claude.sessions.map((session) => (session.id === "c1" ? { ...session, userMessageCount: 9, sourceMtimeMs: session.sourceMtimeMs + 1 } : session));
+    const scanned = await call("hindsight_scan");
+    expect(scanned.json.facets).toMatchObject({ saved: 3, changedSinceJudged: 1, toJudge: 1 });
+    expect(scanned.json.next).toContain("1 judged session has changed since");
+    const listing = await call("hindsight_sessions", { missingFacets: true });
+    expect(ids(listing.json)).toEqual(["c1"]);
+    expect(listing.json.sessions[0]).toMatchObject({ hasFacet: true, staleFacet: true });
+    expect(listing.json.staleFacets).toBe(1);
+
+    const saved = await call("hindsight_save_facets", { facets: [validFacet("c1")] });
+    expect(saved.json.sessionsStillMissingFacets).toBe(0);
+    expect((await call("hindsight_sessions", { missingFacets: true })).json.total).toBe(0);
+  });
+
+  it("offers a session judged while it was still running once it has stopped", async () => {
+    const running = makeSession({ id: "run", sourceMtimeMs: NOW - 60_000 });
+    claude.sessions = [running];
+    codex.sessions = [];
+    await call("hindsight_scan");
+    await call("hindsight_save_facets", { facets: [validFacet("run")] });
+    claude.sessions = [{ ...running, sourceMtimeMs: NOW - 3_600_000 }];
+    await call("hindsight_scan");
+    const listing = await call("hindsight_sessions", { missingFacets: true });
+    expect(ids(listing.json)).toEqual(["run"]);
+    expect(listing.json.sessions[0].staleFacet).toBe(true);
+  });
+
+  it("leaves facets of zero-prompt and slash-command-only sessions out of the report", async () => {
+    claude.sessions = [
+      makeSession({ id: "real", sourceMtimeMs: 3 }),
+      makeSession({ id: "slash", sourceMtimeMs: 2, prompts: [{ timestamp: "2026-10-01T09:00:00.000Z", text: "/mcp" }] }),
+      makeSession({ id: "empty", sourceMtimeMs: 1, userMessageCount: 0, prompts: [] }),
+    ];
+    codex.sessions = [];
+    await call("hindsight_scan");
+    await call("hindsight_save_facets", { facets: [validFacet("real"), validFacet("slash"), validFacet("empty")] });
+    const { json } = await call("hindsight_report", { sections: ["summary"] });
+    expect(json.summary.sessionsWithFacets).toBe(1);
+    expect(buildCalls.at(-1)!.facets!.map((facet) => facet.sessionId)).toEqual(["real"]);
+    const scanned = await call("hindsight_scan");
+    expect(scanned.json.facets).toMatchObject({ saved: 1, ignored: 2 });
+  });
+});
+
+describe("hindsight_save_narrative findingId", () => {
+  const narrativeWith = (findingIds: unknown[]) => ({
+    ...validNarrative(),
+    suggestions: findingIds.map((findingId, index) => ({ type: "habit", title: `Tip ${index}`, action: "Do the thing.", findingId })),
+  });
+
+  it("keeps a findingId that names a current finding", async () => {
+    const { isError, json } = await call("hindsight_save_narrative", { narrative: narrativeWith(["repeated_failed_command:pnpm test"]) });
+    expect(isError).toBe(false);
+    expect(json.droppedFindingIds).toBeUndefined();
+    expect((await new Store(home).readNarrative())!.suggestions[0]!.findingId).toBe("repeated_failed_command:pnpm test");
+  });
+
+  it("drops unknown or malformed findingIds with a note instead of rejecting the save", async () => {
+    const { isError, json } = await call("hindsight_save_narrative", { narrative: narrativeWith(["no_such_finding", "repeated_failed_command:pnpm test", 42]) });
+    expect(isError).toBe(false);
+    expect(json.saved).toBe(true);
+    expect(json.droppedFindingIds).toEqual([
+      { suggestion: 0, findingId: "no_such_finding" },
+      { suggestion: 2, findingId: null },
+    ]);
+    expect(json.note).toContain("hindsight_report");
+    const saved = (await new Store(home).readNarrative())!;
+    expect(saved.suggestions.map((suggestion) => suggestion.findingId ?? null)).toEqual([null, "repeated_failed_command:pnpm test", null]);
+  });
+});
+
+describe("orchestrated sessions and today's facet rules", () => {
+  it("offers a worker session whose brief and waves came from another agent, counting their messages as prompts", async () => {
+    claude.sessions = [makeSession({ id: "worker", sourceMtimeMs: 5, userMessageCount: 1, agentMessageCount: 6 })];
+    codex.sessions = [];
+    const listing = await call("hindsight_sessions", { missingFacets: true });
+    expect(ids(listing.json)).toEqual(["worker"]);
+  });
+
+  it("counts a worker session's facet, but not one for a session with a single message and no prompt from the person", async () => {
+    claude.sessions = [
+      makeSession({ id: "worker", sourceMtimeMs: 5, userMessageCount: 1, agentMessageCount: 6 }),
+      makeSession({ id: "blip", sourceMtimeMs: 4, userMessageCount: 0, agentMessageCount: 1, prompts: [] }),
+    ];
+    codex.sessions = [];
+    await call("hindsight_scan");
+    await call("hindsight_save_facets", { facets: [validFacet("worker"), validFacet("blip")] });
+    const scanned = await call("hindsight_scan");
+    expect(scanned.json.facets).toMatchObject({ saved: 1, ignored: 1 });
   });
 });

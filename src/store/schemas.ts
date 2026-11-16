@@ -88,6 +88,8 @@ export const SuggestionSchema = z.strictObject({
   action: shortText(600),
   instructionText: redacted(2000).optional(),
   url: HttpUrlSchema.optional(),
+  /** The `Finding.id` this suggestion builds on; the MCP save checks it against the current findings. */
+  findingId: z.string().min(1).max(300).optional(),
 });
 
 export const NarrativeSchema = z.strictObject({

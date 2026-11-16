@@ -1,4 +1,5 @@
 import type { Activity, Count, FacetAggregate, UsageSummary, UsageTotals } from "../schema/types.js";
+import { shortenPath } from "../render/format.js";
 
 /** Weeks of history a digest series keeps, newest last. */
 export const DIGEST_WEEKS = 8;
@@ -43,8 +44,16 @@ function round(value: number, places = 1): number {
   return Math.round(value * factor) / factor;
 }
 
-function shortPath(path: string): string {
-  return path.split(/[\\/]+/).filter(Boolean).slice(-2).join("/") || path;
+const MAX_PROJECT_LABEL = 60;
+
+/**
+ * How a project is named everywhere the agent sees one: under home, the page's own form (`~/projects/app`),
+ * which hides the username; elsewhere the last two folders. Long paths keep their tail, the part that names it.
+ */
+export function projectLabel(path: string): string {
+  const short = shortenPath(path);
+  const label = short.startsWith("~") ? short : path.split(/[\\/]+/).filter(Boolean).slice(-2).join("/") || path;
+  return label.length <= MAX_PROJECT_LABEL ? label : `…${label.slice(-(MAX_PROJECT_LABEL - 1))}`;
 }
 
 export function activityDigest(activity: Activity, weeks = DIGEST_WEEKS) {
@@ -73,7 +82,7 @@ export function activityDigest(activity: Activity, weeks = DIGEST_WEEKS) {
         .sort((a, b) => b.sessions - a.sessions)
         .slice(0, 5)
         // Rows are keyed by repository root; the worktree count shows when several folders were folded in.
-        .map((entry) => [shortPath(entry.projectPath), (entry.worktrees ?? 1) > 1 ? { sessions: entry.sessions, worktrees: entry.worktrees } : entry.sessions]),
+        .map((entry) => [projectLabel(entry.projectPath), (entry.worktrees ?? 1) > 1 ? { sessions: entry.sessions, worktrees: entry.worktrees } : entry.sessions]),
     ),
     languages: top(activity.languages, 5),
     tools: top(activity.tools, 8),

@@ -1,4 +1,5 @@
 import type { Harness, Session } from "../schema/types.js";
+import { isSlashCommandOnly, MIN_FACET_PROMPTS, promptCount } from "../store/pipeline.js";
 
 /** A transcript written to this recently is probably a session that is still running. */
 export const LIVE_WINDOW_MS = 10 * 60 * 1000;
@@ -7,18 +8,15 @@ export function isLive(mtimeMs: number, now: Date): boolean {
   return Number.isFinite(mtimeMs) && now.getTime() - mtimeMs < LIVE_WINDOW_MS;
 }
 
-/** Every prompt was a slash command (`/mcp`, `/insights`): nothing the person asked the agent to do. */
-export function isSlashCommandOnly(session: Session): boolean {
-  return session.prompts.length > 0 && session.prompts.every((prompt) => prompt.text.trimStart().startsWith("/"));
-}
+export { isSlashCommandOnly };
 
 /** Other agents spoke more than the person did, so the session was mostly steered by automation. */
 export function isAgentDriven(session: Session): boolean {
   return (session.agentMessageCount ?? 0) > session.userMessageCount;
 }
 
-/** Default floor of the person's own prompts for a session to be worth a facet. */
-export const DEFAULT_MIN_USER_MESSAGES = 2;
+/** Default floor of prompts (from the person or another agent) for a session to be worth a facet. */
+export const DEFAULT_MIN_USER_MESSAGES = MIN_FACET_PROMPTS;
 
 export interface SkipCounts {
   live: number;
@@ -28,21 +26,24 @@ export interface SkipCounts {
 
 export interface CandidateRules {
   harness?: Harness | undefined;
-  /** Only sessions with no saved facet. */
+  /** Only sessions that need a facet: none saved yet, or a stale one (see `staleFacet`). */
   missingOnly: boolean;
   minUserMessages: number;
   skipLive: boolean;
   skipSlashCommandOnly: boolean;
   hasFacet: (session: Session) => boolean;
+  /** The saved facet no longer describes the session; offered again unless this is absent or returns false. */
+  staleFacet?: (session: Session) => boolean;
   live: (session: Session) => boolean;
 }
 
-/** The sessions a listing offers under `rules`, and how many each rule held back. */
-export function filterCandidates(sessions: Session[], rules: CandidateRules): { matching: Session[]; skipped: SkipCounts } {
+/** The sessions a listing offers under `rules`, how many each rule held back, and how many are re-judgements. */
+export function filterCandidates(sessions: Session[], rules: CandidateRules): { matching: Session[]; skipped: SkipCounts; stale: number } {
   const skipped: SkipCounts = { live: 0, slashCommandOnly: 0, fewPrompts: 0 };
+  const stale = (session: Session) => rules.hasFacet(session) && (rules.staleFacet?.(session) ?? false);
   const matching = sessions.filter((session) => {
     if (rules.harness && session.harness !== rules.harness) return false;
-    if (rules.missingOnly && rules.hasFacet(session)) return false;
+    if (rules.missingOnly && rules.hasFacet(session) && !stale(session)) return false;
     if (rules.skipLive && rules.live(session)) {
       skipped.live += 1;
       return false;
@@ -51,26 +52,31 @@ export function filterCandidates(sessions: Session[], rules: CandidateRules): { 
       skipped.slashCommandOnly += 1;
       return false;
     }
-    if (session.userMessageCount < rules.minUserMessages) {
+    if (promptCount(session) < rules.minUserMessages) {
       skipped.fewPrompts += 1;
       return false;
     }
     return true;
   });
-  return { matching, skipped };
+  return { matching, skipped, stale: rules.missingOnly ? matching.filter(stale).length : 0 };
 }
 
 /** What a default missing-facet listing would still offer: the number to tell the person, kept in step with that listing. */
-export function facetBacklog(sessions: Session[], hasFacet: (session: Session) => boolean, live: (session: Session) => boolean) {
-  const { matching, skipped } = filterCandidates(sessions, {
+export function facetBacklog(
+  sessions: Session[],
+  facets: { hasFacet: (session: Session) => boolean; staleFacet: (session: Session) => boolean },
+  live: (session: Session) => boolean,
+) {
+  const { matching, skipped, stale } = filterCandidates(sessions, {
     missingOnly: true,
     minUserMessages: DEFAULT_MIN_USER_MESSAGES,
     skipLive: true,
     skipSlashCommandOnly: true,
-    hasFacet,
+    hasFacet: facets.hasFacet,
+    staleFacet: facets.staleFacet,
     live,
   });
-  return { toJudge: matching.length, skipped };
+  return { toJudge: matching.length, stale, skipped };
 }
 
 /**

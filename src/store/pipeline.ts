@@ -22,9 +22,34 @@ export function localTimeZone(): string {
   }
 }
 
+/** Every prompt was a slash command (`/mcp`, `/insights`): nothing the person asked the agent to do. */
+export function isSlashCommandOnly(session: Session): boolean {
+  return session.prompts.length > 0 && session.prompts.every((prompt) => prompt.text.trimStart().startsWith("/"));
+}
+
+/** Default floor of prompts for a session to be worth a facet. */
+export const MIN_FACET_PROMPTS = 2;
+
+/**
+ * Messages that asked the agent for something: the person's prompts plus those another agent sent. A worker an
+ * orchestrator drives may hold one typed prompt and many briefs; it is still a session worth judging.
+ */
+export function promptCount(session: Session): number {
+  return session.userMessageCount + Math.max(0, session.agentMessageCount ?? 0);
+}
+
+/**
+ * Whether a facet for this session belongs in the aggregates: the same rule the default facet listing applies.
+ * Sessions with almost no prompts, or only slash commands, are not judged today; facets saved for them
+ * earlier stay on disk but do not count.
+ */
+export function countsForFacets(session: Session): boolean {
+  return promptCount(session) >= MIN_FACET_PROMPTS && !isSlashCommandOnly(session);
+}
+
 /** Builds the report from a scan plus whatever facets and narrative the model pass has saved. */
 export async function buildFromScan(deps: PipelineDeps, result: ScanResult): Promise<{ report: Report; facetCount: number; hasNarrative: boolean }> {
-  const keys = new Set(result.sessions.map((session) => sessionKey(session.harness, session.id)));
+  const keys = new Set(result.sessions.filter(countsForFacets).map((session) => sessionKey(session.harness, session.id)));
   const facets = await deps.store.listFacets(keys);
   const narrative = await deps.store.readNarrative();
   const report = deps.buildReport({
