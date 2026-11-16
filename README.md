@@ -1,25 +1,62 @@
 # AI Insights
 
-**See how you actually work with your AI coding agents, and what to change.** AI Insights reads your local agent history (Claude Code, Codex, OpenCode, Pi, Cursor, Gemini CLI) and turns it into a private report: where your time and tokens go, what keeps going wrong, and specific fixes to try.
+**Your AI coding, recapped.** One command turns your local agent history (Claude Code, Codex, OpenCode, Pi, Cursor, Gemini CLI) into animated recap cards you can post, and a private analysis of what to change. Nothing leaves your machine.
 
-[![An AI Insights report](https://raw.githubusercontent.com/hamedmp/ai-insights/main/assets/report.png)](https://hamedmp.github.io/ai-insights/demo/report.html)
+[![Recap cards from the sample report, in the Pop, Instrument panel and Sticker sheet styles](https://raw.githubusercontent.com/hamedmp/ai-insights/main/assets/report.png)](https://hamedmp.github.io/ai-insights/demo/report.html)
 
-[Website](https://hamedmp.github.io/ai-insights/) · [Sample report](https://hamedmp.github.io/ai-insights/demo/report.html) · [npm](https://www.npmjs.com/package/ai-insights)
+[Website](https://hamedmp.github.io/ai-insights/) · [Sample recap](https://hamedmp.github.io/ai-insights/demo/report.html) · [npm](https://www.npmjs.com/package/ai-insights)
 
 AI Insights was called Hindsight until v0.2; `@matrix-os/hindsight` is deprecated in favour of `ai-insights`.
 
-Everything runs on your machine. AI Insights makes no network calls and never calls a model API; the judgement part runs in the agent you already use.
+```
+npx ai-insights
+```
 
-**Status:** early (0.2). History is read from **Claude Code, Codex, OpenCode, Pi, Cursor and Gemini CLI**. Cursor's local transcripts hold no token counts, and Gemini CLI support is built from its source format without real history to test against. Skill installs for Cursor, Pi and OpenCode are untested.
+Or, from your agent: install the plugin (below) and run `/analyze-ai-usage`.
+
+## What you get
+
+One self-contained HTML page on your disk, in three parts.
+
+**A recap to share.** Up to 21 animated cards about how you work: your persona, the most agents you ran at once, living dangerously (`rm -rf`, force pushes), your manners, your favourite word, when you prompt, your streak, your bash hall of fame, tests, your top model, tokens, three things to try next, and a summary. A card only appears when your history has the data for it.
+
+<p align="center"><img src="https://raw.githubusercontent.com/hamedmp/ai-insights/main/assets/recap.gif" alt="The first cards of the sample recap playing" width="400"></p>
+
+- **Three styles:** Pop (the default), Instrument panel and Sticker sheet.
+- **Four shapes:** 1:1, 9:16, 4:5 and 16:9. Each card is laid out again for the shape, so nothing is cropped.
+- **A card studio:** pick and order the cards, choose where you will post (X, Instagram feed, Reels, Stories, TikTok, LinkedIn, YouTube Shorts) and see whether the length fits.
+- **Export in the page:** an MP4 video (in Chromium browsers today; other browsers get a terminal recipe using headless Chrome and ffmpeg) or PNG images.
+- **Share:** X and LinkedIn open with a caption ready; Instagram and TikTok or Shorts get the file saved and the caption copied; your system share sheet where the browser has one.
+
+Cards hold counts and a few allowlisted words only: no prompts, file or project names, paths or session ids. Every card carries the "AI Insights by Matrix OS" mark by default (you can turn it off), and the last card shows how to make your own. The launch hashtag is `#AIInsights`.
+
+**A private analysis to act on.** Your rhythm, parallel sessions on a timeline, tokens and cost at API list prices, and findings with the evidence behind them: a command that keeps failing, instructions you keep repeating, sessions that end in a context reset, corrections that come late. Then the changes ranked, each with text to paste into `CLAUDE.md` or `AGENTS.md`, a setting, or a habit to try.
+
+**Over time.** Every run saves a small snapshot. The next run shows what changed since: findings that look resolved, still open, or new.
+
+## Status
+
+Early (0.2). History is read from six agents:
+
+| Agent | History | Tokens | Skill install |
+| --- | --- | --- | --- |
+| Claude Code | read | yes | plugin |
+| Codex | read | yes | plugin |
+| OpenCode | read (the database needs Node 22.5 or later) | yes | untested |
+| Pi | read | yes | untested |
+| Cursor | read | no: its local transcripts hold no token counts | untested |
+| Gemini CLI | untested: built from its source format, not yet tried on real history | yes | none yet, use `npx` |
 
 ## Install
 
-Each install adds the same MCP server (`npx -y ai-insights mcp`) and three skills:
-- `analyze-ai-usage` builds the report;
+You need Node.js 20 or newer.
+
+**Without an agent:** `npx ai-insights` writes the report (add `--open` to open it). `npx ai-insights doctor` shows which history it found and where.
+
+**From your agent:** each install adds the same MCP server (`npx -y ai-insights mcp`) and three skills:
+- `analyze-ai-usage` builds the report, with your own agent labelling a sample of sessions and writing a short narrative;
 - `ai-insights-coach` turns the findings into edits you review;
 - `ai-insights-setup` checks that everything works.
-
-You need Node.js 20 or newer.
 
 **Claude Code**
 
@@ -35,11 +72,11 @@ codex plugin marketplace add hamedmp/ai-insights
 codex plugin add ai-insights@ai-insights
 ```
 
-**Cursor** (untested; Cursor history is not read yet): from a clone of this repository, run `scripts/install.sh --harness cursor`. It adds the server to `~/.cursor/mcp.json` and the skills to `~/.cursor/skills`.
+**Cursor** (untested install): from a clone of this repository, run `scripts/install.sh --harness cursor`. It adds the server to `~/.cursor/mcp.json` and the skills to `~/.cursor/skills`.
 
-**Pi** (untested; Pi history is not read yet): `pi install git:github.com/hamedmp/ai-insights`
+**Pi** (untested install): `pi install git:github.com/hamedmp/ai-insights`
 
-**OpenCode** (untested; OpenCode history is not read yet): from a clone, run `scripts/install.sh --harness opencode`.
+**OpenCode** (untested install): from a clone, run `scripts/install.sh --harness opencode`.
 
 **Several harnesses at once:** clone this repository and run `scripts/install.sh`. The script:
 - finds the harnesses on your machine;
@@ -48,19 +85,7 @@ codex plugin add ai-insights@ai-insights
 
 It needs no root, writes only inside your home folder, and is safe to run again. Add `--dry-run` to see what it would do first.
 
-Then start a new session and ask your agent to **analyze my AI usage** (or run `/analyze-ai-usage`).
-
-**Without an agent:** `npx ai-insights` builds the numbers-only report from the command line. `npx ai-insights doctor` shows which history it found.
-
-## What you get
-
-- **A single HTML report** on your disk, covering:
-  - activity over time and by project;
-  - tokens and estimated cost at API list prices, saying how much it could not price;
-  - wall-clock time kept apart from agent-hours.
-- **Findings with evidence**, such as a command that keeps failing, instructions you keep repeating, sessions that end in a context reset, or corrections that come late. Each one is backed by evidence you can check.
-- **A narrative from your own agent:** what kinds of work you do, how you drive the agent, what works, what gets in the way, and what to try next.
-- **Coaching you approve:** `ai-insights-coach` suggests concrete changes, such as a line for `CLAUDE.md` or `AGENTS.md`, a setting to turn on or a habit to try. It shows each one as a diff and writes nothing without your yes.
+Then start a new session and run `/analyze-ai-usage` (or ask your agent to **analyze my AI usage**).
 
 ## What it reads
 
@@ -81,24 +106,27 @@ It does not store the agent's replies or tool output. During analysis, your agen
 
 AI Insights writes everything to `~/.ai-insights/` (set `AI_INSIGHTS_HOME` to move it), and only you can read those files. If you used it as Hindsight before 0.2 and have a `~/.hindsight/` folder, it keeps using that folder (and still honours `HINDSIGHT_HOME`), so earlier results carry over; nothing is moved or deleted.
 
+It can only look back as far as your agents keep their files. Claude Code keeps local transcripts for 30 days by default (its `cleanupPeriodDays` setting changes that), so run it soon, and raise that setting if you want a longer look back next time.
+
 ## Privacy
 
-- **Local only.** No network calls, no telemetry, no account. The report is one HTML file that loads nothing from the network.
+- **Local only.** No network calls, no telemetry, no account. The report is one HTML file whose Content-Security-Policy (`default-src 'none'`) stops it loading or sending anything.
+- **Share-safe cards.** Cards and captions are built only from counts, allowlisted words and public program, model and agent names. The private analysis never reaches a card.
 - **Your agent does the analysis.** AI Insights never calls a model API. The judgement runs in the agent you already use, under your existing account and settings.
 - **Redaction.** Before anything is stored or shown, AI Insights redacts common secret formats from prompts, commands and excerpts: API keys, bearer tokens, private keys, `PASSWORD=`-style assignments and email addresses. It also shortens home-folder paths to `~`. Redaction is pattern-based, so it can miss an unusual secret, and the skills tell your agent never to copy one into its notes.
 
-The report links to Matrix OS and to the docs for the tools it suggests; nothing else in it points off your machine.
+The report links to Matrix OS, to the docs for the tools it suggests, and to X and LinkedIn when you press a share button; nothing else in it points off your machine.
 
 ## How the analysis works
 
-1. **Deterministic.** The scan parses your history into sessions. From those it computes activity, token usage, cost and findings, each with evidence you can check. No model is involved, so the same history always gives the same result.
+1. **Deterministic.** The scan parses your history into sessions. From those it computes activity, the recap, token usage, cost and findings, each with evidence you can check. No model is involved, so the same history always gives the same result.
 2. **Run by your agent.** The `analyze-ai-usage` skill has your agent read a redacted excerpt of each session in a sample spread across your history. The agent labels each session with a fixed set of labels covering goal, outcome, friction and what went well, then writes a short narrative. The labels are checked against that set before they are saved, so the charts stay comparable from run to run.
 
 The report combines both layers.
 
 ## Matrix OS
 
-AI Insights can only look back as far as your agents keep their transcripts, and Claude Code deletes them after 30 days by default. [Matrix OS](https://matrix-os.com) keeps your agent history long-term and builds memory on top of it, so you can look back further than a month.
+AI Insights is built by the team behind [Matrix OS](https://matrix-os.com), the AI operating system we are building. AI Insights is free, MIT licensed and works without it.
 
 ## Development
 
@@ -110,6 +138,8 @@ node scripts/generate-harness.mjs   # after changing skills/, the version, the i
 ```
 
 `skills/` is the only source for the skills. `scripts/generate-harness.mjs` generates every harness manifest, plus the installable plugin in `harness/ai-insights/` that Claude Code and Codex install. CI fails when the generated files are out of date. [AGENTS.md](AGENTS.md) describes the module layout and the rules.
+
+The website lives in `site/`. Its pictures and sample video come from the sample report: `node scripts/demo-report.mjs`, then `pnpm --dir site media`.
 
 Bugs and ideas go to [GitHub issues](https://github.com/hamedmp/ai-insights/issues).
 
