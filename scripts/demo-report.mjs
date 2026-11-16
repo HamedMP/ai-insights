@@ -35,7 +35,8 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const { buildReport } = await import("../src/analysis/index.ts");
 const { renderReport } = await import("../src/render/index.ts");
 const { rankActions } = await import("../src/render/story.ts");
-const { settingsSnippet } = await import("../src/render/chapters/advice.ts");
+const { settingsSnippet } = await import("../src/render/view.ts");
+const { makeSnapshot, compareRuns } = await import("../src/store/snapshots.ts");
 
 const args = process.argv.slice(2);
 const jsonAt = args.indexOf("--json");
@@ -328,6 +329,26 @@ for (let day = CODEX_FROM; day < NOW.getTime() - DAY / 2; day += DAY) {
   });
 }
 
+// The other harnesses AI Insights reads, a few sessions each, so the page shows all six: OpenCode records its
+// own cost (here $0, a subscription), Cursor records no token counts at all, Pi and Gemini CLI price normally.
+{
+  const extra = [
+    ["opencode", "api", "claude-sonnet-4-6", 4],
+    ["pi", "data", "gpt-5.4", 3],
+    ["cursor", "web", "claude-sonnet-4-6", 3],
+    ["gemini", "docs", "gemini-2.5-pro", 2],
+  ];
+  for (const [harness, projectKey, model, count] of extra) {
+    for (let index = 0; index < count; index += 1) {
+      const day = NOW - (3 + index * 4 + int(0, 2)) * DAY;
+      const session = makeSession({ harness, projectKey, start: local(day, 10 + int(0, 6)), minutes: int(20, 70), prompts: int(3, 8), model });
+      if (harness === "cursor") session.requests = [];
+      if (harness === "opencode") session.requests = session.requests.map((request) => ({ ...request, costUsd: 0 }));
+      sessions.push(session);
+    }
+  }
+}
+
 sessions.sort((a, b) => a.startTime.localeCompare(b.startTime));
 
 // ---------------------------------------------------------------------------
@@ -361,9 +382,10 @@ const facets = sessions
 const COVERAGE = [
   { harness: "claude-code", label: "Claude Code", found: true, files: 0, sessions: 0, bytes: 1_480_000_000, issues: 0, oldest: null, newest: null },
   { harness: "codex", label: "Codex", found: true, files: 0, sessions: 0, bytes: 310_000_000, issues: 0, oldest: null, newest: null },
-  { harness: "cursor", label: "Cursor", found: false, files: 0, sessions: 0, issues: 0, oldest: null, newest: null },
-  { harness: "pi", label: "Pi", found: false, files: 0, sessions: 0, issues: 0, oldest: null, newest: null },
-  { harness: "opencode", label: "OpenCode", found: false, files: 0, sessions: 0, issues: 0, oldest: null, newest: null },
+  { harness: "cursor", label: "Cursor", found: true, files: 0, sessions: 0, issues: 0, oldest: null, newest: null },
+  { harness: "pi", label: "Pi", found: true, files: 0, sessions: 0, issues: 0, oldest: null, newest: null },
+  { harness: "opencode", label: "OpenCode", found: true, files: 0, sessions: 0, issues: 0, oldest: null, newest: null },
+  { harness: "gemini", label: "Gemini CLI", found: true, files: 0, sessions: 0, issues: 0, oldest: null, newest: null },
 ].map((entry) => {
   const own = sessions.filter((session) => session.harness === entry.harness);
   if (!own.length) return entry;
@@ -437,7 +459,17 @@ for (const area of narrative.workAreas) {
 }
 
 const report = { ...deterministic, narrative };
-const htmlText = renderReport(report);
+
+// Earlier runs, as the store would have saved them: the same history cut off at each date, no narrative yet.
+const RUN_DAYS = [21, 14, 7];
+const runs = RUN_DAYS.map((back) => {
+  const cut = NOW.getTime() - back * DAY;
+  const before = sessions.filter((session) => Date.parse(session.endTime) <= cut);
+  const past = buildReport({ sessions: before, coverage: COVERAGE, timeZone: ZONE, now: new Date(cut), facets: facets.filter((facet) => before.some((session) => session.id === facet.sessionId)) });
+  return makeSnapshot(past);
+});
+runs.push(makeSnapshot(report));
+const htmlText = renderReport(report, { runs, comparison: compareRuns(runs.at(-2), runs.at(-1)) });
 
 mkdirSync(dirname(outPath), { recursive: true });
 writeFileSync(outPath, htmlText);

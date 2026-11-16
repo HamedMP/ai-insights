@@ -16,6 +16,13 @@
     },
     {
       "lane": 0,
+      "from": 90,
+      "to": 125,
+      "harness": "gemini",
+      "agent": false
+    },
+    {
+      "lane": 1,
       "from": 91,
       "to": 121,
       "harness": "codex",
@@ -271,7 +278,7 @@
     },
     {
       "day": "2026-10-30",
-      "sessions": 4
+      "sessions": 5
     },
     {
       "day": "2026-10-31",
@@ -279,11 +286,11 @@
     },
     {
       "day": "2026-11-01",
-      "sessions": 0
+      "sessions": 1
     },
     {
       "day": "2026-11-02",
-      "sessions": 3
+      "sessions": 5
     },
     {
       "day": "2026-11-03",
@@ -295,11 +302,11 @@
     },
     {
       "day": "2026-11-05",
-      "sessions": 6
+      "sessions": 8
     },
     {
       "day": "2026-11-06",
-      "sessions": 7
+      "sessions": 9
     },
     {
       "day": "2026-11-07",
@@ -311,15 +318,15 @@
     },
     {
       "day": "2026-11-09",
-      "sessions": 4
+      "sessions": 5
     },
     {
       "day": "2026-11-10",
-      "sessions": 3
+      "sessions": 4
     },
     {
       "day": "2026-11-11",
-      "sessions": 16
+      "sessions": 18
     },
     {
       "day": "2026-11-12",
@@ -331,19 +338,19 @@
     }
   ],
   "numbers": {
-    "sessions": 149,
-    "hoursWithAi": 133,
-    "agentHours": 166,
+    "sessions": 161,
+    "hoursWithAi": 137,
+    "agentHours": 174,
     "mostAtOnce": 7,
-    "usd": 589,
-    "tokensM": 909,
-    "cachePct": 96.5,
+    "usd": 596,
+    "tokensM": 922,
+    "cachePct": 96.4,
     "findings": 9
   },
   "findings": [
     {
       "title": "pnpm test:e2e keeps failing",
-      "value": 111,
+      "value": 113,
       "label": "failed runs"
     },
     {
@@ -364,10 +371,10 @@
       "title": "Tell the agent how this command should be run",
       "why": "pnpm test:e2e keeps failing",
       "metric": {
-        "value": 111,
+        "value": 113,
         "label": "failed runs"
       },
-      "evidence": "pnpm test:e2e failed 111 times out of 119 runs across 32 sessions.",
+      "evidence": "pnpm test:e2e failed 113 times out of 121 runs across 34 sessions.",
       "action": "Find out why it fails (missing setup, wrong directory, wrong script name) and write the correct invocation into your instructions file so the agent stops guessing.",
       "paste": {
         "into": "CLAUDE.md or AGENTS.md",
