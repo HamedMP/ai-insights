@@ -1,5 +1,5 @@
 /**
- * Read-only SQLite through `node:sqlite`, which ships with Node 22.5 and later. Hindsight supports Node 20,
+ * Read-only SQLite through `node:sqlite`, which ships with Node 22.5 and later. AI Insights supports Node 20,
  * so the module is loaded lazily and its absence is reported, never thrown.
  */
 

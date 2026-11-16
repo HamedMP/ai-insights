@@ -1,6 +1,6 @@
 # AI Insights
 
-**See how you actually work with your AI coding agents, and what to change.** AI Insights reads your local Claude Code and Codex history and turns it into a private report: where your time and tokens go, what keeps going wrong, and specific fixes to try.
+**See how you actually work with your AI coding agents, and what to change.** AI Insights reads your local agent history (Claude Code, Codex, OpenCode, Pi, Cursor, Gemini CLI) and turns it into a private report: where your time and tokens go, what keeps going wrong, and specific fixes to try.
 
 [![An AI Insights report](https://raw.githubusercontent.com/hamedmp/ai-insights/main/assets/report.png)](https://hamedmp.github.io/ai-insights/demo/report.html)
 
@@ -10,7 +10,7 @@ AI Insights was called Hindsight until v0.2; `@matrix-os/hindsight` is deprecate
 
 Everything runs on your machine. AI Insights makes no network calls and never calls a model API; the judgement part runs in the agent you already use.
 
-**Status:** early (0.2). History is read from **Claude Code and Codex**. Cursor, Pi and OpenCode can run the skills, but their own history is not parsed yet, and those installs are untested.
+**Status:** early (0.2). History is read from **Claude Code, Codex, OpenCode, Pi, Cursor and Gemini CLI**. Cursor's local transcripts hold no token counts, and Gemini CLI support is built from its source format without real history to test against. Skill installs for Cursor, Pi and OpenCode are untested.
 
 ## Install
 
@@ -68,6 +68,10 @@ Then start a new session and ask your agent to **analyze my AI usage** (or run `
 | --- | --- |
 | Claude Code | `~/.claude/projects/**/*.jsonl` (or under `CLAUDE_CONFIG_DIR`) |
 | Codex | `~/.codex/sessions` and `~/.codex/archived_sessions` (or under `CODEX_HOME`) |
+| OpenCode | `~/.local/share/opencode/opencode.db` (or `OPENCODE_DB`, `XDG_DATA_HOME`), plus the older `storage/` files. The database needs Node 22.5 or later. |
+| Pi | `~/.pi/agent/sessions` (or `PI_CODING_AGENT_DIR`, `PI_CODING_AGENT_SESSION_DIR`), and OMP's `~/.omp` sessions and profiles |
+| Cursor | `~/.cursor/projects/*/agent-transcripts` (prompts and tool calls; no tokens) |
+| Gemini CLI | `~/.gemini/tmp/*/chats` (or under `GEMINI_CLI_HOME`) |
 
 From each transcript, AI Insights keeps:
 - numbers: tokens, durations, tool calls, errors and lines changed;
