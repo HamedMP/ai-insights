@@ -42,19 +42,50 @@ describe("claude source: messages from other agents", () => {
       // The harness expanding a skill body is neither the person nor another agent.
       prompt(T(3, 30), "Base directory for this skill: ...", { isMeta: true }),
       prompt(T(5), 'thanks. what did <hc from="t35"> mean in that note?', human),
-      prompt(T(5, 30), '<pasted_content id="p1"><hc from="t35">note</hc></pasted_content>', human),
+      // Long relays reach the terminal as a paste; with nothing typed around them they are still the relay.
+      prompt(T(5, 30), '<pasted_content id="p1">\n<hc from="t35">Wave 3: merge main</hc>\n</pasted_content id="p1">', human),
+      attachment(T(5, 40), {
+        type: "queued_command",
+        commandMode: "prompt",
+        prompt: '<pasted_content id="p2"><cross-session-message from="t2">done</cross-session-message></pasted_content id="p2">',
+        origin: { kind: "human" },
+      }),
+      // Something the person wrote around a pasted relay is the person speaking.
+      prompt(T(6), '<pasted_content id="p3"><hc from="t35">note</hc></pasted_content id="p3"> is this right?', human),
+      prompt(T(6, 30), '<pasted_content id="p4">a stack trace</pasted_content id="p4">', human),
     ]);
     expect(session.prompts.map((p) => p.text)).toEqual([
       "build the parser",
       'thanks. what did <hc from="t35"> mean in that note?',
-      '<pasted_content id="p1"><hc from="t35">note</hc></pasted_content>',
+      '<pasted_content id="p3"><hc from="t35">note</hc></pasted_content id="p3"> is this right?',
+      '<pasted_content id="p4">a stack trace</pasted_content id="p4">',
     ]);
-    expect(session.userMessageCount).toBe(3);
-    // Three hub relays, a hand-back, a queued relay and a peer message. Task notifications and the
+    expect(session.userMessageCount).toBe(4);
+    // Three hub relays, a hand-back, a queued relay, a peer message and two pasted relays. Task notifications and the
     // scheduled wake-up are the harness reporting on the agent's own work, not another agent.
-    expect(session.agentMessageCount).toBe(6);
+    expect(session.agentMessageCount).toBe(8);
     // Only the person's reply to the agent's last answer is a response time.
     expect(session.userResponseTimesSec).toEqual([120]);
+  });
+});
+
+describe("claude source: relays pasted into the terminal", () => {
+  it("shows a pasted relay as the other agent's message, without the paste wrapper", async () => {
+    const turns = await claudeSource.excerpt(
+      transcript([
+        prompt(T(0), "You are one of six workers. Read the brief and build the parser.", human),
+        assistant(T(1), "m1", [text("done")]),
+        prompt(T(2), '<pasted_content id="p1">\n<hc from="t35">Wave 3: merge main</hc>\n</pasted_content id="p1">', human),
+        assistant(T(3), "m2", [text("merged")]),
+      ]),
+    );
+    expect(turns.map((turn) => [turn.role, turn.text])).toEqual([
+      // The launch brief cannot be told from typing, so it stays the person's.
+      ["user", "You are one of six workers. Read the brief and build the parser."],
+      ["assistant", "done"],
+      ["agent", '<hc from="t35">Wave 3: merge main</hc>'],
+      ["assistant", "merged"],
+    ]);
   });
 });
 
