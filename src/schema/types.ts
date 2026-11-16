@@ -329,6 +329,11 @@ export interface Suggestion {
   instructionText?: string;
   /** For `feature` and `plugin`: a link to learn more or install. */
   url?: string;
+  /**
+   * On a narrative suggestion: the `Finding.id` it builds on. A renderer shows one card for the pair, so the
+   * same idea is not listed twice. Absent when the suggestion stands on its own.
+   */
+  findingId?: string;
 }
 
 export interface Finding {

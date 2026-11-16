@@ -3,7 +3,7 @@ import { join } from "node:path";
 import type { DiscoverOptions, ExcerptOptions, Session, SessionFile, Source, TranscriptTurn } from "../../schema/types.js";
 import { scrub } from "../shared.js";
 import { expandRoots, rolloutIndex, rootForPath } from "./discover.js";
-import { buildRollout, foldChild } from "./parse.js";
+import { buildRollout, foldChild, SUBAGENT_REPLY } from "./parse.js";
 import { chooseProject, MAX_EVIDENCE } from "./project.js";
 
 function codexHome(): string {
@@ -94,7 +94,10 @@ function selectTurns(turns: TranscriptTurn[], maxTurns: number, around?: string)
   const users = indexed.filter(({ turn }) => turn.role === "user");
   const brief = users.findIndex(({ turn }) => turn.text !== INTERRUPTED);
   const signals = indexed.filter(({ turn, index }) => index !== finalIndex && (turn.isError || turn.role === "agent"));
-  const rest = indexed.filter(({ turn, index }) => index !== finalIndex && turn.role !== "user" && !turn.isError && turn.role !== "agent");
+  const isReply = (turn: TranscriptTurn) => turn.toolName === SUBAGENT_REPLY && !turn.isError;
+  const rest = indexed.filter(({ turn, index }) => index !== finalIndex && turn.role !== "user" && !turn.isError && turn.role !== "agent" && !isReply(turn));
+  // Subagent replies are the session's own machinery reporting in: only room nothing else wanted goes to them.
+  const replies = indexed.filter(({ turn, index }) => index !== finalIndex && isReply(turn));
   const picked: Indexed[] = [];
   let room = maxTurns;
   if (finalIndex >= 0) {
@@ -110,7 +113,9 @@ function selectTurns(turns: TranscriptTurn[], maxTurns: number, around?: string)
   const signalTake = Math.min(signals.length, Math.max(Math.ceil(room / 2), room - rest.length));
   picked.push(...pickEvenly(signals, signalTake));
   room -= signalTake;
-  picked.push(...pickEvenly(rest, room));
+  const restTake = Math.min(rest.length, room);
+  picked.push(...pickEvenly(rest, restTake));
+  picked.push(...pickEvenly(replies, room - restTake));
   return picked.sort((a, b) => a.index - b.index).map(({ turn }) => turn);
 }
 
@@ -140,7 +145,7 @@ async function excerpt(file: SessionFile, options: ExcerptOptions = {}): Promise
 
 export const codexSource: Source = {
   // Bump whenever a parser change would give a different Session from the same rollout, so cached history is re-parsed.
-  parserVersion: "2",
+  parserVersion: "3",
   harness: "codex",
   label: "Codex",
   defaultRoots,

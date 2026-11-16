@@ -97,3 +97,8 @@ export function lastSegment(path: unknown): string {
   if (typeof path !== "string" || !path) return "";
   return path.slice(path.lastIndexOf("/") + 1) || path;
 }
+
+/** A reply from one of the session's own subagents: `subagent tests: all green`, one bounded line. */
+export function subagentReplyLine(agent: string, text: string): string {
+  return oneLine(`subagent${agent ? ` ${agent}` : ""}${text.trim() ? `: ${text}` : " replied"}`, MAX_CONNECTOR_LINE);
+}

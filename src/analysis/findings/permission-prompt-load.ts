@@ -11,8 +11,11 @@ const MIN_PER_HUNDRED = 1;
 /** Above these, the person is interrupted every few minutes of agent work. */
 const MEDIUM_PER_HUNDRED = 5;
 const HIGH_PER_HUNDRED = 15;
-/** The same safe command blocked this often, in more than one session, is worth an allow rule whatever the overall rate. */
-const MIN_PATTERN_DENIALS = 3;
+/**
+ * The same safe command blocked this often, in more than one session, is worth an allow rule whatever the overall rate.
+ * Fewer blocks than this are too thin to justify loosening permissions, even when the overall rate fires.
+ */
+const MIN_PATTERN_DENIALS = 5;
 const MIN_PATTERN_SESSIONS = 2;
 /** Named in the detail when blocked at least twice; once is not "repeatedly". */
 const REPEATED = 2;
@@ -207,9 +210,9 @@ export const permissionPromptLoad: Detector = ({ sessions }) => {
       kind: "permission_prompt_load",
       severity: !byRate ? "low" : perHundred >= HIGH_PER_HUNDRED ? "high" : perHundred >= MEDIUM_PER_HUNDRED ? "medium" : "low",
       title: rules.length ? `${name} keeps asking about the same commands` : `${name} keeps hitting permission walls`,
-      detail: `${plural(row.blocked, "tool call")} in ${name} were denied by permission settings or rejected by you, across ${plural(row.sessions.size, "session")}.${which ? ` ${which}` : ""} Each one stops the agent and waits for you.`,
+      detail: `${plural(row.blocked, "tool call")} in ${name} were denied by permission settings or rejected by you, across ${plural(row.sessions.size, "session")} (${Math.round(perHundred * 10) / 10} per 100 tool calls).${which ? ` ${which}` : ""} Each one stops the agent and waits for you.`,
       harnesses: [harness],
-      metric: { value: Math.round(perHundred * 10) / 10, unit: "per 100 calls", label: "blocked tool calls" },
+      metric: { value: row.blocked, unit: "blocked calls", label: "tool calls blocked or refused" },
       evidence: items,
       suggestion: {
         type: "feature",
