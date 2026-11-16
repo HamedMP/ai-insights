@@ -106,6 +106,37 @@ export const NarrativeSchema = z.strictObject({
     .max(8),
 }) satisfies z.ZodType<Narrative, unknown>;
 
+/** `<n>`, `<PR number>`, `<branch-name>`; not generics such as `Array<string>`, which follow a word character. */
+const ANGLE_PLACEHOLDER = /(?:^|[^\w])<[A-Za-z][\w ./:-]{0,40}>/;
+/** `…` anywhere, or `...` standing alone; `main...HEAD` and `...args` are real text. */
+const ELLIPSIS_PLACEHOLDER = /…|(?:^|[\s([{"'`])\.{3}(?=$|[\s)\]}"'`,;:])/;
+
+/** Which kind of placeholder `text` holds, or null. Instruction text is pasted into a file as is, so it must be final. */
+export function placeholderIn(text: string): "angle-bracket" | "ellipsis" | null {
+  if (ANGLE_PLACEHOLDER.test(text)) return "angle-bracket";
+  if (ELLIPSIS_PLACEHOLDER.test(text)) return "ellipsis";
+  return null;
+}
+
+/**
+ * The narrative as the agent saves it. Stricter than `NarrativeSchema`, which also reads back narratives saved
+ * before this rule existed, so an older run's narrative still loads.
+ */
+export const NarrativeInputSchema = NarrativeSchema.superRefine((narrative, ctx) => {
+  narrative.suggestions.forEach((suggestion, index) => {
+    const kind = suggestion.instructionText ? placeholderIn(suggestion.instructionText) : null;
+    if (!kind) return;
+    const example = kind === "angle-bracket" ? "an angle-bracket placeholder such as <n> or <branch>" : "an ellipsis (… or ...) standing in for text";
+    ctx.addIssue({
+      code: "custom",
+      path: ["suggestions", index, "instructionText"],
+      message:
+        `holds a placeholder: ${example}. instructionText is pasted into an instructions file exactly as written, ` +
+        "so write the final text with real values from the evidence, or leave instructionText out",
+    });
+  });
+});
+
 const TokenUsageSchema = z.object({
   input: z.number(),
   cachedInput: z.number(),

@@ -89,7 +89,7 @@ describe("hindsight_scan", () => {
     expect(json.coverage.find((entry: any) => entry.harness === "claude-code")).toMatchObject({ bytes: 200 });
     expect(json.coverage.find((entry: any) => entry.harness === "pi")).toMatchObject({ found: false });
     expect(json.headline).toMatchObject({ sessions: 3, toolErrors: 3 });
-    expect(json.facets).toEqual({ saved: 0, missing: 3 });
+    expect(json.facets).toMatchObject({ saved: 0, missing: 3, toJudge: 3 });
     expect(json.analysis).toMatchObject({ findings: 1, estimatedUsd: 0.42 });
   });
 
@@ -501,5 +501,76 @@ describe("headline numbers", () => {
     client = await connect({ buildReport: fakeBuildReport(buildCalls, { estimatedUsd: 10, requests: 10, unpriced: 1 }) });
     const { json } = await call("hindsight_render");
     expect(json.headline).toMatchObject({ activeHours: null, agentHours: 1.3, time: "1.3 agent-hours", cost: "about $10.00 for the requests we can price; 10% unpriced" });
+  });
+});
+
+describe("returning users and what is left to judge", () => {
+  function mixedHistory() {
+    const running = makeSession({ id: "running", sourceMtimeMs: NOW - 5 * 60_000 });
+    const brief = makeSession({ id: "brief", sourceMtimeMs: 7, userMessageCount: 1 });
+    claude.sessions = [running, brief, ...history("claude-code", "c", 3, 1)];
+    codex.sessions = history("codex", "x", 2, 5);
+  }
+
+  it("counts only the sessions the listing can still offer as missing, and the skipped ones apart", async () => {
+    mixedHistory();
+    const listing = await call("hindsight_sessions", { missingFacets: true });
+    expect(listing.json.total).toBe(5);
+
+    const { json } = await call("hindsight_save_facets", { facets: [validFacet("c0"), validFacet("x0", "codex")] });
+    expect(json.sessionsStillMissingFacets).toBe(3);
+    expect(json.skippedWithoutFacets).toEqual({ live: 1, slashCommandOnly: 0, fewPrompts: 1 });
+    const after = await call("hindsight_sessions", { missingFacets: true });
+    expect(after.json.total).toBe(json.sessionsStillMissingFacets);
+  });
+
+  it("tells a returning user how many sessions are already judged and that a new narrative replaces the old one", async () => {
+    mixedHistory();
+    const fresh = await call("hindsight_scan");
+    expect(fresh.json.facets).toMatchObject({ saved: 0, toJudge: 5 });
+    expect(fresh.json.narrative).toEqual({ saved: false });
+
+    await call("hindsight_save_facets", { facets: [validFacet("c0"), validFacet("c1")] });
+    await call("hindsight_save_narrative", { narrative: validNarrative() });
+    const again = await call("hindsight_scan");
+    expect(again.json.facets).toMatchObject({ saved: 2, toJudge: 3, skipped: { live: 1, slashCommandOnly: 0, fewPrompts: 1 } });
+    expect(again.json.narrative).toEqual({ saved: true });
+    expect(again.json.next).toContain("2 sessions already");
+    expect(again.json.next).toContain("replaces");
+  });
+});
+
+describe("hindsight_save_narrative placeholders", () => {
+  const withInstruction = (instructionText: string) => ({
+    ...validNarrative(),
+    suggestions: [{ type: "instructions", title: "Stack view", action: "Add a rule.", instructionText }],
+  });
+
+  it("rejects instruction text holding an angle-bracket or ellipsis placeholder, saying what to fix", async () => {
+    for (const text of ["Run `gh stack view <n> --json`.", "Run `gh stack view … --json`.", "Run gh stack view ... --json"]) {
+      const { isError, text: message } = await call("hindsight_save_narrative", { narrative: withInstruction(text) });
+      expect(isError).toBe(true);
+      expect(message).toContain("suggestions.0.instructionText");
+      expect(message).toContain("placeholder");
+    }
+  });
+
+  it("accepts real text that only looks similar: generics, comparisons and git ranges", async () => {
+    const text = "Compare with `git diff main...HEAD`; keep `Array<string>` types; a < b > c is fine; spread `...args`.";
+    const { isError } = await call("hindsight_save_narrative", { narrative: withInstruction(text) });
+    expect(isError).toBe(false);
+  });
+});
+
+describe("returning users with nothing new", () => {
+  it("skips straight to the narrative when every listable session already has a facet", async () => {
+    claude.sessions = history("claude-code", "c", 2, 1);
+    codex.sessions = [];
+    await call("hindsight_scan");
+    await call("hindsight_save_facets", { facets: [validFacet("c0"), validFacet("c1")] });
+    const { json } = await call("hindsight_scan");
+    expect(json.facets.toJudge).toBe(0);
+    expect(json.next).toContain("no new sessions need facets");
+    expect(json.next).not.toContain("up to 0");
   });
 });
