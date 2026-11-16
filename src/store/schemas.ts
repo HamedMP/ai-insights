@@ -199,6 +199,7 @@ export const SessionSchema = z.object({
   gitCommits: z.number(),
   gitPushes: z.number(),
   issues: z.number(),
+  skippedUsageRecords: z.number().int().min(0).optional(),
   toolCallsDropped: z.number().int().min(0).optional(),
   thinking: z.object({ blocks: z.number().int().min(0), totalMs: z.number().min(0).nullable(), longestMs: z.number().min(0).nullable() }).optional(),
   approvals: z
@@ -207,6 +208,7 @@ export const SessionSchema = z.object({
       byPerson: z.number().int().min(0).optional(),
       denied: z.number().int().min(0).optional(),
       guardianReviews: z.number().int().min(0).optional(),
+      autoBlocked: z.number().int().min(0).optional(),
     })
     .optional(),
   // Keeps keys this schema does not name yet, so a newer source's fields survive a cache round trip.

@@ -98,6 +98,12 @@ async function assignProjectRoots(entries: ScannedEntry[]): Promise<void> {
   }
 }
 
+/** Usage counters read but not counted, kept apart from unreadable lines; absent when there were none. */
+function skippedUsage(sessions: Session[]): { skippedUsageRecords?: number } {
+  const total = sessions.reduce((sum, session) => sum + (session.skippedUsageRecords || 0), 0);
+  return total > 0 ? { skippedUsageRecords: total } : {};
+}
+
 function newer(a: Session, b: Session): Session {
   return Date.parse(b.endTime) > Date.parse(a.endTime) ? b : a;
 }
@@ -215,6 +221,7 @@ export async function scan(deps: ScanDeps, options: ScanOptions = {}): Promise<S
       bytes: totalBytes(harnessFiles),
       sessions: harnessSessions.length,
       issues: (issues.get(harness) ?? 0) + harnessSessions.reduce((sum, session) => sum + (session.issues || 0), 0),
+      ...skippedUsage(harnessSessions),
       oldest: starts[0] ?? null,
       newest: ends[ends.length - 1] ?? null,
       // History that exists but cannot be read here is found, and counted as an issue, not silently absent.

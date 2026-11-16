@@ -207,6 +207,7 @@ export class RolloutBuilder {
   private reviewMode = false;
   private automated = false;
   private agentMessages = 0;
+  private autoBlocked = 0;
   private evidence: ProjectEvidence[] = [];
 
   private usage: UsageParser;
@@ -615,6 +616,9 @@ export class RolloutBuilder {
   /** Codex Desktop and app-server builds: one `item_completed` event per finished action. */
   private readItem(item: Record<string, unknown>, event: Record<string, unknown>, time: string): void {
     const at = msToIso(event.started_at_ms, time);
+    // The automatic reviewer's verdict is only visible in the blocked tool's result, as a telemetry code.
+    const code = obj(obj(obj(item.result)._meta)["codex/telemetry"]).error_code;
+    if (typeof code === "string" && AUTO_BLOCKED.has(code)) this.autoBlocked += 1;
     switch (item.type) {
       case "UserMessage":
         this.userText("item", time, contentText(item.content, "text"), hasImage(item.content));
@@ -792,6 +796,7 @@ export class RolloutBuilder {
 
     const requests: ModelRequest[] = this.usage.finish();
     this.issues += this.usage.issues;
+    const skippedUsage = this.usage.skipped;
     const agentMessageCount = track.agents + this.agentMessages;
     const evidence = this.evidence;
     if (!this.first || !this.last || (track.prompts.length === 0 && agentMessageCount === 0 && requests.length === 0 && calls.length === 0)) {
@@ -879,6 +884,8 @@ export class RolloutBuilder {
     };
     const dropped = calls === this.itemCalls ? this.dropped.item : this.dropped.classic;
     if (dropped) session.toolCallsDropped = dropped;
+    if (skippedUsage) session.skippedUsageRecords = skippedUsage;
+    if (this.autoBlocked) session.approvals = { autoBlocked: this.autoBlocked };
     const thinking = this.thinkingStats();
     if (thinking) session.thinking = thinking;
     return { meta: this.meta, session, turns, evidence };
@@ -900,6 +907,9 @@ export async function buildRollout(path: string, mtimeMs: number, options: Build
   return builder.finish(mtimeMs);
 }
 
+/** `codex/telemetry` error codes of actions the automatic reviewer blocked or let time out. */
+const AUTO_BLOCKED = new Set(["guardian_denied", "execution_rejected", "guardian_timed_out"]);
+
 /** Merge a guardian review or spawned subagent into the session that started it. */
 export function foldChild(parent: Session, child: BuiltRollout): void {
   // A review counts even when its thread recorded nothing else this parser keeps (no requests, no calls).
@@ -909,8 +919,11 @@ export function foldChild(parent: Session, child: BuiltRollout): void {
   parent.requests.push(...session.requests.slice(0, Math.max(0, 50_000 - parent.requests.length)));
   for (const model of session.models) if (!parent.models.includes(model) && parent.models.length < MAX_MODELS) parent.models.push(model);
   parent.issues += session.issues;
+  if (session.skippedUsageRecords) parent.skippedUsageRecords = (parent.skippedUsageRecords ?? 0) + session.skippedUsageRecords;
   // A guardian only reviews the parent's planned actions; its reads and its thinking are not the person's work.
   if (child.meta.kind === "guardian") return;
+  const blocked = session.approvals?.autoBlocked;
+  if (blocked) parent.approvals = { ...parent.approvals, autoBlocked: (parent.approvals?.autoBlocked ?? 0) + blocked };
   const room = Math.max(0, MAX_TOOL_CALLS - parent.toolCalls.length);
   parent.toolCalls.push(...session.toolCalls.slice(0, room));
   const dropped = Math.max(0, session.toolCalls.length - room) + (session.toolCallsDropped ?? 0);

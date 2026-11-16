@@ -167,7 +167,7 @@ export function buildApprovals(sessions: Session[]): RecapApprovals | undefined 
     const approvals = session.approvals;
     if (!approvals) continue;
     out.sessions += 1;
-    for (const key of ["auto", "byPerson", "denied", "guardianReviews"] as const) {
+    for (const key of ["auto", "byPerson", "denied", "guardianReviews", "autoBlocked"] as const) {
       const value = approvals[key];
       if (typeof value === "number" && Number.isFinite(value)) out[key] = (out[key] ?? 0) + value;
     }

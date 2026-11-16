@@ -51,6 +51,15 @@ beforeEach(async () => {
 });
 afterEach(async () => cleanup());
 
+describe("coverage wording", () => {
+  it("says skipped usage counters apart from unreadable lines", async () => {
+    const sources = [fakeSource("codex", [makeSession({ id: "x1", harness: "codex", issues: 2, skippedUsageRecords: 5 })])];
+    expect(await run(["scan"], deps({ sources }))).toBe(0);
+    expect(out).toContain("2 unreadable lines, 5 usage counters skipped");
+    expect(out).not.toContain("unreadable record");
+  });
+});
+
 describe("ai-insights (no command)", () => {
   it("scans, writes the report and prints its path with a three-line summary", async () => {
     expect(await run([], deps())).toBe(0);

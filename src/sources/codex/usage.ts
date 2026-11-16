@@ -77,6 +77,8 @@ export class UsageParser {
   private inherited = false;
   private readonly events = new Map<string, UsageEvent>();
   issues = 0;
+  /** Counters read but not counted: a backwards counter nothing explains, a shrinking duplicate, a superseded copy. */
+  skipped = 0;
 
   constructor(fallbackSession: string) {
     this.session = fallbackSession;
@@ -184,7 +186,7 @@ export class UsageParser {
     else if (FIELDS.every((field) => next[field] >= this.previous[field])) delta = minus(next, this.previous);
     else {
       // Backwards, and the snapshot's own latest usage does not lead back to anything seen: not countable.
-      this.issues += 1;
+      this.skipped += 1;
       return null;
     }
     this.previous = next;
@@ -214,7 +216,7 @@ export class UsageParser {
     const old = this.events.get(event.id);
     if (old) {
       if (event.input < old.input || event.output < old.output || event.cachedInput < old.cachedInput || event.cacheWrite < old.cacheWrite) {
-        this.issues += 1;
+        this.skipped += 1;
         return;
       }
     } else if (this.events.size >= MAX_REQUESTS) {
@@ -227,7 +229,7 @@ export class UsageParser {
   /** Reconciled requests, oldest first. */
   finish(): ModelRequest[] {
     const { events, dropped } = reconcileUsageEvents([...this.events.values()]);
-    this.issues += dropped;
+    this.skipped += dropped;
     return events
       .sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp))
       .map((event) => ({

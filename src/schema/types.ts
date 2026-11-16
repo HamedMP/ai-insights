@@ -133,6 +133,11 @@ export interface ApprovalStats {
   denied?: number;
   /** Codex: automatic guardian review threads this session started. */
   guardianReviews?: number;
+  /**
+   * Codex: actions the automatic reviewer (auto-review) blocked or let time out, from the tool result's
+   * `codex/telemetry` error code (`guardian_denied`, `execution_rejected`, `guardian_timed_out`). Not the person.
+   */
+  autoBlocked?: number;
 }
 
 /**
@@ -182,6 +187,11 @@ export interface Session {
   gitPushes: number;
   /** Records the parser could not understand. Never throw on unknown records; count them. */
   issues: number;
+  /**
+   * Usage counters the parser read but could not count (Codex: a cumulative counter that went backwards with
+   * nothing to explain it, or a duplicate that shrank). Not unreadable lines, so not in `issues`. Absent when none.
+   */
+  skippedUsageRecords?: number;
   /** Tool calls seen beyond the source's cap and so missing from `toolCalls`. Absent or 0 when none were dropped. */
   toolCallsDropped?: number;
   /** Absent when the harness records no thinking, and in sessions cached before it existed. */
@@ -438,7 +448,10 @@ export interface Coverage {
   /** Bytes the harness's history takes on disk, when the scan measured it. */
   bytes?: number;
   sessions: number;
+  /** Unreadable lines and records. */
   issues: number;
+  /** Usage counters read but not counted (`Session.skippedUsageRecords` summed); absent when none. */
+  skippedUsageRecords?: number;
   oldest: string | null;
   newest: string | null;
   /** Why history that exists could not be read, e.g. "needs Node 22.5 or later to read opencode.db". */
@@ -710,6 +723,7 @@ export interface RecapApprovals {
   byPerson?: number;
   denied?: number;
   guardianReviews?: number;
+  autoBlocked?: number;
   /** Sessions that reported approvals. */
   sessions: number;
 }

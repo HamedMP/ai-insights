@@ -186,9 +186,10 @@ function coverageLines(coverage: Coverage[]): string[] {
     const label = entry.label.padEnd(width);
     if (!entry.found) return `  ${label}  not found`;
     if (entry.sessions === 0) return `  ${label}  found, no sessions in this window`;
-    const issues = entry.issues > 0 ? `, ${plural(entry.issues, "unreadable record")}` : "";
+    const issues = entry.issues > 0 ? `, ${plural(entry.issues, "unreadable line")}` : "";
+    const skipped = entry.skippedUsageRecords ? `, ${plural(entry.skippedUsageRecords, "usage counter")} skipped` : "";
     const size = entry.bytes ? `  ${formatBytes(entry.bytes)}` : "";
-    return `  ${label}  ${plural(entry.sessions, "session").padEnd(14)} ${day(entry.oldest)} to ${day(entry.newest)}${size}${issues}`;
+    return `  ${label}  ${plural(entry.sessions, "session").padEnd(14)} ${day(entry.oldest)} to ${day(entry.newest)}${size}${issues}${skipped}`;
   });
 }
 
