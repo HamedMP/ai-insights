@@ -61,7 +61,7 @@ export function tokenCount(input: number, cached: number, output: number): Rec {
 export class Tree {
   readonly root: string;
   constructor() {
-    this.root = mkdtempSync(join(tmpdir(), "hindsight-codex-"));
+    this.root = mkdtempSync(join(tmpdir(), "ai-insights-codex-"));
   }
 
   get sessions(): string {

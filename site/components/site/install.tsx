@@ -10,14 +10,14 @@ import { cn } from "@/lib/utils"
 
 /** Copied straight from the README; the site tests hold them to it. */
 const HARNESSES = {
-  claude: { name: "Claude Code", where: "in a Claude Code session", lines: ["/plugin marketplace add hamedmp/hindsight", "/plugin install hindsight@hindsight"] },
-  codex: { name: "Codex", where: "in a terminal", lines: ["codex plugin marketplace add hamedmp/hindsight", "codex plugin add hindsight@hindsight"] },
+  claude: { name: "Claude Code", where: "in a Claude Code session", lines: ["/plugin marketplace add hamedmp/ai-insights", "/plugin install ai-insights@ai-insights"] },
+  codex: { name: "Codex", where: "in a terminal", lines: ["codex plugin marketplace add hamedmp/ai-insights", "codex plugin add ai-insights@ai-insights"] },
 } as const
 type Harness = keyof typeof HARNESSES
 
 const OTHERS = [
   { name: "Cursor", where: "from a clone of the repository", line: "scripts/install.sh --harness cursor" },
-  { name: "Pi", where: "in a terminal", line: "pi install git:github.com/hamedmp/hindsight" },
+  { name: "Pi", where: "in a terminal", line: "pi install git:github.com/hamedmp/ai-insights" },
   { name: "OpenCode", where: "from a clone of the repository", line: "scripts/install.sh --harness opencode" },
 ]
 
@@ -92,7 +92,7 @@ export function Install() {
           <TabsContent value="others" className="animate-in fade-in-0 slide-in-from-bottom-1 duration-300 motion-reduce:animate-none">
             <div className="flex flex-col gap-2 rounded-xl border bg-background/60 p-4">
               <p className="text-sm text-muted-foreground">
-                These run the skills, but Hindsight does not read their own history yet, and the installs are untested.
+                These run the skills, but AI Insights does not read their own history yet, and the installs are untested.
               </p>
               <ul className="flex flex-col divide-y">
                 {OTHERS.map((other) => (
@@ -124,16 +124,16 @@ export function Install() {
         <li className="flex items-center justify-between gap-3 rounded-xl border bg-card/60 px-4 py-3">
           <div className="flex min-w-0 flex-col">
             <span className="mono-comment text-xs">then, in a new session</span>
-            <span className="truncate font-medium">run hindsight</span>
+            <span className="truncate font-medium">analyze my AI usage</span>
           </div>
-          <CopyButton text="run hindsight" ariaLabel="Copy: run hindsight" />
+          <CopyButton text="analyze my AI usage" ariaLabel="Copy: analyze my AI usage" />
         </li>
         <li className="flex items-center justify-between gap-3 rounded-xl border bg-card/60 px-4 py-3">
           <div className="flex min-w-0 flex-col">
             <span className="mono-comment text-xs">no agent? numbers only</span>
-            <code className="truncate font-mono text-[13px]">npx @matrix-os/hindsight</code>
+            <code className="truncate font-mono text-[13px]">npx ai-insights</code>
           </div>
-          <CopyButton text="npx @matrix-os/hindsight" ariaLabel="Copy: npx @matrix-os/hindsight" />
+          <CopyButton text="npx ai-insights" ariaLabel="Copy: npx ai-insights" />
         </li>
       </ol>
     </div>

@@ -34,7 +34,7 @@ export function hookSection(context: RenderContext, story: Story, nav: NavItem[]
   const sessions = count(report.activity.sessions);
 
   return html`<section id="overview" class="hook${sessions === 0 ? " empty" : ""}">
-<div class="topbar"><span class="brand">${MARK}<span>hindsight</span></span><span class="micro">${generated ?? "Local report"}</span></div>
+<div class="topbar"><span class="brand">${MARK}<span>ai insights</span></span><span class="micro">${generated ?? "Local report"}</span></div>
 <div class="hook-grid${art ? "" : " no-art"}">
 <div class="hook-copy">
 <p class="micro eyebrow rise" style="--d:0">How you work with AI coding agents</p>

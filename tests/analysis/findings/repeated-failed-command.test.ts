@@ -116,7 +116,7 @@ describe("repeated_failed_command", () => {
   });
 
   it("groups a failing command across temp dirs into one finding with a short, stable id", () => {
-    const run = (hash: string) => `timeout --kill-after=30s 600 pnpm --dir /tmp/hindsight-${hash}/checkout run verify-the-whole-repository-with-every-check --run ${hash.slice(0, 12)}`;
+    const run = (hash: string) => `timeout --kill-after=30s 600 pnpm --dir /tmp/ai-insights-${hash}/checkout run verify-the-whole-repository-with-every-check --run ${hash.slice(0, 12)}`;
     const make = () =>
       [0, 1, 2].map((index) =>
         session({

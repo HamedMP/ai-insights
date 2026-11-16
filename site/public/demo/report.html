@@ -6,8 +6,8 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'sha256-95H6/C8nnTM2H6dXG9aIxZ376Xy4G1rz5ZFftAyGjq4='; img-src data:; base-uri 'none'; form-action 'none'">
 <meta name="color-scheme" content="dark light">
 <meta name="referrer" content="no-referrer">
-<meta name="generator" content="Hindsight">
-<title>Hindsight · Nov 13, 2026</title>
+<meta name="generator" content="AI Insights">
+<title>AI Insights · Nov 13, 2026</title>
 <style>
 :root{color-scheme:dark light;
   --bg:#0b0b0c;--panel:#131315;--panel-2:#18181b;--line:#242428;--line-strong:#36363c;
@@ -437,7 +437,7 @@ tr.unpriced td:last-child{color:var(--accent)}
 <body>
 <main>
 <section id="overview" class="hook">
-<div class="topbar"><span class="brand"><svg class="mark" viewBox="0 0 26 26" aria-hidden="true"><rect class="p1" x="0" y="21" width="5" height="5"/><rect class="p1" x="7" y="21" width="5" height="5"/><rect class="p2" x="7" y="14" width="5" height="5"/><rect class="p2" x="14" y="14" width="5" height="5"/><rect class="p3" x="14" y="7" width="5" height="5"/><rect class="p4" x="21" y="7" width="5" height="5"/><rect class="p5" x="21" y="0" width="5" height="5"/></svg><span>hindsight</span></span><span class="micro">Nov 13, 2026</span></div>
+<div class="topbar"><span class="brand"><svg class="mark" viewBox="0 0 26 26" aria-hidden="true"><rect class="p1" x="0" y="21" width="5" height="5"/><rect class="p1" x="7" y="21" width="5" height="5"/><rect class="p2" x="7" y="14" width="5" height="5"/><rect class="p2" x="14" y="14" width="5" height="5"/><rect class="p3" x="14" y="7" width="5" height="5"/><rect class="p4" x="21" y="7" width="5" height="5"/><rect class="p5" x="21" y="0" width="5" height="5"/></svg><span>ai insights</span></span><span class="micro">Nov 13, 2026</span></div>
 <div class="hook-grid">
 <div class="hook-copy">
 <p class="micro eyebrow rise" style="--d:0">How you work with AI coding agents</p>
@@ -527,7 +527,7 @@ tr.unpriced td:last-child{color:var(--accent)}
 </div></div></div></div>
 
 </section><section id="friction" class="chapter">
-<header class="ch-head reveal"><div class="ch-index micro"><span>07</span><span>Where time is lost</span></div><p class="statement"><em>4.6%</em> of your agents&#39; tool calls failed, most often a failed command. Hindsight found <em>6 patterns</em> worth fixing; each is below. The other 3 findings are about your history on disk, features you have not tried and how far back your history goes.</p></header>
+<header class="ch-head reveal"><div class="ch-index micro"><span>07</span><span>Where time is lost</span></div><p class="statement"><em>4.6%</em> of your agents&#39; tool calls failed, most often a failed command. AI Insights found <em>6 patterns</em> worth fixing; each is below. The other 3 findings are about your history on disk, features you have not tried and how far back your history goes.</p></header>
 <div class="ch-body"><div class="panel reveal"><div class="panel-head micro"><span>Failed tool calls</span></div><div class="islands" data-chart="friction-map"><figure class="island lead"><span class="island-px" style="--c:11;--r:10;--rem:1" title="command failed: 221"><span class="island-body"></span><span class="island-tail"></span></span><figcaption><b>221</b> command failed</figcaption></figure><figure class="island"><span class="island-px" style="--c:8;--r:7;--rem:4" title="edit did not match: 120"><span class="island-body"></span><span class="island-tail"></span></span><figcaption><b>120</b> edit did not match</figcaption></figure><figure class="island"><span class="island-px" style="--c:6;--r:5;--rem:5" title="timeout: 70"><span class="island-body"></span><span class="island-tail"></span></span><figcaption><b>70</b> timeout</figcaption></figure><figure class="island"><span class="island-px" style="--c:4;--r:3;--rem:1" title="permission denied: 25"><span class="island-body"></span><span class="island-tail"></span></span><figcaption><b>25</b> permission denied</figcaption></figure><p class="micro islands-key">1 square = 2 errors</p></div></div>
 <div class="cards"><article class="card reveal"><h3>An e2e suite that cannot pass here</h3><p>The agent reruns pnpm test:e2e without starting the dev server, then retries the same failing run.</p><ul class="examples"><li>Checkout fix: five e2e runs in a row before anyone looked at the error</li><li>Guest checkout test: the suite failed on a connection refused, not on the test</li></ul></article><article class="card reveal"><h3>Context lost in long sessions</h3><p>After compaction the agent forgot that the old response shape had to stay, and changed it again.</p><ul class="examples"><li>Four-hour pagination session compacted three times</li></ul></article></div>
 <div class="panel reveal"><div class="panel-head micro"><span>Friction your agent saw</span></div><ol class="px-bars" data-chart="frictions"><li><span class="px-label" title="Buggy code">Buggy code</span><span class="px-track"><span class="px-run lead" style="width:100%"></span></span><span class="px-value">18</span></li><li><span class="px-label" title="Misunderstood request">Misunderstood request</span><span class="px-track"><span class="px-run" style="width:100%"></span></span><span class="px-value">18</span></li><li><span class="px-label" title="Context loss">Context loss</span><span class="px-track"><span class="px-run" style="width:88.9%"></span></span><span class="px-value">16</span></li><li><span class="px-label" title="Environment issue">Environment issue</span><span class="px-track"><span class="px-run" style="width:72.2%"></span></span><span class="px-value">13</span></li><li><span class="px-label" title="Wrong approach">Wrong approach</span><span class="px-track"><span class="px-run" style="width:61.1%"></span></span><span class="px-value">11</span></li></ol></div>
@@ -577,7 +577,7 @@ tr.unpriced td:last-child{color:var(--accent)}
 </div>
 <aside class="tip reveal"><span class="micro tip-label">Try this</span><div class="tip-body"><b>Tell the agent how this command should be run</b><span>Find out why it fails (missing setup, wrong directory, wrong script name) and write the correct invocation into your instructions file so the agent stops guessing.</span></div><a class="tip-link micro" href="#action-1">#1 in what to improve →</a></aside>
 </section><section id="improve" class="chapter">
-<header class="ch-head reveal"><div class="ch-index micro"><span>08</span><span>What to improve</span></div><p class="statement">Hindsight ranked <em>7 changes</em>, from the findings above and your agent&#39;s review; start with these three.</p></header>
+<header class="ch-head reveal"><div class="ch-index micro"><span>08</span><span>What to improve</span></div><p class="statement">AI Insights ranked <em>7 changes</em>, from the findings above and your agent&#39;s review; start with these three.</p></header>
 <div class="ch-body"><ol class="actions"><li class="action reveal" id="action-1">
 <span class="rank">1</span>
 <div class="action-body"><span class="micro">Instructions</span><h3>Tell the agent how this command should be run</h3>
@@ -615,7 +615,7 @@ tr.unpriced td:last-child{color:var(--accent)}
 </div>
 </section>
 </main>
-<footer><span class="brand small"><svg class="mark" viewBox="0 0 26 26" aria-hidden="true"><rect class="p1" x="0" y="21" width="5" height="5"/><rect class="p1" x="7" y="21" width="5" height="5"/><rect class="p2" x="7" y="14" width="5" height="5"/><rect class="p2" x="14" y="14" width="5" height="5"/><rect class="p3" x="14" y="7" width="5" height="5"/><rect class="p4" x="21" y="7" width="5" height="5"/><rect class="p5" x="21" y="0" width="5" height="5"/></svg><span>hindsight</span></span><p>Generated on Nov 13, 2026 from your local agent history. Days and hours are in Europe/Berlin. Nothing in this report was uploaded, and it loads nothing from the network.</p></footer>
+<footer><span class="brand small"><svg class="mark" viewBox="0 0 26 26" aria-hidden="true"><rect class="p1" x="0" y="21" width="5" height="5"/><rect class="p1" x="7" y="21" width="5" height="5"/><rect class="p2" x="7" y="14" width="5" height="5"/><rect class="p2" x="14" y="14" width="5" height="5"/><rect class="p3" x="14" y="7" width="5" height="5"/><rect class="p4" x="21" y="7" width="5" height="5"/><rect class="p5" x="21" y="0" width="5" height="5"/></svg><span>ai insights</span></span><p>Generated on Nov 13, 2026 from your local agent history. Days and hours are in Europe/Berlin. Nothing in this report was uploaded, and it loads nothing from the network.</p></footer>
 <script>(function(){
 var root=document.documentElement;root.classList.add("js");
 function fallback(pre){var range=document.createRange();range.selectNodeContents(pre);var sel=window.getSelection();sel.removeAllRanges();sel.addRange(range);try{return document.execCommand("copy")}catch(e){return false}}

@@ -30,7 +30,7 @@ function History() {
       <li className="flex items-center gap-2 px-2.5 pt-1 text-muted-foreground">
         <span aria-hidden>↳</span>
         <span>
-          writes only to <span className="text-foreground">~/.hindsight/</span>
+          writes only to <span className="text-foreground">~/.ai-insights/</span>
         </span>
       </li>
     </ul>
@@ -70,7 +70,7 @@ function Findings() {
 const STEPS = [
   {
     title: "Your history",
-    body: "Claude Code and Codex already keep a transcript of every session on your disk. Hindsight reads them where they are.",
+    body: "Claude Code and Codex already keep a transcript of every session on your disk. AI Insights reads them where they are.",
     note: `${demo.numbers.sessions} sessions in the sample`,
     visual: <History />,
   },
@@ -82,7 +82,7 @@ const STEPS = [
   },
   {
     title: "Your agent reviews",
-    body: "The skill has the agent you already use read short, redacted excerpts, label each session from a fixed set and write a narrative. Hindsight never calls a model API.",
+    body: "The skill has the agent you already use read short, redacted excerpts, label each session from a fixed set and write a narrative. AI Insights never calls a model API.",
     note: "labels are checked against the set",
     visual: <Labels />,
   },

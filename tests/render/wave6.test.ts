@@ -47,7 +47,7 @@ describe("one card per idea in What to improve", () => {
     const ranked = rankActions(report);
     const total = ranked.top.length + ranked.rest.length;
     const improve = section(renderReport(report), "improve");
-    expect(improve).toContain(`Hindsight ranked <em>${total} changes</em>`);
+    expect(improve).toContain(`AI Insights ranked <em>${total} changes</em>`);
     expect(improve.match(/<li class="(?:action )?reveal" id="action-\d+"/g)).toHaveLength(total);
   });
 
@@ -125,7 +125,7 @@ describe("the patterns count", () => {
     const report = makeReport();
     const line = lineText(buildStory(report, "UTC").friction!);
     const cards = section(renderReport(report), "friction").match(/<article class="finding /g)?.length ?? 0;
-    expect(line).toContain(`Hindsight found ${cards} patterns worth fixing; each is below.`);
+    expect(line).toContain(`AI Insights found ${cards} patterns worth fixing; each is below.`);
   });
 });
 

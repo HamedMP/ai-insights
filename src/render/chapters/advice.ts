@@ -81,8 +81,8 @@ export function insightsPromptChapter({ context, index }: ChapterInput): SafeHtm
   const lead: Line = partial
     ? [{ text: "Your agent has read " }, { text: plural(count(facets.sessionsWithFacets), "session"), strong: true }, { text: " so far. Finish the pass to add the story." }]
     : [{ text: "These are the numbers. " }, { text: "Your own agent", strong: true }, { text: " can add the why." }];
-  const body = html`<div class="panel prompt-panel reveal"><p>Everything above is counted straight from your transcripts. Run the Hindsight insights skill in your own agent and it reads redacted excerpts of recent sessions, then writes back what you work on, what went well and where things go wrong. It runs with your existing account; Hindsight uploads nothing.</p>
-${copyBlock(context, "Run the hindsight skill: analyse my recent sessions and update my Hindsight report.", "prompt for your agent")}</div>`;
+  const body = html`<div class="panel prompt-panel reveal"><p>Everything above is counted straight from your transcripts. Run the analyze-ai-usage skill in your own agent and it reads redacted excerpts of recent sessions, then writes back what you work on, what went well and where things go wrong. It runs with your existing account; AI Insights uploads nothing.</p>
+${copyBlock(context, "Run the analyze-ai-usage skill: analyse my recent sessions and update my AI Insights report.", "prompt for your agent")}</div>`;
   return chapter({ id: "insights-prompt", index, kicker: "The other half", lead, body, className: "compact" });
 }
 
@@ -172,7 +172,7 @@ export function improveChapter(input: ChapterInput & { ranked: { top: RankedActi
   const lead: Line =
     total > 0
       ? [
-          { text: "Hindsight ranked " },
+          { text: "AI Insights ranked " },
           { text: plural(total, "change"), strong: true },
           { text: `${[...top, ...rest].some((action) => action.finding === null) ? ", from the findings above and your agent's review" : ", from the findings above"}${total > 3 ? "; start with these three." : "."}` },
         ]

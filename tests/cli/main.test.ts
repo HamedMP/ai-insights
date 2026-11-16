@@ -22,7 +22,7 @@ function deps(overrides: Partial<CliDeps> = {}): Partial<CliDeps> {
     stderr: (text) => {
       err += text;
     },
-    env: { HINDSIGHT_HOME: home },
+    env: { AI_INSIGHTS_HOME: home },
     sources: [
       fakeSource("claude-code", [makeSession({ id: "c1", sourceMtimeMs: Date.parse("2026-11-10T00:00:00Z") })]),
       fakeSource("codex", [makeSession({ id: "x1", harness: "codex", sourceMtimeMs: Date.parse("2026-01-01T00:00:00Z") })]),
@@ -50,7 +50,7 @@ beforeEach(async () => {
 });
 afterEach(async () => cleanup());
 
-describe("hindsight (no command)", () => {
+describe("ai-insights (no command)", () => {
   it("scans, writes the report and prints its path with a three-line summary", async () => {
     expect(await run([], deps())).toBe(0);
     const reportPath = join(home, "reports", "report.html");
@@ -61,7 +61,7 @@ describe("hindsight (no command)", () => {
     expect(summary[1]).toContain("$0.42 at API list prices");
     expect(summary[2]).toContain("Top finding:");
     expect(await readFile(reportPath, "utf8")).toContain("<!doctype html>");
-    expect(out).toContain("hindsight skill");
+    expect(out).toContain("analyze-ai-usage skill");
   });
 
   it("calls summed session time agent-hours and uses wall-clock hours when the analysis has them", async () => {
@@ -91,12 +91,12 @@ describe("hindsight (no command)", () => {
   it("drops the skill tip once facets have been saved", async () => {
     await new Store(home).saveFacet(validFacet("c1"));
     await run([], deps());
-    expect(out).not.toContain("hindsight skill");
+    expect(out).not.toContain("analyze-ai-usage skill");
   });
 
   it("says where to look when no history exists", async () => {
     expect(await run([], deps({ sources: [fakeSource("claude-code", [])] }))).toBe(1);
-    expect(err).toContain("hindsight doctor");
+    expect(err).toContain("ai-insights doctor");
   });
 
   it("reports a failing analysis as a one-line error, not a stack trace", async () => {
@@ -107,7 +107,7 @@ describe("hindsight (no command)", () => {
   });
 });
 
-describe("hindsight scan", () => {
+describe("ai-insights scan", () => {
   it("lists every harness, found or not, with totals", async () => {
     expect(await run(["scan"], deps())).toBe(0);
     expect(out).toMatch(/Claude Code\s+1 session/);
@@ -149,7 +149,7 @@ describe("hindsight scan", () => {
   });
 });
 
-describe("hindsight report", () => {
+describe("ai-insights report", () => {
   it("prints the report JSON with --json and writes no HTML", async () => {
     expect(await run(["report", "--json", "--harness", "codex"], deps())).toBe(0);
     const report = JSON.parse(out);
@@ -164,7 +164,7 @@ describe("hindsight report", () => {
   });
 });
 
-describe("hindsight mcp", () => {
+describe("ai-insights mcp", () => {
   it("starts the server without writing anything to stdout", async () => {
     expect(await run(["mcp"], deps())).toBe(0);
     expect(mcpStarts).toHaveLength(1);
@@ -173,7 +173,7 @@ describe("hindsight mcp", () => {
   });
 });
 
-describe("hindsight doctor", () => {
+describe("ai-insights doctor", () => {
   it("shows each harness, where it looked, and the store", async () => {
     expect(await run(["doctor"], deps())).toBe(0);
     expect(out).toContain("Claude Code: 1 transcript (100 B)");
@@ -198,7 +198,7 @@ describe("formatBytes", () => {
 describe("flags", () => {
   it("prints help and version", async () => {
     expect(await run(["--help"], deps())).toBe(0);
-    expect(out).toContain("hindsight doctor");
+    expect(out).toContain("ai-insights doctor");
     out = "";
     expect(await run(["-v"], deps())).toBe(0);
     expect(out.trim()).toBe(packageVersion());

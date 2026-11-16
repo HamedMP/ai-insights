@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils"
 
-/** The Hindsight mark: an arc rises from now and points back down at a moment in the past. On hover it rewinds a little. */
+/** The AI Insights mark: an arc rises from now and points back down at a moment in the past. On hover it rewinds a little. */
 export function LogoMark({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 64 64" aria-hidden="true" className={cn("size-7 shrink-0", className)}>
@@ -21,7 +21,7 @@ export function Logo({ className }: { className?: string }) {
   return (
     <span className={cn("group/logo inline-flex items-center gap-2.5", className)}>
       <LogoMark />
-      <span className="text-[1.15rem] font-semibold tracking-tight">hindsight</span>
+      <span className="text-[1.15rem] font-semibold tracking-tight">ai insights</span>
     </span>
   )
 }

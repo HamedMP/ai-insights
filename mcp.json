@@ -1,10 +1,10 @@
 {
   "mcpServers": {
-    "hindsight": {
+    "ai-insights": {
       "command": "npx",
       "args": [
         "-y",
-        "@matrix-os/hindsight",
+        "ai-insights",
         "mcp"
       ]
     }

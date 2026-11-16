@@ -14,7 +14,7 @@ afterEach(() => {
 
 /** A throwaway `projects` root. */
 export function tempRoot(): string {
-  const dir = mkdtempSync(join(tmpdir(), "hindsight-claude-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-insights-claude-"));
   made.push(dir);
   const root = join(dir, "projects");
   mkdirSync(root, { recursive: true });

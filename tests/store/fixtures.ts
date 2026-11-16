@@ -251,10 +251,10 @@ export function fakeBuildReport(calls: BuildReportInput[] = [], options: FakeRep
 }
 
 export function fakeRenderReport(report: Report): string {
-  return `<!doctype html><html><body><h1>Hindsight</h1><p>${report.activity.sessions} sessions</p></body></html>`;
+  return `<!doctype html><html><body><h1>AI Insights</h1><p>${report.activity.sessions} sessions</p></body></html>`;
 }
 
 export async function tempHome(): Promise<{ home: string; cleanup: () => Promise<void> }> {
-  const home = await mkdtemp(join(tmpdir(), "hindsight-test-"));
+  const home = await mkdtemp(join(tmpdir(), "ai-insights-test-"));
   return { home, cleanup: () => rm(home, { recursive: true, force: true }) };
 }

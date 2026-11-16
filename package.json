@@ -1,6 +1,6 @@
 {
-  "name": "@matrix-os/hindsight",
-  "version": "0.1.0",
+  "name": "ai-insights",
+  "version": "0.2.0",
   "description": "Look back at how you work with AI coding agents. Local insights and actionable tips from your Claude Code and Codex history.",
   "license": "MIT",
   "type": "module",
@@ -8,6 +8,7 @@
     "node": ">=20"
   },
   "bin": {
+    "ai-insights": "dist/cli/main.js",
     "hindsight": "dist/cli/main.js"
   },
   "main": "./dist/index.js",
@@ -25,6 +26,7 @@
     "pi"
   ],
   "keywords": [
+    "ai-insights",
     "ai",
     "claude-code",
     "codex",
@@ -35,13 +37,13 @@
     "insights",
     "agent-skills"
   ],
-  "homepage": "https://hamedmp.github.io/hindsight/",
+  "homepage": "https://hamedmp.github.io/ai-insights/",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/hamedmp/hindsight.git"
+    "url": "git+https://github.com/hamedmp/ai-insights.git"
   },
   "bugs": {
-    "url": "https://github.com/hamedmp/hindsight/issues"
+    "url": "https://github.com/hamedmp/ai-insights/issues"
   },
   "scripts": {
     "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",

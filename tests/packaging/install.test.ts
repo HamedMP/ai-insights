@@ -7,8 +7,8 @@ import { afterEach, describe, expect, it } from "vitest";
 
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const SCRIPT = join(ROOT, "scripts", "install.sh");
-const MCP = "npx -y @matrix-os/hindsight mcp";
-const SKILLS = ["hindsight", "hindsight-coach", "hindsight-setup"];
+const MCP = "npx -y ai-insights mcp";
+const SKILLS = ["analyze-ai-usage", "ai-insights-coach", "ai-insights-setup"];
 
 // A fake harness CLI that records every call and remembers servers added with `mcp add`.
 const STUB = `#!/bin/sh
@@ -16,7 +16,7 @@ name=$(basename "$0")
 echo "$name $*" >> "$STUB_LOG"
 state="$STUB_STATE/$name"
 if [ "$1" = "mcp" ] && [ "$2" = "get" ]; then [ -f "$state" ] && exit 0 || exit 1; fi
-if [ "$1" = "mcp" ] && [ "$2" = "list" ]; then [ -f "$state" ] && echo "hindsight"; exit 0; fi
+if [ "$1" = "mcp" ] && [ "$2" = "list" ]; then [ -f "$state" ] && echo "ai-insights"; exit 0; fi
 if [ "$1" = "mcp" ] && [ "$2" = "add" ]; then touch "$state"; exit 0; fi
 exit 0
 `;
@@ -27,7 +27,7 @@ afterEach(() => {
 });
 
 function sandbox(harnesses: string[]) {
-  const dir = mkdtempSync(join(tmpdir(), "hindsight-install-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-insights-install-"));
   temps.push(dir);
   const home = join(dir, "home");
   const bin = join(dir, "bin");
@@ -62,8 +62,8 @@ describe("scripts/install.sh", () => {
       expect(existsSync(join(home, ".claude", "skills", skill, "SKILL.md")), skill).toBe(true);
       expect(existsSync(join(home, ".agents", "skills", skill, "SKILL.md")), skill).toBe(true);
     }
-    expect(calls()).toContain(`claude mcp add --scope user hindsight -- ${MCP}`);
-    expect(calls()).toContain(`codex mcp add hindsight -- ${MCP}`);
+    expect(calls()).toContain(`claude mcp add --scope user ai-insights -- ${MCP}`);
+    expect(calls()).toContain(`codex mcp add ai-insights -- ${MCP}`);
     expect(result.stdout).toMatch(/cursor.*not found/i);
   });
 
@@ -79,13 +79,24 @@ describe("scripts/install.sh", () => {
 
   it("refreshes an older copy of a skill", () => {
     const { home, run } = sandbox(["codex"]);
-    const stale = join(home, ".agents", "skills", "hindsight");
+    const stale = join(home, ".agents", "skills", "analyze-ai-usage");
     mkdirSync(stale, { recursive: true });
     writeFileSync(join(stale, "SKILL.md"), "old");
     writeFileSync(join(stale, "leftover.md"), "old");
     expect(run("--harness", "codex").status).toBe(0);
-    expect(readFileSync(join(stale, "SKILL.md"), "utf8")).toBe(readFileSync(join(ROOT, "skills", "hindsight", "SKILL.md"), "utf8"));
+    expect(readFileSync(join(stale, "SKILL.md"), "utf8")).toBe(readFileSync(join(ROOT, "skills", "analyze-ai-usage", "SKILL.md"), "utf8"));
     expect(existsSync(join(stale, "leftover.md"))).toBe(false);
+  });
+
+  it("leaves skills from before the rename in place and says they can be removed", () => {
+    const { home, run } = sandbox(["codex"]);
+    const old = join(home, ".agents", "skills", "hindsight");
+    mkdirSync(old, { recursive: true });
+    writeFileSync(join(old, "SKILL.md"), "old");
+    const result = run("--harness", "codex");
+    expect(result.status).toBe(0);
+    expect(readFileSync(join(old, "SKILL.md"), "utf8")).toBe("old");
+    expect(result.stdout).toMatch(/pre-0\.2 hindsight skills/);
   });
 
   it("fails clearly when the requested harness is not installed", () => {
@@ -96,7 +107,7 @@ describe("scripts/install.sh", () => {
     expect(calls()).toEqual([]);
   });
 
-  it("adds hindsight to Cursor's mcp.json without touching the servers already there", () => {
+  it("adds ai-insights to Cursor's mcp.json without touching the servers already there", () => {
     const { home, run } = sandbox([]);
     const config = join(home, ".cursor", "mcp.json");
     mkdirSync(dirname(config), { recursive: true });
@@ -104,8 +115,8 @@ describe("scripts/install.sh", () => {
     expect(run("--harness", "cursor").status).toBe(0);
     const merged = JSON.parse(readFileSync(config, "utf8"));
     expect(merged.mcpServers.other).toEqual({ command: "other-server" });
-    expect(merged.mcpServers.hindsight).toEqual({ command: "npx", args: ["-y", "@matrix-os/hindsight", "mcp"] });
-    expect(existsSync(join(home, ".cursor", "skills", "hindsight", "SKILL.md"))).toBe(true);
+    expect(merged.mcpServers["ai-insights"]).toEqual({ command: "npx", args: ["-y", "ai-insights", "mcp"] });
+    expect(existsSync(join(home, ".cursor", "skills", "analyze-ai-usage", "SKILL.md"))).toBe(true);
     const before = readFileSync(config, "utf8");
     expect(run("--harness", "cursor").stdout).toMatch(/already registered/);
     expect(readFileSync(config, "utf8")).toBe(before);
@@ -119,7 +130,7 @@ describe("scripts/install.sh", () => {
     const result = run("--harness", "cursor");
     expect(result.status).toBe(1);
     expect(readFileSync(config, "utf8")).toBe("{ not json");
-    expect(result.stdout).toContain('"hindsight"');
+    expect(result.stdout).toContain('"ai-insights"');
   });
 
   it("--dry-run changes nothing", () => {

@@ -6,13 +6,13 @@ interface PiLike {
   ui?: { notify?: (message: string, level?: string) => unknown };
 }
 
-export const HINDSIGHT_MCP = { command: "npx", args: ["-y", "@matrix-os/hindsight", "mcp"] };
+export const AI_INSIGHTS_MCP = { command: "npx", args: ["-y", "ai-insights", "mcp"] };
 
-export default function hindsight(pi: PiLike): void {
+export default function aiInsights(pi: PiLike): void {
   if (typeof pi.registerMcpServer === "function") {
-    pi.registerMcpServer("hindsight", HINDSIGHT_MCP);
+    pi.registerMcpServer("ai-insights", AI_INSIGHTS_MCP);
     return;
   }
   // Older Pi builds have no MCP support; the skills still load, so say why the tools are missing instead of failing.
-  pi.ui?.notify?.("Hindsight: this Pi version cannot register MCP servers, so the hindsight_* tools are unavailable.", "warning");
+  pi.ui?.notify?.("AI Insights: this Pi version cannot register MCP servers, so the ai_insights_* tools are unavailable.", "warning");
 }

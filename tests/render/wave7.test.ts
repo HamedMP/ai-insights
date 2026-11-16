@@ -46,9 +46,9 @@ describe("one count for patterns, findings and changes", () => {
 
   it("says where the ranked changes come from", () => {
     const improve = section(renderReport(makeReport()), "improve");
-    expect(improve).toMatch(/Hindsight ranked <em>\d+ changes<\/em>, from the findings above and your agent&#39;s review; start with these three\./);
+    expect(improve).toMatch(/AI Insights ranked <em>\d+ changes<\/em>, from the findings above and your agent&#39;s review; start with these three\./);
     const noNarrative = section(renderReport(makeDeterministicReport()), "improve");
-    expect(noNarrative).toMatch(/Hindsight ranked <em>\d+ changes?<\/em>, from the findings above[;.]/);
+    expect(noNarrative).toMatch(/AI Insights ranked <em>\d+ changes?<\/em>, from the findings above[;.]/);
   });
 });
 
@@ -98,7 +98,7 @@ describe("long sessions that are mostly context resets", () => {
     const improve = section(html, "improve");
     expect(improve).toContain('<p class="also-covers">Also covers the 9 very long sessions');
     expect(improve).not.toContain("<b>Split at natural checkpoints</b>");
-    expect(improve).toContain(`Hindsight ranked <em>${all.length} changes</em>`);
+    expect(improve).toContain(`AI Insights ranked <em>${all.length} changes</em>`);
   });
 
   it("points the long-sessions finding's own link at the card that now carries it", () => {

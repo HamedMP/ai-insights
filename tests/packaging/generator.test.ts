@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
-const TREE = join(ROOT, "harness", "hindsight");
+const TREE = join(ROOT, "harness", "ai-insights");
 const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")) as { name: string; version: string };
 const MCP_ARGS = ["-y", pkg.name, "mcp"];
 
@@ -31,7 +31,7 @@ afterEach(() => {
 });
 
 function copyRepo(): string {
-  const dir = mkdtempSync(join(tmpdir(), "hindsight-gen-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-insights-gen-"));
   temps.push(dir);
   for (const path of ["package.json", "LICENSE", "scripts", "skills", "harness", ".claude-plugin", ".agents", ".cursor-plugin", "mcp.json", "assets"]) {
     if (existsSync(join(ROOT, path))) cpSync(join(ROOT, path), join(dir, path), { recursive: true });
@@ -68,11 +68,11 @@ describe("generated harness output", () => {
 
   it("goes stale when a canonical skill changes, and regenerating fixes it", () => {
     const dir = copyRepo();
-    const skill = join(dir, "skills", "hindsight", "SKILL.md");
+    const skill = join(dir, "skills", "analyze-ai-usage", "SKILL.md");
     writeFileSync(skill, readFileSync(skill, "utf8") + "\nOne more line.\n");
     const stale = generate(dir, "--check");
     expect(stale.status).toBe(1);
-    expect(stale.stdout).toContain("harness/hindsight/skills/hindsight/SKILL.md");
+    expect(stale.stdout).toContain("harness/ai-insights/skills/analyze-ai-usage/SKILL.md");
     expect(generate(dir).status).toBe(0);
     expect(generate(dir, "--check").status).toBe(0);
   });
@@ -86,7 +86,7 @@ describe("generated harness output", () => {
 
   it("flags a hand-added file inside the generated tree", () => {
     const dir = copyRepo();
-    writeFileSync(join(dir, "harness", "hindsight", "skills", "stray.md"), "x");
+    writeFileSync(join(dir, "harness", "ai-insights", "skills", "stray.md"), "x");
     const result = generate(dir, "--check");
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("stray.md");
@@ -94,11 +94,11 @@ describe("generated harness output", () => {
 
   it("refuses a skill whose name does not match its folder", () => {
     const dir = copyRepo();
-    const skill = join(dir, "skills", "hindsight-coach", "SKILL.md");
-    writeFileSync(skill, readFileSync(skill, "utf8").replace("name: hindsight-coach", "name: coach"));
+    const skill = join(dir, "skills", "ai-insights-coach", "SKILL.md");
+    writeFileSync(skill, readFileSync(skill, "utf8").replace("name: ai-insights-coach", "name: coach"));
     const result = generate(dir, "--check");
     expect(result.status).toBe(1);
-    expect(result.stdout).toMatch(/FAIL .*hindsight-coach/);
+    expect(result.stdout).toMatch(/FAIL .*ai-insights-coach/);
   });
 
   it("copies every canonical skill into the installable tree byte for byte", () => {
@@ -114,7 +114,7 @@ describe("plugin icon", () => {
     const dir = copyRepo();
     withIcon(dir);
     expect(generate(dir).status).toBe(0);
-    const tree = join(dir, "harness", "hindsight");
+    const tree = join(dir, "harness", "ai-insights");
 
     const claude = read(tree, ".claude-plugin/plugin.json");
     expect(claude.icon).toBe("./assets/icon.png");
@@ -142,7 +142,7 @@ describe("plugin icon", () => {
     writeFileSync(join(dir, "assets", "icon.png"), png(1024, 1024));
     const result = generate(dir, "--check");
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("harness/hindsight/assets/icon.png");
+    expect(result.stdout).toContain("harness/ai-insights/assets/icon.png");
   });
 
   it("refuses an icon the Claude Code directory would reject: not a square PNG of 512 to 2048 pixels", () => {
@@ -159,7 +159,7 @@ describe("plugin icon", () => {
     const dir = copyRepo();
     rmSync(join(dir, "assets"), { recursive: true, force: true });
     expect(generate(dir).status).toBe(0);
-    const tree = join(dir, "harness", "hindsight");
+    const tree = join(dir, "harness", "ai-insights");
     expect(read(tree, ".claude-plugin/plugin.json")).not.toHaveProperty("icon");
     expect(read(tree, ".codex-plugin/plugin.json").interface).not.toHaveProperty("logo");
     expect(read(dir, ".cursor-plugin/plugin.json")).not.toHaveProperty("logo");
@@ -168,9 +168,9 @@ describe("plugin icon", () => {
 
   it("every icon the committed manifests name exists", () => {
     const paths = [
-      [TREE, json("harness/hindsight/.claude-plugin/plugin.json").icon],
-      [TREE, json("harness/hindsight/.codex-plugin/plugin.json").interface.logo],
-      [TREE, json("harness/hindsight/.codex-plugin/plugin.json").interface.composerIcon],
+      [TREE, json("harness/ai-insights/.claude-plugin/plugin.json").icon],
+      [TREE, json("harness/ai-insights/.codex-plugin/plugin.json").interface.logo],
+      [TREE, json("harness/ai-insights/.codex-plugin/plugin.json").interface.composerIcon],
       [ROOT, json(".cursor-plugin/plugin.json").logo],
     ].filter(([, path]) => path !== undefined);
     for (const [base, path] of paths) expect(existsSync(join(base, path)), path).toBe(true);
@@ -179,31 +179,31 @@ describe("plugin icon", () => {
 
 describe("manifests", () => {
   const manifests = [
-    "harness/hindsight/.claude-plugin/plugin.json",
-    "harness/hindsight/.codex-plugin/plugin.json",
-    "harness/hindsight/plugin.json",
+    "harness/ai-insights/.claude-plugin/plugin.json",
+    "harness/ai-insights/.codex-plugin/plugin.json",
+    "harness/ai-insights/plugin.json",
     ".cursor-plugin/plugin.json",
   ];
 
-  it("all name the plugin hindsight and carry the package version", () => {
+  it("all name the plugin ai-insights and carry the package version", () => {
     for (const path of manifests) {
-      expect(json(path).name, path).toBe("hindsight");
+      expect(json(path).name, path).toBe("ai-insights");
       expect(json(path).version, path).toBe(pkg.version);
     }
   });
 
   it("launch the MCP server the same way in every harness, with no plugin-root variable", () => {
-    for (const path of ["harness/hindsight/.mcp.json", "harness/hindsight/mcp.json", "mcp.json"]) {
-      const server = json(path).mcpServers.hindsight;
+    for (const path of ["harness/ai-insights/.mcp.json", "harness/ai-insights/mcp.json", "mcp.json"]) {
+      const server = json(path).mcpServers["ai-insights"];
       expect(server.command, path).toBe("npx");
       expect(server.args, path).toEqual(MCP_ARGS);
-      expect(Object.keys(json(path).mcpServers), path).toEqual(["hindsight"]);
+      expect(Object.keys(json(path).mcpServers), path).toEqual(["ai-insights"]);
     }
-    expect(json("harness/hindsight/mcp.json").$schema).toBe("https://agent-plugins.org/schemas/1.0.0/mcp.schema.json");
+    expect(json("harness/ai-insights/mcp.json").$schema).toBe("https://agent-plugins.org/schemas/1.0.0/mcp.schema.json");
   });
 
   it("Codex: the listing subtitle fits in 30 characters and points at skills and MCP config", () => {
-    const codex = json("harness/hindsight/.codex-plugin/plugin.json");
+    const codex = json("harness/ai-insights/.codex-plugin/plugin.json");
     expect(codex.interface.shortDescription.length).toBeLessThanOrEqual(30);
     expect(codex.skills).toBe("./skills/");
     expect(codex.mcpServers).toBe("./.mcp.json");
@@ -211,10 +211,10 @@ describe("manifests", () => {
   });
 
   it("portable plugin.json follows Agent Plugins 1.0: schema declared, OpenAI fields under extensions", () => {
-    const portable = json("harness/hindsight/plugin.json");
+    const portable = json("harness/ai-insights/plugin.json");
     expect(portable.$schema).toBe("https://agent-plugins.org/schemas/1.0.0/plugin.schema.json");
     for (const key of ["skills", "mcpServers", "interface", "apps"]) expect(portable, key).not.toHaveProperty(key);
-    const codex = json("harness/hindsight/.codex-plugin/plugin.json");
+    const codex = json("harness/ai-insights/.codex-plugin/plugin.json");
     expect(portable.extensions["com.openai"].interface).toEqual(codex.interface);
     expect(portable.description).toBe(codex.description);
   });
@@ -233,15 +233,15 @@ describe("manifests", () => {
 
   it("marketplaces resolve to a directory holding the Claude Code and Codex manifests", () => {
     const claude = json(".claude-plugin/marketplace.json");
-    expect(claude.name).toBe("hindsight");
+    expect(claude.name).toBe("ai-insights");
     const [claudeEntry] = claude.plugins;
-    expect(claudeEntry.name).toBe("hindsight");
+    expect(claudeEntry.name).toBe("ai-insights");
     expect(existsSync(join(ROOT, claudeEntry.source, ".claude-plugin", "plugin.json"))).toBe(true);
 
     const codex = json(".agents/plugins/marketplace.json");
-    expect(codex.name).toBe("hindsight");
+    expect(codex.name).toBe("ai-insights");
     const [codexEntry] = codex.plugins;
-    expect(codexEntry.name).toBe("hindsight");
+    expect(codexEntry.name).toBe("ai-insights");
     expect(codexEntry.source.source).toBe("local");
     expect(codexEntry.policy).toEqual({ installation: "AVAILABLE", authentication: "ON_INSTALL" });
     expect(typeof codexEntry.category).toBe("string");

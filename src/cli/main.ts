@@ -32,17 +32,17 @@ export interface CliDeps {
 
 class UsageError extends Error {}
 
-const HELP = `hindsight: look back at how you work with AI coding agents.
+const HELP = `ai-insights: look back at how you work with AI coding agents.
 
 Reads your local Claude Code and Codex history, writes one HTML report.
 Nothing leaves this machine.
 
 Usage
-  hindsight [options]          scan, write the report, print a summary
-  hindsight scan [options]     scan and show what was found
-  hindsight report [options]   write the report (or print JSON with --json)
-  hindsight doctor             show which histories were found and where
-  hindsight mcp                start the MCP server on stdio (for your agent)
+  ai-insights [options]          scan, write the report, print a summary
+  ai-insights scan [options]     scan and show what was found
+  ai-insights report [options]   write the report (or print JSON with --json)
+  ai-insights doctor             show which histories were found and where
+  ai-insights mcp                start the MCP server on stdio (for your agent)
 
 Options
   --since <window>     only history from ${SINCE_HELP}
@@ -54,8 +54,9 @@ Options
   -h, --help           show this help
   -v, --version        show the version
 
-Cache and reports live in ~/.hindsight (set HINDSIGHT_HOME to move them).
-For the qualitative analysis, run the hindsight skill in your agent.
+Cache and reports live in ~/.ai-insights (set AI_INSIGHTS_HOME to move them;
+an existing ~/.hindsight from before 0.2 keeps being used).
+For the qualitative analysis, run the analyze-ai-usage skill in your agent.
 `;
 
 interface Parsed {
@@ -210,13 +211,13 @@ export function summaryLines(report: Report): string[] {
 async function commandRun(parsed: Parsed, deps: CliDeps, store: Store): Promise<number> {
   const result = await scan({ sources: deps.sources, store }, scanOptions(parsed));
   if (result.sessions.length === 0) {
-    deps.stderr("No agent sessions found. Run `hindsight doctor` to see where Hindsight looked.\n");
+    deps.stderr("No agent sessions found. Run `ai-insights doctor` to see where AI Insights looked.\n");
     return 1;
   }
   const outcome = await renderFromScan(pipelineDeps(deps, store), result);
   deps.stdout(`${summaryLines(outcome.report).join("\n")}\n\nReport: ${outcome.htmlPath}\n`);
   if (outcome.facetCount === 0 && !outcome.hasNarrative) {
-    deps.stdout("Tip: run the hindsight skill in your agent to add what went well and what got in the way.\n");
+    deps.stdout("Tip: run the analyze-ai-usage skill in your agent to add what went well and what got in the way.\n");
   }
   if (parsed.open) await deps.openFile(outcome.htmlPath);
   return 0;
@@ -270,7 +271,7 @@ async function countEntries(dir: string): Promise<number> {
 }
 
 async function commandDoctor(deps: CliDeps, store: Store): Promise<number> {
-  const lines: string[] = [`hindsight ${packageVersion()} on Node ${process.versions.node}`, ""];
+  const lines: string[] = [`ai-insights ${packageVersion()} on Node ${process.versions.node}`, ""];
   for (const harness of HARNESSES) {
     const source = deps.sources.find((candidate) => candidate.harness === harness);
     const label = harnessLabel(harness, deps.sources);
@@ -313,7 +314,7 @@ async function commandDoctor(deps: CliDeps, store: Store): Promise<number> {
   } catch {
     writable = false;
   }
-  lines.push(`  ${writable ? "writable" : "NOT writable: set HINDSIGHT_HOME to a folder you own"}`);
+  lines.push(`  ${writable ? "writable" : "NOT writable: set AI_INSIGHTS_HOME to a folder you own"}`);
   let cached = 0;
   for (const harness of HARNESSES) cached += await countEntries(join(store.home, "sessions", harness));
   let facets = 0;
@@ -374,7 +375,7 @@ export async function run(argv: string[], overrides: Partial<CliDeps> = {}): Pro
     parsed = parseArgs(argv, deps.now());
   } catch (error) {
     if (error instanceof UsageError) {
-      deps.stderr(`hindsight: ${error.message}\nRun \`hindsight --help\` for usage.\n`);
+      deps.stderr(`ai-insights: ${error.message}\nRun \`ai-insights --help\` for usage.\n`);
       return 2;
     }
     throw error;
@@ -388,7 +389,7 @@ export async function run(argv: string[], overrides: Partial<CliDeps> = {}): Pro
     return 0;
   }
   if (parsed.json && parsed.command !== "report") {
-    deps.stderr("hindsight: --json only works with `hindsight report`\n");
+    deps.stderr("ai-insights: --json only works with `ai-insights report`\n");
     return 2;
   }
 
@@ -410,8 +411,8 @@ export async function run(argv: string[], overrides: Partial<CliDeps> = {}): Pro
     }
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
-    deps.stderr(`hindsight: ${parsed.command === "run" ? "could not build the report" : `${parsed.command} failed`}: ${detail}\n`);
-    if (deps.env.HINDSIGHT_DEBUG && error instanceof Error && error.stack) deps.stderr(`${error.stack}\n`);
+    deps.stderr(`ai-insights: ${parsed.command === "run" ? "could not build the report" : `${parsed.command} failed`}: ${detail}\n`);
+    if (deps.env.AI_INSIGHTS_DEBUG && error instanceof Error && error.stack) deps.stderr(`${error.stack}\n`);
     return 1;
   }
 }
@@ -438,7 +439,7 @@ if (invokedDirectly()) {
       process.exitCode = code;
     },
     (error: unknown) => {
-      process.stderr.write(`hindsight: ${error instanceof Error ? error.message : String(error)}\n`);
+      process.stderr.write(`ai-insights: ${error instanceof Error ? error.message : String(error)}\n`);
       process.exitCode = 1;
     },
   );

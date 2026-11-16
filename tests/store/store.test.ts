@@ -23,9 +23,32 @@ function mode(path: string) {
 }
 
 describe("store home", () => {
-  it("honours HINDSIGHT_HOME so people and tests can move the cache", () => {
-    expect(resolveHome({ HINDSIGHT_HOME: "/tmp/elsewhere" })).toBe("/tmp/elsewhere");
-    expect(resolveHome({})).toMatch(/\.hindsight$/);
+  const user = "/home/someone";
+  const only = (...existing: string[]) => (path: string) => existing.includes(path);
+
+  it("honours AI_INSIGHTS_HOME so people and tests can move the cache", () => {
+    expect(resolveHome({ AI_INSIGHTS_HOME: "/tmp/elsewhere", HINDSIGHT_HOME: "/tmp/old" }, user, only(`${user}/.hindsight`))).toBe("/tmp/elsewhere");
+  });
+
+  it("still honours HINDSIGHT_HOME from 0.1 when AI_INSIGHTS_HOME is unset", () => {
+    expect(resolveHome({ HINDSIGHT_HOME: "/tmp/old" }, user, only(`${user}/.ai-insights`))).toBe("/tmp/old");
+  });
+
+  it("starts a new install in ~/.ai-insights", () => {
+    expect(resolveHome({}, user, only())).toBe(`${user}/.ai-insights`);
+  });
+
+  it("keeps using an existing ~/.hindsight from 0.1 in place, so saved facets and reports carry over", () => {
+    expect(resolveHome({}, user, only(`${user}/.hindsight`))).toBe(`${user}/.hindsight`);
+  });
+
+  it("prefers ~/.ai-insights once it exists, even when ~/.hindsight is still there", () => {
+    expect(resolveHome({}, user, only(`${user}/.hindsight`, `${user}/.ai-insights`))).toBe(`${user}/.ai-insights`);
+    expect(resolveHome({}, user, only(`${user}/.ai-insights`))).toBe(`${user}/.ai-insights`);
+  });
+
+  it("ignores a blank override", () => {
+    expect(resolveHome({ AI_INSIGHTS_HOME: "  ", HINDSIGHT_HOME: "" }, user, only())).toBe(`${user}/.ai-insights`);
   });
 });
 

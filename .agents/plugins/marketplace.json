@@ -1,14 +1,14 @@
 {
-  "name": "hindsight",
+  "name": "ai-insights",
   "interface": {
-    "displayName": "Hindsight"
+    "displayName": "AI Insights"
   },
   "plugins": [
     {
-      "name": "hindsight",
+      "name": "ai-insights",
       "source": {
         "source": "local",
-        "path": "./harness/hindsight"
+        "path": "./harness/ai-insights"
       },
       "policy": {
         "installation": "AVAILABLE",

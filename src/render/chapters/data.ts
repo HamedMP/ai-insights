@@ -171,7 +171,7 @@ export function coverageChapter({ context, story, tips, actions, index }: Chapte
     8,
   );
   const body = html`${panel("Tools found", tools, { aside: "home folder shown as ~" })}<div class="row">${panel("Projects", projects, { aside: "by agent time" })}${panel("Languages", languages, { aside: "file-tool calls" })}</div>`;
-  return chapter({ id: "coverage", index, kicker: "Where your work lives", lead: story.where ?? [{ text: "Hindsight looked for " }, { text: list(coverage.map((entry) => entry.label || harnessLabel(entry.harness))) || "your agents' history", strong: true }, { text: "." }], second: story.history, body, tip: tryThis(tips.coverage, actions) });
+  return chapter({ id: "coverage", index, kicker: "Where your work lives", lead: story.where ?? [{ text: "AI Insights looked for " }, { text: list(coverage.map((entry) => entry.label || harnessLabel(entry.harness))) || "your agents' history", strong: true }, { text: "." }], second: story.history, body, tip: tryThis(tips.coverage, actions) });
 }
 
 function costCell(row: UsageTotals): string {

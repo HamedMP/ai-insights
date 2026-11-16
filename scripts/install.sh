@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Installs the Hindsight skills and registers its MCP server with each AI coding agent found on this machine.
+# Installs the AI Insights skills and registers its MCP server with each AI coding agent found on this machine.
 # Use it when a harness has no plugin install, or to set several up at once. Safe to re-run.
 set -euo pipefail
 
-SERVER=hindsight
-PACKAGE=@matrix-os/hindsight
+SERVER=ai-insights
+PACKAGE=ai-insights
 MCP_CMD=(npx -y "$PACKAGE" mcp)
 SKILLS_SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/skills"
 ALL=(claude-code codex cursor opencode pi)
@@ -13,7 +13,7 @@ usage() {
   cat <<EOF
 Usage: scripts/install.sh [--all | --harness <name>]... [--dry-run]
 
-Copies the Hindsight skills into each harness's skills folder and registers the
+Copies the AI Insights skills into each harness's skills folder and registers the
 "$SERVER" MCP server (${MCP_CMD[*]}). Runs as you, without root; touches only your home folder.
 
   --all              every harness found on this machine (the default)
@@ -55,12 +55,14 @@ found() {
   esac
 }
 
-# Replaces only the hindsight* skill folders, so the person's other skills are never touched.
+# Replaces only the folders of the skills shipped here, so the person's other skills are never touched.
 copy_skills() {
   local dest="$1"
   case "$SKILL_DIRS_DONE" in *" $dest "*) say "skills: already handled in $dest"; return ;; esac
   SKILL_DIRS_DONE="$SKILL_DIRS_DONE$dest "
   local src name
+  # Skills from before 0.2 (hindsight, hindsight-coach, hindsight-setup) are left in place; they are the person's to remove.
+  if [ -d "$dest/hindsight" ]; then say "note: $dest still has the pre-0.2 hindsight skills; remove $dest/hindsight* once you no longer need them"; fi
   for src in "$SKILLS_SRC"/*/; do
     name="$(basename "$src")"
     if [ -d "$dest/$name" ] && diff -r "$src" "$dest/$name" >/dev/null 2>&1; then
@@ -111,7 +113,7 @@ cursor_mcp() {
     if (dry === "1") { console.log("would"); process.exit(0); }
     config.mcpServers[name] = { command: "npx", args: ["-y", pkg, "mcp"] };
     fs.mkdirSync(path.dirname(file), { recursive: true });
-    const tmp = `${file}.hindsight-${process.pid}`;
+    const tmp = `${file}.ai-insights-${process.pid}`;
     fs.writeFileSync(tmp, JSON.stringify(config, null, 2) + "\n");
     fs.renameSync(tmp, file);
     console.log("added");
@@ -130,7 +132,7 @@ install_one() {
       copy_skills "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills"
       register "Claude Code" "claude mcp get $SERVER" claude mcp add --scope user "$SERVER" -- "${MCP_CMD[@]}" ||
         warn "claude mcp add failed; run: claude mcp add --scope user $SERVER -- ${MCP_CMD[*]}"
-      say "tip: the Claude Code plugin (/plugin install hindsight --marketplace hamedmp/hindsight) does the same; use one or the other" ;;
+      say "tip: the Claude Code plugin (/plugin marketplace add hamedmp/ai-insights, then /plugin install ai-insights@ai-insights) does the same; use one or the other" ;;
     codex)
       copy_skills "$HOME/.agents/skills"
       register "Codex" "codex mcp get $SERVER" codex mcp add "$SERVER" -- "${MCP_CMD[@]}" ||
@@ -144,7 +146,7 @@ install_one() {
         warn "opencode mcp add failed; add to opencode.json: \"mcp\": {\"$SERVER\": {\"type\": \"local\", \"command\": [\"npx\", \"-y\", \"$PACKAGE\", \"mcp\"]}}" ;;
     pi)
       copy_skills "$HOME/.pi/agent/skills"
-      say "Pi has no MCP command line; for the MCP tools run: pi install git:github.com/hamedmp/hindsight" ;;
+      say "Pi has no MCP command line; for the MCP tools run: pi install git:github.com/hamedmp/ai-insights" ;;
   esac
 }
 
@@ -167,6 +169,6 @@ if [ "$DONE" = 0 ]; then
   echo "No supported harness was set up."
   exit 1
 fi
-echo "Restart your agent, or open a new session, so it picks up the skills and the MCP server. Then ask it to run hindsight."
-echo "Hindsight reads your history on this machine only; the analysis runs in your own agent and nothing is uploaded."
+echo "Restart your agent, or open a new session, so it picks up the skills and the MCP server. Then ask it to analyze your AI usage (/analyze-ai-usage)."
+echo "AI Insights reads your history on this machine only; the analysis runs in your own agent and nothing is uploaded."
 exit "$FAILED"

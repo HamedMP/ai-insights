@@ -1,15 +1,15 @@
 ---
-name: hindsight-coach
-description: Turn Hindsight findings and suggestions into reviewable changes, such as edits to CLAUDE.md or AGENTS.md, features to enable and plugins to install. Shows every change as a diff and asks before writing anything. Use after a Hindsight report, or when the person asks how to act on their findings.
+name: ai-insights-coach
+description: Turn AI Insights findings and suggestions into reviewable changes, such as edits to CLAUDE.md or AGENTS.md, features to enable and plugins to install. Shows every change as a diff and asks before writing anything. Use after an AI Insights report, or when the person asks how to act on their findings.
 ---
 
-# Hindsight coach
+# AI Insights coach
 
 Goal: the person leaves with a small number of concrete changes they reviewed and chose, each traced back to something their history showed. You never apply anything automatically.
 
 ## Gather
 
-Call `hindsight_report` for the findings and the narrative. If there are no findings, or the narrative is missing and the person wants the full picture, suggest running the **hindsight** skill first. Rank what you have by severity, then by how much evidence backs it, and pick at most five to propose in this run.
+Call `ai_insights_report` for the findings and the narrative. If there are no findings, or the narrative is missing and the person wants the full picture, suggest running the **analyze-ai-usage** skill first. Rank what you have by severity, then by how much evidence backs it, and pick at most five to propose in this run.
 
 Leave out, before ranking:
 

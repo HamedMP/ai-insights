@@ -1,15 +1,16 @@
 {
-  "name": "hindsight",
-  "displayName": "Hindsight",
-  "version": "0.1.0",
+  "name": "ai-insights",
+  "displayName": "AI Insights",
+  "version": "0.2.0",
   "description": "Look back at how you work with AI coding agents. Local insights and actionable tips from your Claude Code and Codex history.",
   "author": {
     "name": "Matrix OS"
   },
-  "homepage": "https://hamedmp.github.io/hindsight/",
-  "repository": "https://github.com/hamedmp/hindsight",
+  "homepage": "https://hamedmp.github.io/ai-insights/",
+  "repository": "https://github.com/hamedmp/ai-insights",
   "license": "MIT",
   "keywords": [
+    "ai-insights",
     "insights",
     "history",
     "usage",

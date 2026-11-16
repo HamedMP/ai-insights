@@ -130,7 +130,7 @@ describe("codex home directories", () => {
     const home = homedir();
     const todo = join(home, "notes", "todo.md");
     const session = await parseOne([
-      meta(uuid(1), { cwd: join(home, "hindsight-fixture-missing") }),
+      meta(uuid(1), { cwd: join(home, "ai-insights-fixture-missing") }),
       ...userMessage(`look at ${todo} please`),
       event({
         type: "item_completed",
@@ -141,7 +141,7 @@ describe("codex home directories", () => {
       event({ type: "item_completed", thread_id: uuid(1), turn_id: "t1", item: { type: "FileChange", id: "f", status: "completed", changes: { [todo]: { type: "add", content: "x\n" } } } }),
     ]);
     // The store, the coach and cross-harness grouping need real paths; the renderer shortens them for display.
-    expect(session.projectPath).toBe(join(home, "hindsight-fixture-missing"));
+    expect(session.projectPath).toBe(join(home, "ai-insights-fixture-missing"));
     expect(session.filesModified).toEqual([todo]);
     expect(session.toolCalls.map((call) => call.filePath)).toEqual([todo, todo]);
     expect(session.sourcePath.startsWith("/")).toBe(true);

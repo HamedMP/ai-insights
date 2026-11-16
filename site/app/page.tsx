@@ -34,9 +34,9 @@ function SectionHead({ index, comment, title, children, split, className }: { in
 
 const PRIVACY = [
   { value: "0", unit: "network calls", title: "Nothing is sent", body: "No telemetry, no account, no uploads. The report is one HTML file on your disk and loads nothing from the network." },
-  { value: "0", unit: "model API calls", title: "Your agent does the judging", body: "The review runs in the agent you already use, under your existing account and settings. Hindsight never calls a model API." },
+  { value: "0", unit: "model API calls", title: "Your agent does the judging", body: "The review runs in the agent you already use, under your existing account and settings. AI Insights never calls a model API." },
   { value: "***", unit: "secrets, before storing", title: "Secrets are redacted", body: "Keys, tokens, private keys, PASSWORD= assignments and email addresses are removed first. It is pattern-based, so an unusual secret can slip through." },
-  { value: "1", unit: "folder: ~/.hindsight/", title: "Numbers, not replies", body: "It keeps numbers and the prompts you typed, not your agent's replies or tool output, in a folder readable only by you." },
+  { value: "1", unit: "folder: ~/.ai-insights/", title: "Numbers, not replies", body: "It keeps numbers and the prompts you typed, not your agent's replies or tool output, in a folder readable only by you." },
 ]
 
 function Stat({ value, prefix, suffix, label, delay }: { value: number; prefix?: string; suffix?: string; label: string; delay: number }) {
@@ -71,7 +71,7 @@ export default function Page() {
               </Reveal>
               <Reveal delay={120}>
                 <p className="max-w-[33rem] text-lg leading-relaxed text-ink-soft md:text-[1.2rem] md:leading-relaxed">
-                  Hindsight reads your Claude Code and Codex history and turns it into one private report: where your time and tokens go, what keeps going wrong, and what to change. Nothing leaves your machine.
+                  AI Insights reads your Claude Code and Codex history and turns it into one private report: where your time and tokens go, what keeps going wrong, and what to change. Nothing leaves your machine.
                 </p>
               </Reveal>
               <Reveal delay={180} className="flex flex-wrap items-center gap-x-5 gap-y-3">
@@ -87,7 +87,7 @@ export default function Page() {
               <Reveal delay={240} className="flex max-w-[31rem] flex-col gap-2.5">
                 <HeroInstall />
                 <p className="font-mono text-[11.5px] leading-relaxed text-muted-foreground">
-                  then ask it to <span className="text-foreground">run hindsight</span> · reads Claude Code, Codex ·{" "}
+                  then ask it to <span className="text-foreground">analyze my AI usage</span> · reads Claude Code, Codex ·{" "}
                   <a href="#install" className="link-underline text-foreground">
                     other agents
                   </a>
@@ -160,7 +160,7 @@ export default function Page() {
         {/* ---------- install ---------- */}
         <section id="install" className="border-t">
           <div className="mx-auto grid max-w-6xl grid-cols-1 gap-12 px-4 py-20 md:px-8 md:py-28 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:gap-16">
-            <SectionHead index="04" comment="install" title="Add it to your agent, then ask it to run hindsight.">
+            <SectionHead index="04" comment="install" title="Add it to your agent, then ask it to analyze your AI usage.">
               Each install adds the same MCP server and three skills: one builds the report, one turns findings into edits you approve, one checks the setup.
             </SectionHead>
             <Reveal delay={100}>

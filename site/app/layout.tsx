@@ -8,17 +8,17 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { SITE_URL } from "@/lib/site"
 import { cn } from "@/lib/utils"
 
-const title = "Hindsight: look back at how you work with AI coding agents"
+const title = "AI Insights: look back at how you work with AI coding agents"
 const description =
-  "Hindsight reads your local Claude Code and Codex history and turns it into a private report: where your time and tokens go, what keeps going wrong, and what to change. Nothing leaves your machine."
-const image = { url: "og.png", width: 1200, height: 630, alt: "Hindsight: a private report on how you work with your coding agents, built on your machine." }
+  "AI Insights reads your local Claude Code and Codex history and turns it into a private report: where your time and tokens go, what keeps going wrong, and what to change. Nothing leaves your machine."
+const image = { url: "og.png", width: 1200, height: 630, alt: "AI Insights: a private report on how you work with your coding agents, built on your machine." }
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title,
   description,
-  applicationName: "Hindsight",
-  openGraph: { title, description, url: "./", siteName: "Hindsight", type: "website", images: [image] },
+  applicationName: "AI Insights",
+  openGraph: { title, description, url: "./", siteName: "AI Insights", type: "website", images: [image] },
   twitter: { card: "summary_large_image", title, description, images: [image] },
 }
 

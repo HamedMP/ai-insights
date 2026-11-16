@@ -1,17 +1,17 @@
 {
-  "name": "hindsight",
+  "name": "ai-insights",
   "owner": {
     "name": "Matrix OS"
   },
   "metadata": {
-    "description": "Hindsight: local insights from your AI coding-agent history"
+    "description": "AI Insights: local insights from your AI coding-agent history"
   },
   "plugins": [
     {
-      "name": "hindsight",
-      "source": "./harness/hindsight",
+      "name": "ai-insights",
+      "source": "./harness/ai-insights",
       "description": "Look back at how you work with AI coding agents. Local insights and actionable tips from your Claude Code and Codex history.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "category": "productivity"
     }
   ]

@@ -19,7 +19,7 @@ export const singleHarnessOnly: Detector = ({ sessions, coverage }) => {
       kind: "single_harness_only",
       severity: "info",
       title: `All of this history is from ${label}`,
-      detail: `Hindsight found ${plural(sessions.length, "session")} from ${label} and none from ${checked.join(", ")} on this machine, so there is nothing to compare against.`,
+      detail: `AI Insights found ${plural(sessions.length, "session")} from ${label} and none from ${checked.join(", ")} on this machine, so there is nothing to compare against.`,
       harnesses: [harness],
       evidence: [
         evidence(first, `Oldest ${label} session found`),
@@ -28,7 +28,7 @@ export const singleHarnessOnly: Detector = ({ sessions, coverage }) => {
       suggestion: {
         type: "habit",
         title: "Compare with a second agent",
-        action: `If you use another agent on a different machine, run Hindsight there too. If not, trying a second agent on a few tasks shows which one suits which kind of work.`,
+        action: `If you use another agent on a different machine, run AI Insights there too. If not, trying a second agent on a few tasks shows which one suits which kind of work.`,
       },
     },
   ];
