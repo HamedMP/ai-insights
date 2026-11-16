@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { historyDays } from "../../../src/analysis/index.js";
+import { buildReport, historyDays } from "../../../src/analysis/index.js";
 import type { Session, ToolCall } from "../../../src/schema/types.js";
 import { coverage, day, prompt, session, sessionsOverDays, shell, tool } from "../factory.js";
 import { findings } from "./helpers.js";
@@ -160,5 +160,32 @@ describe("permission_prompt_load names the commands that keep getting denied", (
       toolCalls: [shell("rm -rf build", "permission_denied", day(index, 1)), shell("git push --force", "permission_denied", day(index, 2)), ...work(index)],
     }));
     expect(findings("permission_prompt_load", sessions)).toEqual([]);
+  });
+});
+
+describe("Coverage.historyDays", () => {
+  const build = (sessions: Session[], cov: ReturnType<typeof coverage>[], now: Date) =>
+    buildReport({ sessions, coverage: cov, now, timeZone: "UTC" });
+
+  it("fills each harness's days of history, the same number the short-history finding states", () => {
+    const sessions = [...sessionsOverDays(2, (index) => ({ startTime: day(14 + index) })), ...sessionsOverDays(2, (index) => ({ harness: "codex", startTime: day(index) }))];
+    const now = new Date(day(20));
+    const report = build(sessions, [coverage("claude-code", 2), coverage("codex", 2)], now);
+    expect(report.coverage.map((entry) => [entry.harness, entry.historyDays])).toEqual([["claude-code", 6], ["codex", 20]]);
+    const finding = report.findings.find((item) => item.kind === "short_history");
+    expect(finding!.metric?.value).toBe(6);
+    expect(finding!.detail).toContain("Codex 20 days");
+  });
+
+  it("uses the scan's oldest date when it reaches further back than the sessions", () => {
+    const report = build(sessionsOverDays(2, (index) => ({ startTime: day(10 + index) })), [{ ...coverage("claude-code", 2), oldest: day(4) }], new Date(day(20)));
+    expect(report.coverage[0]!.historyDays).toBe(16);
+  });
+
+  it("leaves it out for a harness with no history found, and does not change the caller's coverage", () => {
+    const input = [coverage("claude-code", 2), coverage("cursor", 0, false)];
+    const report = build(sessionsOverDays(2), input, new Date(day(20)));
+    expect(report.coverage[1]).not.toHaveProperty("historyDays");
+    expect(input[0]).not.toHaveProperty("historyDays");
   });
 });
