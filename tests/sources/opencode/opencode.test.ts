@@ -1,12 +1,23 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
+import { createRequire } from "node:module";
+import type { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { sqliteSupport } from "../../../src/sources/common/sqlite.js";
 import { opencodeSource } from "../../../src/sources/opencode/index.js";
 
 type Rec = Record<string, unknown>;
+
+// node:sqlite ships with Node 22.5 and later. On older Node the database tests cannot build their fixture, so they
+// are skipped there; the legacy-storage and "says why" tests below still run on every Node.
+const sqlite = (() => {
+  try {
+    return createRequire(import.meta.url)("node:sqlite") as typeof import("node:sqlite");
+  } catch {
+    return null;
+  }
+})();
 
 const T0 = Date.parse("2026-05-01T10:00:00.000Z");
 const at = (seconds: number) => T0 + seconds * 1000;
@@ -35,7 +46,7 @@ const dataDir = () => join(dir, "opencode");
 /** The history tables of a real opencode.db, plus the credential table that must never be read. */
 function createDb(path = join(dataDir(), "opencode.db")): DatabaseSync {
   mkdirSync(dataDir(), { recursive: true });
-  const db = new DatabaseSync(path);
+  const db = new sqlite!.DatabaseSync(path);
   db.exec(`
     CREATE TABLE session (id text PRIMARY KEY, project_id text NOT NULL, parent_id text, slug text NOT NULL, directory text NOT NULL,
       title text NOT NULL, version text NOT NULL, time_created integer NOT NULL, time_updated integer NOT NULL);
@@ -113,7 +124,7 @@ async function only() {
   return { file: files[0]!, session: session! };
 }
 
-describe("opencode database history", () => {
+describe.skipIf(!sqlite)("opencode database history", () => {
   it("reads prompts, tools, tokens and the recorded cost of every provider from opencode.db", async () => {
     const db = createDb();
     addSession(db, "ses_main");
@@ -265,7 +276,7 @@ describe("opencode legacy storage and old Node versions", () => {
     expect(session.toolCalls[0]).toMatchObject({ name: "read", category: "read", filePath: "/work/old/a.py" });
   });
 
-  it("does not list a session twice once OpenCode has migrated its files into the database", async () => {
+  it.skipIf(!sqlite)("does not list a session twice once OpenCode has migrated its files into the database", async () => {
     legacy();
     const db = createDb();
     addSession(db, "ses_file");
@@ -276,7 +287,12 @@ describe("opencode legacy storage and old Node versions", () => {
   });
 
   it("says why the database cannot be read on a Node without node:sqlite instead of failing", async () => {
-    createDb().close();
+    // Any file at the database path will do: the source must explain itself before it ever opens it.
+    if (sqlite) createDb().close();
+    else {
+      mkdirSync(dataDir(), { recursive: true });
+      writeFileSync(join(dataDir(), "opencode.db"), "");
+    }
     sqliteSupport.disabled = true;
     expect(await opencodeSource.discover()).toEqual([]);
     expect(await opencodeSource.diagnose!()).toMatch(/Node 22\.5 or later/);
