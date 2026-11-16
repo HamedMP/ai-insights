@@ -1,0 +1,307 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* Layout: one calm reading column on warm paper (ink on dark), product visuals do the talking. */
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-geist-sans);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-brand: var(--brand);
+  --color-brand-soft: var(--brand-soft);
+  --color-ink-soft: var(--ink-soft);
+  --color-series-codex: var(--series-codex);
+  --color-cell-0: var(--cell-0);
+  --color-cell-1: var(--cell-1);
+  --color-cell-2: var(--cell-2);
+  --color-cell-3: var(--cell-3);
+  --color-cell-4: var(--cell-4);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+}
+
+/* The report's own palette: warm paper and ink, one orange. */
+:root {
+  --background: #f3f0e8;
+  --foreground: #17140f;
+  --ink-soft: #3b3a37;
+  --card: #faf8f3;
+  --card-foreground: #17140f;
+  --popover: #faf8f3;
+  --popover-foreground: #17140f;
+  --primary: #c2410c;
+  --primary-foreground: #ffffff;
+  --secondary: #ebe6da;
+  --secondary-foreground: #17140f;
+  --muted: #ece7dc;
+  --muted-foreground: #69635a;
+  --accent: #e7e1d3;
+  --accent-foreground: #17140f;
+  --destructive: #b42318;
+  --border: #e0dacd;
+  --input: #cbc3b2;
+  --ring: #c2410c;
+  --brand: #c2410c;
+  --brand-soft: rgb(194 65 12 / 0.09);
+  --series-codex: #3b3a37;
+  --cell-0: #e5e0d4;
+  --cell-1: #f6d2b6;
+  --cell-2: #f0a26c;
+  --cell-3: #df6a2c;
+  --cell-4: #c2410c;
+  --dot: rgb(23 20 15 / 0.075);
+  --radius: 0.625rem;
+}
+
+.dark {
+  --background: #0b0b0c;
+  --foreground: #f2efe8;
+  --ink-soft: #d8d0c0;
+  --card: #131315;
+  --card-foreground: #f2efe8;
+  --popover: #18181b;
+  --popover-foreground: #f2efe8;
+  --primary: #ff7a2f;
+  --primary-foreground: #1a0b02;
+  --secondary: #1d1d21;
+  --secondary-foreground: #f2efe8;
+  --muted: #18181b;
+  --muted-foreground: #948f86;
+  --accent: #222226;
+  --accent-foreground: #f2efe8;
+  --destructive: #f97066;
+  --border: #242428;
+  --input: #36363c;
+  --ring: #ff7a2f;
+  --brand: #ff7a2f;
+  --brand-soft: rgb(255 122 47 / 0.12);
+  --series-codex: #d8d0c0;
+  --cell-0: #1e1e22;
+  --cell-1: #3e2416;
+  --cell-2: #7b3b18;
+  --cell-3: #c8581c;
+  --cell-4: #ff7a2f;
+  --dot: rgb(255 255 255 / 0.055);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+    scroll-behavior: smooth;
+    scroll-padding-top: 5rem;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    background-image: radial-gradient(var(--dot) 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+  /* grid children may shrink below their longest word, so truncated or scrolling text never widens the page */
+  :where(.grid) > * {
+    min-width: 0;
+  }
+  ::selection {
+    background: var(--brand-soft);
+    color: var(--foreground);
+  }
+}
+
+/* ---------- theme change: colours cross-fade instead of snapping ---------- */
+html.theme-fade,
+html.theme-fade *,
+html.theme-fade *::before,
+html.theme-fade *::after {
+  transition:
+    background-color 320ms ease,
+    border-color 320ms ease,
+    color 320ms ease,
+    fill 320ms ease,
+    stroke 320ms ease !important;
+}
+
+/* ---------- quadrant glyph marker: a small block that turns on hover ---------- */
+.glyph::before {
+  content: "▚";
+  display: inline-block;
+  color: var(--brand);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+}
+.glyph-host:hover .glyph::before,
+.glyph-host:focus-visible .glyph::before {
+  animation: glyph-turn 0.5s steps(1, end) infinite;
+}
+@keyframes glyph-turn {
+  0% { content: "▖"; }
+  25% { content: "▘"; }
+  50% { content: "▝"; }
+  75% { content: "▗"; }
+  100% { content: "▖"; }
+}
+
+/* ---------- scroll reveal: content is visible at rest; motion only adds an entrance ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  /* Starts readable (never at zero opacity), so a skim or a thumbnail sees the whole page. */
+  .js [data-reveal]:not([data-shown]) {
+    opacity: 0.35;
+    transform: translateY(16px);
+  }
+  .js [data-reveal] {
+    transition:
+      opacity 700ms cubic-bezier(0.2, 0.7, 0.2, 1),
+      transform 700ms cubic-bezier(0.2, 0.7, 0.2, 1);
+    transition-delay: var(--reveal-delay, 0ms);
+  }
+}
+
+/* ---------- hero timeline: lanes draw themselves left to right ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  .tl-run .tl-bar {
+    transform-box: fill-box;
+    transform-origin: left center;
+    animation: tl-grow 900ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+    animation-delay: var(--d, 0ms);
+  }
+  .tl-run .tl-fade {
+    animation: tl-fade 600ms ease both;
+    animation-delay: var(--d, 0ms);
+  }
+  .tl-run .tl-cursor {
+    animation: tl-sweep 2600ms cubic-bezier(0.45, 0, 0.2, 1) both;
+    animation-delay: 300ms;
+  }
+  .tl-run .tl-peak {
+    animation: tl-pop 500ms cubic-bezier(0.2, 0.9, 0.3, 1.3) both;
+    animation-delay: 2700ms;
+  }
+  .tl-pulse {
+    animation: tl-pulse 2.4s ease-in-out infinite;
+    animation-delay: 3.2s;
+  }
+}
+@keyframes tl-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes tl-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes tl-sweep { from { transform: translateX(var(--sweep-from)); opacity: 0; } 12% { opacity: 1; } to { transform: translateX(0); opacity: 1; } }
+@keyframes tl-pop { from { transform: translateY(6px) scale(0.92); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes tl-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+
+/* ---------- activity grid: cells light up in a wave ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  .grid-run .cell {
+    animation: cell-in 520ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+    animation-delay: var(--d, 0ms);
+  }
+}
+@keyframes cell-in { from { transform: scale(0.7); opacity: 0.3; } to { transform: none; opacity: 1; } }
+
+/* ---------- beam: a slow light that runs round the active install card ---------- */
+@property --beam-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+.beam {
+  position: relative;
+  isolation: isolate;
+}
+.beam::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  pointer-events: none;
+  background: conic-gradient(from var(--beam-angle), transparent 0%, transparent 62%, var(--brand) 74%, transparent 86%, transparent 100%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  opacity: 0.9;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .beam::after {
+    animation: beam-spin 5s linear infinite;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .beam::after {
+    display: none;
+  }
+}
+@keyframes beam-spin { to { --beam-angle: 360deg; } }
+
+/* ---------- small things ---------- */
+.mono-comment {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  color: var(--muted-foreground);
+}
+.mono-comment::before {
+  content: "// ";
+  color: var(--brand);
+}
+.link-underline {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  text-decoration-color: color-mix(in oklab, currentColor 30%, transparent);
+  transition: text-decoration-color 200ms ease, color 200ms ease;
+}
+.link-underline:hover {
+  text-decoration-color: currentColor;
+}
+.shot-frame img {
+  transition: transform 600ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .shot-frame:hover img {
+    transform: scale(1.012);
+  }
+}
+
+/* the grid waits, dimmed, until it is seen (never invisible), then runs the wave */
+@media (prefers-reduced-motion: no-preference) {
+  .js .grid-idle .cell {
+    opacity: 0.3;
+    transform: scale(0.7);
+  }
+  .js .chip-idle .chip {
+    opacity: 0.3;
+    transform: translateY(6px);
+  }
+  .chip-run .chip {
+    animation: chip-in 520ms cubic-bezier(0.2, 0.8, 0.2, 1.2) both;
+    animation-delay: var(--d, 0ms);
+  }
+}
+@keyframes chip-in { from { opacity: 0.3; transform: translateY(6px); } to { opacity: 1; transform: none; } }

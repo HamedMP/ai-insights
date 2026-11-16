@@ -1,0 +1,41 @@
+# Hindsight
+
+> Hindsight reads a person's local Claude Code and Codex history and turns it into one private HTML report: where their time and tokens go, what keeps going wrong, and specific changes to try. Everything runs on their machine; Hindsight makes no network calls and never calls a model API.
+
+- Package: @matrix-os/hindsight on npm (Node.js 20 or newer)
+- Source: https://github.com/hamedmp/hindsight (MIT)
+- Sample report, built from invented sessions: https://hamedmp.github.io/hindsight/demo/report.html
+
+## What it reads
+
+- Claude Code: ~/.claude/projects/**/*.jsonl (or under CLAUDE_CONFIG_DIR)
+- Codex: ~/.codex/sessions and ~/.codex/archived_sessions (or under CODEX_HOME)
+- Cursor, Pi and OpenCode can run the skills, but their own history is not read yet, and those installs are untested.
+
+It keeps numbers (tokens, durations, tool calls, errors, lines changed) and the prompts the person typed, with secrets redacted. It does not store agent replies or tool output. It writes only to ~/.hindsight/ (HINDSIGHT_HOME moves it).
+
+## Install
+
+Claude Code:
+
+    /plugin marketplace add hamedmp/hindsight
+    /plugin install hindsight@hindsight
+
+Codex:
+
+    codex plugin marketplace add hamedmp/hindsight
+    codex plugin add hindsight@hindsight
+
+Several harnesses at once: clone the repository and run scripts/install.sh (--dry-run shows what it would do).
+
+Each install adds the MCP server (npx -y @matrix-os/hindsight mcp) and three skills: hindsight (builds the report), hindsight-coach (turns findings into edits the person approves), hindsight-setup (checks the setup). Then, in a new session, the person asks their agent to "run hindsight".
+
+Without an agent: `npx @matrix-os/hindsight` builds the numbers-only report; `npx @matrix-os/hindsight doctor` shows which history it found.
+
+## How it works
+
+1. Deterministic scan: sessions, activity, token usage, estimated cost at API list prices, and findings with evidence. No model involved.
+2. The person's own agent reads short redacted excerpts, labels each sampled session from a fixed taxonomy (goal, outcome, friction, what went well), and writes a short narrative.
+3. Both become one self-contained HTML report that loads nothing from the network.
+
+Built by the Matrix OS team: https://matrix-os.com
