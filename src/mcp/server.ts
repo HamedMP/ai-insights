@@ -27,7 +27,7 @@ import { sessionKey, StoreError, type Store } from "../store/store.js";
 import { fitJson } from "./bound.js";
 import { activityDigest, facetsDigest, usageDigest, DIGEST_WEEKS } from "./digest.js";
 import { DEFAULT_EXCERPT_CHARS, DEFAULT_EXCERPT_CHARS_PER_TURN, DEFAULT_EXCERPT_TURNS, fitTurns } from "./excerpt.js";
-import { isAgentDriven, isLive, isSlashCommandOnly, spreadOrder } from "./select.js";
+import { DEFAULT_MIN_USER_MESSAGES, facetBacklog, filterCandidates, isAgentDriven, isLive, spreadOrder } from "./select.js";
 import { packageVersion } from "./version.js";
 
 export interface ServerDeps {
@@ -200,8 +200,36 @@ function countBy(values: string[]): Record<string, number> {
   return out;
 }
 
+/** What to do after a scan, and for a returning person, what is already there and what a new narrative does to it. */
+function nextAfterScan(sessions: number, withFacets: number, toJudge: number, narrativeSaved: boolean): string {
+  if (sessions === 0) return "No sessions found. Run hindsight_scan with a wider since window, or check `hindsight doctor`.";
+  const start = "Call hindsight_report for findings, then hindsight_sessions with missingFacets: true to start the qualitative pass.";
+  if (withFacets === 0 && !narrativeSaved) return start;
+  const earlier = [
+    withFacets > 0 ? `${withFacets} sessions already have facets from an earlier run` : null,
+    narrativeSaved ? "a narrative from an earlier run is saved" : null,
+  ].filter(Boolean);
+  const adding =
+    toJudge > 0
+      ? `this run adds facets for up to ${toJudge} more. ${start}`
+      : "no new sessions need facets, so go from hindsight_report to the narrative.";
+  return (
+    `Returning person: ${earlier.join(" and ")}. Tell them so, and that ${adding} ` +
+    "Then write a new narrative from all facets, old and new; saving it replaces the earlier one, so say that it does."
+  );
+}
+
 export function createServer(deps: ServerDeps): McpServer {
   const state = new ServerState(deps);
+  const facetBacklogFor = async (result: ScanResult) => {
+    const facetIds = await deps.store.facetIds();
+    const now = state.now();
+    return facetBacklog(
+      result.sessions,
+      (session) => facetIds.get(session.harness)?.has(session.id) ?? false,
+      (session) => isLive(result.files.get(sessionKey(session.harness, session.id))?.mtimeMs ?? session.sourceMtimeMs, now),
+    );
+  };
   const server = new McpServer(
     { name: "hindsight", version: packageVersion() },
     {
@@ -238,6 +266,8 @@ export function createServer(deps: ServerDeps): McpServer {
       });
       const facetIds = await deps.store.facetIds();
       const withFacets = result.sessions.filter((session) => facetIds.get(session.harness)?.has(session.id)).length;
+      const backlog = await facetBacklogFor(result);
+      const narrativeSaved = (await deps.store.readNarrative().catch(() => null)) !== null;
       let analysis: Record<string, unknown> | null = null;
       try {
         const { report } = await buildFromScan(deps, result);
@@ -259,12 +289,10 @@ export function createServer(deps: ServerDeps): McpServer {
         })),
         headline: headline(result.sessions),
         analysis,
-        facets: { saved: withFacets, missing: result.sessions.length - withFacets },
+        facets: { saved: withFacets, missing: result.sessions.length - withFacets, toJudge: backlog.toJudge, skipped: backlog.skipped },
+        narrative: { saved: narrativeSaved },
         scan: { ...result.stats, options: result.options },
-        next:
-          result.sessions.length === 0
-            ? "No sessions found. Run hindsight_scan with a wider since window, or check `hindsight doctor`."
-            : "Call hindsight_report for findings, then hindsight_sessions with missingFacets: true to start the qualitative pass.",
+        next: nextAfterScan(result.sessions.length, withFacets, backlog.toJudge, narrativeSaved),
       });
     }),
   );
@@ -364,27 +392,15 @@ export function createServer(deps: ServerDeps): McpServer {
       const live = (session: Session) => isLive(mtime(session), now);
       const choosing = args.missingFacets === true;
       const strategy = args.strategy ?? (choosing ? "spread" : "newest");
-      const minUserMessages = args.minUserMessages ?? (choosing ? 2 : 0);
-      const skipLive = choosing && !args.includeLive;
-      const skipSlash = choosing && !args.includeSlashCommandOnly;
-
-      const skipped = { live: 0, slashCommandOnly: 0, fewPrompts: 0 };
-      const matching = result.sessions.filter((session) => {
-        if (args.harness && session.harness !== args.harness) return false;
-        if (choosing && hasFacet(session)) return false;
-        if (skipLive && live(session)) {
-          skipped.live += 1;
-          return false;
-        }
-        if (skipSlash && isSlashCommandOnly(session)) {
-          skipped.slashCommandOnly += 1;
-          return false;
-        }
-        if (session.userMessageCount < minUserMessages) {
-          skipped.fewPrompts += 1;
-          return false;
-        }
-        return true;
+      const minUserMessages = args.minUserMessages ?? (choosing ? DEFAULT_MIN_USER_MESSAGES : 0);
+      const { matching, skipped } = filterCandidates(result.sessions, {
+        harness: args.harness,
+        missingOnly: choosing,
+        minUserMessages,
+        skipLive: choosing && !args.includeLive,
+        skipSlashCommandOnly: choosing && !args.includeSlashCommandOnly,
+        hasFacet,
+        live,
       });
       const ordered = strategy === "spread" ? spreadOrder(matching) : matching;
       const skippedReasons = [
@@ -551,10 +567,15 @@ export function createServer(deps: ServerDeps): McpServer {
           rejected.push({ index, sessionId, error: message });
         }
       }
-      const facetIds = await deps.store.facetIds();
-      const remaining = result.sessions.filter((session) => !facetIds.get(session.harness)?.has(session.id)).length;
+      const backlog = await facetBacklogFor(result);
       return {
-        ...ok({ saved, rejected, sessionsStillMissingFacets: remaining }),
+        ...ok({
+          saved,
+          rejected,
+          // Matches what hindsight_sessions with missingFacets still offers; held-back sessions are counted apart.
+          sessionsStillMissingFacets: backlog.toJudge,
+          skippedWithoutFacets: backlog.skipped,
+        }),
         ...(saved.length === 0 ? { isError: true } : {}),
       };
     }),
@@ -569,6 +590,7 @@ export function createServer(deps: ServerDeps): McpServer {
         "(summary, findings, facets sections). Saving again replaces it. Shape: headline (2-3 sentences); workAreas [{name, sessions, description}] (max 12); " +
         "interactionStyle (a short paragraph); wins [{title, description}]; frictions [{title, description, examples: string[]}]; " +
         `suggestions [{type: ${SUGGESTION_TYPES.join("|")}, title, action, instructionText?, url? (http/https only)}] (max 15); ` +
+        "instructionText is pasted into an instructions file as is: write the final text, with no angle-bracket placeholders (<n>) or ellipses (…); a save holding one is rejected. " +
         "horizon [{title, description, starterPrompt?}] (max 8).",
       inputSchema: {
         narrative: z.record(z.string(), z.unknown()).describe("The narrative object described in the tool description."),

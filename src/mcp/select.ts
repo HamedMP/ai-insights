@@ -17,6 +17,62 @@ export function isAgentDriven(session: Session): boolean {
   return (session.agentMessageCount ?? 0) > session.userMessageCount;
 }
 
+/** Default floor of the person's own prompts for a session to be worth a facet. */
+export const DEFAULT_MIN_USER_MESSAGES = 2;
+
+export interface SkipCounts {
+  live: number;
+  slashCommandOnly: number;
+  fewPrompts: number;
+}
+
+export interface CandidateRules {
+  harness?: Harness | undefined;
+  /** Only sessions with no saved facet. */
+  missingOnly: boolean;
+  minUserMessages: number;
+  skipLive: boolean;
+  skipSlashCommandOnly: boolean;
+  hasFacet: (session: Session) => boolean;
+  live: (session: Session) => boolean;
+}
+
+/** The sessions a listing offers under `rules`, and how many each rule held back. */
+export function filterCandidates(sessions: Session[], rules: CandidateRules): { matching: Session[]; skipped: SkipCounts } {
+  const skipped: SkipCounts = { live: 0, slashCommandOnly: 0, fewPrompts: 0 };
+  const matching = sessions.filter((session) => {
+    if (rules.harness && session.harness !== rules.harness) return false;
+    if (rules.missingOnly && rules.hasFacet(session)) return false;
+    if (rules.skipLive && rules.live(session)) {
+      skipped.live += 1;
+      return false;
+    }
+    if (rules.skipSlashCommandOnly && isSlashCommandOnly(session)) {
+      skipped.slashCommandOnly += 1;
+      return false;
+    }
+    if (session.userMessageCount < rules.minUserMessages) {
+      skipped.fewPrompts += 1;
+      return false;
+    }
+    return true;
+  });
+  return { matching, skipped };
+}
+
+/** What a default missing-facet listing would still offer: the number to tell the person, kept in step with that listing. */
+export function facetBacklog(sessions: Session[], hasFacet: (session: Session) => boolean, live: (session: Session) => boolean) {
+  const { matching, skipped } = filterCandidates(sessions, {
+    missingOnly: true,
+    minUserMessages: DEFAULT_MIN_USER_MESSAGES,
+    skipLive: true,
+    skipSlashCommandOnly: true,
+    hasFacet,
+    live,
+  });
+  return { toJudge: matching.length, skipped };
+}
+
 /**
  * Chronological positions in an order where every prefix covers the range:
  * newest, oldest, then midpoints at ever finer steps (van der Corput).

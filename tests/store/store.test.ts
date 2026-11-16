@@ -221,3 +221,14 @@ describe("SessionSchema", () => {
     expect(SessionSchema.safeParse({ ...makeSession({ id: "c" }), projectRoot: 7 }).success).toBe(false);
   });
 });
+
+describe("narrative placeholders", () => {
+  it("still reads back a narrative saved before placeholders were refused", async () => {
+    const store = new Store(home);
+    const old = { ...validNarrative(), suggestions: [{ type: "instructions", title: "t", action: "a", instructionText: "Run `x <n>`." }] };
+    await mkdir(home, { recursive: true });
+    await writeFile(join(home, "narrative.json"), JSON.stringify(old));
+    expect((await store.readNarrative())?.suggestions[0]?.instructionText).toBe("Run `x <n>`.");
+    await expect(store.saveNarrative(old)).rejects.toThrow(/placeholder/);
+  });
+});

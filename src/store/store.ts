@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { HARNESSES, type Harness, type Narrative, type Report, type Session, type SessionFacet, type SessionFile } from "../schema/types.js";
 import { ensureDir, readJsonFile, writeFileAtomic } from "./fs.js";
-import { NarrativeSchema, SessionFacetSchema, SessionSchema, isSafeId } from "./schemas.js";
+import { NarrativeInputSchema, NarrativeSchema, SessionFacetSchema, SessionSchema, isSafeId } from "./schemas.js";
 
 /** Where Hindsight keeps its cache: `HINDSIGHT_HOME`, else `~/.hindsight`. */
 export function resolveHome(env: NodeJS.ProcessEnv = process.env): string {
@@ -198,7 +198,7 @@ export class Store {
   // -- narrative -----------------------------------------------------------
 
   async saveNarrative(input: unknown): Promise<Narrative> {
-    const narrative = NarrativeSchema.parse(input) as Narrative;
+    const narrative = NarrativeInputSchema.parse(input) as Narrative;
     await writeFileAtomic(join(this.home, "narrative.json"), `${JSON.stringify(narrative, null, 2)}\n`);
     return narrative;
   }
