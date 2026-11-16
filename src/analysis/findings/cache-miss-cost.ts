@@ -81,7 +81,7 @@ export const cacheMissCost: Detector = ({ requests }) => {
       kind: "cache_miss_cost",
       severity,
       title: `${label} reads little from the prompt cache`,
-      detail: `Only ${percent(rate)} of ${label} input came from the cache, across ${plural(bucket.sessions.size, "session")}. At a ${percent(TARGET_HIT_RATE)} hit rate the same work would have cost about ${usd(bucket.missPremium)} less at API list prices${bucket.pricedInput < promptTokens ? " (models without a known price are left out)" : ""}.`,
+      detail: `Only ${percent(rate)} of ${label} input came from the cache, across ${plural(bucket.sessions.size, "session")}. At a ${percent(TARGET_HIT_RATE)} hit rate the same work would have cost about ${usd(bucket.missPremium)} less at API list prices${bucket.pricedInput < promptTokens ? " (input tokens of models without a known price are left out)" : ""}.`,
       harnesses: [harness],
       metric: { value: round(bucket.missPremium), unit: "USD", label: "estimated cost of cache misses" },
       evidence: items,

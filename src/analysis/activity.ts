@@ -192,6 +192,7 @@ export function buildActivity(sessions: Session[], clock: Clock): Activity {
   const responseTimes: number[] = [];
   const responseBuckets = new Map(RESPONSE_BUCKETS.map((bucket) => [bucket.key, 0]));
   const spans: Array<[number, number]> = [];
+  const touched = new Set<string>();
 
   const activity: Activity = {
     sessions: sessions.length,
@@ -239,14 +240,13 @@ export function buildActivity(sessions: Session[], clock: Clock): Activity {
     activity.gitCommits += session.gitCommits;
     for (const file of session.filesModified) files.add(file);
 
-    // A session counts on every local day it did something, not only the day it started.
-    const days = new Set<string>();
-    if (startDay) days.add(startDay);
+    // Counted once, on the day it started, so daily and weekly sums equal the real session count.
+    // The other days it touched are still active days through their messages and active minutes.
+    if (startDay) dayRow(startDay).sessions += 1;
     for (const value of [session.endTime, ...session.prompts.map((p) => p.timestamp), ...session.toolCalls.map((c) => c.timestamp), ...session.requests.map((r) => r.timestamp)]) {
       const day = clock.day(value);
-      if (day) days.add(day);
+      if (day) touched.add(day);
     }
-    for (const day of days) dayRow(day).sessions += 1;
     spans.push(...activeSpans(session));
     // Prompts may be capped by the source; messages beyond the cap are placed at the session start.
     let placed = 0;
@@ -304,7 +304,8 @@ export function buildActivity(sessions: Session[], clock: Clock): Activity {
   activity.wallClockActiveMinutes = Math.round(merged.reduce((sum, [start, end]) => sum + (end - start), 0) / 60_000);
   for (const [day, ms] of msPerDay(merged, clock)) dayRow(day).activeMinutes = Math.min(MINUTES_PER_DAY, Math.round(ms / 60_000));
 
-  const activeDays = [...daily].filter(([, row]) => row.sessions > 0 || row.userMessages > 0).map(([day]) => day);
+  for (const day of touched) dayRow(day);
+  const activeDays = [...daily].filter(([day, row]) => row.sessions > 0 || row.userMessages > 0 || row.activeMinutes > 0 || touched.has(day)).map(([day]) => day);
   activity.activeDays = activeDays.length;
   activity.longestStreakDays = longestStreak(activeDays);
   activity.filesModified = files.size;

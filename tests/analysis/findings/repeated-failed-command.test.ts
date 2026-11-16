@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { commandKey, normalizeCommand } from "../../../src/analysis/findings/commands.js";
-import { day, session, sessionsOverDays, shell } from "../factory.js";
+import { day, session, sessionsOverDays, shell, tool } from "../factory.js";
 import { findings } from "./helpers.js";
 
 describe("repeated_failed_command", () => {
@@ -61,7 +61,31 @@ describe("repeated_failed_command", () => {
       expect(text).not.toMatch(/<(?:tmp|hash|id|time|n)>/);
       expect(text).not.toMatch(/\/tmp|[0-9a-f]{12}|40\d\d/);
     }
-    expect(finding!.suggestion?.instructionText).toContain("gh pr view");
+    // The real invocation cannot be written out, so there is no rule to paste.
+    expect(finding!.suggestion?.instructionText).toBeUndefined();
+    expect(finding!.suggestion?.action).toBeTruthy();
+  });
+
+  it("does not flag a check whose exit code is its answer: it succeeds about as often as it fails and is not retried", () => {
+    const sessions = sessionsOverDays(5, (index) => ({
+      toolCalls: [
+        shell("node scripts/review-carryover.mjs check", "command_failed", day(index, 1)),
+        tool("edit", { timestamp: day(index, 2) }),
+        shell("node scripts/review-carryover.mjs check", undefined, day(index, 3)),
+      ],
+    }));
+    expect(findings("repeated_failed_command", sessions)).toEqual([]);
+  });
+
+  it("only counts failures as in a row when nothing was changed between them", () => {
+    const calls = [0, 1, 2, 3, 4, 5].flatMap((n) => [shell("pnpm lint", "command_failed", day(0, n * 2)), tool("edit", { timestamp: day(0, n * 2 + 1) })]);
+    expect(findings("repeated_failed_command", [session({ toolCalls: calls })])).toEqual([]);
+  });
+
+  it("still flags a command that fails nearly every time across sessions", () => {
+    const sessions = sessionsOverDays(3, (index) => ({ toolCalls: [shell("gh stack view 12 --json", "command_failed", day(index, 1))] }));
+    const [finding] = findings("repeated_failed_command", sessions);
+    expect(finding?.title).toContain("gh stack view");
   });
 
   it("strips timeout and kill wrappers", () => {

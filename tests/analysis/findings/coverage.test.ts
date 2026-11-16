@@ -24,6 +24,25 @@ describe("unused_feature", () => {
     expect(findings("unused_feature", personal).map((finding) => finding.id)).toContain("unused_feature:plan_mode");
   });
 
+  it("counts every session of the harness that has plan mode, and says which ones it judged", () => {
+    const big = { linesAdded: 400, linesRemoved: 50, filesModified: ["/synthetic/a.ts", "/synthetic/b.ts", "/synthetic/c.ts"] };
+    const sessions = [
+      ...sessionsOverDays(12, (index) => (index < 3 ? { ...big } : index < 6 ? { agentMessageCount: 8, userMessageCount: 1 } : {})),
+      ...sessionsOverDays(5, (index) => ({ harness: "codex", startTime: day(index, 300) })),
+    ];
+    const [finding] = findings("unused_feature", sessions).filter((item) => item.id === "unused_feature:plan_mode");
+    expect(finding?.detail).toContain("None of your 12 Claude Code sessions used plan mode");
+    expect(finding?.detail).toContain("3 of the 9 sessions you steered yourself");
+  });
+
+  it("does not cite a session that started from a written brief as one that should have planned", () => {
+    const big = { linesAdded: 400, linesRemoved: 50, filesModified: ["/synthetic/a.ts", "/synthetic/b.ts", "/synthetic/c.ts"] };
+    const brief = (index: number) => [prompt("Continue the ticket in this worktree. First read ~/notes/handoff-ticket.md and follow it.", day(index))];
+    const sessions = sessionsOverDays(12, (index) => (index < 4 ? { ...big, prompts: brief(index) } : index < 6 ? big : {}));
+    const [finding] = findings("unused_feature", sessions).filter((item) => item.id === "unused_feature:plan_mode");
+    expect(finding?.evidence.map((item) => item.sessionId)).toEqual([sessions[4]!.id, sessions[5]!.id]);
+  });
+
   it("suggests MCP when a service CLI is driven through the shell", () => {
     const sessions = sessionsOverDays(12, (index) =>
       index < 2 ? { toolCalls: Array.from({ length: 6 }, (_, n) => shell(`gh issue view ${n}`, undefined, day(index, n))) } : {},

@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { day, prompt, sessionsOverDays, task } from "../factory.js";
+import { day, prompt, sessionsOverDays, task, tool } from "../factory.js";
+
+/** The agent visibly at work for the first `minutes` of the day's session. */
+const working = (index: number, minutes: number) => Array.from({ length: Math.floor(minutes / 3) }, (_, n) => tool("read", { timestamp: day(index, 1 + n * 3) }));
 import { findings } from "./helpers.js";
 
 describe("slow_correction", () => {
   it("flags stepping in only after the agent has run alone for a long time", () => {
     const sessions = sessionsOverDays(3, (index) => ({
+      toolCalls: working(index, 24),
       prompts: [prompt(task(), day(index)), prompt("no, stop, that is the wrong file", day(index, 25), true)],
     }));
     const result = findings("slow_correction", sessions);
@@ -17,6 +21,7 @@ describe("slow_correction", () => {
     const sessions = sessionsOverDays(4, (index) => ({
       agentMessageCount: 12,
       userMessageCount: 2,
+      toolCalls: working(index, 24),
       prompts: [prompt(task(), day(index)), prompt("no, stop, that is the wrong file", day(index, 25), true)],
     }));
     expect(findings("slow_correction", sessions)).toEqual([]);

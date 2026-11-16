@@ -2,14 +2,17 @@ import type { Finding, Session } from "../../schema/types.js";
 import { commandKey, hasTempPath, isRecognisable, normalizeCommand, readableCommand } from "./commands.js";
 import { evidence, harnessesOf, label, MAX_EVIDENCE, MAX_FINDINGS_PER_KIND, plural, type Detector } from "./context.js";
 
-/** Three identical failures in a row means the agent is retrying instead of diagnosing. */
+/** Three failures in a row with nothing changed between them means the agent is retrying instead of diagnosing. */
 const MIN_STREAK = 3;
 /** One streak in a single session can be bad luck; a streak this long cannot. */
 const LONE_STREAK = 5;
 /** Failing in this many sessions means the command itself is wrong for the environment, not a one-off. */
 const MIN_SESSIONS = 3;
-/** Across sessions, only flag commands that fail most of the time; a test suite that sometimes fails is normal. */
-const MIN_FAILURE_RATE = 0.5;
+/**
+ * Across sessions, only flag commands that fail nearly every time. A check that fails about half the time is
+ * often answering a question with its exit code, and a test suite that sometimes fails is normal.
+ */
+const MIN_FAILURE_RATE = 0.8;
 /** Severity by how long the agent kept retrying: five is wasteful, eight is stuck. */
 const HIGH_STREAK = 8;
 const MEDIUM_STREAK = 5;
@@ -32,11 +35,17 @@ interface CommandStats {
 export const repeatedFailedCommand: Detector = ({ sessions }) => {
   const stats = new Map<string, CommandStats>();
   for (const session of sessions) {
-    const streaks = new Map<string, number>();
+    // Only an immediate retry extends a streak: an edit or a different command in between is the agent trying something.
+    let streakKey: string | null = null;
+    let streak = 0;
     for (const call of session.toolCalls) {
+      if (call.category === "edit") streakKey = null;
       if (call.category !== "shell" || !call.command) continue;
       const key = normalizeCommand(call.command);
-      if (!key) continue;
+      if (!key) {
+        streakKey = null;
+        continue;
+      }
       let row = stats.get(key);
       if (!row) {
         row = { display: key, runs: 0, failures: 0, bestStreak: 0, bestStreakSession: null, bestStreakAt: undefined, sessions: new Map() };
@@ -44,15 +53,15 @@ export const repeatedFailedCommand: Detector = ({ sessions }) => {
       }
       row.runs += 1;
       if (!call.error || !FAILURES.has(call.error)) {
-        streaks.set(key, 0);
+        streakKey = null;
         continue;
       }
       row.failures += 1;
       const perSession = row.sessions.get(session) ?? { failures: 0, firstAt: call.timestamp };
       perSession.failures += 1;
       row.sessions.set(session, perSession);
-      const streak = (streaks.get(key) ?? 0) + 1;
-      streaks.set(key, streak);
+      streak = streakKey === key ? streak + 1 : 1;
+      streakKey = key;
       if (streak > row.bestStreak) {
         row.bestStreak = streak;
         row.bestStreakSession = session;
@@ -97,7 +106,12 @@ export const repeatedFailedCommand: Detector = ({ sessions }) => {
         title: "Tell the agent how this command should be run",
         action:
           "Find out why it fails (missing setup, wrong directory, wrong script name) and write the correct invocation into your instructions file so the agent stops guessing.",
-        instructionText: `\`${command}\` has failed repeatedly in past sessions. Before running it, check the prerequisites it needs; if it fails, read the error and fix the cause instead of re-running it unchanged. If it fails twice, stop and tell me what the error says.`,
+        // A rule naming "…" cannot be pasted as is, so it is offered only when the command can be written out in full.
+        ...(varies
+          ? {}
+          : {
+              instructionText: `\`${command}\` has failed repeatedly in past sessions. Before running it, check the prerequisites it needs; if it fails, read the error and fix the cause instead of re-running it unchanged. If it fails twice, stop and tell me what the error says.`,
+            }),
       },
     });
   }

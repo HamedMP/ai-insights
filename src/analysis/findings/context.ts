@@ -3,7 +3,7 @@ import { clean } from "../../sources/shared.js";
 import type { Clock } from "../time.js";
 import type { OwnedRequest } from "../usage.js";
 
-export { isAgentDriven, projectKey } from "../sessions.js";
+export { isAgentDriven, isBriefDriven, projectKey } from "../sessions.js";
 
 export interface DetectorContext {
   /** Sorted by start time, then harness and id. */

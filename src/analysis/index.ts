@@ -7,6 +7,7 @@ import { summarizeUsage, uniqueRequests } from "./usage.js";
 
 export { DETECTORS, detectFindings } from "./findings/index.js";
 export { estimateUsd, PRICING_VERSION } from "./usage.js";
+export { historyDays } from "./history.js";
 
 function byStart(a: Session, b: Session): number {
   return (

@@ -1,4 +1,5 @@
 import type { Finding, Session, UserPrompt } from "../../schema/types.js";
+import { IDLE_GAP_MS } from "../../sources/shared.js";
 import { median } from "../activity.js";
 import { parseMs } from "../time.js";
 import { evidence, harnessesOf, isAgentDriven, MAX_EVIDENCE, minutes, plural, round, type Detector } from "./context.js";
@@ -18,14 +19,53 @@ interface Correction {
   minutesBefore: number;
 }
 
+/**
+ * When the agent had done nothing for this long before the person typed, its turn had ended and it was
+ * waiting (often on a question); the same idle gap that ends an active span in the sources.
+ */
+const AGENT_WAITING_MS = IDLE_GAP_MS;
+
+function agentActivity(session: Session): number[] {
+  const times: number[] = [];
+  for (const call of session.toolCalls) {
+    const ms = parseMs(call.timestamp);
+    if (ms !== null) times.push(ms);
+  }
+  for (const request of session.requests) {
+    const ms = parseMs(request.timestamp);
+    if (ms !== null) times.push(ms);
+  }
+  return times.sort((a, b) => a - b);
+}
+
+/** The latest value in sorted `times` that is at most `limit`, or null. */
+function lastAtOrBefore(times: number[], limit: number): number | null {
+  let low = 0;
+  let high = times.length - 1;
+  let found: number | null = null;
+  while (low <= high) {
+    const middle = (low + high) >> 1;
+    if (times[middle]! <= limit) {
+      found = times[middle]!;
+      low = middle + 1;
+    } else high = middle - 1;
+  }
+  return found;
+}
+
 function corrections(session: Session): Correction[] {
   const out: Correction[] = [];
+  const activity = agentActivity(session);
   let previous: number | null = parseMs(session.startTime);
   for (const prompt of session.prompts) {
     const at = parseMs(prompt.timestamp);
     if (at === null) continue;
     if (prompt.interrupted && previous !== null && at > previous) {
-      out.push({ session, prompt, minutesBefore: (at - previous) / 60_000 });
+      // Only a step-in while the agent was still working is a correction; after its turn ended, the person was simply away.
+      const last = lastAtOrBefore(activity, at);
+      if (last !== null && last > previous && at - last <= AGENT_WAITING_MS) {
+        out.push({ session, prompt, minutesBefore: (at - previous) / 60_000 });
+      }
     }
     previous = at;
   }
