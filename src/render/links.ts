@@ -1,5 +1,4 @@
 import { clip } from "./format.js";
-import { html, type SafeHtml } from "./html.js";
 
 const MAX_URL = 2000;
 
@@ -22,11 +21,4 @@ export function safeLink(url: unknown): URL | null {
 
 export function shortUrl(link: URL): string {
   return clip(link.href.replace(/^https?:\/\//i, "").replace(/\/$/, ""), 120);
-}
-
-/** A new-tab link labelled with the short URL. The normalised href percent-encodes quotes and spaces. */
-export function externalLink(url: unknown, className = ""): SafeHtml | null {
-  const link = safeLink(url);
-  if (!link) return null;
-  return html`<a${className ? html` class="${className}"` : null} href="${link.href}" target="_blank" rel="noopener noreferrer">${shortUrl(link)}</a>`;
 }

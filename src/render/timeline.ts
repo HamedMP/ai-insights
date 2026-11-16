@@ -1,7 +1,5 @@
 import type { SessionSpan } from "../schema/types.js";
-import { clip, count, formatClock, formatInt, formatLocalDay, fromLocal, localDayStart, parseInstant, plural, shortenPath, zoneOffsetMs } from "./format.js";
-import { html, raw, type SafeHtml } from "./html.js";
-import { harnessLabel } from "./labels.js";
+import { clip, count, formatClock, formatInt, formatLocalDay, fromLocal, localDayStart, parseInstant, plural, zoneOffsetMs } from "./format.js";
 
 /**
  * Which sessions ran side by side, from `activity.sessionSpans`. Layout is pure and
@@ -30,6 +28,8 @@ export interface Span {
   start: number;
   end: number;
   agentDriven: boolean;
+  /** Epoch-ms stretches with activity, when the report has them. */
+  active: Array<[number, number]>;
 }
 
 export interface Bar extends Span {
@@ -77,6 +77,7 @@ function normalise(raw: unknown): Span[] {
       start,
       end,
       agentDriven: entry.agentDriven === true,
+      active: Array.isArray(entry.active) ? entry.active.slice(0, 50).filter((pair): pair is [number, number] => Array.isArray(pair) && Number.isFinite(pair[0]) && Number.isFinite(pair[1]) && pair[1] >= pair[0]) : [],
     });
   }
   return spans.sort((a, b) => a.start - b.start || a.end - b.end || (a.sessionId < b.sessionId ? -1 : a.sessionId > b.sessionId ? 1 : 0));
@@ -117,17 +118,17 @@ function clusterAround(spans: Span[], at: number): { start: number; end: number 
   return { start, end };
 }
 
-function chooseWindow(spans: Span[], peakAt: number, zone: string): Timeline["window"] {
+function chooseWindow(spans: Span[], peakAt: number, zone: string, focus = false): Timeline["window"] {
   const first = spans[0]!.start;
   const last = Math.max(...spans.map((span) => span.end));
-  if (last - first <= READABLE_RANGE_MS) {
+  if (!focus && last - first <= READABLE_RANGE_MS) {
     const pad = Math.max(10 * 60_000, (last - first) * 0.03);
     return { start: first - pad, end: last + pad, kind: "all", days: 0, label: "" };
   }
   const cluster = clusterAround(spans, peakAt);
   let dayStart = localDayStart(cluster.start, zone);
   let dayEnd = localDayStart(cluster.end - 1, zone);
-  if (Math.round((dayEnd - dayStart) / DAY) + 1 > MAX_WINDOW_DAYS) dayStart = dayEnd = localDayStart(peakAt, zone);
+  if (focus || Math.round((dayEnd - dayStart) / DAY) + 1 > MAX_WINDOW_DAYS) dayStart = dayEnd = localDayStart(peakAt, zone);
   const windowStart = dayStart;
   const windowEnd = fromLocal(dayEnd + zoneOffsetMs(dayEnd, zone) + DAY, zone);
   // Trim to the hours that held activity, so the busy part fills the width.
@@ -166,13 +167,13 @@ function ticksFor(start: number, end: number, zone: string): Tick[] {
  * Lay out the spans, or return null when there is nothing side by side to show
  * (no spans, or no two of them overlap), so the caller keeps the aggregate visual.
  */
-export function buildTimeline(rawSpans: unknown, zone: string, order: string[] = []): Timeline | null {
+export function buildTimeline(rawSpans: unknown, zone: string, order: string[] = [], focusAt?: number): Timeline | null {
   const spans = normalise(rawSpans);
   if (spans.length < 2) return null;
   const overall = peakConcurrency(spans);
   if (overall.count < 2) return null;
 
-  const window = chooseWindow(spans, overall.at, zone);
+  const window = chooseWindow(spans, focusAt ?? overall.at, zone, focusAt !== undefined);
   const length = window.end - window.start;
   const minimum = length * MIN_BAR;
   const inWindow = spans.filter((span) => (span.end > window.start && span.start < window.end) || (span.start === span.end && span.start >= window.start && span.start <= window.end));
@@ -217,22 +218,10 @@ export function buildTimeline(rawSpans: unknown, zone: string, order: string[] =
   };
 }
 
-function pct(share: number): string {
-  return `${Math.round(Math.min(1, Math.max(0, share)) * 1000) / 10}%`;
-}
-
-function r1(value: number): number {
-  return Math.round(value * 10) / 10;
-}
-
 /** "Nov 15 21:14 to 23:02", or "Nov 15 21:14 to Nov 16 19:58" when the session ran past midnight. */
 export function spanText(start: number, end: number, zone: string): string {
   const sameDay = localDayStart(start, zone) === localDayStart(end, zone);
   return `${formatLocalDay(start, zone)} ${formatClock(start, zone)} to ${sameDay ? "" : `${formatLocalDay(end, zone)} `}${formatClock(end, zone)}`;
-}
-
-function projectName(project: string | null): string {
-  return project ? clip(shortenPath(project), 60) : "No project";
 }
 
 function windowText(timeline: Timeline, zone: string): string {
@@ -271,44 +260,39 @@ export function openVersusWorking(timeline: Timeline, working: number | null | u
 }
 
 /**
- * Draw the timeline. `sessions` is the report's session count, so the caption can say
- * when the spans are only the newest part of the history; `working` is the report's
- * most-sessions-active-at-once, to explain a higher count of sessions open at once.
+ * The busiest days, each as its own one-day timeline, oldest first, so a person can step between them.
+ * A day qualifies when two or more sessions were open at once in it. The first entry of `busiest` is the
+ * index of the day with the most at once.
  */
-export function spanTimeline(timeline: Timeline, zone: string, sessions: number, working?: number | null): SafeHtml {
-  const idleNote = openVersusWorking(timeline, working);
-  const laneHeight = timeline.lanes <= 6 ? 18 : timeline.lanes <= 12 ? 12 : 9;
-  const gap = timeline.lanes <= 12 ? 4 : 3;
-  const height = timeline.lanes * (laneHeight + gap) - gap;
-  const harnessClass = (harness: string) => `hz${Math.min(3, Math.max(0, timeline.harnesses.indexOf(harness)))}`;
-  const time = (ms: number) => `${formatLocalDay(ms, zone)} ${formatClock(ms, zone)}`;
-
-  const grid = timeline.ticks.map((tick) => `<line class="tl-grid${tick.major ? " major" : ""}" x1="${r1(tick.x * VIEW_WIDTH)}" x2="${r1(tick.x * VIEW_WIDTH)}" y1="0" y2="${height}" vector-effect="non-scaling-stroke"/>`);
-  const bars = timeline.bars.map(
-    (bar) =>
-      html`<rect class="${harnessClass(bar.harness)}${bar.agentDriven ? " ad" : ""}" x="${r1(bar.x * VIEW_WIDTH)}" y="${bar.lane * (laneHeight + gap)}" width="${Math.max(1, r1(bar.width * VIEW_WIDTH))}" height="${laneHeight}" vector-effect="non-scaling-stroke"><title>${`${harnessLabel(bar.harness)} · ${projectName(bar.project)} · ${spanText(bar.start, bar.end, zone)}${bar.agentDriven ? " · driven by another agent" : ""}`}</title></rect>`,
-  );
-  const peakX = r1(timeline.peak.x * VIEW_WIDTH);
-  const peakSide = timeline.peak.x > 0.62 ? " end" : timeline.peak.x < 0.12 ? " start" : "";
-  const spansOnly = count(sessions) > timeline.total;
-
-  const rows = [...timeline.bars].sort((a, b) => a.start - b.start).slice(0, MAX_LIST_ROWS);
-  const list = html`<details class="tl-list"><summary class="micro">The sessions as a table</summary><div class="table-wrap"><table><thead><tr><th>Start</th><th>End</th><th>Tool</th><th>Project</th><th>Driven by</th></tr></thead><tbody>${rows.map(
-    (bar) => html`<tr><td>${time(bar.start)}</td><td>${time(bar.end)}</td><td>${harnessLabel(bar.harness)}</td><td class="mono">${projectName(bar.project)}</td><td>${bar.agentDriven ? "Another agent" : "You"}</td></tr>`,
-  )}</tbody></table></div>${timeline.bars.length > rows.length ? html`<p class="micro more">+ ${formatInt(timeline.bars.length - rows.length)} more in the timeline</p>` : null}</details>`;
-
-  return html`<figure class="viz timeline" data-chart="timeline">
-<ul class="legend-list inline tl-legend micro">${timeline.harnesses.map((harness) => html`<li><i class="sw ${harnessClass(harness)}"></i><span>${harnessLabel(harness)}</span></li>`)}${
-    timeline.agentDriven > 0 ? html`<li><i class="sw ad"></i><span>Driven by another agent</span></li>` : null
-  }</ul>
-<div class="tl-plot">
-<span class="tl-peak-label micro${peakSide}" style="left:${pct(timeline.peak.x)}"><b>${formatInt(timeline.peak.count)}</b> open · ${timeline.peak.label}</span>
-<svg viewBox="0 0 ${VIEW_WIDTH} ${height}" preserveAspectRatio="none" style="height:${height}px" role="img" aria-label="${timelineSummary(timeline, zone, working)}">${raw(grid.join(""))}${bars}<line class="tl-peak" x1="${peakX}" x2="${peakX}" y1="0" y2="${height}" vector-effect="non-scaling-stroke"/></svg>
-<div class="tl-axis micro" aria-hidden="true">${timeline.ticks.map((tick, index) => html`<span class="${[tick.major ? "major" : "", index % 2 === 1 ? "odd" : "", tick.x < 0.05 ? "first" : tick.x > 0.95 ? "last" : ""].filter(Boolean).join(" ")}" style="left:${pct(tick.x)}">${tick.label}</span>`)}</div>
-</div>
-<figcaption class="micro"><span>${timelineCaption(timeline, zone)}</span>${idleNote ? html`<span class="tl-idle">${idleNote}</span>` : null}<span>One bar per session · one lane per session open at the same time${
-    timeline.hidden > 0 ? ` · ${plural(timeline.hidden, "more session")} beyond ${MAX_LANES} lanes not drawn` : ""
-  }${spansOnly ? ` · drawn from the newest ${formatInt(timeline.total)} sessions` : ""}</span></figcaption>
-${list}
-</figure>`;
+export function busiestDays(rawSpans: unknown, zone: string, order: string[] = [], max = 8): { days: Timeline[]; busiest: number } {
+  const spans = normalise(rawSpans);
+  const byDay = new Map<number, Span[]>();
+  for (const span of spans) {
+    let day = localDayStart(span.start, zone);
+    for (let guard = 0; guard < 60 && day < span.end; guard += 1) {
+      const list = byDay.get(day) ?? [];
+      list.push(span);
+      byDay.set(day, list);
+      day = localDayStart(day + DAY + HOUR * 3, zone);
+    }
+  }
+  const ranked = [...byDay.entries()]
+    .map(([day, list]) => {
+      const next = localDayStart(day + DAY + HOUR * 3, zone);
+      const peak = peakConcurrency(list.map((span) => ({ start: Math.max(span.start, day), end: Math.min(span.end, next) })));
+      return { day, peak };
+    })
+    .filter((entry) => entry.peak.count >= 2)
+    .sort((a, b) => b.peak.count - a.peak.count || b.day - a.day)
+    .slice(0, Math.max(1, max));
+  const chosen = ranked.sort((a, b) => a.day - b.day);
+  const days: Timeline[] = [];
+  let busiest = 0;
+  for (const entry of chosen) {
+    const timeline = buildTimeline(rawSpans, zone, order, entry.peak.at);
+    if (!timeline) continue;
+    if (days.length > 0 && timeline.peak.count > days[busiest]!.peak.count) busiest = days.length;
+    days.push(timeline);
+  }
+  return { days, busiest };
 }

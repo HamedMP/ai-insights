@@ -1,0 +1,858 @@
+{
+ "version": 1,
+ "generatedAt": "2026-11-13T19:30:00.000Z",
+ "timeZone": "Europe/Berlin",
+ "range": {
+  "from": "2026-09-24",
+  "to": "2026-11-13",
+  "days": 51
+ },
+ "totals": {
+  "sessions": 161,
+  "prompts": 2144,
+  "activeDays": 42,
+  "wallHours": 137.03333333333333,
+  "agentHours": 173.96666666666667,
+  "harnesses": [
+   {
+    "key": "claude-code",
+    "sessions": 82
+   },
+   {
+    "key": "codex",
+    "sessions": 67
+   },
+   {
+    "key": "opencode",
+    "sessions": 4
+   },
+   {
+    "key": "cursor",
+    "sessions": 3
+   },
+   {
+    "key": "pi",
+    "sessions": 3
+   },
+   {
+    "key": "gemini",
+    "sessions": 2
+   }
+  ],
+  "commits": 124,
+  "commitShare": 0.546583850931677,
+  "compactions": 38,
+  "toolCalls": 9747,
+  "toolsPerPrompt": 4.546175373134329,
+  "toolCallsCapped": false
+ },
+ "daily": [
+  {
+   "day": "2026-09-24",
+   "sessions": 3,
+   "prompts": 20,
+   "minutes": 36
+  },
+  {
+   "day": "2026-09-25",
+   "sessions": 2,
+   "prompts": 35,
+   "minutes": 74
+  },
+  {
+   "day": "2026-09-26",
+   "sessions": 0,
+   "prompts": 0,
+   "minutes": 0
+  },
+  {
+   "day": "2026-09-27",
+   "sessions": 2,
+   "prompts": 20,
+   "minutes": 53
+  },
+  {
+   "day": "2026-09-28",
+   "sessions": 1,
+   "prompts": 21,
+   "minutes": 23
+  },
+  {
+   "day": "2026-09-29",
+   "sessions": 1,
+   "prompts": 51,
+   "minutes": 260
+  },
+  {
+   "day": "2026-09-30",
+   "sessions": 1,
+   "prompts": 9,
+   "minutes": 28
+  },
+  {
+   "day": "2026-10-01",
+   "sessions": 3,
+   "prompts": 18,
+   "minutes": 85
+  },
+  {
+   "day": "2026-10-02",
+   "sessions": 2,
+   "prompts": 9,
+   "minutes": 70
+  },
+  {
+   "day": "2026-10-03",
+   "sessions": 0,
+   "prompts": 0,
+   "minutes": 0
+  },
+  {
+   "day": "2026-10-04",
+   "sessions": 0,
+   "prompts": 0,
+   "minutes": 0
+  },
+  {
+   "day": "2026-10-05",
+   "sessions": 3,
+   "prompts": 9,
+   "minutes": 27
+  },
+  {
+   "day": "2026-10-06",
+   "sessions": 1,
+   "prompts": 1,
+   "minutes": 5
+  },
+  {
+   "day": "2026-10-07",
+   "sessions": 2,
+   "prompts": 15,
+   "minutes": 29
+  },
+  {
+   "day": "2026-10-08",
+   "sessions": 3,
+   "prompts": 26,
+   "minutes": 166
+  },
+  {
+   "day": "2026-10-09",
+   "sessions": 2,
+   "prompts": 24,
+   "minutes": 107
+  },
+  {
+   "day": "2026-10-10",
+   "sessions": 0,
+   "prompts": 0,
+   "minutes": 0
+  },
+  {
+   "day": "2026-10-11",
+   "sessions": 1,
+   "prompts": 48,
+   "minutes": 227
+  },
+  {
+   "day": "2026-10-12",
+   "sessions": 1,
+   "prompts": 7,
+   "minutes": 46
+  },
+  {
+   "day": "2026-10-13",
+   "sessions": 3,
+   "prompts": 49,
+   "minutes": 178
+  },
+  {
+   "day": "2026-10-14",
+   "sessions": 3,
+   "prompts": 29,
+   "minutes": 95
+  },
+  {
+   "day": "2026-10-15",
+   "sessions": 1,
+   "prompts": 17,
+   "minutes": 20
+  },
+  {
+   "day": "2026-10-16",
+   "sessions": 1,
+   "prompts": 15,
+   "minutes": 86
+  },
+  {
+   "day": "2026-10-17",
+   "sessions": 1,
+   "prompts": 45,
+   "minutes": 245
+  },
+  {
+   "day": "2026-10-18",
+   "sessions": 0,
+   "prompts": 0,
+   "minutes": 0
+  },
+  {
+   "day": "2026-10-19",
+   "sessions": 5,
+   "prompts": 105,
+   "minutes": 385
+  },
+  {
+   "day": "2026-10-20",
+   "sessions": 3,
+   "prompts": 39,
+   "minutes": 170
+  },
+  {
+   "day": "2026-10-21",
+   "sessions": 5,
+   "prompts": 57,
+   "minutes": 223
+  },
+  {
+   "day": "2026-10-22",
+   "sessions": 5,
+   "prompts": 55,
+   "minutes": 327
+  },
+  {
+   "day": "2026-10-23",
+   "sessions": 7,
+   "prompts": 67,
+   "minutes": 208
+  },
+  {
+   "day": "2026-10-24",
+   "sessions": 1,
+   "prompts": 8,
+   "minutes": 67
+  },
+  {
+   "day": "2026-10-25",
+   "sessions": 0,
+   "prompts": 0,
+   "minutes": 0
+  },
+  {
+   "day": "2026-10-26",
+   "sessions": 5,
+   "prompts": 186,
+   "minutes": 559
+  },
+  {
+   "day": "2026-10-27",
+   "sessions": 7,
+   "prompts": 48,
+   "minutes": 249
+  },
+  {
+   "day": "2026-10-28",
+   "sessions": 5,
+   "prompts": 114,
+   "minutes": 399
+  },
+  {
+   "day": "2026-10-29",
+   "sessions": 5,
+   "prompts": 66,
+   "minutes": 234
+  },
+  {
+   "day": "2026-10-30",
+   "sessions": 5,
+   "prompts": 51,
+   "minutes": 204
+  },
+  {
+   "day": "2026-10-31",
+   "sessions": 0,
+   "prompts": 0,
+   "minutes": 0
+  },
+  {
+   "day": "2026-11-01",
+   "sessions": 1,
+   "prompts": 5,
+   "minutes": 39
+  },
+  {
+   "day": "2026-11-02",
+   "sessions": 5,
+   "prompts": 69,
+   "minutes": 234
+  },
+  {
+   "day": "2026-11-03",
+   "sessions": 6,
+   "prompts": 39,
+   "minutes": 184
+  },
+  {
+   "day": "2026-11-04",
+   "sessions": 7,
+   "prompts": 88,
+   "minutes": 384
+  },
+  {
+   "day": "2026-11-05",
+   "sessions": 8,
+   "prompts": 170,
+   "minutes": 563
+  },
+  {
+   "day": "2026-11-06",
+   "sessions": 9,
+   "prompts": 179,
+   "minutes": 662
+  },
+  {
+   "day": "2026-11-07",
+   "sessions": 0,
+   "prompts": 0,
+   "minutes": 0
+  },
+  {
+   "day": "2026-11-08",
+   "sessions": 0,
+   "prompts": 0,
+   "minutes": 0
+  },
+  {
+   "day": "2026-11-09",
+   "sessions": 5,
+   "prompts": 18,
+   "minutes": 108
+  },
+  {
+   "day": "2026-11-10",
+   "sessions": 4,
+   "prompts": 39,
+   "minutes": 221
+  },
+  {
+   "day": "2026-11-11",
+   "sessions": 18,
+   "prompts": 147,
+   "minutes": 472
+  },
+  {
+   "day": "2026-11-12",
+   "sessions": 5,
+   "prompts": 94,
+   "minutes": 336
+  },
+  {
+   "day": "2026-11-13",
+   "sessions": 3,
+   "prompts": 32,
+   "minutes": 133
+  }
+ ],
+ "dailyTruncated": false,
+ "streak": {
+  "days": 7,
+  "start": "2026-10-11",
+  "end": "2026-10-17"
+ },
+ "voice": {
+  "prompts": 2144,
+  "excludedAgentSessions": 8,
+  "excludedWrapped": 0,
+  "words": [
+   {
+    "key": "again",
+    "count": 313
+   },
+   {
+    "key": "run",
+    "count": 165
+   },
+   {
+    "key": "keep",
+    "count": 163
+   },
+   {
+    "key": "try",
+    "count": 155
+   },
+   {
+    "key": "commit",
+    "count": 149
+   }
+  ],
+  "openers": [
+   {
+    "key": "run",
+    "count": 164
+   },
+   {
+    "key": "yes",
+    "count": 160
+   },
+   {
+    "key": "keep going",
+    "count": 150
+   }
+  ],
+  "polite": {
+   "please": 146,
+   "thanks": 0,
+   "sorry": 0
+  },
+  "questionShare": 0.0648320895522388,
+  "wordsTyped": 5393,
+  "oneWord": 427,
+  "leverage": {
+   "words": 2,
+   "toolCalls": 13
+  }
+ },
+ "interrupted": 162,
+ "slash": [],
+ "slashTotal": 0,
+ "connectors": [
+  {
+   "key": "playwright",
+   "count": 21
+  }
+ ],
+ "skills": [],
+ "shell": {
+  "calls": 4321,
+  "programs": [
+   {
+    "key": "pnpm",
+    "count": 1457
+   },
+   {
+    "key": "sed",
+    "count": 1159
+   },
+   {
+    "key": "git",
+    "count": 861
+   },
+   {
+    "key": "rg",
+    "count": 503
+   },
+   {
+    "key": "pytest",
+    "count": 85
+   }
+  ],
+  "tests": 846,
+  "rmrf": 0,
+  "forcePush": 0,
+  "sleeps": 0,
+  "testPass": 0.8167848699763594
+ },
+ "parallel": {
+  "max": 7,
+  "overlapEvents": 84,
+  "subagents": 59
+ },
+ "failures": {
+  "total": 447,
+  "calls": 9747,
+  "rate": 0.04586026469682979,
+  "categories": [
+   {
+    "key": "command_failed",
+    "label": "Commands exited non-zero",
+    "count": 227
+   },
+   {
+    "key": "edit_mismatch",
+    "label": "Edits that didn't match",
+    "count": 123
+   },
+   {
+    "key": "timeout",
+    "label": "Timed out",
+    "count": 72
+   },
+   {
+    "key": "permission_denied",
+    "label": "Permission denied",
+    "count": 25
+   }
+  ],
+  "nemesis": [
+   {
+    "key": "pnpm",
+    "count": 205,
+    "runs": 1457
+   },
+   {
+    "key": "git",
+    "count": 67,
+    "runs": 861
+   },
+   {
+    "key": "kubectl",
+    "count": 18,
+    "runs": 68
+   },
+   {
+    "key": "gh",
+    "count": 13,
+    "runs": 48
+   }
+  ]
+ },
+ "models": [
+  {
+   "key": "GPT-5.4",
+   "harness": "codex",
+   "requests": 3669,
+   "share": 0.37973504450424345
+  },
+  {
+   "key": "Claude Opus 4.8",
+   "harness": "claude-code",
+   "requests": 3567,
+   "share": 0.3691782239701925
+  },
+  {
+   "key": "Claude Sonnet 4.6",
+   "harness": "claude-code",
+   "requests": 2391,
+   "share": 0.24746429310701717
+  },
+  {
+   "key": "Gemini 2.5 Pro",
+   "harness": "gemini",
+   "requests": 35,
+   "share": 0.0036224384185468846
+  }
+ ],
+ "usage": {
+  "tokens": 921536169,
+  "output": 8404615,
+  "requests": 9662,
+  "unpriced": 35,
+  "novels": 70.03845833333334,
+  "usd": 595.9600562499976,
+  "cacheHitRate": 0.9642955345731049,
+  "usdPerCommit": 4.806129485887078
+ },
+ "facetSessions": 119,
+ "tips": [
+  {
+   "title": "Tell the agent how this command should be run",
+   "kind": "repeated_failed_command",
+   "metric": {
+    "value": 113,
+    "unit": "failures"
+   }
+  },
+  {
+   "title": "Hand off instead of compacting",
+   "kind": "context_resets",
+   "metric": {
+    "value": 38,
+    "unit": "compactions"
+   }
+  },
+  {
+   "title": "Allow the commands you keep approving",
+   "kind": "permission_prompt_load",
+   "metric": {
+    "value": 25,
+    "unit": "blocked calls"
+   }
+  }
+ ],
+ "rhythm": {
+  "hours": [
+   0,
+   0,
+   0,
+   0,
+   0,
+   2,
+   4,
+   6,
+   40,
+   209,
+   409,
+   354,
+   295,
+   240,
+   197,
+   153,
+   97,
+   64,
+   44,
+   10,
+   5,
+   11,
+   4,
+   0
+  ],
+  "peakHour": 10,
+  "nightShare": 0.0018656716417910447,
+  "earlyShare": 0.12173507462686567,
+  "verdict": {
+   "key": "morning",
+   "label": "Morning mind"
+  },
+  "quiet": {
+   "len": 6,
+   "start": 23
+  },
+  "harnessPeaks": [
+   {
+    "key": "claude-code",
+    "peak": 10,
+    "prompts": 1288,
+    "hours": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     20,
+     139,
+     160,
+     150,
+     158,
+     157,
+     155,
+     134,
+     89,
+     57,
+     39,
+     10,
+     5,
+     11,
+     4,
+     0
+    ]
+   },
+   {
+    "key": "codex",
+    "peak": 10,
+    "prompts": 791,
+    "hours": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     3,
+     64,
+     242,
+     190,
+     128,
+     83,
+     42,
+     19,
+     8,
+     7,
+     5,
+     0,
+     0,
+     0,
+     0,
+     0
+    ]
+   },
+   {
+    "key": "opencode",
+    "peak": 8,
+    "prompts": 20,
+    "hours": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     2,
+     4,
+     3,
+     8,
+     0,
+     0,
+     2,
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ]
+   },
+   {
+    "key": "pi",
+    "peak": 11,
+    "prompts": 20,
+    "hours": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     6,
+     1,
+     0,
+     8,
+     5,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ]
+   },
+   {
+    "key": "cursor",
+    "peak": 10,
+    "prompts": 16,
+    "hours": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     3,
+     0,
+     0,
+     6,
+     4,
+     3,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ]
+   },
+   {
+    "key": "gemini",
+    "peak": 9,
+    "prompts": 9,
+    "hours": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     3,
+     5,
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ]
+   }
+  ],
+  "weekdays": [
+   {
+    "key": "Mon",
+    "count": 415
+   },
+   {
+    "key": "Tue",
+    "count": 266
+   },
+   {
+    "key": "Wed",
+    "count": 459
+   },
+   {
+    "key": "Thu",
+    "count": 466
+   },
+   {
+    "key": "Fri",
+    "count": 412
+   },
+   {
+    "key": "Sat",
+    "count": 53
+   },
+   {
+    "key": "Sun",
+    "count": 73
+   }
+  ]
+ },
+ "persona": {
+  "title": "The Morning Orchestrator",
+  "time": "Morning",
+  "role": "Orchestrator",
+  "reason": "7 agents at once, 5 tool calls for every prompt you typed, and 77% of sessions hit their goal."
+ },
+ "bigDay": {
+  "day": "2026-10-26",
+  "prompts": 186,
+  "weekday": "Mon"
+ },
+ "longestSession": {
+  "activeMinutes": 255,
+  "wallMinutes": 272,
+  "prompts": 37,
+  "toolCalls": 154,
+  "harness": "codex",
+  "compactions": 0,
+  "toolCallsCapped": false
+ },
+ "topProjectShare": 0.4493197930638053,
+ "winRate": 0.773109243697479,
+ "replies": {
+  "count": 1991,
+  "medianSec": 223,
+  "fastShare": 0.131592164741336,
+  "longestSec": 420
+ }
+}

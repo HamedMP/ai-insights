@@ -20,6 +20,11 @@ function sources(dir: string): string[] {
 
 const SITE_SOURCES = ["site/app", "site/components", "site/hooks", "site/lib"].flatMap(sources);
 
+/** The data block the sample report's page renders from. */
+function pageData(html: string): { hero: { sessions: number }; actions: Record<"top" | "rest", Array<{ anchor: string; instructionText: string | null; snippet: { text: string } | null }>> } {
+  return JSON.parse(/<script id="report-data" type="application\/json">([\s\S]*?)<\/script>/.exec(html)![1]!);
+}
+
 describe("the public site", () => {
   it("is a static export served from /ai-insights, kept out of the package build and tests", () => {
     const config = read("site/next.config.ts");
@@ -83,17 +88,18 @@ describe("the public site", () => {
     expect(read("site/public/demo/report.html")).toContain("acme-api");
     const data = JSON.parse(read("site/lib/demo.json"));
     expect(data.note).toMatch(/invented sessions/);
-    expect(read("site/public/demo/report.html")).toContain(`<b>${data.numbers.sessions} sessions</b>`);
+    expect(pageData(read("site/public/demo/report.html")).hero.sessions).toBe(data.numbers.sessions);
   });
 
   it("shows only changes the sample report gives, with the text to paste exactly as it appears there", () => {
-    const report = read("site/public/demo/report.html");
-    const escape = (text: string) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    const view = pageData(read("site/public/demo/report.html"));
+    const actions = [...view.actions.top, ...view.actions.rest];
     const { payoff } = JSON.parse(read("site/lib/demo.json"));
     expect(payoff.length).toBe(3);
     for (const tip of payoff) {
-      expect(report, tip.title).toContain(`id="${tip.anchor}"`);
-      expect(report, tip.title).toContain(escape(tip.paste.text));
+      const card = actions.find((action) => action.anchor === tip.anchor);
+      expect(card, tip.title).toBeDefined();
+      expect([card!.instructionText, card!.snippet?.text], tip.title).toContain(tip.paste.text);
     }
     expect(read("site/components/site/tips.tsx")).toContain("demo.payoff");
   });
