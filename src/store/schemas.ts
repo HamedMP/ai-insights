@@ -122,6 +122,8 @@ export const SessionSchema = z.object({
   sourcePath: z.string(),
   sourceMtimeMs: z.number(),
   projectPath: z.string().nullable(),
+  projectRoot: z.string().nullable().optional(),
+  agentMessageCount: z.number().optional(),
   gitBranch: z.string().nullable(),
   startTime: z.string(),
   endTime: z.string(),
@@ -163,7 +165,8 @@ export const SessionSchema = z.object({
   gitCommits: z.number(),
   gitPushes: z.number(),
   issues: z.number(),
-}) satisfies z.ZodType<Session, unknown>;
+  // Keeps keys this schema does not name yet, so a newer source's fields survive a cache round trip.
+}).loose() satisfies z.ZodType<Session, unknown>;
 
 /** A short message an agent can act on: what is wrong, where, and what is allowed. No values echoed back. */
 export function describeIssues(error: z.ZodError, maxIssues = 8): string {

@@ -69,7 +69,11 @@ export function activityDigest(activity: Activity, weeks = DIGEST_WEEKS) {
     parallel: activity.parallelSessions.maxConcurrent,
     byHarness: Object.fromEntries(activity.byHarness.map((entry) => [entry.harness, entry.sessions])),
     projects: Object.fromEntries(
-      [...activity.projects].sort((a, b) => b.sessions - a.sessions).slice(0, 5).map((entry) => [shortPath(entry.projectPath), entry.sessions]),
+      [...activity.projects]
+        .sort((a, b) => b.sessions - a.sessions)
+        .slice(0, 5)
+        // Rows are keyed by repository root; the worktree count shows when several folders were folded in.
+        .map((entry) => [shortPath(entry.projectPath), (entry.worktrees ?? 1) > 1 ? { sessions: entry.sessions, worktrees: entry.worktrees } : entry.sessions]),
     ),
     languages: top(activity.languages, 5),
     tools: top(activity.tools, 8),

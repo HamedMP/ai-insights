@@ -1,4 +1,6 @@
 import { HARNESSES, type Coverage, type Harness, type Session, type SessionFile, type Source } from "../schema/types.js";
+import { mapLimit } from "./fs.js";
+import { ProjectRoots, resolveProjectRoots } from "./project-root.js";
 import { sessionKey, type Store } from "./store.js";
 
 export interface ScanOptions {
@@ -55,26 +57,42 @@ export function totalBytes(files: SessionFile[]): number {
   return total;
 }
 
-async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
-  const results = new Array<R>(items.length);
-  let next = 0;
-  const workers = Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, async () => {
-    while (next < items.length) {
-      const index = next;
-      next += 1;
-      results[index] = await fn(items[index]!);
-    }
-  });
-  await Promise.all(workers);
-  return results;
-}
-
 async function safeDiscover(source: Source, since: Date | undefined, maxFiles: number): Promise<SessionFile[] | null> {
   try {
     const files = await source.discover({ ...(since ? { since } : {}), maxFiles });
     return Array.isArray(files) ? files.filter((file) => file && file.harness === source.harness) : [];
   } catch {
     return null;
+  }
+}
+
+interface ScannedEntry {
+  file: SessionFile;
+  session: Session;
+  fresh: boolean;
+  rootChanged?: boolean;
+}
+
+/**
+ * Sets `projectRoot` on every session from the file system, cached ones included, so history cached
+ * before roots existed gains them without a re-parse. A root already cached is kept when its folder has
+ * since been deleted, because worktrees are routinely removed once merged.
+ */
+async function assignProjectRoots(entries: ScannedEntry[]): Promise<void> {
+  const paths = entries.map((entry) => entry.session.projectPath).filter((path): path is string => typeof path === "string");
+  const knownRoots = entries.map((entry) => entry.session.projectRoot).filter((root): root is string => typeof root === "string");
+  const roots = await resolveProjectRoots(paths, { knownRoots }).catch(() => new ProjectRoots());
+  for (const entry of entries) {
+    const { session } = entry;
+    const before = session.projectRoot;
+    let after: string | undefined;
+    if (typeof session.projectPath !== "string") after = undefined;
+    else if (!roots.has(session.projectPath)) continue;
+    else after = roots.get(session.projectPath) ?? (roots.missing.has(session.projectPath) && typeof before === "string" ? before : undefined);
+    if (after === before) continue;
+    const { projectRoot: _dropped, ...rest } = session;
+    entry.session = after === undefined ? rest : { ...rest, projectRoot: after };
+    entry.rootChanged = true;
   }
 }
 
@@ -108,7 +126,7 @@ export async function scan(deps: ScanDeps, options: ScanOptions = {}): Promise<S
   const byHarness = new Map(deps.sources.map((source) => [source.harness, source]));
   const stats = { discovered: all.length, parsed: 0, cached: 0, failed: 0, skippedEmpty: 0, duplicates: 0 };
 
-  const parsed = await mapLimit(all, concurrency, async (file) => {
+  const parsed = await mapLimit(all, concurrency, async (file): Promise<ScannedEntry | null> => {
     const source = byHarness.get(file.harness);
     if (!source) return null;
     if (!options.refresh) {
@@ -116,7 +134,7 @@ export async function scan(deps: ScanDeps, options: ScanOptions = {}): Promise<S
       if (cached !== undefined) {
         stats.cached += 1;
         if (cached === null) stats.skippedEmpty += 1;
-        return cached ? { file, session: cached } : null;
+        return cached ? { file, session: cached, fresh: false } : null;
       }
     }
     let session: Session | null;
@@ -129,16 +147,25 @@ export async function scan(deps: ScanDeps, options: ScanOptions = {}): Promise<S
     }
     stats.parsed += 1;
     if (session && session.harness !== file.harness) session = null;
-    if (!session) stats.skippedEmpty += 1;
-    await deps.store.cacheSession(file, session).catch(() => false);
-    return session ? { file, session } : null;
+    if (!session) {
+      stats.skippedEmpty += 1;
+      await deps.store.cacheSession(file, null).catch(() => false);
+      return null;
+    }
+    return { file, session, fresh: true };
+  });
+
+  const entries = parsed.filter((entry): entry is ScannedEntry => entry !== null);
+  await assignProjectRoots(entries);
+  // New parses are cached only now, with their root, so a first scan writes each session once.
+  await mapLimit(entries, concurrency, async (entry) => {
+    if (entry.fresh || entry.rootChanged) await deps.store.cacheSession(entry.file, entry.session).catch(() => false);
   });
   await deps.store.flush().catch(() => undefined);
 
   // Resumed or copied transcripts can yield the same id twice; keep the copy that ran latest.
   const unique = new Map<string, { file: SessionFile; session: Session }>();
-  for (const entry of parsed) {
-    if (!entry) continue;
+  for (const entry of entries) {
     const key = sessionKey(entry.session.harness, entry.session.id);
     const existing = unique.get(key);
     if (existing) {

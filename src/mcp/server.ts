@@ -406,7 +406,7 @@ export function createServer(deps: ServerDeps): McpServer {
         sessions: page.map((session) => ({
           sessionId: session.id,
           harness: session.harness,
-          project: shortProject(session.projectPath),
+          project: shortProject(session.projectRoot ?? session.projectPath),
           start: session.startTime,
           durationMinutes: session.durationMinutes,
           activeMinutes: session.activeMinutes,
@@ -481,7 +481,7 @@ export function createServer(deps: ServerDeps): McpServer {
         session: {
           sessionId: session.id,
           harness: session.harness,
-          project: shortProject(session.projectPath),
+          project: shortProject(session.projectRoot ?? session.projectPath),
           start: session.startTime,
           end: session.endTime,
           durationMinutes: session.durationMinutes,
