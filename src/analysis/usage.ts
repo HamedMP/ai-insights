@@ -1,4 +1,4 @@
-import type { Harness, ModelRequest, Session, TokenUsage, UsageSummary, UsageTotals } from "../schema/types.js";
+import type { Harness, ModelRequest, RecordedCost, Session, TokenUsage, UsageSummary, UsageTotals } from "../schema/types.js";
 import { continuousDays, type Clock } from "./time.js";
 
 /** USD per million tokens. */
@@ -113,6 +113,16 @@ const ANTHROPIC_SONNET_4_LONG = claudeLong(6, 22.5);
  * (2x input and cached, 1.5x output above 272k; writes at 1.25x input). Before 2026-07-30 a priority
  * request ran on Priority processing, whose rates are no longer published, so it stays unpriced.
  *
+ * Added 2026-11-16 from OpenAI's own pages, read that day: gpt-5.2 (Standard 1.75 / 0.175 / 14, Fast 3.50 /
+ * 0.35 / 28, no long-context tier) from https://developers.openai.com/api/docs/pricing and
+ * https://developers.openai.com/api/docs/models/gpt-5.2; gpt-5.2-pro (21 / - / 168: the cached-input cell is "-",
+ * so cached tokens are billed as the input they are) from https://developers.openai.com/api/docs/models/gpt-5.2-pro;
+ * gpt-5.2-codex (1.75 / 0.175 / 14, marked shut down but still priced) from
+ * https://developers.openai.com/api/docs/models/gpt-5.2-codex. OpenAI publishes no `gpt-5.5-fast` id (Fast is
+ * a tier), so OpenCode's `openai/gpt-5.5-fast` stays unpriced rather than being guessed into the Fast table.
+ * Gemini: `gemini-3-pro-preview` was shut down on 2026-03-09 and Google's pricing page no longer lists a rate
+ * (https://ai.google.dev/gemini-api/docs/pricing, read 2026-11-16), so it stays unpriced.
+ *
  * Not modelled: Anthropic fast mode, batch, flex, data residency (1.1x) and 12-hour OpenAI cache writes,
  * because transcripts do not record them. `codex-auto-review` has no API price and stays unpriced.
  */
@@ -206,11 +216,14 @@ const PRICES: Record<string, PriceRow[]> = {
   ],
   "gpt-5.5": [{ overTokens: OPENAI_LONG, standard: tier(openai(5, 0.5, null, 30), openai(10, 1, null, 45)), fast: tier(openai(12.5, 1.25, null, 75), null) }],
   "gpt-5.4": [{ overTokens: OPENAI_LONG, standard: tier(openai(2.5, 0.25, null, 15), openai(5, 0.5, null, 22.5)), fast: tier(openai(5, 0.5, null, 30), null) }],
+  "gpt-5.2": [{ standard: tier(openai(1.75, 0.175, null, 14)), fast: tier(openai(3.5, 0.35, null, 28)) }],
+  "gpt-5.2-pro": [{ standard: tier(openai(21, 21, null, 168)) }],
+  "gpt-5.2-codex": [{ standard: tier(openai(1.75, 0.175, null, 14)) }],
   "gpt-5.3-codex": [{ overTokens: OPENAI_LONG, standard: tier(openai(1.75, 0.175, null, 14), null), fast: tier(openai(3.5, 0.35, null, 28), null) }],
   "gpt-5": [{ overTokens: OPENAI_LONG, standard: tier(openai(1.25, 0.125, null, 10), null), fast: tier(openai(2.5, 0.25, null, 20), null) }],
 };
 
-export const PRICING_VERSION = "api-list-2026-11-16";
+export const PRICING_VERSION = "api-list-2026-11-16b";
 
 /** Daily rollups keep at most this many of the newest days, bounding a report built from years of history. */
 export const MAX_DAYS = 1100;
@@ -338,6 +351,32 @@ export function cacheHitRate(totals: Pick<UsageTotals, "input" | "cachedInput" |
   return denominator > 0 ? totals.cachedInput / denominator : null;
 }
 
+/**
+ * What the harnesses themselves recorded (`ModelRequest.costUsd`), kept apart from the list-price estimate. A
+ * recorded $0 is counted in `zeroRequests`: subscriptions and coding plans record 0, which is not "free".
+ */
+function recordedCost(requests: OwnedRequest[]): Pick<UsageSummary, "recorded" | "recordedByHarness"> {
+  const byHarness = new Map<Harness, RecordedCost>();
+  const total: RecordedCost = { usd: 0, requests: 0, zeroRequests: 0 };
+  for (const { session, request } of requests) {
+    const usd = request.costUsd;
+    if (typeof usd !== "number" || !Number.isFinite(usd) || usd < 0) continue;
+    let row = byHarness.get(session.harness);
+    if (!row) byHarness.set(session.harness, (row = { usd: 0, requests: 0, zeroRequests: 0 }));
+    for (const bucket of [row, total]) {
+      bucket.usd += usd;
+      bucket.requests += 1;
+      if (usd === 0) bucket.zeroRequests += 1;
+    }
+  }
+  if (total.requests === 0) return {};
+  const tidy = (cost: RecordedCost): RecordedCost => ({ ...cost, usd: Math.round(cost.usd * 1e6) / 1e6 });
+  return {
+    recorded: tidy(total),
+    recordedByHarness: [...byHarness].sort((a, b) => b[1].usd - a[1].usd || a[0].localeCompare(b[0])).map(([harness, cost]) => ({ harness, ...tidy(cost) })),
+  };
+}
+
 export function summarizeUsage(requests: OwnedRequest[], clock: Clock): UsageSummary {
   const total = emptyTotals();
   const byDay = new Map<string, UsageTotals>();
@@ -359,5 +398,5 @@ export function summarizeUsage(requests: OwnedRequest[], clock: Clock): UsageSum
   const models = [...byModel.values()].sort(
     (a, b) => b.tokens - a.tokens || a.harness.localeCompare(b.harness) || a.model.localeCompare(b.model),
   );
-  return { ...total, daily, models, cacheHitRate: cacheHitRate(total), pricingVersion: PRICING_VERSION };
+  return { ...total, daily, models, cacheHitRate: cacheHitRate(total), pricingVersion: PRICING_VERSION, ...recordedCost(requests) };
 }

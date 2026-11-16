@@ -92,3 +92,24 @@ describe("gemini cli chats", () => {
     expect(geminiDefaultRoots({}, "/home/someone")).toEqual(["/home/someone/.gemini/tmp"]);
   });
 });
+
+describe("gemini cli thinking", () => {
+  it("counts each answer that recorded thoughts, with no durations because Gemini records none", async () => {
+    const thought = { subject: "Plan", description: "check the header", timestamp: iso(2) };
+    write("session-2026-08-01T09-00-abcd1234.jsonl", [
+      meta,
+      user("u1", 1, "rename the header"),
+      gemini("g1", 3, { thoughts: [thought, thought] }),
+      gemini("g2", 5, { thoughts: [] }),
+      gemini("g3", 7, { thoughts: [thought] }),
+    ]);
+    const { session } = await only();
+    expect(session.thinking).toEqual({ blocks: 2, totalMs: null, longestMs: null });
+  });
+
+  it("reports no thinking when no answer recorded thoughts", async () => {
+    write("session-2026-08-01T09-00-abcd1234.jsonl", [meta, user("u1", 1, "hi"), gemini("g1", 3)]);
+    const { session } = await only();
+    expect(session.thinking).toBeUndefined();
+  });
+});

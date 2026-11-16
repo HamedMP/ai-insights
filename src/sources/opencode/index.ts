@@ -145,7 +145,7 @@ async function diagnose(): Promise<string | null> {
 
 export const opencodeSource: Source = {
   // Bump whenever a parser change would give a different Session from the same history.
-  parserVersion: "2",
+  parserVersion: "3",
   harness: "opencode",
   label: "OpenCode",
   defaultRoots: () => defaultRoots(),

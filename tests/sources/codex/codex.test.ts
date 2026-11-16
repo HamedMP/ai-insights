@@ -218,7 +218,9 @@ describe("codex token usage", () => {
       { input: 1000, cachedInput: 1000, cacheWrite: 0, output: 100 },
     ]);
     expect(session.requests.every((request) => request.model === "gpt-test")).toBe(true);
-    expect(session.issues).toBe(1);
+    // A reset the parser could read but not count is a skipped counter, not an unreadable line.
+    expect(session.issues).toBe(0);
+    expect(session.skippedUsageRecords).toBe(1);
   });
 
   it("keeps counting when a rewritten thread restarts its counter from zero below the old high-water mark", async () => {
@@ -242,6 +244,7 @@ describe("codex token usage", () => {
       [300, 200, 10],
     ]);
     expect(session.issues).toBe(0);
+    expect(session.skippedUsageRecords).toBeUndefined();
   });
 
   it("never counts the gap between two interleaved counter lineages", async () => {
@@ -267,7 +270,8 @@ describe("codex token usage", () => {
       tokenCountWithLast([2900, 0, 90], [100, 0, 5]),
     ]);
     expect(session.requests).toHaveLength(1);
-    expect(session.issues).toBe(1);
+    expect(session.issues).toBe(0);
+    expect(session.skippedUsageRecords).toBe(1);
   });
 
   it("records the service tier a thread's settings selected for the turns that follow", async () => {
@@ -359,6 +363,21 @@ describe("codex token usage", () => {
 
 describe("codex desktop rollouts", () => {
   const done = (payload: Rec): Rec => event({ type: "item_completed", thread_id: uuid(1), turn_id: "t1", item: payload });
+
+  it("counts actions the automatic reviewer blocked, which is not the person declining", async () => {
+    const blocked = (id: string, code: string) =>
+      done({ type: "McpToolCall", id, server: "browser", tool: "click", status: "failed", result: { content: [{ type: "text", text: "blocked" }], isError: true, _meta: { "codex/telemetry": { error_code: code } } } });
+    const session = await parseOne([
+      meta(uuid(1)),
+      ...userMessage("open the page"),
+      blocked("m1", "guardian_denied"),
+      blocked("m2", "execution_rejected"),
+      blocked("m3", "guardian_timed_out"),
+      blocked("m4", "browser_error"),
+    ]);
+    expect(session.approvals).toEqual({ autoBlocked: 3 });
+    expect(session.toolCalls.filter((call) => call.error === "user_rejected")).toHaveLength(0);
+  });
 
   it("reads prompts, commands, file changes and MCP calls from completed items", async () => {
     const browser = "\n<in-app-browser-context>\n# In app browser:\n- tab: http://localhost\n</in-app-browser-context>\n\n## My request:\nmake the button blue\n";
@@ -594,7 +613,7 @@ describe("codex excerpts", () => {
 
 describe("codex parser version", () => {
   it("declares a parser version so the store re-parses cached history after a parser fix", () => {
-    expect(codexSource.parserVersion).toBe("5");
+    expect(codexSource.parserVersion).toBe("6");
   });
 });
 

@@ -97,15 +97,17 @@ describe("single_harness_only", () => {
   });
 });
 
-describe("short_history", () => {
-  it("points to Matrix OS when history is under a month", () => {
-    const result = findings("short_history", sessionsOverDays(3), { now: new Date(day(20)) });
+describe("history_retention without a measured retention (short history)", () => {
+  it("says history is under a month and offers the three keep-your-history steps", () => {
+    const result = findings("history_retention", sessionsOverDays(3), { now: new Date(day(20)) });
     expect(result).toHaveLength(1);
+    expect(result[0]!.severity).toBe("info");
     expect(result[0]!.metric).toEqual({ value: 20, unit: "days", label: "days of Claude Code history" });
-    expect(result[0]!.suggestion?.type).toBe("matrix");
-    expect(result[0]!.suggestion?.url).toBe("https://matrix-os.com");
-    expect(result[0]!.suggestion?.action).toContain("about 30 days");
-    expect(result[0]!.suggestion?.action).toMatch(/upload and store your conversations long term/i);
+    expect(result[0]!.suggestion?.title).toBe("Keep your history");
+    expect(result[0]!.suggestion?.steps?.map((step) => step.title)).toEqual(["Keep Claude Code transcripts longer", "Archive them compactly", "Keep them for good across machines"]);
+    expect(result[0]!.suggestion?.steps?.[2]?.url).toBe("https://matrix-os.com");
+    // The old short-history finding is folded in: one idea, not two.
+    expect(findings("short_history", sessionsOverDays(3), { now: new Date(day(20)) })).toEqual([]);
   });
 
   it("leads with the harness whose history is shortest and names each harness's span", () => {
@@ -113,7 +115,7 @@ describe("short_history", () => {
       ...sessionsOverDays(2, (index) => ({ startTime: day(20 + index) })),
       ...sessionsOverDays(2, (index) => ({ harness: "codex", startTime: day(index) })),
     ];
-    const [finding] = findings("short_history", sessions, { now: new Date(day(28)) });
+    const [finding] = findings("history_retention", sessions, { now: new Date(day(28)) });
     expect(finding!.metric?.value).toBe(8);
     expect(finding!.title).toContain("Claude Code");
     expect(finding!.title).toContain("8 days");
@@ -127,12 +129,12 @@ describe("short_history", () => {
       ...sessionsOverDays(2, (index) => ({ startTime: day(110 + index) })),
       ...sessionsOverDays(2, (index) => ({ harness: "codex", startTime: day(index) })),
     ];
-    const [finding] = findings("short_history", sessions, { now: new Date(day(120)) });
+    const [finding] = findings("history_retention", sessions, { now: new Date(day(120)) });
     expect(finding!.metric?.value).toBe(10);
     expect(finding!.harnesses).toEqual(["claude-code"]);
   });
 
   it("stays quiet with months of history", () => {
-    expect(findings("short_history", sessionsOverDays(3), { now: new Date(day(120)) })).toEqual([]);
+    expect(findings("history_retention", sessionsOverDays(3), { now: new Date(day(120)) })).toEqual([]);
   });
 });

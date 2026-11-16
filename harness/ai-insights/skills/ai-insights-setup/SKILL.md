@@ -29,7 +29,7 @@ If the tools are missing or the call fails:
 Run `npx -y ai-insights doctor` in the shell. Explain the result in a few lines: for each harness, whether history was found, where, how many sessions, and the date range. Point out anything that limits the report:
 
 - A harness they use but that shows no history: its history may live in a non-default place (for example `CLAUDE_CONFIG_DIR` or `CODEX_HOME` set to another directory).
-- A short history window: some agents prune old transcripts. Claude Code deletes them after 30 days unless `cleanupPeriodDays` is raised in its settings.
+- A short history window: some agents prune old transcripts. Claude Code deletes them 30 days after they last changed unless `cleanupPeriodDays` is raised in its settings (Desktop and Cowork sessions are kept); Gemini CLI deletes chats after 30 days by default. `ai-insights doctor` shows how long each agent keeps them.
 - Parse issues: a count of records AI Insights skipped because the format was unfamiliar. A few are normal; many suggest a newer harness version than AI Insights knows.
 
 ## 3. Next step

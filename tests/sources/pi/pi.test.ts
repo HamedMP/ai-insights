@@ -109,3 +109,19 @@ describe("pi sessions", () => {
     expect(piDefaultRoots({ PI_CODING_AGENT_SESSION_DIR: "/direct", PI_CODING_AGENT_DIR: "/custom/agent" }, home)[0]).toBe("/direct");
   });
 });
+
+describe("pi thinking", () => {
+  it("counts assistant messages that hold a thinking block, without durations", async () => {
+    const root = join(dir, "sessions");
+    write(root, "2026-07-18T19-28-30-912Z_11111111-2222-4333-8444-555555555556.jsonl", [
+      header("11111111-2222-4333-8444-555555555556"),
+      user(1, "fix it"),
+      assistant(5, "toolUse", [{ type: "thinking", thinking: "look first", thinkingSignature: "sig" }, { type: "thinking", thinking: "more" }, call("c1", "bash", { command: "ls" })]),
+      result(6, "c1", "bash", false, "ok"),
+      assistant(8, "stop", [{ type: "text", text: "Done." }]),
+    ]);
+    const [file] = await piSource.discover({ roots: [root] });
+    const session = (await piSource.parse(file!))!;
+    expect(session.thinking).toEqual({ blocks: 1, totalMs: null, longestMs: null });
+  });
+});

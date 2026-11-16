@@ -174,6 +174,13 @@ class MessageWalker {
         case "compaction":
           this.builder.compactions += 1;
           break;
+        case "reasoning": {
+          // Reasoning parts carry their own start and end in epoch ms.
+          const time = obj(part.time);
+          const ms = typeof time.start === "number" && typeof time.end === "number" && time.end >= time.start ? time.end - time.start : null;
+          this.builder.thought(ms);
+          break;
+        }
         default:
           break;
       }

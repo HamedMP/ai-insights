@@ -1,6 +1,7 @@
-import { HARNESSES, type Coverage, type Harness, type Session, type SessionFile, type Source } from "../schema/types.js";
+import { HARNESSES, type Coverage, type Harness, type Retention, type Session, type SessionFile, type Source } from "../schema/types.js";
 import { mapLimit } from "./fs.js";
 import { ProjectRoots, resolveProjectRoots } from "./project-root.js";
+import { measureRetention, readRetentionPolicies, type RetentionPolicy } from "./retention.js";
 import { sessionKey, type Store } from "./store.js";
 
 export interface ScanOptions {
@@ -14,11 +15,20 @@ export interface ScanOptions {
   refresh?: boolean;
   /** Parallel parses. */
   concurrency?: number;
+  /** Transcript bytes parsed at once, at most; one larger transcript is parsed on its own. */
+  parseBudgetBytes?: number;
 }
 
 export interface ScanDeps {
   sources: Source[];
   store: Store;
+  /** The clock retention is measured against. */
+  now?: () => Date;
+  /**
+   * How long each harness keeps transcripts. Default: read from this machine's settings files. False skips
+   * the retention measurement (the report then has no `retention`).
+   */
+  retentionPolicies?: false | (() => Promise<Map<Harness, RetentionPolicy>>);
 }
 
 export interface ScanResult {
@@ -30,11 +40,54 @@ export interface ScanResult {
   stats: { discovered: number; parsed: number; cached: number; failed: number; skippedEmpty: number; duplicates: number; orphaned: number };
   scannedAt: string;
   options: { since: string | null; harness: Harness[] | null; maxSessions: number };
+  /** Absent when the scan did not measure it, or measuring failed. */
+  retention?: Retention;
 }
 
 export const DEFAULT_MAX_SESSIONS = 5_000;
 export const HARD_MAX_SESSIONS = 50_000;
 export const DEFAULT_CONCURRENCY = 6;
+/**
+ * A 400 MB Codex rollout with its guardian threads needs about 300 MB of live parse state, so several of them at
+ * once are the worst case; the parsed sessions themselves are small (about 150 MB for 545 sessions of a 4 GB
+ * history). Most of the peak resident size seen on large histories is V8 deferring collection, not live data:
+ * the same scan under `--max-old-space-size=400` gives the same result in the same time.
+ */
+export const DEFAULT_PARSE_BUDGET_BYTES = 512 * 1024 * 1024;
+
+/** Admits work while the bytes in flight stay within the budget; something larger than it waits to run alone. */
+class ByteBudget {
+  private used = 0;
+  private readonly waiting: Array<{ bytes: number; resolve: () => void }> = [];
+
+  constructor(private readonly limit: number) {}
+
+  async run<T>(bytes: number, work: () => Promise<T>): Promise<T> {
+    const cost = Math.max(0, Number.isFinite(bytes) ? bytes : 0);
+    // The bytes are reserved before the work starts, here or by `wake` when a waiter is let in.
+    if (this.fits(cost) && this.waiting.length === 0) this.used += cost;
+    else await new Promise<void>((resolve) => this.waiting.push({ bytes: cost, resolve }));
+    try {
+      return await work();
+    } finally {
+      this.used -= cost;
+      this.wake();
+    }
+  }
+
+  private fits(cost: number): boolean {
+    return this.used === 0 || this.used + cost <= this.limit;
+  }
+
+  /** First come, first served, so a large transcript is not starved by a stream of small ones. */
+  private wake(): void {
+    while (this.waiting.length && this.fits(this.waiting[0]!.bytes)) {
+      const next = this.waiting.shift()!;
+      this.used += next.bytes;
+      next.resolve();
+    }
+  }
+}
 
 /** Labels for harnesses that have no source yet, so coverage can still name them. */
 const FALLBACK_LABELS: Record<Harness, string> = {
@@ -98,6 +151,12 @@ async function assignProjectRoots(entries: ScannedEntry[]): Promise<void> {
   }
 }
 
+/** Usage counters read but not counted, kept apart from unreadable lines; absent when there were none. */
+function skippedUsage(sessions: Session[]): { skippedUsageRecords?: number } {
+  const total = sessions.reduce((sum, session) => sum + (session.skippedUsageRecords || 0), 0);
+  return total > 0 ? { skippedUsageRecords: total } : {};
+}
+
 function newer(a: Session, b: Session): Session {
   return Date.parse(b.endTime) > Date.parse(a.endTime) ? b : a;
 }
@@ -128,6 +187,7 @@ export async function scan(deps: ScanDeps, options: ScanOptions = {}): Promise<S
   const byHarness = new Map(deps.sources.map((source) => [source.harness, source]));
   const stats = { discovered: all.length, parsed: 0, cached: 0, failed: 0, skippedEmpty: 0, duplicates: 0, orphaned: 0 };
 
+  const budget = new ByteBudget(Math.max(1, options.parseBudgetBytes ?? DEFAULT_PARSE_BUDGET_BYTES));
   const parsed = await mapLimit(all, concurrency, async (file): Promise<ScannedEntry | null> => {
     const source = byHarness.get(file.harness);
     if (!source) return null;
@@ -141,7 +201,7 @@ export async function scan(deps: ScanDeps, options: ScanOptions = {}): Promise<S
     }
     let session: Session | null;
     try {
-      session = await source.parse(file);
+      session = await budget.run(file.sizeBytes, () => source.parse(file));
     } catch {
       stats.failed += 1;
       bump(file.harness);
@@ -161,11 +221,13 @@ export async function scan(deps: ScanDeps, options: ScanOptions = {}): Promise<S
   // History the harness deleted lives on in the cache; without it a long recap would shrink to the harness's retention.
   const known = new Set(all.map((file) => file.path));
   let room = maxSessions - all.length;
+  const cachedOnly = new Map<Harness, Session[]>();
   for (const source of active) {
     if (room <= 0) break;
     const orphans = await deps.store
       .orphanSessions(source.harness, known, { limit: room, ...(options.since ? { sinceMs: options.since.getTime() } : {}) })
       .catch(() => []);
+    cachedOnly.set(source.harness, orphans.map((orphan) => orphan.session));
     for (const orphan of orphans) entries.push({ file: orphan.file, session: orphan.session, fresh: false });
     stats.orphaned += orphans.length;
     room -= orphans.length;
@@ -215,6 +277,7 @@ export async function scan(deps: ScanDeps, options: ScanOptions = {}): Promise<S
       bytes: totalBytes(harnessFiles),
       sessions: harnessSessions.length,
       issues: (issues.get(harness) ?? 0) + harnessSessions.reduce((sum, session) => sum + (session.issues || 0), 0),
+      ...skippedUsage(harnessSessions),
       oldest: starts[0] ?? null,
       newest: ends[ends.length - 1] ?? null,
       // History that exists but cannot be read here is found, and counted as an issue, not silently absent.
@@ -222,6 +285,7 @@ export async function scan(deps: ScanDeps, options: ScanOptions = {}): Promise<S
     });
   }
 
+  const retention = await retentionFor(deps, active, discovered, entries, cachedOnly, options.since).catch(() => undefined);
   return {
     sessions,
     coverage,
@@ -229,5 +293,30 @@ export async function scan(deps: ScanDeps, options: ScanOptions = {}): Promise<S
     stats,
     scannedAt: new Date().toISOString(),
     options: { since: options.since?.toISOString() ?? null, harness: wanted, maxSessions },
+    ...(retention ? { retention } : {}),
   };
+}
+
+async function retentionFor(
+  deps: ScanDeps,
+  active: Source[],
+  discovered: Map<Harness, SessionFile[]>,
+  entries: ScannedEntry[],
+  cachedOnly: Map<Harness, Session[]>,
+  since: Date | undefined,
+): Promise<Retention | undefined> {
+  if (deps.retentionPolicies === false) return undefined;
+  const all = await (deps.retentionPolicies ?? readRetentionPolicies)();
+  const policies = new Map([...all].filter(([harness]) => active.some((source) => source.harness === harness)));
+  const files = new Map(discovered);
+  // Files about to be deleted are old, so a narrow `since` would hide exactly them: list deleting harnesses in full.
+  if (since) {
+    for (const source of active) {
+      if (policies.get(source.harness)?.policy !== "deletes") continue;
+      const full = await safeDiscover(source, undefined, HARD_MAX_SESSIONS);
+      if (full) files.set(source.harness, full);
+    }
+  }
+  const sessionsByPath = new Map(entries.map((entry) => [entry.file.path, entry.session]));
+  return measureRetention({ now: deps.now?.() ?? new Date(), policies, files, sessionsByPath, cachedOnly });
 }

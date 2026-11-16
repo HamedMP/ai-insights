@@ -133,6 +133,11 @@ export interface ApprovalStats {
   denied?: number;
   /** Codex: automatic guardian review threads this session started. */
   guardianReviews?: number;
+  /**
+   * Codex: actions the automatic reviewer (auto-review) blocked or let time out, from the tool result's
+   * `codex/telemetry` error code (`guardian_denied`, `execution_rejected`, `guardian_timed_out`). Not the person.
+   */
+  autoBlocked?: number;
 }
 
 /**
@@ -182,6 +187,11 @@ export interface Session {
   gitPushes: number;
   /** Records the parser could not understand. Never throw on unknown records; count them. */
   issues: number;
+  /**
+   * Usage counters the parser read but could not count (Codex: a cumulative counter that went backwards with
+   * nothing to explain it, or a duplicate that shrank). Not unreadable lines, so not in `issues`. Absent when none.
+   */
+  skippedUsageRecords?: number;
   /** Tool calls seen beyond the source's cap and so missing from `toolCalls`. Absent or 0 when none were dropped. */
   toolCallsDropped?: number;
   /** Absent when the harness records no thinking, and in sessions cached before it existed. */
@@ -354,8 +364,10 @@ export const FINDING_KINDS = [
   "tool_error_hotspot",
   "unused_feature",
   "single_harness_only",
+  /** Folded into `history_retention`; no detector emits it any more. Kept so older saved reports still type-check. */
   "short_history",
   "history_disk_usage",
+  "history_retention",
 ] as const;
 export type FindingKind = (typeof FINDING_KINDS)[number];
 
@@ -372,6 +384,19 @@ export interface Evidence {
 export const SUGGESTION_TYPES = ["instructions", "feature", "plugin", "habit", "model_choice", "matrix"] as const;
 export type SuggestionType = (typeof SUGGESTION_TYPES)[number];
 
+/** One action of a multi-step suggestion, shown as its own step. */
+export interface SuggestionStep {
+  title: string;
+  /** What to do and why, in one or two sentences. */
+  action: string;
+  /** Text to copy exactly as given: a command to run or a settings line to paste. */
+  command?: string;
+  /** How to take the step back. */
+  undo?: string;
+  url?: string;
+  instructionText?: string;
+}
+
 export interface Suggestion {
   type: SuggestionType;
   title: string;
@@ -386,6 +411,11 @@ export interface Suggestion {
    * same idea is not listed twice. Absent when the suggestion stands on its own.
    */
   findingId?: string;
+  /**
+   * Separate actions to show as numbered steps, in order. `action` then sums them up in one line. Absent on
+   * single-action suggestions.
+   */
+  steps?: SuggestionStep[];
 }
 
 export interface Finding {
@@ -419,8 +449,24 @@ export interface UsageTotals {
   unpriced: number;
 }
 
+/**
+ * Spend a harness recorded itself (OpenCode, Pi), at its own price list. Not an API bill and not the estimate:
+ * subscriptions and coding plans record 0, so `zeroRequests` says how many requests recorded $0.
+ */
+export interface RecordedCost {
+  usd: number;
+  /** Requests that carried a recorded cost (zero included). */
+  requests: number;
+  /** Of those, the ones that recorded exactly $0. */
+  zeroRequests: number;
+}
+
 export interface UsageSummary extends UsageTotals {
   daily: Array<UsageTotals & { day: string }>;
+  /** Total of `ModelRequest.costUsd`; absent when no request carried one (never a $0 stand-in). */
+  recorded?: RecordedCost;
+  /** The same per harness, highest spend first; absent with `recorded`. */
+  recordedByHarness?: Array<RecordedCost & { harness: Harness }>;
   models: Array<UsageTotals & { harness: Harness; model: string }>;
   /** cachedInput / (input + cachedInput + cacheWrite), 0..1, null when there was no input. */
   cacheHitRate: number | null;
@@ -438,7 +484,10 @@ export interface Coverage {
   /** Bytes the harness's history takes on disk, when the scan measured it. */
   bytes?: number;
   sessions: number;
+  /** Unreadable lines and records. */
   issues: number;
+  /** Usage counters read but not counted (`Session.skippedUsageRecords` summed); absent when none. */
+  skippedUsageRecords?: number;
   oldest: string | null;
   newest: string | null;
   /** Why history that exists could not be read, e.g. "needs Node 22.5 or later to read opencode.db". */
@@ -448,6 +497,79 @@ export interface Coverage {
 export interface Count {
   key: string;
   count: number;
+}
+
+// ---------------------------------------------------------------------------
+// Retention: how long each harness keeps transcripts, and what AI Insights keeps after they are gone
+// ---------------------------------------------------------------------------
+
+/** Days ahead `atRisk` looks for transcripts about to be deleted. */
+export const RETENTION_WINDOW_DAYS = 7;
+
+export interface RetentionAtRisk {
+  /** Transcripts past, or reaching within the window, the age at which the harness deletes them. */
+  sessions: number;
+  bytes: number;
+  /**
+   * When the first of them becomes eligible for deletion (ISO). The harness deletes at its next start after
+   * that, so a date in the past means "the next time it starts".
+   */
+  nextDeletion: string | null;
+}
+
+export interface HarnessRetention {
+  harness: Harness;
+  /** `deletes`: the harness removes transcripts by itself; `kept`: kept until you delete them; `unknown`: not documented or unreadable here. */
+  policy: "deletes" | "kept" | "unknown";
+  /** Age in days at which transcripts are deleted. Only with `deletes`. */
+  days?: number;
+  /** Where `days` came from: the documented default, the person's settings file, or managed (organization) settings. */
+  source?: "default" | "settings" | "managed";
+  /** The setting that controls it: its name, the file it lives in (home shortened to `~`), and the value found there. */
+  setting?: { name: string; file: string; value: number | string | null };
+  /** What the age is measured from: the file's last change (Claude Code) or the chat's recorded last update (Gemini CLI). */
+  clock?: "modified" | "last-updated";
+  /** One or two sentences on how the harness decides, from its docs or source. */
+  basis: string;
+  /** The doc or source `basis` comes from. */
+  url?: string;
+  /** Transcripts on disk now. */
+  transcripts: number;
+  bytes: number;
+  /** Start of the oldest session whose transcript is still on disk (ISO), or null. */
+  oldestOnDisk: string | null;
+  /** Only with `deletes`. */
+  atRisk?: RetentionAtRisk;
+  /**
+   * Up to five sessions in `atRisk`, soonest first, so a finding can cite them. Session ids only: no paths.
+   */
+  due?: Array<{ sessionId: string; eligibleAt: string }>;
+  /**
+   * Transcripts that would be due but the harness keeps anyway, left out of `atRisk`: Claude Code keeps sessions
+   * started or last continued in Claude Desktop or Cowork (v2.1.248+), and Claude Desktop's own session stores are
+   * not part of its sweep, so they may be kept.
+   */
+  exempt?: { sessions: number; reason: string };
+  /** Sessions whose transcript is gone and that now exist only in AI Insights' cache. */
+  cachedOnly: number;
+  /** Start of the oldest session AI Insights still has for this harness, on disk or in its cache (ISO), or null. */
+  coversFrom: string | null;
+}
+
+export interface Retention {
+  windowDays: number;
+  /** Harnesses with transcripts on disk or sessions in the cache. */
+  harnesses: HarnessRetention[];
+  /** Sums over `harnesses`. */
+  atRisk: RetentionAtRisk;
+  cachedOnly: number;
+  /** The earliest session start any recap can still cover (ISO), or null. */
+  coversFrom: string | null;
+  /**
+   * What a session cached by AI Insights keeps once its transcript is deleted, and what it does not. Fixed text,
+   * so a page can say "your stats survive; the full transcripts do not unless you archive them".
+   */
+  cache: { keeps: string[]; drops: string[] };
 }
 
 export interface SessionSpan {
@@ -557,6 +679,8 @@ export interface Report {
   narrative: Narrative | null;
   /** The shareable stats for the recap cards. Absent when there are no sessions, and in reports from before it existed. */
   recap?: Recap;
+  /** How long each harness keeps transcripts. Absent when the scan did not measure it (tests, older reports). */
+  retention?: Retention;
 }
 
 // ---------------------------------------------------------------------------
@@ -644,6 +768,34 @@ export interface RecapLongestSession {
   compactions: number;
   /** The source kept only part of the session's tool calls: show `toolCalls` as "10,000+". */
   toolCallsCapped: boolean;
+  /**
+   * Longer sessions left out because a script or another agent drove them: most prompts were script-filled
+   * templates (an XML-style wrapper such as a Codex `<heartbeat>`), or other agents sent more messages than the
+   * person. Absent when the longest session overall was the person's.
+   */
+  skippedAutomated?: number;
+}
+
+/**
+ * The sessions open around the moment the most ran at once, for drawing lanes. Share-safe: relative minutes
+ * and harness names only, no ids, projects or clock times. Lanes active at `peakAt` number exactly `atPeak`,
+ * which equals `parallel.max`.
+ */
+export interface RecapLanes {
+  /** Length of the window drawn, in minutes, centred on the peak where the history allows. */
+  windowMinutes: number;
+  /** Minutes from the window start to the peak instant. */
+  peakAt: number;
+  atPeak: number;
+  /** Oldest start first. Every lane active at the peak is kept; others fill up to 20 lanes. */
+  lanes: Array<{
+    harness: Harness;
+    /** Minutes from the window start, clipped to the window. */
+    start: number;
+    end: number;
+    /** When the session was working inside the window, [from, to) in minutes, at most 20. */
+    active: Array<[number, number]>;
+  }>;
 }
 
 export interface RecapFailures {
@@ -710,6 +862,7 @@ export interface RecapApprovals {
   byPerson?: number;
   denied?: number;
   guardianReviews?: number;
+  autoBlocked?: number;
   /** Sessions that reported approvals. */
   sessions: number;
 }
@@ -768,7 +921,7 @@ export interface Recap {
   /** Skills by invocations, public names only; anything else is "a custom one". */
   skills: RecapCount[];
   shell: RecapShell;
-  parallel: { max: number; overlapEvents: number; subagents: number };
+  parallel: { max: number; overlapEvents: number; subagents: number; lanes?: RecapLanes };
   longestSession?: RecapLongestSession;
   /** The top project's share of agent time, 0..1, never its name. Absent without projects. */
   topProjectShare?: number;
@@ -784,6 +937,18 @@ export interface Recap {
   thinking?: RecapThinking;
   approvals?: RecapApprovals;
   replies?: RecapReplies;
+  /** How much history AI Insights keeps. Absent without `Report.retention`. */
+  history?: RecapHistory;
+}
+
+/** Share-safe: a day and counts only. */
+export interface RecapHistory {
+  /** Local calendar days from `firstDay` to the report day, at least 1: counted as `Coverage.historyDays` is. */
+  days: number;
+  /** Local day of the oldest session AI Insights still has. */
+  firstDay: string;
+  /** Sessions whose transcript the harness deleted and that only AI Insights' cache still holds. */
+  cachedOnly: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -878,4 +1043,6 @@ export interface BuildReportInput {
   coverage: Coverage[];
   timeZone?: string;
   now?: Date;
+  /** Measured by the scan; passed through to `Report.retention`. */
+  retention?: Retention;
 }

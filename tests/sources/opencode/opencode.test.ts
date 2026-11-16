@@ -163,6 +163,21 @@ describe.skipIf(!sqlite)("opencode database history", () => {
     expect(JSON.stringify(session)).not.toContain("should-never-be-read");
   });
 
+  it("times reasoning parts from their own start and end", async () => {
+    const db = createDb();
+    addSession(db, "ses_main");
+    message(db, "ses_main", ...user(0, "plan the change"));
+    message(db, "ses_main", ...assistant(10, "stop", [
+      { type: "reasoning", text: "thinking", time: { start: at(10), end: at(10) + 4_000 } },
+      { type: "reasoning", text: "more", time: { start: at(14), end: at(14) + 1_500 } },
+      { type: "text", text: "Done." },
+      stepFinish(0, tokens(10, 5)),
+    ]));
+    db.close();
+    const { session } = await only();
+    expect(session.thinking).toEqual({ blocks: 2, totalMs: 5_500, longestMs: 4_000 });
+  });
+
   it("does not count text OpenCode added itself (file contents, editor context) as the person's prompt", async () => {
     const db = createDb();
     addSession(db, "ses_a");

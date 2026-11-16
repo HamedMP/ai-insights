@@ -1,4 +1,4 @@
-import type { Activity, Count, FacetAggregate, Recap, UsageSummary, UsageTotals } from "../schema/types.js";
+import type { Activity, Count, FacetAggregate, Recap, Retention, UsageSummary, UsageTotals } from "../schema/types.js";
 import { shortenPath } from "../render/format.js";
 
 /** Weeks of history a digest series keeps, newest last. */
@@ -106,6 +106,8 @@ export function usageDigest(usage: UsageSummary, weeks = DIGEST_WEEKS) {
     estimatedUsd: usd(usage.estimatedUsd),
     unpriced: usage.unpriced,
     cacheHitRate: usage.cacheHitRate === null ? null : round(usage.cacheHitRate, 3),
+    // What OpenCode and Pi recorded themselves; a recorded $0 is a subscription or plan, not free use.
+    ...(usage.recorded ? { recorded: { ...usage.recorded, usd: round(usage.recorded.usd, 2), byHarness: Object.fromEntries((usage.recordedByHarness ?? []).map((row) => [row.harness, round(row.usd, 2)])) } } : {}),
     // Keyed by model name: the name already says which vendor, and unpriced appears only when it matters.
     models: Object.fromEntries(
       [...usage.models]
@@ -161,5 +163,30 @@ export function recapDigest(recap: Recap | undefined) {
     failureRate: round(recap.failures.rate, 3),
     maxParallel: recap.parallel.max,
     winRate: recap.winRate === undefined ? null : round(recap.winRate, 3),
+  };
+}
+
+/** How long each harness keeps transcripts and what is about to go: counts, days and settings names only. */
+export function retentionDigest(retention: Retention) {
+  return {
+    windowDays: retention.windowDays,
+    atRisk: retention.atRisk,
+    cachedOnly: retention.cachedOnly,
+    coversFrom: retention.coversFrom,
+    harnesses: Object.fromEntries(
+      retention.harnesses.map((entry) => [
+        entry.harness,
+        {
+          policy: entry.policy,
+          ...(entry.days !== undefined ? { days: entry.days, source: entry.source } : {}),
+          ...(entry.setting ? { setting: `${entry.setting.name} in ${entry.setting.file}` } : {}),
+          ...(entry.atRisk ? { atRisk: entry.atRisk.sessions } : {}),
+          ...(entry.exempt ? { keptAnyway: entry.exempt.sessions } : {}),
+          cachedOnly: entry.cachedOnly,
+        },
+      ]),
+    ),
+    cacheKeeps: retention.cache.keeps,
+    cacheDrops: retention.cache.drops,
   };
 }

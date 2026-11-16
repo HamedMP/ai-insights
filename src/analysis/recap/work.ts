@@ -12,7 +12,7 @@ import type {
 } from "../../schema/types.js";
 import { bump, median, toCounts } from "../activity.js";
 import { isAgentDriven } from "../sessions.js";
-import { connectorLabel, FORCE_PUSH, programOf, RM_RF, skillLabel, SLEEP, slashLabel, slashName, TEST_RUN } from "./text.js";
+import { connectorLabel, FORCE_PUSH, isWrapped, programOf, RM_RF, skillLabel, SLEEP, slashLabel, slashName, TEST_RUN } from "./text.js";
 import { ERROR_LABELS } from "./vocabulary.js";
 
 /** Per-source tool-call caps, for sessions cached before `toolCallsDropped` existed. */
@@ -167,7 +167,7 @@ export function buildApprovals(sessions: Session[]): RecapApprovals | undefined 
     const approvals = session.approvals;
     if (!approvals) continue;
     out.sessions += 1;
-    for (const key of ["auto", "byPerson", "denied", "guardianReviews"] as const) {
+    for (const key of ["auto", "byPerson", "denied", "guardianReviews", "autoBlocked"] as const) {
       const value = approvals[key];
       if (typeof value === "number" && Number.isFinite(value)) out[key] = (out[key] ?? 0) + value;
     }
@@ -191,4 +191,28 @@ export function buildReplies(sessions: Session[]): RecapReplies | undefined {
     if (gap > longestSec) longestSec = gap;
   }
   return { count: gaps.length, medianSec, fastShare: fast / gaps.length, longestSec };
+}
+
+/** Most prompts in the session were filled in by a script: a Codex heartbeat, an automation's template. */
+function isScriptDriven(session: Session): boolean {
+  const prompts = session.prompts.length;
+  return prompts >= 5 && session.prompts.filter(isWrapped).length / prompts >= 0.5;
+}
+
+/**
+ * The longest session the person drove. A heartbeat automation can keep one Codex thread busy for weeks, which
+ * says nothing about the person's stamina, so sessions a script or another agent drove are skipped and counted.
+ */
+export function buildLongestSession(sessions: Session[]): RecapLongestSession | undefined {
+  const ranked = [...sessions].sort((a, b) => b.activeMinutes - a.activeMinutes || a.harness.localeCompare(b.harness) || a.id.localeCompare(b.id));
+  let skipped = 0;
+  for (const session of ranked) {
+    if (isAgentDriven(session) || isScriptDriven(session)) {
+      skipped += 1;
+      continue;
+    }
+    const longest = buildLongest([session])!;
+    return skipped ? { ...longest, skippedAutomated: skipped } : longest;
+  }
+  return undefined;
 }

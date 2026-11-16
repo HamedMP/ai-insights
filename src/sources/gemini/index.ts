@@ -13,8 +13,9 @@ import { excerptLimits, finishExcerpt } from "../common/excerpt.js";
  * message (`type` user / gemini / info / error / warning, `timestamp`, `content`; gemini lines add `model`,
  * `tokens` and `toolCalls`), plus `$set`, `$patch` and `$rewindTo` lines. Older versions wrote the same
  * record as one `session-*.json` document. Subagent chats sit in a folder named after their parent session.
- * The format was read from gemini-cli's `chatRecordingTypes.ts` and `chatRecordingService.ts` (Apache-2.0);
- * no Gemini CLI history was available to check it against.
+ * The format was read from gemini-cli's `chatRecordingTypes.ts` and `chatRecordingService.ts` (Apache-2.0), last
+ * re-checked at google-gemini/gemini-cli@4fa64e71 (2026-11-16): gemini lines also carry `thoughts`
+ * (subject, description, timestamp; no duration). No Gemini CLI history was available to check it against.
  */
 
 const MAX_FILES = 50_000;
@@ -247,6 +248,8 @@ function addMessages(builder: SessionBuilder, sessionId: string, conversation: C
       const model = str(message.model);
       const calls = Array.isArray(message.toolCalls) ? message.toolCalls.slice(0, 2_000).map(obj) : [];
       builder.assistant(timestamp, { model, finished: calls.length === 0 });
+      // `thoughts` holds subject, description and timestamp per thought, never a duration.
+      if (Array.isArray(message.thoughts) && message.thoughts.length > 0) builder.thought();
       if (message.tokens && typeof message.tokens === "object") builder.request(`${sessionId}:${id}`, timestamp, model, usageOf(message.tokens));
       const text = partText(message.content);
       if (text && timestamp) builder.turn({ role: "assistant", timestamp, text });
@@ -321,7 +324,7 @@ async function excerpt(file: SessionFile, options: ExcerptOptions = {}): Promise
 
 export const geminiSource: Source = {
   // Bump whenever a parser change would give a different Session from the same chat.
-  parserVersion: "2",
+  parserVersion: "3",
   harness: "gemini",
   label: "Gemini CLI",
   defaultRoots: () => geminiDefaultRoots(),
