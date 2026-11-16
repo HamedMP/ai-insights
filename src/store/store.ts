@@ -20,6 +20,16 @@ interface IndexEntry {
   /** Null records a file that parsed to no session, so it is not re-parsed until it changes. */
   id: string | null;
   mtimeMs: number;
+  /** `Source.parserVersion` that produced this entry; absent means "0". */
+  parser?: string;
+}
+
+/** What a source without a `parserVersion`, or a cache entry from before versions, counts as. */
+export const DEFAULT_PARSER_VERSION = "0";
+const MAX_PARSER_VERSION_CHARS = 64;
+
+export function normaliseParserVersion(version: unknown): string {
+  return typeof version === "string" && version.length > 0 && version.length <= MAX_PARSER_VERSION_CHARS ? version : DEFAULT_PARSER_VERSION;
 }
 
 export interface SavedReport {
@@ -45,6 +55,7 @@ function timestampForFile(date: Date): string {
 export class Store {
   readonly home: string;
   private readonly indexes = new Map<Harness, Map<string, IndexEntry>>();
+  private readonly indexLoads = new Map<Harness, Promise<Map<string, IndexEntry>>>();
   private readonly dirtyIndexes = new Set<Harness>();
 
   constructor(home: string) {
@@ -75,18 +86,28 @@ export class Store {
     return join(this.home, "sessions", harness, ".index.json");
   }
 
-  private async index(harness: Harness): Promise<Map<string, IndexEntry>> {
-    const loaded = this.indexes.get(harness);
-    if (loaded) return loaded;
+  private index(harness: Harness): Promise<Map<string, IndexEntry>> {
+    // Concurrent parses ask at once; one shared load keeps them from each building a map and dropping the others' entries.
+    let loading = this.indexLoads.get(harness);
+    if (!loading) {
+      loading = this.loadIndex(harness);
+      this.indexLoads.set(harness, loading);
+      loading.catch(() => this.indexLoads.delete(harness));
+    }
+    return loading;
+  }
+
+  private async loadIndex(harness: Harness): Promise<Map<string, IndexEntry>> {
     const map = new Map<string, IndexEntry>();
     const raw = await readJsonFile(this.indexPath(harness));
     if (raw && typeof raw === "object" && !Array.isArray(raw)) {
       for (const [path, value] of Object.entries(raw as Record<string, unknown>)) {
         if (map.size >= MAX_INDEX_ENTRIES) break;
         if (!value || typeof value !== "object") continue;
-        const { id, mtimeMs } = value as Record<string, unknown>;
+        const { id, mtimeMs, parser } = value as Record<string, unknown>;
         if (typeof mtimeMs !== "number" || !(id === null || isSafeId(id))) continue;
-        map.set(path, { id, mtimeMs });
+        // Entries written before parser versions existed have none, which counts as "0".
+        map.set(path, typeof parser === "string" && parser.length <= MAX_PARSER_VERSION_CHARS ? { id, mtimeMs, parser } : { id, mtimeMs });
       }
     }
     this.indexes.set(harness, map);
@@ -97,9 +118,11 @@ export class Store {
    * The cached parse of `file`, if it is still current.
    * `undefined`: no usable cache, parse it. `null`: known to hold no session.
    */
-  async cachedSession(file: SessionFile): Promise<Session | null | undefined> {
+  async cachedSession(file: SessionFile, parserVersion?: string): Promise<Session | null | undefined> {
     const entry = (await this.index(file.harness)).get(file.path);
     if (!entry || entry.mtimeMs !== file.mtimeMs) return undefined;
+    // A parser fix must reach history that has not changed on disk.
+    if ((entry.parser ?? DEFAULT_PARSER_VERSION) !== normaliseParserVersion(parserVersion)) return undefined;
     if (entry.id === null) return null;
     const parsed = SessionSchema.safeParse(await readJsonFile(this.sessionPath(file.harness, entry.id)));
     if (!parsed.success) return undefined;
@@ -109,17 +132,18 @@ export class Store {
   }
 
   /** Caches a parse result. Sessions whose id is not file-name safe are returned but not cached. */
-  async cacheSession(file: SessionFile, session: Session | null): Promise<boolean> {
+  async cacheSession(file: SessionFile, session: Session | null, parserVersion?: string): Promise<boolean> {
     const index = await this.index(file.harness);
+    const parser = normaliseParserVersion(parserVersion);
     if (session === null) {
-      index.set(file.path, { id: null, mtimeMs: file.mtimeMs });
+      index.set(file.path, { id: null, mtimeMs: file.mtimeMs, parser });
       this.dirtyIndexes.add(file.harness);
       return true;
     }
     if (!isSafeId(session.id) || session.harness !== file.harness) return false;
     await writeFileAtomic(this.sessionPath(session.harness, session.id), JSON.stringify(session));
     if (index.size < MAX_INDEX_ENTRIES || index.has(file.path)) {
-      index.set(file.path, { id: session.id, mtimeMs: file.mtimeMs });
+      index.set(file.path, { id: session.id, mtimeMs: file.mtimeMs, parser });
       this.dirtyIndexes.add(file.harness);
     }
     return true;

@@ -272,3 +272,52 @@ describe("scan project roots", () => {
     expect(rewrites).toBe(0);
   });
 });
+
+describe("scan parser versions", () => {
+  it("re-parses unchanged transcripts exactly once when the source's parser version changes", async () => {
+    const sessions = [makeSession({ id: "a" }), makeSession({ id: "b", sourceMtimeMs: 2 })];
+    const empty = { harness: "claude-code" as const, path: "/fake/claude-code/empty.jsonl", mtimeMs: 3, sizeBytes: 10 };
+    const source = fakeSource("claude-code", sessions);
+    const discover = source.discover;
+    source.discover = async (options) => [...(await discover(options)), empty];
+
+    await scan({ sources: [source], store });
+    expect(source.parseCalls).toHaveLength(3);
+
+    source.parseCalls.length = 0;
+    await scan({ sources: [source], store: new Store(home) });
+    expect(source.parseCalls).toEqual([]);
+
+    // Cache written before versions existed counts as "0"; a fixed parser announces "2".
+    source.parserVersion = "2";
+    source.sessions = sessions.map((session) => ({ ...session, userMessageCount: 7 }));
+    const bumped = await scan({ sources: [source], store: new Store(home) });
+    expect(source.parseCalls.sort()).toEqual([empty.path, ...sessions.map((session) => session.sourcePath)].sort());
+    expect(bumped.sessions.every((session) => session.userMessageCount === 7)).toBe(true);
+
+    source.parseCalls.length = 0;
+    const again = await scan({ sources: [source], store: new Store(home) });
+    expect(source.parseCalls).toEqual([]);
+    expect(again.stats.cached).toBe(3);
+  });
+
+  it("treats a missing parser version and \"0\" as the same version", async () => {
+    const source = fakeSource("claude-code", [makeSession({ id: "a" })]);
+    await scan({ sources: [source], store });
+    source.parserVersion = "0";
+    source.parseCalls.length = 0;
+    await scan({ sources: [source], store: new Store(home) });
+    expect(source.parseCalls).toEqual([]);
+  });
+
+  it("keeps saved facets when a parser bump re-parses their sessions", async () => {
+    const source = fakeSource("claude-code", [makeSession({ id: "a" })]);
+    await scan({ sources: [source], store });
+    await store.saveFacet(validFacet("a"));
+    source.parserVersion = "3";
+    const result = await scan({ sources: [source], store: new Store(home) });
+    expect(source.parseCalls).toHaveLength(2);
+    expect(await new Store(home).readFacet("claude-code", "a")).toEqual(validFacet("a"));
+    expect(result.sessions.map((session) => session.id)).toEqual(["a"]);
+  });
+});
