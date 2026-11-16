@@ -111,6 +111,8 @@ export class SessionBuilder {
   private readonly mcpServers = new Set<string>();
   private readonly skills = new Set<string>();
   private readonly slashCommands = new Set<string>();
+  private readonly slashCounts = new Map<string, number>();
+  private toolCallsDropped = 0;
   private start: number | null = null;
   private end: number | null = null;
   private lastAssistantTime: string | null = null;
@@ -171,7 +173,11 @@ export class SessionBuilder {
     if (!cleaned) return null;
     this.noteTime(timestamp);
     const slash = /^\/([A-Za-z][\w:.-]{0,60})(?:\s|$)/.exec(text);
-    if (slash) this.addSlashCommand(`/${slash[1]}`);
+    if (slash) {
+      const name = `/${slash[1]}`;
+      this.addSlashCommand(name);
+      if (this.slashCounts.has(name) || this.slashCounts.size < CAPS.featureList) this.slashCounts.set(name, (this.slashCounts.get(name) ?? 0) + 1);
+    }
     const interrupted = options.interrupted === true || (this.assistantSincePrompt && this.midTurn);
     if (!interrupted && this.assistantSincePrompt && this.lastAssistantTime) {
       const gap = (Date.parse(timestamp) - Date.parse(this.lastAssistantTime)) / 1000;
@@ -220,6 +226,7 @@ export class SessionBuilder {
   tool(input: ToolInput): void {
     if (this.toolCalls.length >= CAPS.toolCalls) {
       this.issues += 1;
+      this.toolCallsDropped += 1;
       return;
     }
     const call: ToolCall = { name: input.name.slice(0, CAPS.nameChars) || "unknown", category: input.category, timestamp: input.timestamp };
@@ -313,6 +320,7 @@ export class SessionBuilder {
         webSearch: webTools.some((call) => /search/i.test(call.name)),
         webFetch: webTools.some((call) => !/search/i.test(call.name)),
         compactions: this.compactions,
+        ...(this.slashCounts.size ? { slashCommandCounts: Object.fromEntries(this.slashCounts) } : {}),
       },
       linesAdded,
       linesRemoved,
@@ -321,6 +329,7 @@ export class SessionBuilder {
       gitCommits: this.gitCommits,
       gitPushes: this.gitPushes,
       issues: this.issues,
+      ...(this.toolCallsDropped ? { toolCallsDropped: this.toolCallsDropped } : {}),
     };
   }
 }

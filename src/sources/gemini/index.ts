@@ -321,7 +321,7 @@ async function excerpt(file: SessionFile, options: ExcerptOptions = {}): Promise
 
 export const geminiSource: Source = {
   // Bump whenever a parser change would give a different Session from the same chat.
-  parserVersion: "1",
+  parserVersion: "2",
   harness: "gemini",
   label: "Gemini CLI",
   defaultRoots: () => geminiDefaultRoots(),

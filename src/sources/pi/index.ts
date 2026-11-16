@@ -254,7 +254,7 @@ async function excerpt(file: SessionFile, options: ExcerptOptions = {}): Promise
 
 export const piSource: Source = {
   // Bump whenever a parser change would give a different Session from the same transcript.
-  parserVersion: "1",
+  parserVersion: "2",
   harness: "pi",
   label: "Pi",
   defaultRoots: () => piDefaultRoots(),

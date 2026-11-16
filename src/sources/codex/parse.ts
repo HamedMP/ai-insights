@@ -1,5 +1,5 @@
 import { isAbsolute, join } from "node:path";
-import type { ModelRequest, Session, SessionFeatures, ToolCall, TranscriptTurn, UserPrompt } from "../../schema/types.js";
+import type { ModelRequest, Session, SessionFeatures, ThinkingStats, ToolCall, TranscriptTurn, UserPrompt } from "../../schema/types.js";
 import { activeMinutes, languageForPath, scrub, truncate } from "../shared.js";
 import { normalise, readRecords, type RawRecord } from "./read.js";
 import { agentText, contentText, hasImage, isQuestionReply, promptText, subagentNotice } from "./prompts.js";
@@ -192,6 +192,10 @@ export class RolloutBuilder {
 
   private itemCalls: CallEntry[] = [];
   private classicCalls: CallEntry[] = [];
+  private dropped = { item: 0, classic: 0 };
+  /** Reasoning from item events (with timing) and from response items (count only); Codex mirrors one in the other. */
+  private reasoningItems = { blocks: 0, totalMs: 0, longestMs: 0, timed: false };
+  private reasoningResponses = 0;
   private classicById = new Map<string, CallEntry>();
   private sawItems = false;
 
@@ -363,6 +367,10 @@ export class RolloutBuilder {
 
   private readResponseItem(payload: Record<string, unknown>, record: RawRecord, time: string): void {
     const kind = payload.type;
+    if (kind === "reasoning") {
+      this.reasoningResponses += 1;
+      return;
+    }
     if (kind === "message") {
       if (payload.role === "user") {
         if (obj(record.metadata).inherited_user_message) return;
@@ -410,7 +418,10 @@ export class RolloutBuilder {
   }
 
   private pushCall(list: CallEntry[], entry: CallEntry): boolean {
-    if (list.length >= MAX_TOOL_CALLS) return false;
+    if (list.length >= MAX_TOOL_CALLS) {
+      this.dropped[list === this.itemCalls ? "item" : "classic"] += 1;
+      return false;
+    }
     list.push(entry);
     return true;
   }
@@ -731,9 +742,30 @@ export class RolloutBuilder {
       case "ContextCompaction":
         this.compactionEvents += 1;
         return;
+      case "Reasoning": {
+        const thinking = this.reasoningItems;
+        thinking.blocks += 1;
+        const started = event.started_at_ms;
+        const completed = event.completed_at_ms;
+        if (typeof started === "number" && typeof completed === "number" && Number.isFinite(started) && Number.isFinite(completed)) {
+          const ms = completed - started;
+          if (ms >= 0 && ms < 86_400_000) {
+            thinking.timed = true;
+            thinking.totalMs += ms;
+            thinking.longestMs = Math.max(thinking.longestMs, ms);
+          }
+        }
+        return;
+      }
       default:
         return;
     }
+  }
+
+  private thinkingStats(): ThinkingStats | undefined {
+    const items = this.reasoningItems;
+    if (items.blocks > 0) return { blocks: items.blocks, totalMs: items.timed ? items.totalMs : null, longestMs: items.timed ? items.longestMs : null };
+    return this.reasoningResponses > 0 ? { blocks: this.reasoningResponses, totalMs: null, longestMs: null } : undefined;
   }
 
   /** Pick one prompt stream: item events (Desktop), then user_message events (CLI), then raw messages. */
@@ -796,7 +828,12 @@ export class RolloutBuilder {
     for (const request of requests) if (this.models.size < MAX_MODELS && request.model !== "unknown") this.models.add(request.model);
 
     const slashCommands = [...new Set(track.slashCommands)];
-    if (this.reviewMode && !slashCommands.includes("review")) slashCommands.push("review");
+    const slashCounts = new Map<string, number>();
+    for (const name of track.slashCommands) slashCounts.set(name, (slashCounts.get(name) ?? 0) + 1);
+    if (this.reviewMode && !slashCommands.includes("review")) {
+      slashCommands.push("review");
+      slashCounts.set("review", 1);
+    }
     const features: SessionFeatures = {
       mcpServers: [...mcpServers].sort(),
       skills: [...skills].sort(),
@@ -806,6 +843,7 @@ export class RolloutBuilder {
       webSearch: this.webSearch,
       webFetch: this.webFetch,
       compactions: Math.max(this.compacted, this.compactionEvents),
+      ...(slashCounts.size ? { slashCommandCounts: Object.fromEntries(slashCounts) } : {}),
     };
 
     const start = Date.parse(this.first);
@@ -839,6 +877,10 @@ export class RolloutBuilder {
       gitPushes,
       issues: this.issues,
     };
+    const dropped = calls === this.itemCalls ? this.dropped.item : this.dropped.classic;
+    if (dropped) session.toolCallsDropped = dropped;
+    const thinking = this.thinkingStats();
+    if (thinking) session.thinking = thinking;
     return { meta: this.meta, session, turns, evidence };
   }
 }
@@ -865,10 +907,21 @@ export function foldChild(parent: Session, child: BuiltRollout): void {
   parent.requests.push(...session.requests.slice(0, Math.max(0, 50_000 - parent.requests.length)));
   for (const model of session.models) if (!parent.models.includes(model) && parent.models.length < MAX_MODELS) parent.models.push(model);
   parent.issues += session.issues;
-  // A guardian only reviews the parent's planned actions; its reads are not the person's work.
-  if (child.meta.kind === "guardian") return;
+  // A guardian only reviews the parent's planned actions; its reads and its thinking are not the person's work.
+  if (child.meta.kind === "guardian") {
+    parent.approvals = { ...parent.approvals, guardianReviews: (parent.approvals?.guardianReviews ?? 0) + 1 };
+    return;
+  }
   const room = Math.max(0, MAX_TOOL_CALLS - parent.toolCalls.length);
   parent.toolCalls.push(...session.toolCalls.slice(0, room));
+  const dropped = Math.max(0, session.toolCalls.length - room) + (session.toolCallsDropped ?? 0);
+  if (dropped) parent.toolCallsDropped = (parent.toolCallsDropped ?? 0) + dropped;
+  if (session.thinking) {
+    const into = parent.thinking ?? { blocks: 0, totalMs: null, longestMs: null };
+    const sum = (a: number | null, b: number | null) => (a === null && b === null ? null : (a ?? 0) + (b ?? 0));
+    const max = (a: number | null, b: number | null) => (a === null && b === null ? null : Math.max(a ?? 0, b ?? 0));
+    parent.thinking = { blocks: into.blocks + session.thinking.blocks, totalMs: sum(into.totalMs, session.thinking.totalMs), longestMs: max(into.longestMs, session.thinking.longestMs) };
+  }
   parent.linesAdded += session.linesAdded;
   parent.linesRemoved += session.linesRemoved;
   for (const file of session.filesModified) if (parent.filesModified.length < MAX_FILES && !parent.filesModified.includes(file)) parent.filesModified.push(file);

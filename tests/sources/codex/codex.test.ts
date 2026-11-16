@@ -594,6 +594,58 @@ describe("codex excerpts", () => {
 
 describe("codex parser version", () => {
   it("declares a parser version so the store re-parses cached history after a parser fix", () => {
-    expect(codexSource.parserVersion).toBe("4");
+    expect(codexSource.parserVersion).toBe("5");
+  });
+});
+
+describe("codex recap fields", () => {
+  const reasoning = (started: number, completed: number) =>
+    event({ type: "item_completed", item: { type: "Reasoning", id: `r${started}`, summary_text: [], raw_content: [] }, started_at_ms: started, completed_at_ms: completed });
+
+  it("counts reasoning with its timing from item events, not twice from the mirrored response items", async () => {
+    const session = await parseOne([
+      meta(uuid(1)),
+      ...userMessage("plan it"),
+      item({ type: "reasoning", id: "r1", summary: [], encrypted_content: "x" }),
+      reasoning(1_770_000_000_000, 1_770_000_004_000),
+      item({ type: "reasoning", id: "r2", summary: [], encrypted_content: "x" }),
+      reasoning(1_770_000_010_000, 1_770_000_011_500),
+    ]);
+    expect(session.thinking).toEqual({ blocks: 2, totalMs: 5500, longestMs: 4000 });
+  });
+
+  it("counts reasoning items without durations when only the CLI stream exists", async () => {
+    const session = await parseOne([meta(uuid(1)), ...userMessage("plan it"), item({ type: "reasoning", id: "r1", summary: [], encrypted_content: "x" })]);
+    expect(session.thinking).toEqual({ blocks: 1, totalMs: null, longestMs: null });
+  });
+
+  it("counts slash commands per invocation", async () => {
+    const session = await parseOne([meta(uuid(1)), ...userMessage("/model"), ...userMessage("/model"), ...userMessage("/review")]);
+    expect(session.features.slashCommandCounts).toEqual({ model: 2, review: 1 });
+  });
+
+  it("counts tool calls past the cap, so a marathon can say 10,000+", async () => {
+    const commands = Array.from({ length: 10_002 }, (_, n) =>
+      event({ type: "item_completed", item: { type: "CommandExecution", command: `echo ${n}`, exit_code: 0, status: "completed" }, started_at_ms: 1_770_000_000_000 + n }),
+    );
+    const session = await parseOne([meta(uuid(1)), ...userMessage("go"), ...commands]);
+    expect(session.toolCalls).toHaveLength(10_000);
+    expect(session.toolCallsDropped).toBe(2);
+  });
+
+  it("counts guardian reviews on the parent without their thinking", async () => {
+    const parentId = uuid(1);
+    tree.write(rolloutName(1), [meta(parentId, { thread_source: "user" }), ...userMessage("build it"), item({ type: "reasoning", id: "p", summary: [], encrypted_content: "x" })]);
+    for (const n of [2, 3]) {
+      tree.write(rolloutName(n), [
+        meta(uuid(n), { thread_source: "guardian_review", source: { subagent: { other: "guardian" } }, parent_thread_id: parentId }),
+        item({ type: "reasoning", id: `g${n}`, summary: [], encrypted_content: "x" }),
+        rec("token_usage_record", { response_id: `g${n}`, thread_id: uuid(n), usage: { input_tokens: 50, output_tokens: 5 } }),
+      ]);
+    }
+    const files = await codexSource.discover({ roots: [tree.sessions] });
+    const session = (await codexSource.parse(files[0]!))!;
+    expect(session.approvals).toEqual({ guardianReviews: 2 });
+    expect(session.thinking).toEqual({ blocks: 1, totalMs: null, longestMs: null });
   });
 });
