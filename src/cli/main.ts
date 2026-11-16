@@ -34,7 +34,7 @@ class UsageError extends Error {}
 
 const HELP = `ai-insights: look back at how you work with AI coding agents.
 
-Reads your local Claude Code and Codex history, writes one HTML report.
+Reads your local agent history (Claude Code, Codex, OpenCode, Pi, Cursor, Gemini CLI), writes one HTML report.
 Nothing leaves this machine.
 
 Usage
