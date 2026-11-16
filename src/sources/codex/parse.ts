@@ -4,7 +4,7 @@ import { activeMinutes, languageForPath, scrub, truncate } from "../shared.js";
 import { normalise, readRecords, type RawRecord } from "./read.js";
 import { agentText, contentText, hasImage, isQuestionReply, promptText } from "./prompts.js";
 import { localPath, MAX_EVIDENCE, scriptDirs, type ProjectEvidence } from "./project.js";
-import { argsSummary, editLine, failure, firstLine, lastSegment, oneLine, parsedLine, shellLine } from "./summary.js";
+import { connectorLine, editLine, failure, firstLine, lastSegment, oneLine, parsedLine, shellLine } from "./summary.js";
 import {
   categoryForName,
   categoryForParsed,
@@ -388,13 +388,13 @@ export class RolloutBuilder {
     } else args = obj(payload.arguments);
     const call: ToolCall = { name, category: categoryForName(name, namespace), timestamp: time };
     const entry: CallEntry = { call };
-    let turnText = `${name}${argsSummary(args)}`;
+    let turnText = connectorLine(null, name, args);
 
     const server = mcpServerFromName(name, namespace);
     if (server) {
       call.mcpServer = server;
       if (typeof namespace === "string" && namespace.startsWith("mcp__")) call.name = `${namespace}__${name}`;
-      turnText = `${server} ${call.name.replace(/^mcp__.+?__/, "")}${argsSummary(args)}`;
+      turnText = connectorLine(server, call.name.replace(/^mcp__.+?__/, ""), args);
     }
 
     if (kind === "local_shell_call" || call.category === "shell") {
@@ -525,7 +525,7 @@ export class RolloutBuilder {
           entry.call.category = "mcp";
           entry.call.mcpServer = server;
           if (tool) entry.call.name = `mcp__${server}__${tool}`;
-          entry.summary = oneLine(`${server} ${tool ?? ""}${argsSummary(invocation.arguments)}`);
+          entry.summary = connectorLine(server, tool ?? "", invocation.arguments);
         }
         const result = obj(payload.result);
         if ("Err" in result || obj(result.Ok).isError === true || obj(result.Ok).is_error === true) entry.call.error = "other";
@@ -615,20 +615,16 @@ export class RolloutBuilder {
         const errorText = typeof item.error === "string" ? item.error : (str(error.message) ?? (item.error ? JSON.stringify(item.error) : ""));
         if (item.status === "failed" || item.error) call.error = /timed? ?out/i.test(errorText) ? "timeout" : "other";
         else if (item.status === "declined" || item.status === "rejected") call.error = "user_rejected";
-        let text = `${server} ${tool}${argsSummary(item.arguments)}`;
-        if (call.error) {
-          const line = firstLine(errorText);
-          text += failure(call.error === "user_rejected" ? "declined" : line ? `failed: ${line}` : "failed");
-        }
-        this.itemCall({ call }, oneLine(text), !!call.error);
+        const line = call.error ? firstLine(errorText, 80) : "";
+        const suffix = call.error ? failure(call.error === "user_rejected" ? "declined" : line ? `failed: ${line}` : "failed") : "";
+        this.itemCall({ call }, connectorLine(server, tool, item.arguments, suffix), !!call.error);
         return;
       }
       case "DynamicToolCall": {
         const name = [str(item.namespace), str(item.tool)].filter(Boolean).join("__") || "dynamic_tool";
         const call: ToolCall = { name, category: "other", timestamp: at };
         if (item.success === false || item.status === "failed") call.error = "other";
-        const label = [str(item.namespace), str(item.tool)].filter(Boolean).join(" ") || "dynamic tool";
-        this.itemCall({ call }, oneLine(`${label}${argsSummary(item.arguments)}${call.error ? failure("failed") : ""}`), !!call.error);
+        this.itemCall({ call }, connectorLine(str(item.namespace), str(item.tool) ?? "dynamic tool", item.arguments, call.error ? failure("failed") : ""), !!call.error);
         return;
       }
       case "Extension": {

@@ -49,7 +49,7 @@ describe("codex excerpts for the model pass", () => {
     ]);
     const tools = turns.filter((turn) => turn.role === "tool");
     expect(tools.map((turn) => turn.text)).toEqual([
-      "codex_apps github.get_pr_info (repo: acme/widgets, pr_number: 12, include_diff: true)",
+      "github.get_pr_info (repo: acme/widgets, pr_number: 12, include_diff: true)",
       "figma get_design → failed: rate limited",
       "$ pnpm test --run → exit 1: FAIL tests/a.test.ts",
       "read src/a.ts",
@@ -59,6 +59,34 @@ describe("codex excerpts for the model pass", () => {
     ]);
     expect(tools.map((turn) => turn.isError ?? false)).toEqual([false, true, true, false, false, false, false]);
     expect(JSON.stringify(turns)).not.toContain("secret file content");
+  });
+
+  it("names a Codex app connector by its tool and keeps the line short even with long arguments", async () => {
+    const url = `https://example.com/${"segment/".repeat(9)}end`;
+    const turns = await excerptOf([
+      meta(uuid(1)),
+      ...userMessage("look"),
+      done({ type: "McpToolCall", id: "m1", server: "codex_apps", tool: "github.fetch", arguments: { url, owner: "acme", repo: "widgets", ref: "main" }, status: "completed" }),
+      done({ type: "DynamicToolCall", id: "d1", namespace: "codex_app", tool: "read_thread", arguments: { threadId: "t-1" }, success: true }),
+    ]);
+    const tools = turns.filter((turn) => turn.role === "tool").map((turn) => turn.text);
+    expect(tools[0]).toMatch(/^github\.fetch \(url: https:\/\/example\.com\/segment\/.*…, owner: acme, repo: widgets\)$/);
+    expect(tools[0]!.length).toBeLessThanOrEqual(160);
+    expect(tools[1]).toBe("read_thread (threadId: t-1)");
+  });
+
+  it("keeps the brief whole and shortens later prompts so the brief survives a tight budget", async () => {
+    const brief = `Continue ticket ENG-1 in this worktree. ${"Read the handoff file first, then plan. ".repeat(16)}`.trim();
+    const records: Rec[] = [meta(uuid(1)), ...userMessage(brief)];
+    for (let index = 0; index < 12; index += 1) {
+      records.push(...shell(`c${index}`, `step ${index}`, 0, "ok"));
+      records.push(...userMessage(`follow up ${index} ${"with a long pasted log line ".repeat(30)}`));
+    }
+    records.push(...assistant("done"));
+    const turns = await excerptOf(records, { maxTurns: 6, maxCharsPerTurn: 600 });
+    const users = turns.filter((turn) => turn.role === "user");
+    expect(users[0]!.text).toBe(brief.slice(0, 599) + "…");
+    expect(users.slice(1).every((turn) => turn.text.length <= 300)).toBe(true);
   });
 
   it("keeps the person's prompts, failures and the final answer when it has to drop turns", async () => {
