@@ -24,6 +24,8 @@ export function isVoice(prompt: UserPrompt): boolean {
 export function plainText(text: string): string {
   return text
     .slice(0, MAX_TEXT)
+    // Harness markers for pasted images and text ("[image]", "[Image #2]", "[Pasted text #1 +40 lines]") are not words typed.
+    .replace(/\[(?:image|pasted text)[^\]]{0,40}\]/gi, " ")
     .replace(/```[\s\S]*?```/g, " ")
     .replace(/`[^`]*`/g, " ")
     .replace(/<[^>]{0,400}>/g, " ")
@@ -68,7 +70,7 @@ export function slashLabel(name: string): string {
 }
 
 function lastSegment(path: string): string {
-  const parts = path.split(/[\\/]/);
+  const parts = path.replace(/[\\/]+$/, "").split(/[\\/]/);
   return parts[parts.length - 1] ?? "";
 }
 
@@ -97,8 +99,19 @@ export const RM_RF = /\brm\s+-[a-z]*r[a-z]*f|\brm\s+-[a-z]*f[a-z]*r/;
 export const FORCE_PUSH = /git push[^\n]*(--force|-f\b)/;
 export const SLEEP = /^\s*sleep\b/;
 
+/**
+ * Harnesses decorate server names: Claude's hosted connectors are `claude_ai_Linear`, many servers are installed
+ * as `linear-server` or `github_mcp`. The bare product name is what the allowlist knows. Plugin servers
+ * (`plugin_<plugin>_<server>`) carry a plugin name that can be private, so they stay custom.
+ */
 export function connectorLabel(server: string): string {
-  const key = server.trim().toLowerCase();
+  const key = server
+    .trim()
+    .toLowerCase()
+    .replace(/^claude_ai_/, "")
+    .replace(/[-_](server|mcp)$/, "")
+    .replace(/^mcp[-_]/, "")
+    .replace(/_/g, "-");
   return PUBLIC_MCP_SERVERS.has(key) ? key : NEUTRAL.custom;
 }
 

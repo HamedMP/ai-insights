@@ -636,6 +636,8 @@ describe("codex recap fields", () => {
   it("counts guardian reviews on the parent without their thinking", async () => {
     const parentId = uuid(1);
     tree.write(rolloutName(1), [meta(parentId, { thread_source: "user" }), ...userMessage("build it"), item({ type: "reasoning", id: "p", summary: [], encrypted_content: "x" })]);
+    // A review thread with nothing but its metadata still counts.
+    tree.write(rolloutName(4), [meta(uuid(4), { thread_source: "guardian_review", source: { subagent: { other: "guardian" } }, parent_thread_id: parentId })]);
     for (const n of [2, 3]) {
       tree.write(rolloutName(n), [
         meta(uuid(n), { thread_source: "guardian_review", source: { subagent: { other: "guardian" } }, parent_thread_id: parentId }),
@@ -645,7 +647,7 @@ describe("codex recap fields", () => {
     }
     const files = await codexSource.discover({ roots: [tree.sessions] });
     const session = (await codexSource.parse(files[0]!))!;
-    expect(session.approvals).toEqual({ guardianReviews: 2 });
+    expect(session.approvals).toEqual({ guardianReviews: 3 });
     expect(session.thinking).toEqual({ blocks: 1, totalMs: null, longestMs: null });
   });
 });

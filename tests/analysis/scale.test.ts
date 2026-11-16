@@ -17,5 +17,10 @@ describe("scale", () => {
     expect(Date.now() - started).toBeLessThan(10_000);
     expect(report.activity.daily.length).toBeLessThanOrEqual(366);
     expect(JSON.stringify(report).length).toBeLessThan(500_000);
+    // The recap rides along on every report: it must stay small and cover the whole year.
+    expect(report.recap!.range.days).toBe(365);
+    expect(report.recap!.daily.length).toBe(365);
+    expect(report.recap!.totals.prompts).toBe(80_000);
+    expect(JSON.stringify(report.recap).length).toBeLessThan(40_000);
   });
 });

@@ -60,7 +60,7 @@ export const PUBLIC_MCP_SERVERS: ReadonlySet<string> = new Set(
   words(`
 github gitlab linear slack notion figma playwright puppeteer context7 sentry stripe supabase vercel cloudflare filesystem fetch memory sequential-thinking
 atlassian jira confluence asana airtable hubspot posthog datadog grafana firebase neon postgres sqlite redis docker kubernetes aws gcp azure
-chrome-devtools browserbase brave-search exa tavily perplexity google-drive gmail google-calendar todoist zapier
+chrome-devtools browserbase brave-search exa tavily perplexity google-drive gmail google-calendar todoist zapier greptile codex-apps
 `),
 );
 

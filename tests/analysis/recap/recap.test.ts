@@ -113,6 +113,11 @@ describe("recap: how you talk", () => {
     expect(recap.rhythm!.hours.reduce((a, b) => a + b, 0)).toBe(3);
   });
 
+  it("does not count harness markers for pasted images and text as words", () => {
+    const s = session({ prompts: [prompt("see this\n[image]", at(0)), prompt("[Image #2] and [Pasted text #1 +40 lines] fix", at(1))] });
+    expect(recapOf([s]).voice.words).toEqual([{ key: "fix", count: 1 }]);
+  });
+
   it("leaves sessions another agent drove out of the voice stats", () => {
     const driven = session({ agentMessageCount: 9, userMessageCount: 1, prompts: [prompt("merge everything", at(0))] });
     const own = session({ prompts: [prompt("fix it", at(1))] });
@@ -199,15 +204,18 @@ describe("recap: commands and the agent's shell work", () => {
     const s = session({
       toolCalls: [tool("skill", { skill: "pdf" }), tool("skill", { skill: "acme-internal-release" }), tool("skill", { skill: "pdf" })],
     });
-    s.features.mcpServers = ["github", "acme-crm"];
+    s.features.mcpServers = ["github", "acme-crm", "linear-server", "claude_ai_Figma", "plugin_acme_github"];
     const recap = recapOf([s]);
     expect(recap.skills).toEqual([
       { key: "pdf", count: 2 },
       { key: "a custom one", count: 1 },
     ]);
+    // A plugin's server keeps a plugin name that may be private, even when the server itself is public.
     expect(recap.connectors).toEqual([
       { key: "a custom one", count: 1 },
+      { key: "figma", count: 1 },
       { key: "github", count: 1 },
+      { key: "linear", count: 1 },
     ]);
   });
 });

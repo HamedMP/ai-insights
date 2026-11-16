@@ -902,16 +902,15 @@ export async function buildRollout(path: string, mtimeMs: number, options: Build
 
 /** Merge a guardian review or spawned subagent into the session that started it. */
 export function foldChild(parent: Session, child: BuiltRollout): void {
+  // A review counts even when its thread recorded nothing else this parser keeps (no requests, no calls).
+  if (child.meta.kind === "guardian") parent.approvals = { ...parent.approvals, guardianReviews: (parent.approvals?.guardianReviews ?? 0) + 1 };
   const session = child.session;
   if (!session) return;
   parent.requests.push(...session.requests.slice(0, Math.max(0, 50_000 - parent.requests.length)));
   for (const model of session.models) if (!parent.models.includes(model) && parent.models.length < MAX_MODELS) parent.models.push(model);
   parent.issues += session.issues;
   // A guardian only reviews the parent's planned actions; its reads and its thinking are not the person's work.
-  if (child.meta.kind === "guardian") {
-    parent.approvals = { ...parent.approvals, guardianReviews: (parent.approvals?.guardianReviews ?? 0) + 1 };
-    return;
-  }
+  if (child.meta.kind === "guardian") return;
   const room = Math.max(0, MAX_TOOL_CALLS - parent.toolCalls.length);
   parent.toolCalls.push(...session.toolCalls.slice(0, room));
   const dropped = Math.max(0, session.toolCalls.length - room) + (session.toolCallsDropped ?? 0);
