@@ -46,7 +46,7 @@ describe("story lines on rich data", () => {
   });
 
   it("contrasts agent-hours with wall-clock hours when both are known", () => {
-    expect(lineText(story.parallel!)).toMatch(/^Running up to 4 sessions at once, your agents logged 2\.8× the hours you did: [\d.,]+ h of agent time in [\d.,]+ h\.$/);
+    expect(lineText(story.parallel!)).toMatch(/^Running up to 8 sessions at once, your agents logged 2\.8× the hours you did: [\d.,]+ h of agent time in [\d.,]+ h\.$/);
   });
 
   it("names where the time went using the project folder name, never the full path", () => {

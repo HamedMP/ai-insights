@@ -152,6 +152,35 @@ svg .lbl{fill:var(--muted);font:500 11px var(--mono);letter-spacing:.04em}
 .tower svg{display:block;width:40px;height:auto;margin:0 auto}
 .tower figcaption{display:block;max-width:9ch;margin:12px auto 0}
 .tower b{color:var(--text);font:600 22px var(--font);display:block;letter-spacing:-.02em}
+.timeline-panel+.parallel-facts{margin-top:24px;max-width:420px}
+.tl-legend{margin:0 0 18px}
+.tl-plot{position:relative;padding:30px 0 0}
+.tl-plot svg{display:block;width:100%;overflow:visible}
+.tl-plot rect{stroke:none}
+.tl-plot rect.hz0,.sw.hz0{fill:var(--s0);background:var(--s0)}
+.tl-plot rect.hz1,.sw.hz1{fill:var(--s1);background:var(--s1)}
+.tl-plot rect.hz2,.sw.hz2{fill:var(--s2);background:var(--s2)}
+.tl-plot rect.hz3,.sw.hz3{fill:var(--s3);background:var(--s3)}
+.tl-plot rect.ad{fill-opacity:.22;stroke:currentColor;stroke-width:1.5;stroke-dasharray:3 2}
+.tl-plot rect.hz0.ad{color:var(--s0)}.tl-plot rect.hz1.ad{color:var(--s1)}.tl-plot rect.hz2.ad{color:var(--s2)}.tl-plot rect.hz3.ad{color:var(--s3)}
+.sw.ad{background:transparent;border:1.5px dashed var(--text-2)}
+.tl-grid{stroke:var(--line);stroke-width:1}
+.tl-grid.major{stroke:var(--line-strong)}
+.tl-peak{stroke:var(--p5);stroke-width:2}
+.tl-peak-label{position:absolute;top:0;transform:translateX(-50%);white-space:nowrap;color:var(--text-2)}
+.tl-peak-label b{color:var(--p5);font-size:15px}
+.tl-peak-label.end{transform:translateX(-100%)}
+.tl-peak-label.start{transform:none}
+.tl-axis{position:relative;height:26px;border-top:1px solid var(--line-strong);margin-top:8px}
+.tl-axis span{position:absolute;top:8px;transform:translateX(-50%);white-space:nowrap}
+.tl-axis span.major{color:var(--text-2)}
+.tl-list{margin-top:16px}
+.tl-list summary{cursor:pointer;color:var(--text-2)}
+.tl-list table{margin-top:12px}
+.tl-list td.mono{font:13px var(--mono);overflow-wrap:anywhere;white-space:normal}
+.px-label.noted{display:flex;gap:6px;min-width:0}
+.px-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.px-note{flex:none;color:var(--muted);font:12px var(--mono)}
 .versus{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:24px;align-items:center;padding:24px;border:1px solid var(--line);border-radius:var(--radius);background:var(--panel)}
 .versus b{display:block;font-size:1.9rem;font-weight:600;letter-spacing:-.03em;line-height:1.1}
 .versus div:last-child{text-align:right}
@@ -324,9 +353,9 @@ td.model{font:13px var(--mono);white-space:normal;overflow-wrap:anywhere;min-wid
 tr.unpriced td:last-child{color:var(--accent)}
 
 /* ---------- motion ---------- */
-@keyframes rise{from{opacity:0;transform:translateY(18px)}}
-@keyframes lit{from{opacity:0}}
-@keyframes grow{from{opacity:0;transform:scale(.6)}}
+@keyframes rise{from{transform:translateY(14px)}}
+@keyframes lit{from{opacity:.35}}
+@keyframes grow{from{transform:scale(.7)}}
 @media (prefers-reduced-motion:no-preference){
   .rise{animation:rise .9s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--d,0) * 110ms)}
   .px-hero g{animation:lit .45s ease-out both;animation-delay:calc(450ms + var(--w,0) * 32ms)}
@@ -343,6 +372,9 @@ tr.unpriced td:last-child{color:var(--accent)}
   .hook::before{inset:0 -18px}
   .topbar{padding:20px 0}
   .topbar .micro{max-width:12ch;text-align:right}
+  .tl-axis span.odd{display:none}
+  .px-label.noted{flex-direction:column;gap:0}
+  .px-label.noted .px-note{font-size:11px}
   .hook-grid{grid-template-columns:minmax(0,1fr);gap:36px;padding:3vh 0 28px}
   .numbers{grid-template-columns:repeat(2,minmax(0,1fr))}
   .number:nth-child(3){padding-left:0;border-left:0}

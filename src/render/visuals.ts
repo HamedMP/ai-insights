@@ -304,8 +304,14 @@ export function sessionField(sessions: number, involved: number, maxConcurrent: 
 ${tower > 0
     ? html`<figure class="viz tower"><svg viewBox="0 0 40 ${tower * 14 - 3}" role="img" aria-label="${`At most ${formatInt(maxConcurrent)} sessions ran at the same time`}">${raw(towerRects.join(""))}</svg><figcaption class="micro"><b>${formatInt(maxConcurrent)}</b> at once, at the peak</figcaption></figure>`
     : null}
-<dl class="facts parallel-facts"><dt>Sessions that overlapped</dt><dd>${formatInt(Math.min(count(involved), total))} <span>of ${formatInt(total)}</span></dd><dt>Times sessions overlapped</dt><dd>${formatInt(overlapEvents)}</dd><dt>Most at once</dt><dd>${formatInt(maxConcurrent)}</dd></dl>
+${parallelFacts(total, involved, maxConcurrent, overlapEvents)}
 </div>`;
+}
+
+/** The overlap counts as plain facts; they come from every session, not just the drawn ones. */
+export function parallelFacts(sessions: number, involved: number, maxConcurrent: number, overlapEvents: number): SafeHtml {
+  const total = count(sessions);
+  return html`<dl class="facts parallel-facts"><dt>Sessions that overlapped</dt><dd>${formatInt(Math.min(count(involved), total))} <span>of ${formatInt(total)}</span></dd><dt>Times sessions overlapped</dt><dd>${formatInt(overlapEvents)}</dd><dt>Most at once</dt><dd>${formatInt(maxConcurrent)}</dd></dl>`;
 }
 
 export interface PixelBarItem {
@@ -313,6 +319,8 @@ export interface PixelBarItem {
   value: number;
   display: string;
   title?: string;
+  /** A quiet aside after the label, such as a worktree count. */
+  note?: string;
 }
 
 /** Ranked rows drawn as runs of pixels (a CSS gradient), sharing one scale. */
@@ -322,7 +330,7 @@ export function pixelBars(id: string, items: PixelBarItem[], limit: number, opti
   const shown = rows.slice(0, limit);
   const max = count(shown[0]!.value);
   return html`<ol class="px-bars${options.mono ? " mono" : ""}" data-chart="${id}">${shown.map(
-    (row, index) => html`<li><span class="px-label" title="${row.title ?? row.label}">${row.label}</span><span class="px-track"><span class="px-run${index === 0 ? " lead" : ""}" style="width:${pctText(Math.max(0.015, count(row.value) / max))}"></span></span><span class="px-value">${row.display}</span></li>`,
+    (row, index) => html`<li>${row.note ? html`<span class="px-label noted" title="${`${row.title ?? row.label} · ${row.note}`}"><span class="px-name">${row.label}</span><span class="px-note">· ${row.note}</span></span>` : html`<span class="px-label" title="${row.title ?? row.label}">${row.label}</span>`}<span class="px-track"><span class="px-run${index === 0 ? " lead" : ""}" style="width:${pctText(Math.max(0.015, count(row.value) / max))}"></span></span><span class="px-value">${row.display}</span></li>`,
   )}</ol>${rows.length > shown.length ? html`<p class="micro more">+ ${formatInt(rows.length - shown.length)} more</p>` : null}`;
 }
 
