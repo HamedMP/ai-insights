@@ -13,11 +13,25 @@ const SECRET_PATTERNS: RegExp[] = [
 ];
 const ASSIGNMENT = /\b([A-Z0-9_]*(?:TOKEN|SECRET|PASSWORD|PASSWD|API_?KEY|PRIVATE_?KEY|ACCESS_?KEY)[A-Z0-9_]*)\s*[=:]\s*("[^"]*"|'[^']*'|[^\s"']+)/gi;
 
-/** Replace anything that looks like a credential. Runs before text is stored or shown. */
+// `name@domain.tld`, also URL-encoded (`name%40domain.tld`) as login URLs carry it. The label before the
+// top-level domain must start with a letter, so `getty@1.service` and `icon@2x.png` are left alone.
+const EMAIL = /(?<![A-Za-z0-9._%+-])([A-Za-z0-9._%+-]+)(?:@|%40)(?:[A-Za-z0-9-]+\.)*[A-Za-z][A-Za-z0-9-]*\.([A-Za-z]{2,24})(?![A-Za-z0-9_-])/g;
+// Suffixes that are file types, unit names or local hosts, not mail domains.
+const NOT_MAIL_TLDS = new Set([
+  "service", "socket", "timer", "target", "mount", "path", "slice", "scope", "device",
+  "internal", "local", "localhost", "lan", "home", "test", "example", "invalid",
+  "png", "jpg", "jpeg", "gif", "svg", "webp", "ico", "zst", "gz", "xz", "tgz", "zip", "tar", "lock",
+  "js", "mjs", "cjs", "ts", "tsx", "jsx", "json", "yaml", "yml", "toml", "txt", "log", "lru",
+]);
+
+/** Replace anything that looks like a credential or an email address. Runs before text is stored or shown. */
 export function redact(text: string): string {
   let out = text.replace(ASSIGNMENT, (_match, name: string) => `${name}=[redacted]`);
   for (const pattern of SECRET_PATTERNS) out = out.replace(pattern, "[redacted]");
-  return out;
+  return out.replace(EMAIL, (match: string, local: string, tld: string) =>
+    // `git@github.com:org/repo` is an SSH remote, not a person.
+    local.toLowerCase() === "git" || NOT_MAIL_TLDS.has(tld.toLowerCase()) ? match : "[email]",
+  );
 }
 
 export function truncate(text: string, max: number): string {

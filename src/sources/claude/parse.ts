@@ -5,7 +5,9 @@ import { activeMinutes, languageForPath, truncate } from "../shared.js";
 import {
   EDIT_TOOLS,
   SUBAGENT_LAUNCH_TOOLS,
+  Delegates,
   classifyUserText,
+  delegatedReply,
   errorCategory,
   gitSubcommands,
   harnessEventLine,
@@ -82,7 +84,11 @@ export function toolResultText(content: unknown): string {
  * sessions inconsistently (some carry `origin`, some only `isMeta`, terminal
  * hub messages claim to be typed), so origin and text are both checked.
  */
-export function classifyUserRecord(record: Obj): PromptKind {
+export function classifyUserRecord(record: Obj, delegates?: Delegates): PromptKind {
+  return ownDelegates(classifyUserRecordText(record), delegates);
+}
+
+function classifyUserRecordText(record: Obj): PromptKind {
   const { text, hasToolResult } = userText(obj(record.message).content);
   if (hasToolResult) {
     // Rejecting a tool call writes this marker next to the tool result.
@@ -110,7 +116,18 @@ function fromElsewhere(raw: string, origin: string | null, label?: string): Prom
   return { kind: "agent", text };
 }
 
-export function classifyQueuedCommand(attachment: Obj): PromptKind {
+export function classifyQueuedCommand(attachment: Obj, delegates?: Delegates): PromptKind {
+  return ownDelegates(classifyQueuedText(attachment), delegates);
+}
+
+/** A reply from a teammate or subagent this session launched is its own work coming back, not another agent. */
+function ownDelegates(kind: PromptKind, delegates: Delegates | undefined): PromptKind {
+  if (kind.kind !== "agent" || !delegates) return kind;
+  const reply = delegatedReply(kind.text, delegates);
+  return reply ? { kind: "delegated", ...reply } : kind;
+}
+
+function classifyQueuedText(attachment: Obj): PromptKind {
   const prompt = attachment.prompt;
   const text = typeof prompt === "string" ? prompt : userText(prompt).text;
   const origin = typeof obj(attachment.origin).kind === "string" ? String(obj(attachment.origin).kind) : null;
@@ -164,6 +181,7 @@ class SessionBuilder {
   prompts: UserPrompt[] = [];
   userMessageCount = 0;
   agentMessageCount = 0;
+  private readonly delegates = new Delegates();
   responseTimes: number[] = [];
   mcpServers = new Set<string>();
   skills = new Set<string>();
@@ -395,12 +413,12 @@ class SessionBuilder {
       this.compactSummaries += 1;
       return;
     }
-    this.typed(classifyUserRecord(record), time, false);
+    this.typed(classifyUserRecord(record, this.delegates), time, false);
   }
 
   /** Something typed while the agent was still working, or a relay queued for it. */
   queuedCommand(attachment: Obj, time: string | null): void {
-    this.typed(classifyQueuedCommand(attachment), isoTime(attachment.timestamp) ?? time, true);
+    this.typed(classifyQueuedCommand(attachment, this.delegates), isoTime(attachment.timestamp) ?? time, true);
   }
 
   private typed(kind: PromptKind, time: string | null, queued: boolean): void {
@@ -409,8 +427,8 @@ class SessionBuilder {
       this.interruptPending = true;
       return;
     }
-    // The harness reporting a background task or monitor event: nobody spoke.
-    if (kind.kind === "harness") return;
+    // The harness reporting a background task, or the session's own teammates and subagents reporting back.
+    if (kind.kind === "harness" || kind.kind === "delegated") return;
     if (kind.kind === "agent") {
       // Another agent steering is not the person: no prompt, no response time, no turn reset.
       // Untimed lines are left out, as the excerpt has to leave them out.
@@ -556,6 +574,7 @@ class SessionBuilder {
     const time = isoTime(record.timestamp);
     // Older Claude Code versions wrote subagent turns into the parent file, flagged as sidechain.
     const mainThread = mainFile && record.isSidechain !== true;
+    if (mainThread) this.delegates.note(record, SUBAGENT_LAUNCH_TOOLS);
     switch (type) {
       case "user":
         this.noteEnvelope(record);
