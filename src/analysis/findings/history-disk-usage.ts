@@ -14,9 +14,12 @@ function isRunning(session: Session, nowMs: number): boolean {
   return nowMs - last < RUNNING_WINDOW_MS;
 }
 
-/** packmem is a library, not a ready-made archiver, so this must not promise a one-step fix or a ratio. */
+/**
+ * Wording agreed with packmem for its 0.3.4 release: the ratio is the one measured on real history, and the
+ * safety sentence is packmem's own. It adds disk until the originals go, so it must not promise freed space at once.
+ */
 const ACTION =
-  "Agent transcripts repeat a lot of text (the same files, tool output and context resent turn after turn), so they compress well. packmem is an Apache-2.0 library for npm, PyPI and crates.io that stores records as packed columns in a fraction of the space; you can build an archive of old transcripts on it before deleting the originals.";
+  "Agent transcripts repeat a lot of text, so they compress well. Run `npx packmem archive --dry-run` to see what it would do, then `npx packmem archive`: the archive is about 4-5x smaller on real Claude Code and Codex history. It never deletes or changes your agents' own files, and it counts a session as archived only after reading it back and matching the original's sha256, so a restore gives back the exact bytes. The archive is a full private copy that takes extra disk until the originals are removed.";
 
 function megabytes(bytes: number): number {
   return round(bytes / BYTES_PER_MB, 0);

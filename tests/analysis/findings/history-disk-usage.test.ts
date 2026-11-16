@@ -30,19 +30,17 @@ describe("history_disk_usage", () => {
     expect(finding!.suggestion?.action).toContain("packmem");
   });
 
-  it("links packmem and describes it honestly as a library, without promising an archiver or a ratio", () => {
-    expect(PACKMEM_URL).toBe("https://hamedmp.github.io/packmem/");
+  it("gives the packmem archive commands with the measured saving and says the originals stay", () => {
+    expect(PACKMEM_URL).toBe("https://hamedmp.github.io/packmem/docs/agent-history/");
     const [finding] = findings("history_disk_usage", sessions(), { coverage: [coverage("claude-code", 3, true, 900 * MB)] });
     expect(finding!.suggestion?.url).toBe(PACKMEM_URL);
     const action = finding!.suggestion!.action;
-    expect(action).toMatch(/library/i);
-    expect(action).toMatch(/npm/);
-    expect(action).toMatch(/PyPI/);
-    expect(action).toMatch(/crates/);
-    expect(action).toMatch(/Apache-2\.0/);
-    expect(action).not.toMatch(/\d+\s*(?:x|×|%)/i);
-    expect(action).not.toMatch(/one command|one-command|automatically compress|archiver/i);
+    expect(action).toContain("npx packmem archive --dry-run");
+    expect(action).toMatch(/4-5x smaller/);
+    expect(action).toMatch(/never deletes or changes/);
+    expect(action).toMatch(/extra disk/);
   });
+
 
   it("stays quiet under half a gigabyte", () => {
     expect(findings("history_disk_usage", sessions(), { coverage: [coverage("claude-code", 3, true, 300 * MB), coverage("codex", 2, true, 150 * MB)] })).toEqual([]);

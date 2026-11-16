@@ -3,4 +3,4 @@
 export const MATRIX_URL = "https://matrix-os.com";
 
 /** Null would drop the link from the disk-usage suggestion; its wording never depends on the link. */
-export const PACKMEM_URL: string | null = "https://hamedmp.github.io/packmem/";
+export const PACKMEM_URL: string | null = "https://hamedmp.github.io/packmem/docs/agent-history/";
