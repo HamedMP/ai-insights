@@ -142,17 +142,34 @@ export function subagentDir(transcriptPath: string): string {
   return join(dirname(transcriptPath), basename(transcriptPath, ".jsonl"), "subagents");
 }
 
+/** Depth below `subagents/` searched for nested agent transcripts (workflow agents sit at `workflows/<run>/`). */
+const MAX_SUBAGENT_DEPTH = 3;
+
+/**
+ * A session's subagent transcripts: every `.jsonl` directly in `subagents/`, and `agent-*.jsonl` files in folders
+ * below it, such as the agents of a workflow run. Other nested files (a workflow's journal) are not agent transcripts.
+ */
 export async function subagentFiles(transcriptPath: string): Promise<string[]> {
-  try {
-    const entries = await readdir(subagentDir(transcriptPath), { withFileTypes: true });
-    return entries
-      .filter((entry) => entry.isFile() && entry.name.endsWith(".jsonl"))
-      .map((entry) => join(subagentDir(transcriptPath), entry.name))
-      .sort()
-      .slice(0, CAPS.subagentFiles);
-  } catch {
-    return [];
+  const found: string[] = [];
+  let queue = [subagentDir(transcriptPath)];
+  for (let depth = 0; depth <= MAX_SUBAGENT_DEPTH && queue.length && found.length < CAPS.subagentFiles; depth += 1) {
+    const next: string[] = [];
+    for (const dir of queue) {
+      let entries;
+      try {
+        entries = await readdir(dir, { withFileTypes: true });
+      } catch {
+        // No subagents folder, or it vanished while listing: nothing to read there.
+        continue;
+      }
+      for (const entry of entries) {
+        if (entry.isDirectory()) next.push(join(dir, entry.name));
+        else if (entry.isFile() && entry.name.endsWith(".jsonl") && (depth === 0 || entry.name.startsWith("agent-"))) found.push(join(dir, entry.name));
+      }
+    }
+    queue = next.sort();
   }
+  return found.sort().slice(0, CAPS.subagentFiles);
 }
 
 interface PendingEffect {

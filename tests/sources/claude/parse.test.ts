@@ -440,6 +440,18 @@ describe("claude source: subagents", () => {
     expect(session.endTime).toBe(T(21));
   });
 
+  it("counts the spend of workflow agents nested below the subagents folder", async () => {
+    const root = tempRoot();
+    const file = transcript([prompt(T(0), "run the workflow"), assistant(T(1), "msg_p1", [text("started")], { usage: { input: 5, output: 5 } })], { root });
+    const side = { isSidechain: true, agentId: "w1" };
+    const workflow = join(root, "-work-demo", SESSION, "subagents", "workflows", "wf_1");
+    writeLines(join(workflow, "agent-w1.jsonl"), [prompt(T(2), "step one", side), assistant(T(3), "msg_w1", [text("done")], { usage: { input: 100, output: 50 }, extra: side })]);
+    // The workflow's own journal is not an agent transcript.
+    writeLines(join(workflow, "journal.jsonl"), [assistant(T(4), "msg_j", [text("x")], { usage: { input: 7, output: 7 } })]);
+    const session = (await claudeSource.parse(file))!;
+    expect(session.requests.map((r) => r.id).sort()).toEqual(["claude:msg_p1", "claude:msg_w1"]);
+  });
+
   it("treats old-style sidechain lines in the main file the same way", async () => {
     const session = await parse([
       prompt(T(0), "go"),
