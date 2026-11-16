@@ -125,6 +125,13 @@ function timelineLead(timeline: Timeline): Line {
   return [{ text: "At the busiest moment, " }, { text: `${formatInt(timeline.peak.count)} of your sessions`, strong: true }, { text: " were running at the same time." }];
 }
 
+/** Long paths keep their last folder, the part that names the project; the full path stays in the tooltip. */
+function tailOfPath(path: string): string {
+  if (path.length <= 22) return path;
+  const last = path.split(/[\\/]/).filter(Boolean).pop() ?? path;
+  return clip(`…/${last}`, 60);
+}
+
 function list(names: string[]): string {
   return names.length <= 1 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
@@ -150,9 +157,9 @@ export function coverageChapter({ context, story, tips, actions, index }: Chapte
   const projects = pixelBars(
     "projects",
     (report.activity.projects ?? []).map((entry) => {
-      const label = clip(shortenPath(String(entry.projectPath ?? "")), 60);
+      const full = clip(shortenPath(String(entry.projectPath ?? "")), 120);
       const worktrees = count(entry.worktrees);
-      return { label, title: label, value: count(entry.activeMinutes) || count(entry.sessions), display: plural(count(entry.sessions), "session"), note: worktrees > 1 ? plural(worktrees, "worktree") : undefined };
+      return { label: tailOfPath(full), title: full, value: count(entry.activeMinutes) || count(entry.sessions), display: plural(count(entry.sessions), "session"), note: worktrees > 1 ? plural(worktrees, "worktree") : undefined };
     }),
     8,
     { mono: true },

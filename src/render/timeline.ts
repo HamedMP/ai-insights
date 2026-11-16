@@ -282,7 +282,7 @@ export function spanTimeline(timeline: Timeline, zone: string, sessions: number)
 <div class="tl-plot">
 <span class="tl-peak-label micro${peakSide}" style="left:${pct(timeline.peak.x)}"><b>${formatInt(timeline.peak.count)}</b> at once · ${timeline.peak.label}</span>
 <svg viewBox="0 0 ${VIEW_WIDTH} ${height}" preserveAspectRatio="none" style="height:${height}px" role="img" aria-label="${timelineSummary(timeline, zone)}">${raw(grid.join(""))}${bars}<line class="tl-peak" x1="${peakX}" x2="${peakX}" y1="0" y2="${height}" vector-effect="non-scaling-stroke"/></svg>
-<div class="tl-axis micro" aria-hidden="true">${timeline.ticks.map((tick, index) => html`<span class="${tick.major ? "major" : ""}${index % 2 === 1 ? " odd" : ""}" style="left:${pct(tick.x)}">${tick.label}</span>`)}</div>
+<div class="tl-axis micro" aria-hidden="true">${timeline.ticks.map((tick, index) => html`<span class="${[tick.major ? "major" : "", index % 2 === 1 ? "odd" : "", tick.x < 0.05 ? "first" : tick.x > 0.95 ? "last" : ""].filter(Boolean).join(" ")}" style="left:${pct(tick.x)}">${tick.label}</span>`)}</div>
 </div>
 <figcaption class="micro"><span>${timelineCaption(timeline, zone)}</span><span>One bar per session · one lane per session running at the same time${
     timeline.hidden > 0 ? ` · ${plural(timeline.hidden, "more session")} beyond ${MAX_LANES} lanes not drawn` : ""

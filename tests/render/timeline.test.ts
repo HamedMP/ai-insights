@@ -194,6 +194,14 @@ describe("projects with worktrees", () => {
     expect(coverage).toContain('<span class="px-note">· 4 worktrees</span>');
     expect(coverage).not.toContain("1 worktree");
   });
+
+  it("keeps the project's own folder name readable when the path is long", () => {
+    const report = makeReport();
+    const projects = [{ projectPath: "/home/dev/projects/clients/acme/matrix-os", sessions: 30, activeMinutes: 900, worktrees: 9 }];
+    const coverage = section(renderReport({ ...report, activity: { ...report.activity, projects } }), "coverage");
+    expect(coverage).toContain('title="~/projects/clients/acme/matrix-os · 9 worktrees"');
+    expect(coverage).toContain('<span class="px-name">…/matrix-os</span><span class="px-note">· 9 worktrees</span>');
+  });
 });
 
 describe("first screen at load", () => {
