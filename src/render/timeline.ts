@@ -209,7 +209,8 @@ export function buildTimeline(rawSpans: unknown, zone: string, order: string[] =
     hidden,
     total: spans.length,
     inWindow: inWindow.length,
-    peak: { at: local.at, count: local.count, x: (local.at - window.start) / length, label: formatClock(local.at, zone) },
+    // A window over several days needs the date on the peak, or "13:42" could be any of them.
+    peak: { at: local.at, count: local.count, x: (local.at - window.start) / length, label: localDayStart(window.start, zone) === localDayStart(window.end - 1, zone) ? formatClock(local.at, zone) : `${formatLocalDay(local.at, zone)} ${formatClock(local.at, zone)}` },
     harnesses,
     agentDriven: inWindow.filter((span) => span.agentDriven).length,
     ticks: ticksFor(window.start, window.end, zone),
@@ -222,6 +223,12 @@ function pct(share: number): string {
 
 function r1(value: number): number {
   return Math.round(value * 10) / 10;
+}
+
+/** "Nov 15 21:14 to 23:02", or "Nov 15 21:14 to Nov 16 19:58" when the session ran past midnight. */
+export function spanText(start: number, end: number, zone: string): string {
+  const sameDay = localDayStart(start, zone) === localDayStart(end, zone);
+  return `${formatLocalDay(start, zone)} ${formatClock(start, zone)} to ${sameDay ? "" : `${formatLocalDay(end, zone)} `}${formatClock(end, zone)}`;
 }
 
 function projectName(project: string | null): string {
@@ -279,7 +286,7 @@ export function spanTimeline(timeline: Timeline, zone: string, sessions: number,
   const grid = timeline.ticks.map((tick) => `<line class="tl-grid${tick.major ? " major" : ""}" x1="${r1(tick.x * VIEW_WIDTH)}" x2="${r1(tick.x * VIEW_WIDTH)}" y1="0" y2="${height}" vector-effect="non-scaling-stroke"/>`);
   const bars = timeline.bars.map(
     (bar) =>
-      html`<rect class="${harnessClass(bar.harness)}${bar.agentDriven ? " ad" : ""}" x="${r1(bar.x * VIEW_WIDTH)}" y="${bar.lane * (laneHeight + gap)}" width="${Math.max(1, r1(bar.width * VIEW_WIDTH))}" height="${laneHeight}" vector-effect="non-scaling-stroke"><title>${`${harnessLabel(bar.harness)} · ${projectName(bar.project)} · ${formatClock(bar.start, zone)} to ${formatClock(bar.end, zone)}${bar.agentDriven ? " · driven by another agent" : ""}`}</title></rect>`,
+      html`<rect class="${harnessClass(bar.harness)}${bar.agentDriven ? " ad" : ""}" x="${r1(bar.x * VIEW_WIDTH)}" y="${bar.lane * (laneHeight + gap)}" width="${Math.max(1, r1(bar.width * VIEW_WIDTH))}" height="${laneHeight}" vector-effect="non-scaling-stroke"><title>${`${harnessLabel(bar.harness)} · ${projectName(bar.project)} · ${spanText(bar.start, bar.end, zone)}${bar.agentDriven ? " · driven by another agent" : ""}`}</title></rect>`,
   );
   const peakX = r1(timeline.peak.x * VIEW_WIDTH);
   const peakSide = timeline.peak.x > 0.62 ? " end" : timeline.peak.x < 0.12 ? " start" : "";
