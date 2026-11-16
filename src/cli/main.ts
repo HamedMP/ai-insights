@@ -175,6 +175,11 @@ export function formatBytes(bytes: number): string {
   return unit === 0 ? `${Math.round(value)} B` : `${value.toFixed(1)} ${units[unit]}`;
 }
 
+/** "A", "A and B", "A, B and C". */
+function listText(items: string[]): string {
+  return items.length <= 2 ? items.join(" and ") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
+}
+
 function day(iso: string | null): string {
   return iso ? iso.slice(0, 10) : "?";
 }
@@ -228,7 +233,7 @@ export function summaryLines(report: Report): string[] {
   const rank = { high: 0, medium: 1, low: 2, info: 3 } as const;
   const top = [...report.findings].sort((a, b) => rank[a.severity] - rank[b.severity])[0];
   return [
-    `${plural(activity.sessions, "session")} across ${found.length > 0 ? found.join(" and ") : "no harness"}, ${day(report.range.from)} to ${day(report.range.to)}.`,
+    `${plural(activity.sessions, "session")} across ${found.length > 0 ? listText(found) : "no harness"}, ${day(report.range.from)} to ${day(report.range.to)}.`,
     `${numbers.time} on ${plural(activity.activeDays, "day")}; ${compact(report.usage.tokens)} tokens, ${numbers.cost}.`,
     top ? `Top finding: ${top.title}` : "No findings yet: more history makes for better tips.",
   ];

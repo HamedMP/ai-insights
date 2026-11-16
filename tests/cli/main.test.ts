@@ -55,6 +55,14 @@ beforeEach(async () => {
 });
 afterEach(async () => cleanup());
 
+describe("summary wording", () => {
+  it("lists three or more harnesses with commas, not a chain of ands", async () => {
+    const sources = (["claude-code", "codex", "pi"] as const).map((harness) => fakeSource(harness, [makeSession({ id: `${harness}-1`, harness })]));
+    expect(await run([], deps({ sources, buildReport: realBuildReport }))).toBe(0);
+    expect(out).toMatch(/across Claude Code, Codex and pi,/);
+  });
+});
+
 describe("coverage wording", () => {
   it("says skipped usage counters apart from unreadable lines", async () => {
     const sources = [fakeSource("codex", [makeSession({ id: "x1", harness: "codex", issues: 2, skippedUsageRecords: 5 })])];
