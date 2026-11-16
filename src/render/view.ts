@@ -761,6 +761,14 @@ function localDay(iso: string, zone: string): string | null {
   return day(parts);
 }
 
+/**
+ * A transcript past its age is only eligible: the harness deletes it at its next start, which may never come.
+ * Saved retention titles say "will be deleted"; the page says "can be".
+ */
+export function findingTitle(kind: string, title: string): string {
+  return kind === "history_retention" ? title.replace(/\bwill be deleted\b/g, "can be deleted") : title;
+}
+
 function runView(run: RunSnapshotInput, zone: string): RunView | null {
   const generated = str(run.generatedAt, 40);
   const shown = localDay(generated, zone);
@@ -774,7 +782,7 @@ function runView(run: RunSnapshotInput, zone: string): RunView | null {
     generatedAt: generated,
     days: maybe(obj(run.window).days),
     metrics,
-    findings: arr(run.findings, 80).map((entry) => obj(entry)).map((f) => ({ id: str(f.id, 200), kind: str(f.kind, 40), title: str(f.title, MAX_TITLE), severity: str(f.severity, 10), value: maybe(obj(f.metric).value), unit: str(obj(f.metric).unit, 30) })).filter((f) => f.id),
+    findings: arr(run.findings, 80).map((entry) => obj(entry)).map((f) => ({ id: str(f.id, 200), kind: str(f.kind, 40), title: findingTitle(str(f.kind, 40), str(f.title, MAX_TITLE)), severity: str(f.severity, 10), value: maybe(obj(f.metric).value), unit: str(obj(f.metric).unit, 30) })).filter((f) => f.id),
   };
 }
 
@@ -1019,7 +1027,7 @@ export function buildView(input: RenderInput, zone: string, extras: RenderExtras
       anchor: findingAnchors.get(finding)!,
       kind: String(finding.kind),
       severity: ["high", "medium", "low", "info"].includes(String(finding.severity)) ? String(finding.severity) : "info",
-      title: clip(finding.title, MAX_TITLE),
+      title: findingTitle(String(finding.kind), clip(finding.title, MAX_TITLE)),
       detail: clip(finding.detail, MAX_TEXT),
       harnesses: [...new Set((finding.harnesses ?? []).map(harnessLabel))],
       metric: metricOf(finding),
@@ -1047,7 +1055,7 @@ export function buildView(input: RenderInput, zone: string, extras: RenderExtras
   const runs = (Array.isArray(extras.runs) ? extras.runs : []).slice(-24).map((run) => runView(run, zone)).filter((run): run is RunView => run !== null).sort((x, y) => (x.generatedAt < y.generatedAt ? -1 : x.generatedAt > y.generatedAt ? 1 : 0));
   const last = runs[runs.length - 1];
   if (!last || last.generatedAt < report.generatedAt) {
-    runs.push({ id: report.generatedAt, day: localDay(report.generatedAt, zone) ?? "", generatedAt: report.generatedAt, days: recap?.range.days ?? null, metrics: currentMetrics(report, recap), findings: (report.findings ?? []).map((f) => ({ id: String(f.id), kind: String(f.kind), title: clip(f.title, MAX_TITLE), severity: String(f.severity), value: maybe(f.metric?.value), unit: String(f.metric?.unit ?? "") })) });
+    runs.push({ id: report.generatedAt, day: localDay(report.generatedAt, zone) ?? "", generatedAt: report.generatedAt, days: recap?.range.days ?? null, metrics: currentMetrics(report, recap), findings: (report.findings ?? []).map((f) => ({ id: String(f.id), kind: String(f.kind), title: findingTitle(String(f.kind), clip(f.title, MAX_TITLE)), severity: String(f.severity), value: maybe(f.metric?.value), unit: String(f.metric?.unit ?? "") })) });
   }
 
   const reviewNote = narrative ? null : facets && count(facets.sessionsWithFacets) > 0

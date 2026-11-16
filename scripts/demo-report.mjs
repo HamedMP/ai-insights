@@ -419,11 +419,17 @@ const COVERAGE = [
 // the week, and one of them was continued in Claude Desktop, so it is kept anyway.
 const transcriptOf = (session) => `demo://${session.harness}/${session.id}.jsonl`;
 const policies = await readRetentionPolicies({ env: {}, home: "/home/demo", platform: "win32" });
+// Transcript sizes add up to the disk use the coverage reports, longer sessions weighing more.
 const files = new Map();
-for (const session of sessions) {
-  const list = files.get(session.harness) ?? [];
-  list.push({ harness: session.harness, path: transcriptOf(session), mtimeMs: Date.parse(session.endTime), sizeBytes: 300_000 + Math.round(session.durationMinutes * 9_000) });
-  files.set(session.harness, list);
+for (const entry of COVERAGE) {
+  const own = sessions.filter((session) => session.harness === entry.harness);
+  const weight = own.reduce((sum, session) => sum + 20 + session.durationMinutes, 0);
+  files.set(entry.harness, own.map((session) => ({
+    harness: session.harness,
+    path: transcriptOf(session),
+    mtimeMs: Date.parse(session.endTime),
+    sizeBytes: entry.bytes ? Math.round((entry.bytes * (20 + session.durationMinutes)) / weight) : 200_000 + session.durationMinutes * 6_000,
+  })));
 }
 const desktopSession = sessions.find((session) => session.harness === "claude-code");
 const retention = await measureRetention({

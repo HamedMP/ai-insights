@@ -325,6 +325,13 @@ describe("keeping history", () => {
     expect(view.limit).toBe("How far back this goes is limited by retention: Claude Code deletes transcripts after 30 days; AI Insights still has sessions back to Oct 17, 2026.");
   });
 
+  it("words a saved retention title as eligible, not as a promise, wherever the page shows it", () => {
+    const report = withRetention([makeHarnessRetention({ atRisk: { sessions: 2, bytes: 0, nextDeletion: "2026-11-18T10:00:00Z" } })]);
+    const json = JSON.stringify(buildView(report, ZONE));
+    expect(json).not.toContain("will be deleted");
+    expect(json).toContain("2 Claude Code sessions can be deleted within 7 days");
+  });
+
   it("says 'the next time it starts' when the eligible date has passed", () => {
     const view = retentionView(withRetention([makeHarnessRetention({ atRisk: { sessions: 1, bytes: 0, nextDeletion: "2026-11-10T10:00:00Z" } })]), ZONE)!;
     expect(view.sentence).toMatch(/^Claude Code can delete 1 transcript the next time it starts\./);

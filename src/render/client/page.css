@@ -355,6 +355,7 @@ html.capture #root { position: relative; width: 100vw; height: 100vh; overflow: 
 .keep-tbl { overflow-x: auto; margin: 12px 0; background: var(--surface); border-radius: 12px; padding: 4px 10px; }
 .keep-tbl .tbl td { vertical-align: top; }
 .keep .risk-t { color: var(--bad); font-weight: 650; }
+.keep .mini { min-width: 0; overflow-wrap: anywhere; }
 .keep-cache { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 12px 0; font-size: 14px; }
 .keep-cache .k { font: 600 11px/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
 .keep-cache ul { margin: 6px 0 0; padding-left: 18px; }
