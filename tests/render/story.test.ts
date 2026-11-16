@@ -65,7 +65,7 @@ describe("story lines on rich data", () => {
   });
 
   it("puts a share on failed tool calls and counts the patterns worth fixing", () => {
-    expect(lineText(story.friction!)).toMatch(/^[\d.]+% of your agents' tool calls failed, most often a failed command\. Hindsight found 4 patterns worth fixing\.$/);
+    expect(lineText(story.friction!)).toMatch(/^[\d.]+% of your agents' tool calls failed, most often a failed command\. Hindsight found 4 patterns worth fixing; each is below\.$/);
   });
 
   it("never shows a bare cost when requests are unpriced: it names the share and the models", () => {

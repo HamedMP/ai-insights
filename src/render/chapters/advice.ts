@@ -1,11 +1,11 @@
-import type { Count, Finding } from "../../schema/types.js";
+import type { Count, Coverage, Finding } from "../../schema/types.js";
 import { compositionBar } from "../charts.js";
 import { chapter, copyBlock, panel, rich, type RenderContext } from "../components.js";
 import { bytesFor, clip, count, formatBytes, formatDate, formatDateTime, formatInt, formatUsd, num, plural } from "../format.js";
 import { html, type SafeHtml } from "../html.js";
 import { harnessLabel, keyLabel, severityLabel, severityRank, suggestionLabel } from "../labels.js";
 import { externalLink } from "../links.js";
-import { problemFindings, type Line, type RankedAction } from "../story.js";
+import { historyDaysOf, problemFindings, type Line, type RankedAction } from "../story.js";
 import { frictionMap, pixelBars } from "../visuals.js";
 import { tryThis } from "./common.js";
 import type { ChapterInput } from "./data.js";
@@ -38,12 +38,14 @@ function countItems(counts: Count[] | null | undefined) {
 export function metricText(finding: Finding): SafeHtml | null {
   const metric = finding.metric;
   if (!metric || !Number.isFinite(metric.value)) return null;
-  const unit = String(metric.unit);
+  const unit = String(metric.unit ?? "");
+  // A rate ("per 100 calls") changes what the number means, so it stays beside the label.
+  const rate = /^per\s/i.test(unit.trim()) && !String(metric.label ?? "").toLowerCase().includes(unit.trim().toLowerCase()) ? ` ${unit.trim()}` : "";
   const bytes = bytesFor(metric.value, unit);
   const plain = Number.isInteger(metric.value) ? formatInt(metric.value) : num(metric.value).toFixed(1);
   const time = TIME_UNITS[unit.trim().toLowerCase()];
   const value = bytes !== null ? formatBytes(bytes) : /^usd$/i.test(unit) ? formatUsd(metric.value) : time ? `${plain} ${time}` : plain;
-  return html`<div class="metric"><b>${value}</b><span>${clip(String(metric.label || metric.unit || ""), 80)}</span></div>`;
+  return html`<div class="metric"><b>${value}</b><span>${clip(`${String(metric.label || metric.unit || "")}${rate}`, 100)}</span></div>`;
 }
 
 /** With a narrative or facets: what the person's own agent read in their sessions. */
@@ -152,9 +154,11 @@ export function settingsSnippet(action: string): { text: string; file: string | 
 
 function actHow(context: RenderContext, action: RankedAction): SafeHtml | null {
   const { suggestion } = action;
-  const link = externalLink(suggestion.url);
-  const snippet = suggestion.instructionText ? null : settingsSnippet(suggestion.action);
-  return html`${suggestion.instructionText ? copyBlock(context, suggestion.instructionText, `instructions: ${clip(suggestion.title, 80)}`) : null}${
+  const instructions = action.instructionText ?? suggestion.instructionText;
+  const link = externalLink(action.url ?? suggestion.url);
+  // The finding's text may hold the settings fragment even when the narrative's wording is shown.
+  const snippet = instructions ? null : (settingsSnippet(action.action) ?? settingsSnippet(suggestion.action));
+  return html`${action.agreed ? html`<p class="micro agreed">Your agent's review suggested this too</p>` : null}${instructions ? copyBlock(context, instructions, `instructions: ${clip(suggestion.title, 80)}`) : null}${
     snippet ? html`<p class="micro copy-label">${snippet.file ? html`Merge into <code>${snippet.file}</code>` : "Settings to merge"}</p>${copyBlock(context, snippet.text, `settings: ${clip(suggestion.title, 80)}`)}` : null
   }${link ? html`<p class="learn">Learn more: ${link}</p>` : null}`;
 }
@@ -172,12 +176,28 @@ export function improveChapter(input: ChapterInput & { ranked: { top: RankedActi
   const body = html`${top.length > 0 ? html`<ol class="actions">${top.map((action, position) => html`<li class="action reveal" id="action-${position + 1}">
 <span class="rank">${position + 1}</span>
 <div class="action-body"><span class="micro">${suggestionLabel(String(action.suggestion.type))}</span><h3>${rich(action.suggestion.title, MAX_TITLE)}</h3>
-<p class="why"><span class="micro">Why</span>${rich(action.why, MAX_TITLE)}${action.finding ? metricText(action.finding) : null}</p>
-<p>${rich(action.suggestion.action, MAX_TEXT, MAX_INLINE_CODE)}</p>${actHow(context, action)}</div>
+<div class="why"><span class="micro">Why</span>${rich(action.why, MAX_TITLE)}${action.finding ? metricText(action.finding) : null}</div>
+<p>${rich(action.action, MAX_TEXT, MAX_INLINE_CODE)}</p>${actHow(context, action)}</div>
 </li>`)}</ol>` : null}
-${rest.length > 0 ? html`<h3 class="sub-head reveal">More ideas</h3><ul class="more-actions">${rest.map((action, position) => html`<li class="reveal" id="action-${position + 4}"><span class="micro">${suggestionLabel(String(action.suggestion.type))}</span><b>${rich(action.suggestion.title, MAX_TITLE)}</b><span>${rich(action.suggestion.action, MAX_TEXT, MAX_INLINE_CODE)}</span>${actHow(context, action)}</li>`)}</ul>` : null}
+${rest.length > 0 ? html`<h3 class="sub-head reveal">More ideas</h3><ul class="more-actions">${rest.map((action, position) => html`<li class="reveal" id="action-${position + 4}"><span class="micro">${suggestionLabel(String(action.suggestion.type))}</span><b>${rich(action.suggestion.title, MAX_TITLE)}</b><span>${rich(action.action, MAX_TEXT, MAX_INLINE_CODE)}</span>${actHow(context, action)}</li>`)}</ul>` : null}
 ${horizon.length > 0 ? html`<h3 class="sub-head reveal">Bigger moves</h3><div class="cards">${horizon.map((item) => html`<article class="card reveal"><h3>${rich(item.title, MAX_TITLE)}</h3><p>${rich(item.description, MAX_TEXT)}</p>${item.starterPrompt ? copyBlock(context, item.starterPrompt, `starter prompt: ${clip(item.title, 80)}`) : null}</article>`)}</div>` : null}`;
   return chapter({ id: "improve", index, kicker: "What to improve", lead, body });
+}
+
+/**
+ * The harness a short-history finding counts. Its number is one harness's days, so the date
+ * beside it must be that harness's own oldest session, never the oldest across all of them.
+ * Matched by days, then by a single listed harness, then by the first evidence; otherwise none.
+ */
+export function shortHistoryCoverage(coverage: Coverage[], finding: Finding | null): Coverage | null {
+  if (!finding) return null;
+  const found = coverage.filter((entry) => entry.found && (finding.harnesses ?? []).includes(entry.harness));
+  const days = finding.metric && /day/i.test(String(finding.metric.unit)) ? Math.round(finding.metric.value) : null;
+  const byDays = days !== null ? found.filter((entry) => historyDaysOf(entry) === days) : [];
+  if (byDays.length === 1) return byDays[0]!;
+  if (found.length === 1) return found[0]!;
+  const evidence = finding.evidence?.[0]?.harness;
+  return found.find((entry) => entry.harness === evidence) ?? null;
 }
 
 /** The closing pair: save disk space (when history is large) and keep history for the long term. */
@@ -186,8 +206,7 @@ export function closingChapter({ context }: ChapterInput): SafeHtml {
   const disk = findings.find((finding) => finding.kind === "history_disk_usage");
   const short = findings.find((finding) => finding.kind === "short_history");
   const shortMetric = short?.metric && Number.isFinite(short.metric.value) ? short.metric : null;
-  const oldest = (context.report.coverage ?? []).filter((entry) => entry.found && entry.oldest).map((entry) => entry.oldest!).sort()[0];
-  const since = formatDate(oldest, context.zone);
+  const since = formatDate(shortHistoryCoverage(context.report.coverage ?? [], short ?? null)?.oldest, context.zone);
   const diskLink = disk?.suggestion ? externalLink(disk.suggestion.url, "cta ghost") : null;
   const diskCard = disk
     ? html`<article class="closing-card reveal" id="packmem"><span class="micro">Your history on disk</span>${metricText(disk)}<h3>${rich(disk.suggestion?.title ?? "Compress and save disk space", MAX_TITLE)}</h3><p>${rich(disk.suggestion?.action ?? disk.detail, MAX_TEXT)}</p>${diskLink}</article>`

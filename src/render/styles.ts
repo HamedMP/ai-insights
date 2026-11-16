@@ -178,6 +178,7 @@ svg .lbl{fill:var(--muted);font:500 11px var(--mono);letter-spacing:.04em}
 .tl-axis span.last{transform:translateX(-100%)}
 .tl-idle{flex-basis:100%;color:var(--text-2)}
 .tl-list{margin-top:16px}
+.micro.agreed,.action-body .micro.agreed{color:var(--accent);margin:2px 0 0}
 .copy-label{margin:14px 0 -4px;color:var(--muted)}
 .copy-label code{font-size:12px;text-transform:none;letter-spacing:0}
 .tl-list summary{cursor:pointer;color:var(--text-2)}
@@ -282,7 +283,7 @@ details[open] summary::before{content:"− "}
 .action-body{max-width:760px;display:grid;gap:12px}
 .action-body h3{font-size:clamp(1.3rem,1.1rem + .7vw,1.7rem);letter-spacing:-.025em}
 .action-body>p{color:var(--text-2)}
-.why{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 12px;color:var(--text)}
+.why{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 12px;color:var(--text);margin:14px 0}
 .why .micro{color:var(--accent)}
 .why .metric b{font-size:1.15rem}
 .more-actions{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;align-items:start}

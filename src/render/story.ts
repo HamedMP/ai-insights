@@ -345,7 +345,7 @@ function frictionLine(report: Report): Line | null {
   }
   if (problems > 0) {
     if (line.length > 0) line.push(s(" "));
-    line.push(s("Hindsight found "), b(plural(problems, "pattern")), s(" worth fixing."));
+    line.push(s("Hindsight found "), b(plural(problems, "pattern")), s(problems === 1 ? " worth fixing; it is below." : " worth fixing; each is below."));
   }
   return line.length > 0 ? line : null;
 }
@@ -431,39 +431,101 @@ export function chapterTips(report: Report): Record<ChapterId, Finding | null> {
 }
 
 export interface RankedAction {
+  /** The suggestion the card is keyed by (a finding's own, when a finding is behind it). */
   suggestion: Suggestion;
   /** The finding behind it, or null for a suggestion from the narrative. */
   finding: Finding | null;
   /** Why this matters, in one line. */
   why: string;
   score: number;
+  /** What to do: the suggestion's own, or a merged narrative's when that one is more specific. */
+  action: string;
+  /** Text to copy, chosen the same way. */
+  instructionText?: string;
+  url?: string;
+  /** True when the person's agent suggested the same idea in its review. */
+  agreed?: boolean;
 }
 
 /** Kinds whose suggestion belongs to a closing card rather than the action list. */
 const CLOSING_KINDS: ReadonlySet<string> = new Set(["history_disk_usage", "short_history"]);
 
+/**
+ * How concrete a piece of advice is: code spans, quoted text, numbers and command- or path-like
+ * words each count. Used to pick between a finding's generic text and the narrative's.
+ */
+export function specificity(text: string | undefined): number {
+  const value = String(text ?? "");
+  const code = value.match(/`[^`\n]+`/g)?.length ?? 0;
+  const quoted = value.match(/"[^"\n]{2,}"|'[^'\n]{2,}'/g)?.length ?? 0;
+  const numbers = value.match(/\b\d+(?:[.,]\d+)?\b/g)?.length ?? 0;
+  const commandLike = value.replace(/`[^`\n]+`/g, " ").match(/\S*[/:()=]\S*|\S+\.(?:md|json|toml|ya?ml|ts|js|sh)\b/g)?.length ?? 0;
+  return code * 2 + quoted * 2 + numbers + commandLike;
+}
+
+/** The more specific of two texts; the finding's wins a tie, so the card stays stable. */
+function moreSpecific(own: string | undefined, other: string | undefined): string | undefined {
+  if (!other) return own;
+  if (!own) return other;
+  return specificity(other) > specificity(own) ? other : own;
+}
+
+function repeatKey(suggestion: Suggestion): string {
+  return `${String(suggestion.type)}|${suggestion.title.trim().toLowerCase()}`;
+}
+
+/**
+ * One card per idea. A narrative suggestion whose `findingId` names a finding on the page joins
+ * that finding's card: the finding's title and number stay, and the narrative's action or
+ * copyable text replaces the finding's when it is the more specific one. Without a `findingId`,
+ * only exact repeats (same type and title) merge; there is no guessing from wording.
+ */
 export function rankActions(report: Report): { top: RankedAction[]; rest: RankedAction[] } {
-  const candidates: Array<RankedAction & { order: number }> = [];
+  type Candidate = RankedAction & { order: number; base: number };
+  const cards: Candidate[] = [];
+  const byFinding = new Map<string, Candidate>();
   let order = 0;
+  const add = (card: Candidate) => {
+    cards.push(card);
+    return card;
+  };
   for (const finding of report.findings ?? []) {
     if (CLOSING_KINDS.has(finding.kind) || !usable(finding.suggestion)) continue;
     const suggestion = finding.suggestion;
-    const score = (SEVERITY_WEIGHT[finding.severity] ?? 0) + (suggestion.instructionText ? 5 : 0) + (suggestion.url ? 3 : 0);
-    candidates.push({ suggestion, finding, why: finding.title, score, order: order++ });
+    const card = add({ suggestion, finding, why: finding.title, score: 0, base: SEVERITY_WEIGHT[finding.severity] ?? 0, order: order++, action: suggestion.action });
+    if (suggestion.instructionText) card.instructionText = suggestion.instructionText;
+    if (suggestion.url) card.url = suggestion.url;
+    if (typeof finding.id === "string" && !byFinding.has(finding.id)) byFinding.set(finding.id, card);
   }
+  const findingsById = new Map((report.findings ?? []).filter((finding) => typeof finding.id === "string" && !CLOSING_KINDS.has(finding.kind)).map((finding) => [finding.id, finding] as const));
   for (const suggestion of report.narrative?.suggestions ?? []) {
     if (!usable(suggestion)) continue;
-    const score = NARRATIVE_WEIGHT + (suggestion.instructionText ? 5 : 0) + (suggestion.url ? 3 : 0);
-    candidates.push({ suggestion, finding: null, why: "From your agent's review of your sessions.", score, order: order++ });
+    const id = typeof suggestion.findingId === "string" ? suggestion.findingId : null;
+    const twin = (id ? byFinding.get(id) : undefined) ?? cards.find((card) => repeatKey(card.suggestion) === repeatKey(suggestion));
+    if (twin) {
+      twin.agreed = twin.agreed || twin.finding !== null;
+      twin.action = moreSpecific(twin.action, suggestion.action) ?? twin.action;
+      const instructions = moreSpecific(twin.instructionText, suggestion.instructionText);
+      if (instructions) twin.instructionText = instructions;
+      if (!twin.url && suggestion.url) twin.url = suggestion.url;
+      continue;
+    }
+    // A finding with no suggestion of its own still lends the card its title and number.
+    const finding = id ? (findingsById.get(id) ?? null) : null;
+    const card = add({ suggestion, finding, why: finding ? finding.title : "From your agent's review of your sessions.", score: 0, base: finding ? (SEVERITY_WEIGHT[finding.severity] ?? 0) : NARRATIVE_WEIGHT, order: order++, action: suggestion.action, agreed: finding !== null });
+    if (suggestion.instructionText) card.instructionText = suggestion.instructionText;
+    if (suggestion.url) card.url = suggestion.url;
+    if (id && finding) byFinding.set(id, card);
   }
-  candidates.sort((a, b2) => b2.score - a.score || a.order - b2.order);
+  for (const card of cards) card.score = card.base + (card.instructionText ? 5 : 0) + (card.url ? 3 : 0) + (card.agreed ? 5 : 0);
+  cards.sort((a, b2) => b2.score - a.score || a.order - b2.order);
   const seen = new Set<string>();
   const unique: RankedAction[] = [];
-  for (const { order: _order, ...candidate } of candidates) {
-    const key = candidate.suggestion.title.trim().toLowerCase();
+  for (const { order: _order, base: _base, ...card } of cards) {
+    const key = repeatKey(card.suggestion);
     if (seen.has(key)) continue;
     seen.add(key);
-    unique.push(candidate);
+    unique.push(card);
   }
   return { top: unique.slice(0, 3), rest: unique.slice(3) };
 }
