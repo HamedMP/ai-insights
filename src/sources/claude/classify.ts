@@ -102,24 +102,46 @@ const INJECTED_PREFIXES = [
 ];
 
 /**
- * Messages another agent or automation put into the session. Only the start
- * of the text is checked: a person quoting `<hc from=...>` mid-sentence, or
- * pasting one inside `<pasted_content>`, is still the person typing.
+ * Messages another agent put into the session: the hub, a peer session, a
+ * teammate. Only the start of the text is checked: a person quoting
+ * `<hc from=...>` mid-sentence, or pasting one inside `<pasted_content>`, is
+ * still the person typing.
  */
 const AGENT_MESSAGE = new RegExp(
   [
     String.raw`^<hc(?:\s[^>]*)?>`,
     "^Another Claude session sent a message",
-    String.raw`^<task-notification\b`,
     String.raw`^<cross-session-message\b`,
     String.raw`^<agent-message\b`,
     String.raw`^<teammate-message\b`,
-    String.raw`^\[Cross-session idle notice\]`,
   ].join("|"),
 );
 
 export function isAgentMessageText(text: string): boolean {
   return AGENT_MESSAGE.test(text.trimStart());
+}
+
+/**
+ * The harness reporting on the agent's own work: a background command or
+ * subagent finishing, a monitor event, the hub saying a peer went idle.
+ * Nobody is speaking, so these count as neither the person nor another agent.
+ */
+const HARNESS_EVENT = /^(?:<task-notification\b|\[Cross-session idle notice\])/;
+
+export function isHarnessEventText(text: string): boolean {
+  return HARNESS_EVENT.test(text.trimStart());
+}
+
+/** One line that says what a harness event was, for excerpts. Callers scrub and cap it. */
+export function harnessEventLine(raw: string, label?: string): string {
+  const text = raw.slice(0, 20_000).trim();
+  if (text.startsWith("<task-notification")) {
+    const tag = (name: string) => new RegExp(`<${name}>([\\s\\S]*?)</${name}>`).exec(text)?.[1]?.trim() ?? "";
+    const what = tag("summary") || tag("event") || (tag("status") ? `background task ${tag("status")}` : "background task");
+    return `[task notification] ${what}`.replace(/\s+/g, " ");
+  }
+  const first = text.split("\n", 1)[0] ?? "";
+  return (label ? `[${label}] ${first}` : first).replace(/\s+/g, " ");
 }
 
 const INTERRUPT = /^\[Request interrupted by user[^\]]*\]$/;
@@ -130,6 +152,7 @@ export type PromptKind =
   | { kind: "bash"; command: string }
   | { kind: "interrupt" }
   | { kind: "agent"; text: string }
+  | { kind: "harness"; text: string }
   | { kind: "injected" };
 
 /** Decide what a user-typed-looking string really is. */
@@ -137,6 +160,7 @@ export function classifyUserText(raw: string): PromptKind {
   const text = raw.trim();
   if (text === "") return { kind: "injected" };
   if (INTERRUPT.test(text)) return { kind: "interrupt" };
+  if (isHarnessEventText(text)) return { kind: "harness", text: harnessEventLine(text) };
   if (isAgentMessageText(text)) return { kind: "agent", text };
   const command = /<command-name>\s*([^<]*?)\s*<\/command-name>/.exec(text);
   if (command && command[1]) {
