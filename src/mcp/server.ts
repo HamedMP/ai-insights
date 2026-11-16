@@ -20,13 +20,13 @@ import {
   type TranscriptTurn,
 } from "../schema/types.js";
 import { clean } from "../sources/shared.js";
-import { buildFromScan, describeHeadline, headline, renderFromScan, type BuildReportFn, type RenderReportFn } from "../store/pipeline.js";
+import { buildFromScan, countsForFacets, describeHeadline, headline, renderFromScan, type BuildReportFn, type RenderReportFn } from "../store/pipeline.js";
 import { scan, type ScanOptions, type ScanResult } from "../store/scan.js";
 import { describeIssues, isSafeId } from "../store/schemas.js";
 import { parseSince, SINCE_HELP } from "../store/since.js";
-import { sessionKey, StoreError, type Store } from "../store/store.js";
+import { isFacetStale, sessionKey, StoreError, type Store } from "../store/store.js";
 import { fitJson } from "./bound.js";
-import { activityDigest, facetsDigest, usageDigest, DIGEST_WEEKS } from "./digest.js";
+import { activityDigest, facetsDigest, projectLabel, usageDigest, DIGEST_WEEKS } from "./digest.js";
 import { DEFAULT_EXCERPT_CHARS, DEFAULT_EXCERPT_CHARS_PER_TURN, DEFAULT_EXCERPT_TURNS, fitTurns } from "./excerpt.js";
 import { DEFAULT_MIN_USER_MESSAGES, facetBacklog, filterCandidates, isAgentDriven, isLive, spreadOrder } from "./select.js";
 import { packageVersion } from "./version.js";
@@ -83,11 +83,9 @@ function since(value: string | undefined, now: Date): Date | undefined {
   return parsed;
 }
 
-/** Last two path segments: enough to recognise a project without dumping a home directory. */
+/** The same project label the digest and the page use: home shortened to ~, so no username shows. */
 function shortProject(path: string | null): string | null {
-  if (!path) return null;
-  const parts = path.split(/[\\/]+/).filter(Boolean);
-  return parts.slice(-2).join("/") || null;
+  return path ? projectLabel(path) || null : null;
 }
 
 const taxonomy = [
@@ -201,36 +199,64 @@ function countBy(values: string[]): Record<string, number> {
   return out;
 }
 
+const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
+
 /** What to do after a scan, and for a returning person, what is already there and what a new narrative does to it. */
-function nextAfterScan(sessions: number, withFacets: number, toJudge: number, narrativeSaved: boolean): string {
-  if (sessions === 0) return "No sessions found. Run hindsight_scan with a wider since window, or check `hindsight doctor`.";
+function nextAfterScan(state: { sessions: number; withFacets: number; toJudge: number; stale: number; narrativeSaved: boolean }): string {
+  if (state.sessions === 0) return "No sessions found. Run hindsight_scan with a wider since window, or check `hindsight doctor`.";
   const start = "Call hindsight_report for findings, then hindsight_sessions with missingFacets: true to start the qualitative pass.";
-  if (withFacets === 0 && !narrativeSaved) return start;
+  if (state.withFacets === 0 && !state.narrativeSaved) return start;
   const earlier = [
-    withFacets > 0 ? `${withFacets} sessions already have facets from an earlier run` : null,
-    narrativeSaved ? "a narrative from an earlier run is saved" : null,
+    state.withFacets > 0 ? `${plural(state.withFacets, "session already has a facet", "sessions already have facets")} from an earlier run` : null,
+    state.narrativeSaved ? "a narrative from an earlier run is saved" : null,
   ].filter(Boolean);
+  const changed =
+    state.stale > 0
+      ? ` ${plural(state.stale, "judged session has changed since", "judged sessions have changed since")} (judged while running, or grown since); the listing offers them again to re-judge.`
+      : "";
   const adding =
-    toJudge > 0
-      ? `this run adds facets for up to ${toJudge} more. ${start}`
-      : "no new sessions need facets, so go from hindsight_report to the narrative.";
+    state.toJudge > 0
+      ? `this run judges up to ${state.toJudge}, new or changed. ${start}`
+      : "no sessions need facets, so go from hindsight_report to the narrative.";
   return (
-    `Returning person: ${earlier.join(" and ")}. Tell them so, and that ${adding} ` +
+    `Returning person: ${earlier.join(" and ")}.${changed} Tell them so, and that ${adding} ` +
     "Then write a new narrative from all facets, old and new; saving it replaces the earlier one, so say that it does."
   );
 }
 
 export function createServer(deps: ServerDeps): McpServer {
   const state = new ServerState(deps);
-  const facetBacklogFor = async (result: ScanResult) => {
-    const facetIds = await deps.store.facetIds();
+  const liveIn = (result: ScanResult) => {
     const now = state.now();
-    return facetBacklog(
-      result.sessions,
-      (session) => facetIds.get(session.harness)?.has(session.id) ?? false,
-      (session) => isLive(result.files.get(sessionKey(session.harness, session.id))?.mtimeMs ?? session.sourceMtimeMs, now),
-    );
+    return (session: Session) => isLive(result.files.get(sessionKey(session.harness, session.id))?.mtimeMs ?? session.sourceMtimeMs, now);
   };
+  /** Which scanned sessions have a facet, which of those are stale, and which today's rules leave out of the aggregates. */
+  const facetView = async (result: ScanResult) => {
+    const keys = new Set(result.sessions.map((session) => sessionKey(session.harness, session.id)));
+    const records = new Map((await deps.store.listFacetRecords(keys)).map((record) => [sessionKey(record.facet.harness, record.facet.sessionId), record]));
+    const stale = new Set<string>();
+    let counted = 0;
+    let ignored = 0;
+    for (const session of result.sessions) {
+      const key = sessionKey(session.harness, session.id);
+      const record = records.get(key);
+      if (!record) continue;
+      if (!countsForFacets(session)) {
+        ignored += 1;
+        continue;
+      }
+      counted += 1;
+      if (isFacetStale(record, session)) stale.add(key);
+    }
+    return {
+      hasFacet: (session: Session) => records.has(sessionKey(session.harness, session.id)),
+      staleFacet: (session: Session) => stale.has(sessionKey(session.harness, session.id)),
+      counted,
+      ignored,
+      stale: stale.size,
+    };
+  };
+  const facetBacklogFor = async (result: ScanResult) => facetBacklog(result.sessions, await facetView(result), liveIn(result));
   const server = new McpServer(
     { name: "hindsight", version: packageVersion() },
     {
@@ -265,9 +291,8 @@ export function createServer(deps: ServerDeps): McpServer {
         ...(args.maxSessions ? { maxSessions: args.maxSessions } : {}),
         ...(args.refresh ? { refresh: true } : {}),
       });
-      const facetIds = await deps.store.facetIds();
-      const withFacets = result.sessions.filter((session) => facetIds.get(session.harness)?.has(session.id)).length;
-      const backlog = await facetBacklogFor(result);
+      const view = await facetView(result);
+      const backlog = facetBacklog(result.sessions, view, liveIn(result));
       const narrativeSaved = (await deps.store.readNarrative().catch(() => null)) !== null;
       let analysis: Record<string, unknown> | null = null;
       try {
@@ -290,10 +315,18 @@ export function createServer(deps: ServerDeps): McpServer {
         })),
         headline: headline(result.sessions),
         analysis,
-        facets: { saved: withFacets, missing: result.sessions.length - withFacets, toJudge: backlog.toJudge, skipped: backlog.skipped },
+        facets: {
+          // Facets that count: sessions today's rules leave out (no prompts, slash commands only) are `ignored`.
+          saved: view.counted,
+          ignored: view.ignored,
+          missing: result.sessions.length - view.counted - view.ignored,
+          changedSinceJudged: view.stale,
+          toJudge: backlog.toJudge,
+          skipped: backlog.skipped,
+        },
         narrative: { saved: narrativeSaved },
         scan: { ...result.stats, options: result.options },
-        next: nextAfterScan(result.sessions.length, withFacets, backlog.toJudge, narrativeSaved),
+        next: nextAfterScan({ sessions: result.sessions.length, withFacets: view.counted, toJudge: backlog.toJudge, stale: view.stale, narrativeSaved }),
       });
     }),
   );
@@ -365,7 +398,8 @@ export function createServer(deps: ServerDeps): McpServer {
         "Paginate with offset; the order is stable while the set is unchanged.",
       inputSchema: {
         harness: harnessArg,
-        missingFacets: z.boolean().optional().describe("Only sessions with no saved facet yet."),
+        missingFacets: z.boolean().optional().describe("Only sessions that need a facet: none saved yet, or one that is stale (judged while running, or the session has grown since)."),
+        includeStale: z.boolean().optional().describe("With missingFacets: also offer sessions whose facet is stale, to re-judge. Default true."),
         strategy: z
           .enum(["spread", "newest"])
           .optional()
@@ -386,21 +420,20 @@ export function createServer(deps: ServerDeps): McpServer {
     },
     guarded("list sessions", async (args) => {
       const result = await state.current();
-      const now = state.now();
-      const facetIds = await deps.store.facetIds();
-      const hasFacet = (session: Session) => facetIds.get(session.harness)?.has(session.id) ?? false;
-      const mtime = (session: Session) => result.files.get(sessionKey(session.harness, session.id))?.mtimeMs ?? session.sourceMtimeMs;
-      const live = (session: Session) => isLive(mtime(session), now);
+      const view = await facetView(result);
+      const { hasFacet, staleFacet } = view;
+      const live = liveIn(result);
       const choosing = args.missingFacets === true;
       const strategy = args.strategy ?? (choosing ? "spread" : "newest");
       const minUserMessages = args.minUserMessages ?? (choosing ? DEFAULT_MIN_USER_MESSAGES : 0);
-      const { matching, skipped } = filterCandidates(result.sessions, {
+      const { matching, skipped, stale } = filterCandidates(result.sessions, {
         harness: args.harness,
         missingOnly: choosing,
         minUserMessages,
         skipLive: choosing && !args.includeLive,
         skipSlashCommandOnly: choosing && !args.includeSlashCommandOnly,
         hasFacet,
+        ...(args.includeStale === false ? {} : { staleFacet }),
         live,
       });
       const ordered = strategy === "spread" ? spreadOrder(matching) : matching;
@@ -418,6 +451,7 @@ export function createServer(deps: ServerDeps): McpServer {
         total: ordered.length,
         offset,
         nextOffset: offset + page.length < ordered.length ? offset + page.length : null,
+        staleFacets: stale,
         skipped,
         skippedReasons,
         sessions: page.map((session) => ({
@@ -432,6 +466,7 @@ export function createServer(deps: ServerDeps): McpServer {
           toolCalls: session.toolCalls.length,
           toolErrors: session.toolCalls.filter((call) => call.error).length,
           hasFacet: hasFacet(session),
+          staleFacet: staleFacet(session),
           live: live(session),
           agentDriven: isAgentDriven(session),
           firstPrompt: session.prompts[0] ? clean(session.prompts[0].text, 160) : null,
@@ -555,7 +590,8 @@ export function createServer(deps: ServerDeps): McpServer {
     },
     guarded("save the facets", async (args) => {
       const result = await state.current();
-      const known = new Set(result.sessions.map((session) => sessionKey(session.harness, session.id)));
+      const known = new Map(result.sessions.map((session) => [sessionKey(session.harness, session.id), session]));
+      const live = liveIn(result);
       const saved: string[] = [];
       const rejected: Array<{ index: number; sessionId: string | null; error: string }> = [];
       for (const [index, input] of args.facets.entries()) {
@@ -564,7 +600,10 @@ export function createServer(deps: ServerDeps): McpServer {
           if (typeof input.harness === "string" && sessionId && !known.has(`${input.harness}:${sessionId}`)) {
             throw new ToolError("no session with this sessionId and harness in the current scan; check hindsight_sessions");
           }
-          const facet = await deps.store.saveFacet(input);
+          const session = typeof input.harness === "string" && sessionId ? known.get(`${input.harness}:${sessionId}`) : undefined;
+          // What the session looked like now, so a later scan can tell whether it changed since this judgement.
+          const judged = session ? { userMessages: session.userMessageCount, endTime: session.endTime, live: live(session) } : undefined;
+          const facet = await deps.store.saveFacet(input, judged);
           saved.push(facet.sessionId);
         } catch (error) {
           const message = error instanceof ZodError ? describeIssues(error) : safeMessage(error, "save this facet");

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activityDigest, usageDigest, weekOf } from "../../src/mcp/digest.js";
+import { activityDigest, projectLabel, usageDigest, weekOf } from "../../src/mcp/digest.js";
 import { fitTurns } from "../../src/mcp/excerpt.js";
 import { spreadOrder, spreadPositions } from "../../src/mcp/select.js";
 import type { TranscriptTurn } from "../../src/schema/types.js";
@@ -76,6 +76,8 @@ describe("activityDigest", () => {
       { projectPath: "/r/single", sessions: 1, activeMinutes: 5, worktrees: 1 },
     ];
     expect(activityDigest(activity).projects).toEqual({ "r/big-repo": { sessions: 9, worktrees: 4 }, "r/small": 2, "r/single": 1 });
+    activity.projects = [{ projectPath: "/home/someone/projects", sessions: 7, activeMinutes: 5 }];
+    expect(activityDigest(activity).projects).toEqual({ "~/projects": 7 });
   });
 });
 
@@ -95,5 +97,22 @@ describe("fitTurns with many important turns", () => {
     const turns = Array.from({ length: 10 }, () => turn("user", "y".repeat(300)));
     const fitted = fitTurns(turns, 2_000, { overhead: () => 100 });
     expect(fitted.turns.reduce((sum, item) => sum + item.text.length + 100, 0)).toBeLessThanOrEqual(2_000);
+  });
+});
+
+describe("projectLabel", () => {
+  it("shortens home to ~ like the page does, so no username shows, and keeps the rest of the path", () => {
+    expect(projectLabel("/home/someone/projects")).toBe("~/projects");
+    expect(projectLabel("/Users/someone/projects/matrix-os")).toBe("~/projects/matrix-os");
+    expect(projectLabel("C:\\Users\\someone\\code\\app")).toBe("~\\code\\app");
+    expect(projectLabel("/home/someone")).toBe("~");
+  });
+
+  it("keeps the last two folders of a path outside home, and clips a long home path from the left", () => {
+    expect(projectLabel("/srv/build/agents/app")).toBe("agents/app");
+    const long = projectLabel(`/home/someone/${"deep/".repeat(20)}app`);
+    expect(long.length).toBeLessThanOrEqual(60);
+    expect(long.startsWith("…")).toBe(true);
+    expect(long.endsWith("/app")).toBe(true);
   });
 });

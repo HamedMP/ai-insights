@@ -1,6 +1,7 @@
-import { readdir, rm } from "node:fs/promises";
+import { readdir, rm, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
+import { z } from "zod";
 import { HARNESSES, type Harness, type Narrative, type Report, type Session, type SessionFacet, type SessionFile } from "../schema/types.js";
 import { ensureDir, readJsonFile, writeFileAtomic } from "./fs.js";
 import { NarrativeInputSchema, NarrativeSchema, SessionFacetSchema, SessionSchema, isSafeId } from "./schemas.js";
@@ -22,6 +23,44 @@ interface IndexEntry {
   mtimeMs: number;
   /** `Source.parserVersion` that produced this entry; absent means "0". */
   parser?: string;
+}
+
+/** What the session looked like when its facet was written. */
+export interface FacetJudgement {
+  userMessages: number;
+  endTime: string;
+  /** The transcript was still being written to: the session was running. */
+  live: boolean;
+  at?: string;
+}
+
+export interface FacetRecord {
+  facet: SessionFacet;
+  judged: FacetJudgement | null;
+  savedAtMs: number;
+}
+
+const JUDGED_KEY = "judged";
+
+const JudgementSchema = z.strictObject({
+  userMessages: z.number().int().min(0).max(1_000_000),
+  endTime: z.string().max(40),
+  live: z.boolean(),
+  at: z.string().max(40).optional(),
+});
+
+/**
+ * A facet describes the session as it was. Re-judge it when it was judged while still running, or the
+ * session has since gained prompts or run later. Facets saved before snapshots existed fall back to
+ * whether the session ran on after the facet file was written.
+ */
+export function isFacetStale(record: FacetRecord, session: Session): boolean {
+  const end = Date.parse(session.endTime);
+  if (!record.judged) return Number.isFinite(end) && end > record.savedAtMs;
+  if (record.judged.live) return true;
+  if (session.userMessageCount > record.judged.userMessages) return true;
+  const judgedEnd = Date.parse(record.judged.endTime);
+  return Number.isFinite(end) && Number.isFinite(judgedEnd) && end > judgedEnd;
 }
 
 /** What a source without a `parserVersion`, or a cache entry from before versions, counts as. */
@@ -160,17 +199,35 @@ export class Store {
 
   // -- facets --------------------------------------------------------------
 
-  /** Validates and saves one facet. Throws a `ZodError` or `StoreError` the caller can describe. */
-  async saveFacet(input: unknown): Promise<SessionFacet> {
+  /**
+   * Validates and saves one facet, with what the session looked like when it was judged so a later scan can
+   * tell whether it has changed since. Throws a `ZodError` or `StoreError` the caller can describe.
+   */
+  async saveFacet(input: unknown, judged?: FacetJudgement): Promise<SessionFacet> {
     const facet = SessionFacetSchema.parse(input) as SessionFacet;
-    await writeFileAtomic(this.facetPath(facet.harness, facet.sessionId), `${JSON.stringify(facet, null, 2)}\n`);
+    const stamp = judged ? JudgementSchema.safeParse({ ...judged, at: judged.at ?? new Date().toISOString() }) : null;
+    const record = stamp?.success ? { ...facet, [JUDGED_KEY]: stamp.data } : facet;
+    await writeFileAtomic(this.facetPath(facet.harness, facet.sessionId), `${JSON.stringify(record, null, 2)}\n`);
     return facet;
   }
 
   async readFacet(harness: Harness, id: string): Promise<SessionFacet | null> {
+    return (await this.readFacetRecord(harness, id))?.facet ?? null;
+  }
+
+  /** The facet, its judgement snapshot (null when it has none or a broken one), and when the file was written. */
+  async readFacetRecord(harness: Harness, id: string): Promise<FacetRecord | null> {
     if (!isSafeId(id)) return null;
-    const parsed = SessionFacetSchema.safeParse(await readJsonFile(this.facetPath(harness, id)));
-    return parsed.success ? (parsed.data as SessionFacet) : null;
+    const path = this.facetPath(harness, id);
+    const raw = await readJsonFile(path);
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+    // The snapshot is ours, not part of the facet contract; split it off before the strict facet check.
+    const { [JUDGED_KEY]: stamp, ...rest } = raw as Record<string, unknown>;
+    const parsed = SessionFacetSchema.safeParse(rest);
+    if (!parsed.success) return null;
+    const judged = JudgementSchema.safeParse(stamp);
+    const savedAtMs = await stat(path).then((info) => info.mtimeMs, () => Date.now());
+    return { facet: parsed.data as SessionFacet, judged: judged.success ? judged.data : null, savedAtMs };
   }
 
   /** Ids with a saved file per harness. Cheap: lists names, does not read or validate them. */
@@ -208,15 +265,20 @@ export class Store {
 
   /** Every valid saved facet, optionally limited to the given `harness:id` keys. Invalid files are skipped. */
   async listFacets(only?: Set<string>): Promise<SessionFacet[]> {
-    const facets: SessionFacet[] = [];
+    return (await this.listFacetRecords(only)).map((record) => record.facet);
+  }
+
+  /** Every valid saved facet with its judgement snapshot, optionally limited to the given `harness:id` keys. */
+  async listFacetRecords(only?: Set<string>): Promise<FacetRecord[]> {
+    const records: FacetRecord[] = [];
     for (const [harness, ids] of await this.facetIds()) {
       for (const id of ids) {
         if (only && !only.has(sessionKey(harness, id))) continue;
-        const facet = await this.readFacet(harness, id);
-        if (facet && facet.sessionId === id && facet.harness === harness) facets.push(facet);
+        const record = await this.readFacetRecord(harness, id);
+        if (record && record.facet.sessionId === id && record.facet.harness === harness) records.push(record);
       }
     }
-    return facets;
+    return records;
   }
 
   // -- narrative -----------------------------------------------------------

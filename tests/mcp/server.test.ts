@@ -193,10 +193,10 @@ describe("hindsight_sessions", () => {
     expect(second.json.nextOffset).toBeNull();
   });
 
-  it("shows a short project name rather than a full home path", async () => {
+  it("shows the project with home shortened to ~, as the page does, rather than a full home path", async () => {
     const { json } = await call("hindsight_sessions");
     const c2 = json.sessions.find((session: any) => session.sessionId === "c2");
-    expect(c2.project).toBe("code/secret-app");
+    expect(c2.project).toBe("~/code/secret-app");
   });
 
   it("names a worktree session by its repository root, in listings and excerpts alike", async () => {
@@ -570,7 +570,7 @@ describe("returning users with nothing new", () => {
     await call("hindsight_save_facets", { facets: [validFacet("c0"), validFacet("c1")] });
     const { json } = await call("hindsight_scan");
     expect(json.facets.toJudge).toBe(0);
-    expect(json.next).toContain("no new sessions need facets");
+    expect(json.next).toContain("no sessions need facets");
     expect(json.next).not.toContain("up to 0");
   });
 });
@@ -606,5 +606,57 @@ describe("hindsight_excerpt: long briefs at the default budget", () => {
     expect(text.length).toBeLessThanOrEqual(3_000);
     expect(json.turns[0].text.length).toBeGreaterThanOrEqual(590);
     for (const turn of json.turns.slice(1)) expect(turn.text.length).toBeGreaterThanOrEqual(120);
+  });
+});
+
+describe("stale facets and facets today's rules skip", () => {
+  it("offers a judged session again once it has grown, and says how many changed", async () => {
+    claude.sessions = history("claude-code", "c", 3, 1);
+    codex.sessions = [];
+    await call("hindsight_scan");
+    await call("hindsight_save_facets", { facets: [validFacet("c0"), validFacet("c1"), validFacet("c2")] });
+    expect((await call("hindsight_sessions", { missingFacets: true })).json.total).toBe(0);
+
+    claude.sessions = claude.sessions.map((session) => (session.id === "c1" ? { ...session, userMessageCount: 9, sourceMtimeMs: session.sourceMtimeMs + 1 } : session));
+    const scanned = await call("hindsight_scan");
+    expect(scanned.json.facets).toMatchObject({ saved: 3, changedSinceJudged: 1, toJudge: 1 });
+    expect(scanned.json.next).toContain("1 judged session has changed since");
+    const listing = await call("hindsight_sessions", { missingFacets: true });
+    expect(ids(listing.json)).toEqual(["c1"]);
+    expect(listing.json.sessions[0]).toMatchObject({ hasFacet: true, staleFacet: true });
+    expect(listing.json.staleFacets).toBe(1);
+
+    const saved = await call("hindsight_save_facets", { facets: [validFacet("c1")] });
+    expect(saved.json.sessionsStillMissingFacets).toBe(0);
+    expect((await call("hindsight_sessions", { missingFacets: true })).json.total).toBe(0);
+  });
+
+  it("offers a session judged while it was still running once it has stopped", async () => {
+    const running = makeSession({ id: "run", sourceMtimeMs: NOW - 60_000 });
+    claude.sessions = [running];
+    codex.sessions = [];
+    await call("hindsight_scan");
+    await call("hindsight_save_facets", { facets: [validFacet("run")] });
+    claude.sessions = [{ ...running, sourceMtimeMs: NOW - 3_600_000 }];
+    await call("hindsight_scan");
+    const listing = await call("hindsight_sessions", { missingFacets: true });
+    expect(ids(listing.json)).toEqual(["run"]);
+    expect(listing.json.sessions[0].staleFacet).toBe(true);
+  });
+
+  it("leaves facets of zero-prompt and slash-command-only sessions out of the report", async () => {
+    claude.sessions = [
+      makeSession({ id: "real", sourceMtimeMs: 3 }),
+      makeSession({ id: "slash", sourceMtimeMs: 2, prompts: [{ timestamp: "2026-10-01T09:00:00.000Z", text: "/mcp" }] }),
+      makeSession({ id: "empty", sourceMtimeMs: 1, userMessageCount: 0, prompts: [] }),
+    ];
+    codex.sessions = [];
+    await call("hindsight_scan");
+    await call("hindsight_save_facets", { facets: [validFacet("real"), validFacet("slash"), validFacet("empty")] });
+    const { json } = await call("hindsight_report", { sections: ["summary"] });
+    expect(json.summary.sessionsWithFacets).toBe(1);
+    expect(buildCalls.at(-1)!.facets!.map((facet) => facet.sessionId)).toEqual(["real"]);
+    const scanned = await call("hindsight_scan");
+    expect(scanned.json.facets).toMatchObject({ saved: 1, ignored: 2 });
   });
 });

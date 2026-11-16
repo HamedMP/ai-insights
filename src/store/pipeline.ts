@@ -22,9 +22,22 @@ export function localTimeZone(): string {
   }
 }
 
+/** Every prompt was a slash command (`/mcp`, `/insights`): nothing the person asked the agent to do. */
+export function isSlashCommandOnly(session: Session): boolean {
+  return session.prompts.length > 0 && session.prompts.every((prompt) => prompt.text.trimStart().startsWith("/"));
+}
+
+/**
+ * Whether a facet for this session belongs in the aggregates. Sessions with no prompt from the person, or only
+ * slash commands, are not judged under today's rules; facets saved for them earlier stay on disk but do not count.
+ */
+export function countsForFacets(session: Session): boolean {
+  return session.userMessageCount > 0 && !isSlashCommandOnly(session);
+}
+
 /** Builds the report from a scan plus whatever facets and narrative the model pass has saved. */
 export async function buildFromScan(deps: PipelineDeps, result: ScanResult): Promise<{ report: Report; facetCount: number; hasNarrative: boolean }> {
-  const keys = new Set(result.sessions.map((session) => sessionKey(session.harness, session.id)));
+  const keys = new Set(result.sessions.filter(countsForFacets).map((session) => sessionKey(session.harness, session.id)));
   const facets = await deps.store.listFacets(keys);
   const narrative = await deps.store.readNarrative();
   const report = deps.buildReport({
