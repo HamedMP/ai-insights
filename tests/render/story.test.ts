@@ -39,9 +39,11 @@ describe("story lines on rich data", () => {
     expect(lineText(story.week!)).toMatch(/^Your busiest day is (Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday), and \d+% of your sessions start on weekends\.$/);
   });
 
-  it("measures delegation as agent steps per message you send", () => {
+  it("measures delegation as tool calls per message you typed, from two totals the page shows", () => {
+    const calls = report.activity.toolCategories.reduce((sum, entry) => sum + entry.count, 0);
+    const perMessage = Math.round(calls / report.activity.userMessages);
     expect(lineText(story.delegation!)).toMatch(
-      new RegExp(`^Each message you send gets about 7 agent steps back, and your agents changed [\\d.]+K lines across ${report.activity.sessions} sessions\\.$`),
+      new RegExp(`^Each message you send sets off about ${perMessage} tool calls, and your agents changed [\\d.]+K lines across ${report.activity.sessions} sessions\\.$`),
     );
   });
 
@@ -57,7 +59,7 @@ describe("story lines on rich data", () => {
   });
 
   it("states the token volume with its cache share", () => {
-    expect(lineText(story.tokens!)).toMatch(/^Your agents moved [\d.]+[KMB] tokens; \d+% of their input came from cache\.$/);
+    expect(lineText(story.tokens!)).toMatch(/^Your agents moved [\d.]+[KMB] tokens; \d+\.\d% of their input came from cache\.$/);
   });
 
   it("prices only the share of requests it can price, and says the rest has no known price", () => {
@@ -65,7 +67,7 @@ describe("story lines on rich data", () => {
   });
 
   it("puts a share on failed tool calls and counts the patterns worth fixing", () => {
-    expect(lineText(story.friction!)).toMatch(/^[\d.]+% of your agents' tool calls failed, most often a failed command\. Hindsight found 4 patterns worth fixing; each is below\.$/);
+    expect(lineText(story.friction!)).toMatch(/^[\d.]+% of your agents' tool calls failed, most often a failed command\. Hindsight found 4 patterns worth fixing; each is below\. The other \d+ findings are about [a-z ,]+\.$/);
   });
 
   it("never shows a bare cost when requests are unpriced: it names the share and the models", () => {
@@ -97,7 +99,7 @@ describe("story lines on sparse and single-harness data", () => {
   it("falls back to agent time over active days when nothing else is striking", () => {
     const quiet = makeDeterministicReport();
     quiet.activity.parallelSessions = { overlapEvents: 0, maxConcurrent: 1, sessionsInvolved: 0 };
-    quiet.activity.assistantMessages = quiet.activity.userMessages * 2;
+    quiet.activity.toolCategories = [{ key: "edit", count: quiet.activity.userMessages * 2 }];
     expect(lineText(buildStory(quiet, ZONE).headline)).toMatch(/^Your agents logged [\d.,]+ h of work over \d+ days\.$/);
   });
 

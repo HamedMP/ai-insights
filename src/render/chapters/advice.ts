@@ -158,7 +158,7 @@ function actHow(context: RenderContext, action: RankedAction): SafeHtml | null {
   const link = externalLink(action.url ?? suggestion.url);
   // The finding's text may hold the settings fragment even when the narrative's wording is shown.
   const snippet = instructions ? null : (settingsSnippet(action.action) ?? settingsSnippet(suggestion.action));
-  return html`${action.agreed ? html`<p class="micro agreed">Your agent's review suggested this too</p>` : null}${instructions ? copyBlock(context, instructions, `instructions: ${clip(suggestion.title, 80)}`) : null}${
+  return html`${(action.alsoCovers ?? []).map((folded) => html`<p class="also-covers">${rich(folded.note, 240)}</p>`)}${action.agreed ? html`<p class="micro agreed">Your agent's review suggested this too</p>` : null}${instructions ? copyBlock(context, instructions, `instructions: ${clip(suggestion.title, 80)}`) : null}${
     snippet ? html`<p class="micro copy-label">${snippet.file ? html`Merge into <code>${snippet.file}</code>` : "Settings to merge"}</p>${copyBlock(context, snippet.text, `settings: ${clip(suggestion.title, 80)}`)}` : null
   }${link ? html`<p class="learn">Learn more: ${link}</p>` : null}`;
 }
@@ -171,7 +171,11 @@ export function improveChapter(input: ChapterInput & { ranked: { top: RankedActi
   const total = top.length + rest.length;
   const lead: Line =
     total > 0
-      ? [{ text: "Hindsight ranked " }, { text: plural(total, "change"), strong: true }, { text: total > 3 ? "; start with these three." : " worth making." }]
+      ? [
+          { text: "Hindsight ranked " },
+          { text: plural(total, "change"), strong: true },
+          { text: `${[...top, ...rest].some((action) => action.finding === null) ? ", from the findings above and your agent's review" : ", from the findings above"}${total > 3 ? "; start with these three." : "."}` },
+        ]
       : [{ text: "Nothing urgent to fix. Here is what to try next." }];
   const body = html`${top.length > 0 ? html`<ol class="actions">${top.map((action, position) => html`<li class="action reveal" id="action-${position + 1}">
 <span class="rank">${position + 1}</span>
