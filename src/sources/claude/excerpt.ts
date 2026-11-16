@@ -1,7 +1,7 @@
 import { basename } from "node:path";
 import type { ExcerptOptions, SessionFile, TranscriptTurn } from "../../schema/types.js";
 import { truncate } from "../shared.js";
-import { scrub, toolCategory, type PromptKind } from "./classify.js";
+import { Delegates, SUBAGENT_LAUNCH_TOOLS, scrub, toolCategory, type PromptKind } from "./classify.js";
 import { DEFAULT_LIMITS, readJsonl, type JsonlLimits } from "./jsonl.js";
 import { classifyQueuedCommand, classifyUserRecord, isoTime, obj, str, toolResultText } from "./parse.js";
 
@@ -32,8 +32,8 @@ const MAX_CANDIDATES = 20_000;
 const TIER = {
   anchor: 0, // the first prompt and the final answer
   person: 1, // prompts and interruptions
-  failure: 2, // failed tool results
-  agent: 3, // messages from other agents or automations
+  agent: 2, // messages from other agents: rare, and they say who steered
+  failure: 3, // failed tool results
   answer: 4, // other assistant text
   tool: 5, // tool calls
   harness: 6, // task notifications, monitor events, wake-ups: only when nothing else is left
@@ -170,6 +170,7 @@ export async function excerptClaudeTranscript(
   // Held back until a later answer replaces it, so the final answer is known when the stream ends.
   let lastAnswer: Candidate | null = null;
   const toolSummaries = new Map<string, { name: string; summary: string }>();
+  const delegates = new Delegates();
 
   const push = (turn: TranscriptTurn, tier: Tier): void => {
     if (!turn.text) return;
@@ -213,6 +214,12 @@ export async function excerptClaudeTranscript(
       case "harness":
         push({ timestamp: time, role: "tool", toolName: "harness", text: scrub(kind.text, Math.min(maxChars, TOOL_LINE_CHARS)) }, TIER.harness);
         break;
+      case "delegated":
+        push(
+          { timestamp: time, role: "tool", toolName: "teammate", text: scrub(kind.text, Math.min(maxChars, TOOL_LINE_CHARS)) },
+          kind.idle ? TIER.harness : TIER.tool,
+        );
+        break;
       default:
         break;
     }
@@ -226,6 +233,7 @@ export async function excerptClaudeTranscript(
     if (record.isSidechain === true) continue;
     // History copied in from an earlier session on resume belongs to that session's excerpt.
     if (stemIsSession && typeof record.sessionId === "string" && record.sessionId !== stem) continue;
+    delegates.note(record, SUBAGENT_LAUNCH_TOOLS);
     const time = isoTime(record.timestamp);
     if (!time) continue;
     const message = obj(record.message);
@@ -261,11 +269,11 @@ export async function excerptClaudeTranscript(
         }
       }
       if (record.isCompactSummary === true) continue;
-      typed(classifyUserRecord(record), time, false);
+      typed(classifyUserRecord(record, delegates), time, false);
     } else if (record.type === "attachment") {
       const attachment = obj(record.attachment);
       if (attachment.type !== "queued_command") continue;
-      typed(classifyQueuedCommand(attachment), isoTime(attachment.timestamp) ?? time, true);
+      typed(classifyQueuedCommand(attachment, delegates), isoTime(attachment.timestamp) ?? time, true);
     }
   }
   const final = lastAnswer as Candidate | null;

@@ -163,6 +163,73 @@ export function harnessEventLine(raw: string, label?: string): string {
   return (label ? `[${label}] ${first}` : first).replace(/\s+/g, " ");
 }
 
+const MAX_DELEGATES = 2_000;
+
+/**
+ * Who this session launched itself: teammates by name, background subagents
+ * by agent id. Their replies are the session's own delegated work reporting
+ * back, not another agent steering it.
+ */
+export class Delegates {
+  private readonly ids = new Set<string>();
+
+  add(id: unknown): void {
+    if (typeof id === "string" && id.trim() !== "" && this.ids.size < MAX_DELEGATES) this.ids.add(id.trim());
+  }
+
+  /** `name@team` and `name` are the same teammate. */
+  has(id: string): boolean {
+    return this.ids.has(id) || this.ids.has(id.split("@", 1)[0] ?? id);
+  }
+
+  /** Note launches from an assistant line's tool calls and from a tool result's `toolUseResult`. */
+  note(record: Record<string, unknown>, launchTools: ReadonlySet<string>): void {
+    const message = record.message;
+    const content = message && typeof message === "object" ? (message as Record<string, unknown>).content : undefined;
+    if (record.type === "assistant" && Array.isArray(content)) {
+      for (const block of content) {
+        const b = block && typeof block === "object" ? (block as Record<string, unknown>) : {};
+        if (b.type !== "tool_use" || typeof b.name !== "string" || !launchTools.has(b.name)) continue;
+        const input = b.input && typeof b.input === "object" ? (b.input as Record<string, unknown>) : {};
+        this.add(input.name);
+      }
+    } else if (record.type === "user" && record.toolUseResult && typeof record.toolUseResult === "object") {
+      const result = record.toolUseResult as Record<string, unknown>;
+      this.add(result.agentId);
+      if (result.status === "teammate_spawned") this.add(result.name);
+    }
+  }
+}
+
+const REPLY_PREFIX = /^Another Claude session sent a message:?\s*/;
+const REPLY_OPEN = /<(teammate-message|agent-message)\b([^>]*)>/g;
+
+/**
+ * A message made only of replies from this session's own teammates or
+ * subagents, as one line for excerpts; null when anyone else is speaking.
+ */
+export function delegatedReply(raw: string, delegates: Delegates): { text: string; idle: boolean } | null {
+  const text = raw.slice(0, 200_000).trim().replace(REPLY_PREFIX, "");
+  if (!/^<(?:teammate-message|agent-message)\b/.test(text)) return null;
+  const parts: string[] = [];
+  let idle = true;
+  for (const match of text.matchAll(REPLY_OPEN)) {
+    const attrs = match[2] ?? "";
+    const attr = (name: string) => new RegExp(`\\b${name}="([^"]*)"`).exec(attrs)?.[1] ?? "";
+    const sender = match[1] === "teammate-message" ? attr("teammate_id") : attr("from");
+    if (!sender || !delegates.has(sender)) return null;
+    const start = (match.index ?? 0) + match[0].length;
+    const end = text.indexOf(`</${match[1]}>`, start);
+    const body = text.slice(start, end === -1 ? undefined : end).trim();
+    const isIdle = /^\{\s*"type"\s*:\s*"idle_notification"/.test(body);
+    idle &&= isIdle;
+    const who = match[1] === "teammate-message" ? `teammate ${sender}` : "subagent";
+    parts.push(isIdle ? `[${who} idle]` : `[${who}] ${attr("summary") || (body.split("\n", 1)[0] ?? "")}`);
+  }
+  if (parts.length === 0) return null;
+  return { text: parts.join(" ").replace(/\s+/g, " ").trim(), idle };
+}
+
 const INTERRUPT = /^\[Request interrupted by user[^\]]*\]$/;
 
 export type PromptKind =
@@ -172,6 +239,7 @@ export type PromptKind =
   | { kind: "interrupt" }
   | { kind: "agent"; text: string }
   | { kind: "harness"; text: string }
+  | { kind: "delegated"; text: string; idle: boolean }
   | { kind: "injected" };
 
 /** Decide what a user-typed-looking string really is. */

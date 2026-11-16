@@ -98,7 +98,7 @@ async function parse(file: SessionFile): Promise<Session | null> {
 
 export const claudeSource: Source = {
   // Bump when the same transcript would parse to a different Session, so the store re-parses cached history.
-  parserVersion: "3",
+  parserVersion: "4",
   harness: "claude-code",
   label: "Claude Code",
   defaultRoots: () => claudeDefaultRoots(),
