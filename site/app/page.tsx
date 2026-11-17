@@ -1,7 +1,6 @@
 import { HugeiconsIcon } from "@hugeicons/react"
 import { ArrowRight02Icon, ArrowUpRight01Icon, Cancel01Icon, Tick02Icon } from "@hugeicons/core-free-icons"
 
-import { BreakfastLanding } from "@/components/site/breakfast"
 import { CardWall } from "@/components/site/card-wall"
 import { Faq } from "@/components/site/faq"
 import { Footer } from "@/components/site/footer"
@@ -109,8 +108,6 @@ export default function Page() {
             </div>
           </div>
         </section>
-
-        <BreakfastLanding />
 
         {/* ---------- the wall ---------- */}
         <section id="cards" className="border-t bg-background/40 py-16 md:py-24">

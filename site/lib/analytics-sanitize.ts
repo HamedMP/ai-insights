@@ -11,8 +11,6 @@ const MAX_DEPTH = 4
 
 /** A `ref=<handle>` query parameter: who referred the visitor. Analytics may know that there was one, never whose. */
 const REF_PARAM = /([?&])ref=[^&#]*(&?)/gi
-/** Temporary (lib/breakfast.ts): the landing page's `?breakfast=1` preview switch is dropped from URLs. */
-const BREAKFAST_PREVIEW = /([?&])breakfast=[^&#]*&?/gi
 
 /**
  * "https://x/share/#abc" -> "https://x/share/"; "/share#abc" -> "/share"; "/u/ada?ref=ada" -> "/u/ada?ref";
@@ -21,7 +19,7 @@ const BREAKFAST_PREVIEW = /([?&])breakfast=[^&#]*&?/gi
 export function stripFragment(value: string): string {
   if (!URLISH.test(value)) return value
   const at = value.indexOf("#")
-  const base = (at === -1 ? value : value.slice(0, at)).replace(BREAKFAST_PREVIEW, "$1").replace(/[?&]$/, "")
+  const base = at === -1 ? value : value.slice(0, at)
   return base.replace(REF_PARAM, (_m, lead: string, tail: string) => `${lead}ref${tail}`)
 }
 
@@ -51,7 +49,5 @@ export const EVENTS = {
   publishClicked: "publish_clicked",
   publishCompleted: "publish_completed",
   arenaViewed: "leaderboard_arena_viewed",
-  /** Temporary (components/site/breakfast.tsx): a Luma registration click, with only its `placement`. */
-  breakfastRegisterClicked: "breakfast_register_clicked",
 } as const
 export type EventName = (typeof EVENTS)[keyof typeof EVENTS]
