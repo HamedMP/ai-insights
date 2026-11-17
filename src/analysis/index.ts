@@ -67,12 +67,12 @@ export function buildReport(input: BuildReportInput): Report {
   const sessions = uniqueSessions(input.sessions);
   const requests = uniqueRequests(sessions);
   const usage = summarizeUsage(requests, clock);
-  const activity = buildActivity(sessions, clock);
+  const { activity, streak } = buildActivity(sessions, clock);
   const coverage = withHistoryDays(input.coverage, sessions, now.getTime(), clock);
   const findings = detectFindings({ sessions, requests, usage, activity, coverage, now, clock, ...(input.retention ? { retention: input.retention } : {}) });
   const facets = aggregateFacets(input.facets, sessions);
   const generatedAt = now.toISOString();
-  const recap = buildRecap({ sessions, activity, usage, findings, facets, clock, timeZone, generatedAt });
+  const recap = buildRecap({ sessions, activity, streak, usage, findings, facets, clock, timeZone, generatedAt });
   return {
     version: REPORT_VERSION,
     generatedAt,

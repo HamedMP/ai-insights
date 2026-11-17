@@ -33,6 +33,7 @@ export interface RecapInput {
   /** De-duplicated sessions, the ones the report was built from. */
   sessions: Session[];
   activity: Activity;
+  streak: Recap["streak"];
   usage: UsageSummary;
   findings: Finding[];
   facets: FacetAggregate | null;
@@ -55,17 +56,6 @@ function range(sessions: Session[], clock: Clock): Recap["range"] | null {
     }
   }
   return from && to ? { from, to, days: daysBetween(from, to) + 1 } : null;
-}
-
-function streakOf(daily: Recap["daily"]): Recap["streak"] {
-  let best = { days: 0, end: null as string | null };
-  let run = 0;
-  for (const day of daily) {
-    run = day.prompts > 0 || day.minutes > 0 ? run + 1 : 0;
-    if (run > best.days) best = { days: run, end: day.day };
-  }
-  const endIndex = best.end === null ? -1 : daily.findIndex((day) => day.day === best.end);
-  return { days: best.days, start: endIndex >= 0 ? daily[endIndex - best.days + 1]!.day : null, end: best.end };
 }
 
 function modelsOf(usage: UsageSummary): { models: RecapModel[]; requests: number } {
@@ -211,7 +201,7 @@ export function buildRecap(input: RecapInput): Recap | undefined {
     },
     daily,
     dailyTruncated: allDaily.length > daily.length,
-    streak: streakOf(allDaily),
+    streak: input.streak,
     voice,
     interrupted,
     slash,

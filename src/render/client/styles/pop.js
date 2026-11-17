@@ -7,7 +7,7 @@ const SH = kit.share;
 const cta = (c, color, size = 30) => h("div", { class: "mk", style: { fontSize: size * c.k * c.u + "px", color } },
   h("span", { class: "cmd" }, SH.command), h("span", { class: "cmd" }, SH.skill), h("span", {}, SH.site), h("span", { class: "mktag" }, SH.hashtag));
 const T = D.totals, R = D.rhythm, V = D.voice;
-const rangeLabel = `${dshort(D.range.from)} – ${dshort(D.range.to)}`;
+const rangeLabel = kit.dateRangeLabel(D.range.from, D.range.to);
 const activeDay = (d) => d.prompts > 0 || d.minutes > 0;
 const topWeekday = R.weekdays.slice().sort((a, b) => b.count - a.count)[0];
 const wd = (k) => R.weekdays.find((d) => d.key === k)?.count ?? 0;
@@ -86,7 +86,7 @@ function waffle(c, alloc, colors, w, hgt) {
 // 1. intro ---------------------------------------------------------------
 add({ id: "intro", title: "Intro", bg: "var(--orange)", fg: "var(--ink)", dur: 5200, squareSide: false,
   build(c) {
-    const k = kick(`${rangeLabel}, ${D.range.to.slice(0, 4)}`);
+    const k = kick(rangeLabel);
     const t1 = h("div", { class: "big", style: { fontSize: 176 * c.k * c.u + "px", marginTop: 0.5 * 34 * c.k + "px" } }, "Your last");
     const t2 = h("div", { class: "big", "data-fit": Math.round(176 * c.k * c.u), "data-min": Math.round(80 * c.u), style: { whiteSpace: "nowrap" } }, `${D.range.days} days, with AI.`);
     const names = T.harnesses.map((x) => harnessName(x.key));
@@ -204,7 +204,7 @@ add({ id: "streak", title: "Streak", bg: "var(--coral)", fg: "var(--ink)", dur: 
     if (bd) c.tl.in(bd, 1800);
     return { head: head(k, big, p), extra: bd, artMin: c.square ? 0.44 : 0.3, split: 0.5, legend: "dark = the streak",
       art(w, hgt) {
-        const firstDow = (new Date(D.range.from + "T12:00:00Z").getUTCDay() + 6) % 7;
+        const firstDow = (new Date((D.daily[0]?.day ?? D.range.from) + "T12:00:00Z").getUTCDay() + 6) % 7;
         const weeks = Math.ceil((D.daily.length + firstDow) / 7);
         const inS = (day) => D.streak.start && day >= D.streak.start && day <= D.streak.end;
         const svg = svgBox(w, hgt);
@@ -639,7 +639,7 @@ add({ id: "tips", title: "Try next", bg: "var(--paper)", fg: "var(--ink)", dur: 
 add({ id: "summary", title: "Summary", bg: "var(--orange)", fg: "var(--ink)", dur: 9000, bigMark: true, summary: true, squareSide: false,
   build(c) {
     const sigR = (c.wide ? 150 : c.tall ? 160 : 130) * c.u * c.k;
-    const k = kick(`${rangeLabel}, ${D.range.to.slice(0, 4)}`);
+    const k = kick(rangeLabel);
     // Three-digit day counts get a smaller title so "My last 287" still fits beside the sigil.
     const tsz = (c.wide ? 124 : c.tall ? 112 : 104) * (D.range.days >= 100 ? 0.86 : 1);
     const tt = h("div", { class: "h1", style: { fontSize: tsz * c.k * c.u + "px", marginTop: 18 * c.k + "px" } }, `My last ${D.range.days}`, h("br"), "days with AI");

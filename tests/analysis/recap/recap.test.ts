@@ -71,6 +71,30 @@ describe("recap: period, calendar and streak", () => {
     expect(recap.daily.at(-1)!.day).toBe("2027-08-25");
   });
 
+  it("matches the private streak when an active day contains only a tool event", () => {
+    const sessions = [
+      session({
+        startTime: day(0),
+        endTime: day(2),
+        prompts: [prompt("start", day(0)), prompt("finish", day(2))],
+        userMessageCount: 2,
+        toolCalls: [tool("read", { timestamp: day(1) })],
+        requests: [],
+      }),
+    ];
+    const report = buildReport({ sessions, coverage: [coverage("claude-code", 1)], now: NOW, timeZone: "UTC" });
+    expect(report.activity.daily[1]).toEqual({ day: "2026-06-02", sessions: 0, userMessages: 0, activeMinutes: 0 });
+    expect(report.activity.longestStreakDays).toBe(3);
+    expect(report.recap?.streak).toEqual({ days: 3, start: "2026-06-01", end: "2026-06-03" });
+  });
+
+  it("keeps the longest streak dates even when they are older than the activity chart", () => {
+    const sessions = [0, 1, 2, 1200].map((offset) => session({ startTime: day(offset), prompts: [prompt("work", day(offset))] }));
+    const recap = recapOf(sessions, { now: new Date(day(1201)) });
+    expect(recap.daily[0]!.day > "2026-06-03").toBe(true);
+    expect(recap.streak).toEqual({ days: 3, start: "2026-06-01", end: "2026-06-03" });
+  });
+
   it("finds the longest run of active days and the biggest single day", () => {
     const sessions = [0, 1, 2, 5].map((offset) => session({ startTime: day(offset), prompts: [prompt("fix", day(offset, 1))] }));
     sessions[3]!.prompts.push(prompt("run", day(5, 2)), prompt("check", day(5, 3)));

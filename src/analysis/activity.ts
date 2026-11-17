@@ -1,4 +1,4 @@
-import type { Activity, Count, Harness, Session, SessionSpan } from "../schema/types.js";
+import type { Activity, Count, Harness, Recap, Session, SessionSpan } from "../schema/types.js";
 import { IDLE_GAP_MS } from "../sources/shared.js";
 import { continuousDays, daysBetween, parseMs, type Clock } from "./time.js";
 import { isAgentDriven, projectKey } from "./sessions.js";
@@ -133,13 +133,14 @@ function parallelSessions(sessions: Session[]): Activity["parallelSessions"] {
   return { overlapEvents, maxConcurrent, sessionsInvolved: involved.size };
 }
 
-function longestStreak(days: string[]): number {
-  const sorted = [...new Set(days)].sort();
-  let best = 0;
-  let run = 0;
-  for (let index = 0; index < sorted.length; index += 1) {
-    run = index > 0 && daysBetween(sorted[index - 1]!, sorted[index]!) === 1 ? run + 1 : 1;
-    best = Math.max(best, run);
+function longestStreak(days: string[]): Recap["streak"] {
+  const sorted = days.slice().sort();
+  let best: Recap["streak"] = { days: 0, start: null, end: null };
+  let startIndex = 0;
+  for (const [index, day] of sorted.entries()) {
+    if (index > 0 && daysBetween(sorted[index - 1]!, day) !== 1) startIndex = index;
+    const length = index - startIndex + 1;
+    if (length > best.days) best = { days: length, start: sorted[startIndex]!, end: day };
   }
   return best;
 }
@@ -175,7 +176,7 @@ function sessionSpans(sessions: Session[]): SessionSpan[] {
   });
 }
 
-export function buildActivity(sessions: Session[], clock: Clock): Activity {
+export function buildActivity(sessions: Session[], clock: Clock): { activity: Activity; streak: Recap["streak"] } {
   const daily = new Map<string, { sessions: number; userMessages: number; activeMinutes: number }>();
   const dayRow = (day: string) => {
     let row = daily.get(day);
@@ -311,7 +312,8 @@ export function buildActivity(sessions: Session[], clock: Clock): Activity {
   for (const day of touched) dayRow(day);
   const activeDays = [...daily].filter(([day, row]) => row.sessions > 0 || row.userMessages > 0 || row.activeMinutes > 0 || touched.has(day)).map(([day]) => day);
   activity.activeDays = activeDays.length;
-  activity.longestStreakDays = longestStreak(activeDays);
+  const streak = longestStreak(activeDays);
+  activity.longestStreakDays = streak.days;
   activity.filesModified = files.size;
   activity.daily = continuousDays(daily.keys(), MAX_DAYS).map((day) => ({
     day,
@@ -335,5 +337,5 @@ export function buildActivity(sessions: Session[], clock: Clock): Activity {
   activity.features.mcpServers = toCounts(mcpServers);
   activity.features.skills = toCounts(skills);
   activity.features.slashCommands = toCounts(slashCommands);
-  return activity;
+  return { activity, streak };
 }

@@ -12,7 +12,7 @@ registerCardStyle({
     const SHARE = kit.share;
     const T = D.totals, R = D.rhythm, V = D.voice, U = D.usage || {}, SH = D.shell || {};
     const YEAR = D.range.to.slice(0, 4);
-    const rangeLabel = `${dshort(D.range.from)} – ${dshort(D.range.to)}`;
+    const rangeLabel = kit.dateRangeLabel(D.range.from, D.range.to);
     const activeDay = (d) => d.prompts > 0 || d.minutes > 0;
     const priced = U.priced !== false && U.usd != null;
     const MIN = 22; // px floor for any text at u = 1
@@ -136,7 +136,7 @@ registerCardStyle({
       if (chKey === "findings") tagEnd += 14 * u + 4 * 30 * u;
       const no = String(ORDER.indexOf(id) + 1).padStart(2, "0");
       const right = W - m - 82 * u, room = right - tagEnd - 30 * u;
-      const full = `${rangeLabel.toUpperCase()}, ${YEAR}  ·  SHEET ${no}`, short = `${rangeLabel.toUpperCase()}, ${YEAR}`;
+      const full = `${rangeLabel.toUpperCase()}  ·  SHEET ${no}`, short = rangeLabel.toUpperCase();
       const hdr = tw(full, "mono", 24 * u, 0.1) <= room ? full : tw(short, "mono", 24 * u, 0.1) <= room ? short : `SHEET ${no}`;
       fr.append(tx(c, right, hy + 8.5 * u, hdr, { a: "end", size: 24 * u, ls: 0.1, fill: "var(--ink-2)" }));
       c.art.append(fr, tag);
@@ -549,7 +549,7 @@ registerCardStyle({
       return { head: h("div", {}, k, big, p), extra: bd, artMin: 0.32, split: 0.46, legend: "solid = the streak",
         art(w, hgt) {
           const u = c.u, svg = box(w, hgt);
-          const firstDow = (new Date(D.range.from + "T12:00:00Z").getUTCDay() + 6) % 7, n = D.daily.length;
+          const firstDow = (new Date((D.daily[0]?.day ?? D.range.from) + "T12:00:00Z").getUTCDay() + 6) % 7, n = D.daily.length;
           const weeks = Math.ceil((n + firstDow) / 7);
           // choose: weeks as rows (7 columns) or weeks as columns (7 rows), in 1..4 bands, for the biggest cells
           let best = null;
@@ -1100,7 +1100,7 @@ registerCardStyle({
 
     // 20. summary ---------------------------------------------------------
     card({ id: "summary", title: "Summary", ch: "findings", dur: 9000, bigMark: true }, (c) => {
-      const k = lab(`Logbook summary · ${YEAR}`);
+      const k = lab(D.range.from.startsWith(YEAR) ? `Logbook summary · ${YEAR}` : "Logbook summary");
       const dd = `${D.range.days} ${D.range.days === 1 ? "day" : "days"}`;
       const tt = c.mode === "side" ? h("div", {}, hero(c, "My last", 210, 90), hero(c, dd, 210, 90, { mt: 0 })) : hero(c, `My last ${dd}`, c.tall ? 170 : 140, 70);
       const n = note(c, "with AI, logged.", c.mode === "side" ? 84 : c.tall ? 80 : 60);
