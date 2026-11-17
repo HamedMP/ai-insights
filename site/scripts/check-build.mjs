@@ -13,7 +13,10 @@ const site = new URL("../", import.meta.url).pathname
 const redirect = process.argv.includes("--redirect")
 const roots = redirect ? [join(site, "pages-redirect")] : [join(site, ".next/server/app"), join(site, ".next/static")]
 const REMOTE = /^(?:https?:)?\/\//i
-const TRACKERS = /\b(?:googletagmanager|google-analytics|posthog|plausible\.io|segment\.com|vercel-insights|vitals\.vercel-insights|cdn\.seline\.com|hotjar|clarity\.ms)\b/i
+// PostHog's own library is bundled and talks only to the same-origin /relay rewrite (next.config.ts), so its code may
+// appear in JS chunks; a page that names a PostHog host in its HTML still fails.
+const POSTHOG_HOST = /\b[a-z-]*\.?i\.posthog\.com\b|\bposthog\.com\/static\b/i
+const TRACKERS = /\b(?:googletagmanager|google-analytics|plausible\.io|segment\.com|vercel-insights|vitals\.vercel-insights|cdn\.seline\.com|hotjar|clarity\.ms)\b/i
 
 /** Same rule as lib/auth-config.ts clerkHosts(). */
 function clerkHosts() {
@@ -55,6 +58,7 @@ function check(path) {
   const rel = path.slice(site.length)
   if (TRACKERS.test(text)) problems.push(`${rel}: mentions a tracker`)
   if (path.endsWith(".html")) {
+    if (POSTHOG_HOST.test(text)) problems.push(`${rel}: names a PostHog host; use the /relay rewrite`)
     for (const match of text.matchAll(/<(script|link|img|source|iframe|video|audio|embed|object)\b[^>]*?\s(?:src|href|srcset|poster|data)="([^"]*)"/gi)) {
       const [, tag, url] = match
       if (tag.toLowerCase() === "link" && /rel="(?:canonical|alternate)"/.test(match[0])) continue

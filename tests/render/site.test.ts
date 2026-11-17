@@ -39,7 +39,8 @@ describe("the public site", () => {
   it("loads nothing from other hosts: no remote scripts, styles, fonts or analytics", () => {
     const site = JSON.parse(read("site/package.json"));
     const deps = Object.keys({ ...site.dependencies, ...site.devDependencies });
-    expect(deps.filter((name) => /analytics|posthog|plausible|segment|gtag|sentry|vercel\/speed/i.test(name))).toEqual([]);
+    // The one analytics library is PostHog, sent first party through /relay (tests/site/analytics.test.ts).
+    expect(deps.filter((name) => /analytics|posthog|plausible|segment|gtag|sentry|vercel\/speed/i.test(name))).toEqual(["posthog-js"]);
     for (const path of SITE_SOURCES) {
       const text = read(path);
       expect(text, path).not.toMatch(/next\/font\/google|fetch\(\s*["'`]https?:|<script[^>]+src=["'`]https?:|@import\s+url\(\s*["']?https?:|url\(\s*["']?https?:/);
