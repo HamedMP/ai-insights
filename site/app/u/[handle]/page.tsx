@@ -17,7 +17,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const entry = await loadProfile(handle)
   if (!entry || entry === "error") return { title: "AI Insights", robots: { index: false } }
   const title = `${entry.displayName}'s AI Insights: find out yours`
-  const url = new URL(`u/${entry.handle}/`, SITE_URL).toString()
+  const url = new URL(`u/${entry.handle}`, SITE_URL).toString()
   const description = `${entry.displayName}'s AI coding recap (self-reported). Find out yours with npx ai-insights.`
   return {
     title,
@@ -42,7 +42,7 @@ export default async function ProfilePage({ params }: Props) {
         <div className="relative mx-auto flex max-w-6xl flex-col items-center gap-10 px-4 pt-8 pb-20 md:px-8 md:pt-14">
           <StatsCard stats={entry.stats} />
           <p className="-mt-6 font-mono text-[11px] text-muted-foreground">
-            @{entry.handle} · self-reported · <a className="underline-offset-4 hover:underline" href={`${BASE}/leaderboard/`}>see the leaderboard</a>
+            @{entry.handle} · self-reported · <a className="underline-offset-4 hover:underline" href={`${BASE}/leaderboard`}>see the leaderboard</a>
           </p>
           <FindOutYours note="Published by its owner from their own AI Insights report. The numbers are self-reported." />
         </div>

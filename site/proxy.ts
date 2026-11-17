@@ -16,21 +16,7 @@ function withHeaders(response: Response | NextResponse | undefined | null | void
 // Without Clerk keys the site runs signed-out only: no Clerk code runs and no Clerk host is allowed.
 const clerk = serverAuthEnabled() ? clerkMiddleware(satelliteOptions()) : null
 
-/** Page URLs end in "/" (trailingSlash), redirected here because next.config skips it for the /relay rewrite. */
-function slashRedirect(request: NextRequest): NextResponse | null {
-  const { pathname } = request.nextUrl
-  if (pathname.endsWith("/") || /^\/(?:relay|api|__clerk|_next)(?:\/|$)/.test(pathname)) return null
-  const last = pathname.slice(pathname.lastIndexOf("/") + 1)
-  if (last.includes(".") || last === "opengraph-image") return null
-  // Built from the raw URL: NextURL normalises the trailing slash away again when serialised.
-  const url = new URL(request.url)
-  url.pathname = `${pathname}/`
-  return NextResponse.redirect(url, 308)
-}
-
 export default async function proxy(request: NextRequest, event: NextFetchEvent) {
-  const redirect = slashRedirect(request)
-  if (redirect) return withHeaders(redirect)
   if (!clerk) return withHeaders(NextResponse.next())
   return withHeaders(await clerk(request, event))
 }
