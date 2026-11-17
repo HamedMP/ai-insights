@@ -57,6 +57,12 @@ const code = await runNudge(process.argv.slice(2), {
 process.exitCode = code;
 `;
 
+// Shell form, because Claude Code runs it with sh, Git Bash, or PowerShell on Windows without Git Bash, and
+// Codex through its shell. `exit 0` after `;` means the same in all of them, so a missing `node` ends the hook
+// cleanly instead of a "hook error" notice every session. The spaces around `;` keep cmd.exe, which does not
+// separate commands with it, passing it to node as a stray argument that the script ignores.
+const NUDGE_COMMAND = 'node "${CLAUDE_PLUGIN_ROOT}/hooks/nudge.mjs" --format hook ; exit 0';
+
 function compileHook(path) {
   const source = readFileSync(join(ROOT, path), "utf8");
   const { outputText } = ts.transpileModule(source, {
@@ -174,7 +180,7 @@ function render() {
       description: "Once a month, a one-line reminder when an AI Insights review is due",
       hooks: {
         SessionStart: [
-          { matcher: "startup", hooks: [{ type: "command", command: 'node "${CLAUDE_PLUGIN_ROOT}/hooks/nudge.mjs" --format hook', timeout: 5 }] },
+          { matcher: "startup", hooks: [{ type: "command", command: NUDGE_COMMAND, timeout: 5 }] },
         ],
       },
     }),

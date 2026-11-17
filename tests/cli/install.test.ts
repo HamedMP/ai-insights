@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { AGENT_LABELS, detectAgents, type AgentStatus } from "../../src/cli/agents.js";
 import { executePlans, installPlan, uninstallPlan } from "../../src/cli/install.js";
+import { CODEX_HOOK_NOTE } from "../../src/cli/install-command.js";
 import { OFFER_FILE } from "../../src/cli/install-offer.js";
 import { run, type CliDeps } from "../../src/cli/main.js";
 import type { Answer } from "../../src/cli/open.js";
@@ -220,6 +221,15 @@ describe("the offer after a normal run", () => {
     expect(out).toContain("analyze-ai-usage");
     expect(out).toContain("ai-insights-setup) and a once-a-month reminder");
     expect(spawned).toHaveLength(4);
+    expect(out).toContain("Codex runs the reminder only after you approve it in /hooks.");
+    expect(out).toContain(CODEX_HOOK_NOTE);
+  });
+
+  it("says nothing about Codex hooks when only Claude Code is set up", async () => {
+    answers = ["yes"];
+    const claudeOnly = async () => [agent("claude-code"), agent("codex", { present: false })];
+    await run(["--no-open"], deps({ detectAgents: claudeOnly }));
+    expect(out).not.toContain("/hooks");
   });
 
   it("remembers a no for 30 days, then asks again", async () => {

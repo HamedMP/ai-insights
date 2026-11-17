@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { mkdir, readFile, utimes, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { run } from "../../src/cli/main.js";
 import { NUDGE_FILE, NUDGE_TEXT, isDue, takeNudge } from "../../src/nudge/nudge.js";
@@ -103,7 +103,19 @@ describe("the plugin's hook script", () => {
   it("is registered for new sessions only, in the file both Claude Code and Codex read", async () => {
     const hooks = JSON.parse(await readFile(join(import.meta.dirname, "../../harness/ai-insights/hooks/hooks.json"), "utf8"));
     expect(hooks.hooks.SessionStart).toEqual([
-      { matcher: "startup", hooks: [{ type: "command", command: 'node "${CLAUDE_PLUGIN_ROOT}/hooks/nudge.mjs" --format hook', timeout: 5 }] },
+      { matcher: "startup", hooks: [{ type: "command", command: 'node "${CLAUDE_PLUGIN_ROOT}/hooks/nudge.mjs" --format hook ; exit 0', timeout: 5 }] },
     ]);
+  });
+
+  it.runIf(process.platform !== "win32")("ends cleanly and silently when node is not on the hook's PATH, so no hook error shows", async () => {
+    const hooks = JSON.parse(await readFile(join(import.meta.dirname, "../../harness/ai-insights/hooks/hooks.json"), "utf8"));
+    const command: string = hooks.hooks.SessionStart[0].hooks[0].command;
+    const root = join(import.meta.dirname, "../../harness/ai-insights");
+    const missing = spawnSync("/bin/sh", ["-c", command], { env: { PATH: join(home, "empty-bin"), CLAUDE_PLUGIN_ROOT: root, AI_INSIGHTS_HOME: home }, encoding: "utf8" });
+    expect(missing.status).toBe(0);
+    expect(missing.stdout).toBe("");
+    const present = spawnSync("/bin/sh", ["-c", command], { env: { PATH: dirname(process.execPath), CLAUDE_PLUGIN_ROOT: root, AI_INSIGHTS_HOME: home }, encoding: "utf8" });
+    expect(present.status).toBe(0);
+    expect(JSON.parse(present.stdout)).toEqual({ systemMessage: NUDGE_TEXT });
   });
 });

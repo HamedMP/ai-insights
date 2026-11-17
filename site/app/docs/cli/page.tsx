@@ -46,6 +46,7 @@ ai-insights nudge              print a line when a monthly review is due`}</Code
       <Code label="Output, after the report" copy={false}>{`Add AI Insights to Claude Code and Codex? It installs the ai-insights plugin:
 the MCP server, three skills (analyze-ai-usage, ai-insights-coach,
 ai-insights-setup) and a once-a-month reminder when a review is due.
+Codex runs the reminder only after you approve it in /hooks.
 Each review saves your sessions' stats and prompts in ~/.ai-insights,
 so they outlast agents that delete old transcripts.
 Install it now? [Y/n]`}</Code>
