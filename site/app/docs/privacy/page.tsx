@@ -181,9 +181,14 @@ export default function Privacy() {
         <li>It records no sessions, captures no typed text, has autocapture off, and honours Do Not Track.</li>
       </ul>
       <p>
-        The sign-in scripts load on the share, leaderboard, profile and sign-in pages. On the landing page and these docs they load
-        only in a browser that has signed in here before, to show your account menu; anyone else loads nothing from the sign-in
-        provider there.
+        The sign-in scripts always load on the sign-in page. On every other page they load only in a browser that has signed in here
+        before, to show your account menu, your standing and the Publish form; anyone else loads nothing from the sign-in provider.
+      </p>
+      <p>
+        To recognise someone already signed in to Matrix OS, the share, leaderboard and profile pages check with the Matrix OS sign-in on a
+        browser&apos;s first visit. After that check a signed-out browser keeps a first-party, HttpOnly cookie, <code>aii_auth_checked</code>,
+        for one day, so the next visits skip it. It holds only the value <code>1</code>: no identifier. The sign-in provider sets its own cookies
+        on ai-insights.app, and the referral cookie is described under <DocLink href="/docs/sharing#referrals">Referrals</DocLink>.
       </p>
 
       <H2 id="removing">Removing what you published</H2>
