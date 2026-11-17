@@ -26,7 +26,7 @@ One self-contained HTML page on your disk, in three parts.
 - **Three styles:** Pop (the default), Instrument panel and Sticker sheet.
 - **Four shapes:** 1:1, 9:16, 4:5 and 16:9. Each card is laid out again for the shape, so nothing is cropped.
 - **A card studio:** pick and order the cards, choose where you will post (X, Instagram feed, Reels, Stories, TikTok, LinkedIn, YouTube Shorts) and see whether the length fits.
-- **Export in the page:** an MP4 video (in Chromium browsers today; other browsers get a terminal recipe using headless Chrome and ffmpeg) or PNG images.
+- **Export in the page:** an MP4 video (in Chromium browsers today; other browsers get a terminal recipe using headless Chrome and ffmpeg), PNG images, or a square PDF with one card per page for a LinkedIn carousel.
 - **Share:** X and LinkedIn open with a caption ready; Instagram and TikTok or Shorts get the file saved and the caption copied; your system share sheet where the browser has one.
 
 Cards hold counts and a few allowlisted words only: no prompts, file or project names, paths or session ids. Every card carries the "AI Insights by Matrix OS" mark by default (you can turn it off), and the last card shows how to make your own. The launch hashtag is `#MyAIInsights`.

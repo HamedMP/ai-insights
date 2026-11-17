@@ -487,3 +487,7 @@ dl.defs dd { margin: 0; color: var(--muted); }
   .hbar.cause .t { grid-area: t; }
   .ratio:last-child:nth-child(odd) { grid-column: span 2; }
 }
+.pdf-hint { margin: 4px 0 8px; color: var(--muted); max-width: 720px; }
+.pdf-hint b { color: var(--ink); font-weight: 650; }
+.pdf-hint[hidden], .studio-bar .field[hidden] { display: none; }
+.export-panel .pdf-hint { margin: 0 0 10px; }
