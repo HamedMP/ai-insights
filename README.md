@@ -111,6 +111,7 @@ It can only look back as far as your agents keep their files. Claude Code keeps 
 ## Privacy
 
 - **Local only.** No network calls, no telemetry, no account. The report is one HTML file whose Content-Security-Policy (`default-src 'none'`) stops it loading or sending anything.
+- **Share links only when you make one.** The report's "Share your stats" box can build a link to a card on the AI Insights site. The link carries only aggregate numbers (an optional display name, the period, sessions, tokens, estimated spend, active days, longest streak, each agent's share of sessions) and one fun-fact line, in the URL fragment, which browsers do not send to the site. It holds no project names, paths or prompts, the box shows every line it contains before you copy it, and nothing is sent unless you copy or click it yourself.
 - **Share-safe cards.** Cards and captions are built only from counts, allowlisted words and public program, model and agent names. The private analysis never reaches a card.
 - **Your agent does the analysis.** AI Insights never calls a model API. The judgement runs in the agent you already use, under your existing account and settings.
 - **Redaction.** Before anything is stored or shown, AI Insights redacts common secret formats from prompts, commands and excerpts: API keys, bearer tokens, private keys, `PASSWORD=`-style assignments and email addresses. It also shortens home-folder paths to `~`. Redaction is pattern-based, so it can miss an unusual secret, and the skills tell your agent never to copy one into its notes.

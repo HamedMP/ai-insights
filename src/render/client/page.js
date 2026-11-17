@@ -318,7 +318,42 @@ if (RC) {
       h("div", { class: "field timebox" }, h("span", {}, "Length"), timeTxt, meter)),
     warn,
     h("div", { class: "studio-actions" }, bVideo, bPngs, bText, bPreview, bAll, bReset, countTxt),
-    exportPanel, cliBox, wall)));
+    exportPanel, statsLink(), cliBox, wall)));
+}
+/**
+ * "Share your stats": a link to the site's /share page with aggregate numbers in its fragment. The person sees
+ * every line the link carries before copying it; nothing is sent, the name is not stored, and fragments never
+ * reach a server.
+ */
+function statsLink() {
+  const nameIn = h("input", { class: "slink-name", type: "text", maxlength: String(ShareLink.LIMITS.name), placeholder: "Your name (optional)", "aria-label": "Display name for the link", autocomplete: "off", spellcheck: "false" });
+  const list = h("ul", { class: "slink-list" });
+  const preview = h("code", { class: "slink-url" });
+  const status = h("p", { class: "share-status small", role: "status" });
+  let link = "";
+  const post = () => `My AI coding, recapped: ${link}\nFind out yours: ${SHARE.command}\n${SHARE.hashtag}`;
+  const refresh = () => {
+    const p = ShareLink.payload(RC, nameIn.value);
+    link = ShareLink.url(p, SHARE.siteUrl);
+    list.replaceChildren(...ShareLink.describe(p, HARNESS_NAMES).map((line) => h("li", {}, line)));
+    preview.textContent = link;
+  };
+  nameIn.addEventListener("input", refresh);
+  const open = (url) => { const w = window.open(url, "_blank", "noopener,noreferrer"); if (!w) status.textContent = "Your browser blocked the new tab. Copy the link instead."; };
+  const btn = (label, fn, cls = "btn small") => h("button", { class: cls, type: "button", onclick: fn }, label);
+  refresh();
+  return h("div", { class: "slink share", id: "share-stats" },
+    h("div", { class: "share-h" }, "Share your stats"),
+    h("p", { class: "muted small" }, "A link to a card on the AI Insights site with these numbers. It holds only the lines below, in the link itself: no project names, prompts or paths. Nothing is uploaded; the page reads the numbers from the link in the viewer's browser."),
+    nameIn,
+    h("div", { class: "slink-what" }, h("strong", { class: "small" }, "The link contains exactly:"), list),
+    preview,
+    h("div", { class: "share-row" },
+      btn("Copy link", () => copy(link, "Link copied"), "btn small primary"),
+      btn("X", () => open(INTENT.x(post()))),
+      btn("LinkedIn", () => open(INTENT.linkedin(post()))),
+      btn("Open it", () => open(link))),
+    status);
 }
 function setRatio(r) { if (!CardKit.RATIOS[r]) return; S.ratio = r; saveStudio(); buildWall(); refreshStudio(); heroPlayer.reload(); }
 let tiles = new Map();

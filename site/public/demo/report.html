@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'sha256-/ACfysQKnPM6e7cmgk98mMTBklvimUZ33hCtKYXusK4='; img-src data: blob:; font-src data:; media-src blob:; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'sha256-yAaxbMPjQ+RcnK8vx2pwpurZk1xBng/tfB9fpmwIkaI='; img-src data: blob:; font-src data:; media-src blob:; base-uri 'none'; form-action 'none'">
 <meta name="color-scheme" content="light">
 <meta name="referrer" content="no-referrer">
 <meta name="generator" content="AI Insights">
@@ -530,6 +530,11 @@ html.capture #root { position: relative; width: 100vw; height: 100vh; overflow: 
 .share-h { font: 600 11.5px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
 .share-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .share-status { margin: 10px 0 0; min-height: 1.4em; }
+.slink { max-width: 720px; }
+.slink-name { display: block; width: min(320px, 100%); box-sizing: border-box; margin: 10px 0; border: 1.5px solid var(--ink); background: var(--surface); border-radius: 99px; padding: 8px 14px; font: 600 14px/1.2 var(--text); color: var(--ink); }
+.slink-what { margin: 6px 0 8px; }
+.slink-list { margin: 6px 0 0; padding-left: 18px; font-size: 13.5px; line-height: 1.5; }
+.slink-url { display: block; margin: 0 0 10px; padding: 8px 10px; border-radius: 8px; background: var(--surface-2); font: 12px/1.4 var(--mono); overflow-wrap: anywhere; max-height: 4.2em; overflow: hidden; }
 .theater.on { grid-auto-flow: row; align-content: center; gap: 12px; }
 .th-share { width: min(720px, calc(100vw - 32px)); background: var(--surface); color: var(--ink); border-radius: 16px; padding: 14px 16px; }
 .th-share:empty { display: none; }
@@ -4200,6 +4205,88 @@ const Exporter = (() => {
 })();
 
 ;
+/* sharelink.js: the "Share your stats" link. Builds a small versioned payload from the recap's aggregate numbers
+   and puts it in the URL fragment of the site's /share page. Fragments never reach a server, and nothing here
+   sends anything: the person copies or clicks the link. site/lib/share.ts decodes and validates the same format;
+   tests/render/share-link.test.ts proves the two agree. */
+const ShareLink = (() => {
+  "use strict";
+  const V = 1;
+  const LIMITS = Object.freeze({ name: 40, fact: 120, agents: 8, sessions: 1e7, tokens: 1e13, usd: 1e7, days: 3660 });
+  // Control characters and bidi overrides: a name must not reorder or hide the text around it on the card.
+  const UNSAFE = /[\u0000-\u001f\u007f-\u009f​-‏‪-‮⁠-⁩﻿]/g;
+  const clean = (value, max) => Array.from(String(value == null ? "" : value).replace(/\s+/g, " ").replace(UNSAFE, "").trim()).slice(0, max).join("");
+  const num = (value, max) => { const n = Number(value); return Number.isFinite(n) ? Math.min(max, Math.max(0, n)) : 0; };
+  const whole = (value, max) => Math.round(num(value, max));
+  const isDay = (value) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
+  const fmt = (n) => Math.round(n).toLocaleString("en-US");
+  const short = (n) => (n >= 1e9 ? `${(n / 1e9).toFixed(1)}B` : n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}K` : fmt(n));
+
+  /** One line from the recap's numbers. Built from counts only, never from anything the person wrote. */
+  function funFact(rc) {
+    const p = (rc && rc.parallel) || {}, voice = (rc && rc.voice) || {}, shell = (rc && rc.shell) || {}, rhythm = (rc && rc.rhythm) || {};
+    const please = whole(voice.polite && voice.polite.please, 1e7);
+    if (whole(p.max, 1000) >= 3) return `Ran ${whole(p.max, 1000)} agents at once.`;
+    if (whole(shell.rmrf, 1e7) >= 5) return `Typed rm -rf ${fmt(whole(shell.rmrf, 1e7))} times and lived.`;
+    if (please >= 10) return `Said please to an AI ${fmt(please)} times.`;
+    if (rc && rc.bigDay && whole(rc.bigDay.prompts, 1e7) > 0) return `Biggest day: ${fmt(whole(rc.bigDay.prompts, 1e7))} prompts.`;
+    if (rhythm.verdict && rhythm.verdict.label) return `${clean(rhythm.verdict.label, 30)}, peaking at ${whole(rhythm.peakHour, 23)}:00.`;
+    return "";
+  }
+
+  /** The payload: aggregate numbers and one fun fact. Nothing else from the history goes in. */
+  function payload(rc, name) {
+    if (!rc) return null;
+    const T = rc.totals || {}, U = rc.usage || {}, range = rc.range || {};
+    const harnesses = Array.isArray(T.harnesses) ? T.harnesses : [];
+    const total = harnesses.reduce((a, x) => a + num(x && x.sessions, LIMITS.sessions), 0);
+    const agents = harnesses
+      .filter((x) => x && /^[a-z0-9-]{1,20}$/.test(String(x.key)) && num(x.sessions, LIMITS.sessions) > 0)
+      .map((x) => ({ k: String(x.key), p: total ? whole((num(x.sessions, LIMITS.sessions) / total) * 100, 100) : 0 }))
+      .sort((a, b) => b.p - a.p)
+      .slice(0, LIMITS.agents);
+    const out = {
+      v: V,
+      name: clean(name, LIMITS.name),
+      from: isDay(range.from) ? range.from : "",
+      to: isDay(range.to) ? range.to : "",
+      sessions: whole(T.sessions, LIMITS.sessions),
+      tokens: whole(U.tokens, LIMITS.tokens),
+      usd: typeof U.usd === "number" && U.usd > 0 ? Math.round(num(U.usd, LIMITS.usd) * 100) / 100 : null,
+      activeDays: whole(T.activeDays, LIMITS.days),
+      streak: whole(rc.streak && rc.streak.days, LIMITS.days),
+      agents,
+      fact: clean(funFact(rc), LIMITS.fact),
+    };
+    return out;
+  }
+
+  function encode(p) {
+    const bytes = new TextEncoder().encode(JSON.stringify(p));
+    let bin = "";
+    for (const b of bytes) bin += String.fromCharCode(b);
+    return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+
+  const url = (p, base) => `${base.replace(/\/?$/, "/")}share/#${encode(p)}`;
+
+  /** What the link carries, in plain words, shown before the person copies it. */
+  function describe(p, names = {}) {
+    const agentList = p.agents.map((a) => `${names[a.k] || a.k} ${a.p}%`).join(", ");
+    return [
+      p.name ? `Name: ${p.name}` : "No name (the card says “Someone”)",
+      `Period: ${p.from} to ${p.to}`,
+      `${fmt(p.sessions)} sessions, ${short(p.tokens)} tokens${p.usd != null ? `, about $${fmt(p.usd)} estimated spend` : ""}`,
+      `${fmt(p.activeDays)} active days, longest streak ${fmt(p.streak)} days`,
+      agentList ? `Agents: ${agentList}` : null,
+      p.fact ? `Fun fact: ${p.fact}` : null,
+    ].filter(Boolean);
+  }
+
+  return { V, LIMITS, payload, encode, url, describe, funFact, clean };
+})();
+
+;
 /* page.js: the report page. Hero + story player, card studio, the private analysis, what to change, over time.
    Reads one JSON block (#report-data), built by src/render/view.ts. Cards and exports read only VIEW.recap. */
 (() => {
@@ -4520,7 +4607,42 @@ if (RC) {
       h("div", { class: "field timebox" }, h("span", {}, "Length"), timeTxt, meter)),
     warn,
     h("div", { class: "studio-actions" }, bVideo, bPngs, bText, bPreview, bAll, bReset, countTxt),
-    exportPanel, cliBox, wall)));
+    exportPanel, statsLink(), cliBox, wall)));
+}
+/**
+ * "Share your stats": a link to the site's /share page with aggregate numbers in its fragment. The person sees
+ * every line the link carries before copying it; nothing is sent, the name is not stored, and fragments never
+ * reach a server.
+ */
+function statsLink() {
+  const nameIn = h("input", { class: "slink-name", type: "text", maxlength: String(ShareLink.LIMITS.name), placeholder: "Your name (optional)", "aria-label": "Display name for the link", autocomplete: "off", spellcheck: "false" });
+  const list = h("ul", { class: "slink-list" });
+  const preview = h("code", { class: "slink-url" });
+  const status = h("p", { class: "share-status small", role: "status" });
+  let link = "";
+  const post = () => `My AI coding, recapped: ${link}\nFind out yours: ${SHARE.command}\n${SHARE.hashtag}`;
+  const refresh = () => {
+    const p = ShareLink.payload(RC, nameIn.value);
+    link = ShareLink.url(p, SHARE.siteUrl);
+    list.replaceChildren(...ShareLink.describe(p, HARNESS_NAMES).map((line) => h("li", {}, line)));
+    preview.textContent = link;
+  };
+  nameIn.addEventListener("input", refresh);
+  const open = (url) => { const w = window.open(url, "_blank", "noopener,noreferrer"); if (!w) status.textContent = "Your browser blocked the new tab. Copy the link instead."; };
+  const btn = (label, fn, cls = "btn small") => h("button", { class: cls, type: "button", onclick: fn }, label);
+  refresh();
+  return h("div", { class: "slink share", id: "share-stats" },
+    h("div", { class: "share-h" }, "Share your stats"),
+    h("p", { class: "muted small" }, "A link to a card on the AI Insights site with these numbers. It holds only the lines below, in the link itself: no project names, prompts or paths. Nothing is uploaded; the page reads the numbers from the link in the viewer's browser."),
+    nameIn,
+    h("div", { class: "slink-what" }, h("strong", { class: "small" }, "The link contains exactly:"), list),
+    preview,
+    h("div", { class: "share-row" },
+      btn("Copy link", () => copy(link, "Link copied"), "btn small primary"),
+      btn("X", () => open(INTENT.x(post()))),
+      btn("LinkedIn", () => open(INTENT.linkedin(post()))),
+      btn("Open it", () => open(link))),
+    status);
 }
 function setRatio(r) { if (!CardKit.RATIOS[r]) return; S.ratio = r; saveStudio(); buildWall(); refreshStudio(); heroPlayer.reload(); }
 let tiles = new Map();
