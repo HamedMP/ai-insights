@@ -299,6 +299,8 @@ export interface PageView {
   causes: CausesView | null;
   /** The work ratios in their fixed order; null in older reports. */
   ratios: RatioView[] | null;
+  /** The random device id the share link carries (RenderExtras.deviceId); null without one. */
+  deviceId: string | null;
 }
 
 export interface CausesView {
@@ -1291,6 +1293,7 @@ export function buildView(input: RenderInput, zone: string, extras: RenderExtras
     retention,
     causes: causesView(report, zone, findings),
     ratios: ratiosView(report),
+    deviceId: typeof extras.deviceId === "string" && /^[0-9a-f]{32}$/.test(extras.deviceId) ? extras.deviceId : null,
   };
 }
 

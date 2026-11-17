@@ -19,6 +19,10 @@ const QUESTIONS: Array<{ q: string; a: React.ReactNode }> = [
     a: "Only by choice, on this website. Make a share link from your report, open it, sign in with a Matrix account and press Publish. You see exactly what becomes public first: your name and handle, the period, sessions, tokens, estimated spend, active days, streak, agent shares and the fun fact. The numbers are self-reported and not verified. Remove my entry deletes it.",
   },
   {
+    q: "I use agents on more than one computer. Can I publish them all?",
+    a: "Yes. Run AI Insights on each computer and publish from each report while signed in to the same account. Each computer keeps its own numbers and your profile adds them up: sessions, tokens and spend are summed, active days and streaks are combined day by day, and the leaderboard ranks the total. Computers are told apart by a random id AI Insights makes once per installation, never by the computer's name or hardware. You can name a computer in the report; the name is public only if you tick that box when you publish, otherwise visitors see Device 1, Device 2. Publishing again from a computer replaces only its numbers. To remove one computer, open your profile while signed in and press Remove device; Remove everything deletes your whole entry.",
+  },
+  {
     q: "Which agents does it read?",
     a: "Claude Code, Codex, OpenCode, Pi, Cursor and Gemini CLI, from where each keeps its history. Cursor's local transcripts hold no token counts, so its sessions add no tokens or cost. Gemini CLI support follows its published format but has not been tried on real history yet.",
   },

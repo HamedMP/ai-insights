@@ -11,6 +11,14 @@ const RECAP = JSON.parse(readFileSync(new URL("./recap-fixture.json", import.met
 const withRecap = (report: Report = makeReport(), recap: Partial<Recap> = {}): Report => ({ ...report, recap: { ...RECAP, ...recap } });
 const all = (view: ReturnType<typeof buildView>) => [...view.actions.top, ...view.actions.rest];
 
+describe("the device id for the share link", () => {
+  it("passes the store's random device id to the page and drops anything that is not one", () => {
+    expect(buildView(withRecap(), ZONE, { deviceId: "0123456789abcdef0123456789abcdef" }).deviceId).toBe("0123456789abcdef0123456789abcdef");
+    expect(buildView(withRecap(), ZONE, { deviceId: "alices-macbook.local" }).deviceId).toBeNull();
+    expect(buildView(withRecap(), ZONE).deviceId).toBeNull();
+  });
+});
+
 describe("the share-safe recap", () => {
   it("copies only the fields it knows, so a field the data layer adds never reaches a card by accident", () => {
     const leaky = { ...RECAP, secretPath: "/home/alice/acme", voice: { ...RECAP.voice, lastPrompt: "deploy acme to prod" } } as unknown as Recap;

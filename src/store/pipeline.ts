@@ -99,6 +99,12 @@ export async function renderFromScan(deps: PipelineDeps, result: ScanResult): Pr
   const built = await buildFromScan(deps, result);
   const now = deps.now?.() ?? new Date();
   const extras = await recordRun(deps.store, built.report, now);
+  try {
+    extras.deviceId = await deps.store.deviceId();
+  } catch (error) {
+    // An unwritable store loses only the device id: the share link then publishes without one, as before 0.5.
+    if (!(error instanceof Error)) throw error;
+  }
   const html = deps.renderReport(built.report, extras);
   const saved = await deps.store.saveReport(html, built.report, now);
   return { ...saved, ...built, runs: extras.runs ?? [], url: pathToFileURL(saved.htmlPath).href };

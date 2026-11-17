@@ -15,8 +15,8 @@ export default function Sharing() {
       <H2 id="share-links">Share links</H2>
       <p>
         Below the card studio in your report, the &ldquo;Share your stats and cards, join the leaderboard&rdquo; box builds a link to a card page on
-        ai-insights.app. You can type a display name (optional, up to 40 characters). The box lists every line the link contains before you copy
-        it.
+        ai-insights.app. You can type a display name (optional, up to 40 characters) and a name for this computer, such as &ldquo;Work
+        laptop&rdquo; (optional, up to 32 characters). The box lists every line the link contains before you copy it.
       </p>
       <ul>
         <li>
@@ -32,7 +32,8 @@ export default function Sharing() {
         </li>
       </ul>
       <p>
-        Anyone you send the link to sees your card page. Links made by earlier versions, without cards, still open.
+        Anyone you send the link to sees your card page. Links made by earlier versions, without cards or without a device, still open and
+        still publish.
       </p>
 
       <H2 id="publish">Publish to the leaderboard</H2>
@@ -54,7 +55,8 @@ export default function Sharing() {
         </li>
       </ol>
       <p>
-        Publishing again replaces your entry and its cards. To publish newer numbers, run <code>npx ai-insights@latest</code>, make a new share
+        Publishing again from the same computer replaces that computer&apos;s numbers and cards; publishing from another computer adds it (see{" "}
+        <a href="#devices">Several computers</a>). To publish newer numbers, run <code>npx ai-insights@latest</code>, make a new share
         link from the new report, open it and publish.
       </p>
       <Callout title="Self-reported, not verified">
@@ -94,6 +96,54 @@ export default function Sharing() {
       </p>
       <p>
         Your profile shows visitors how many people you brought to AI Insights. Only you, signed in, see the list of who they are.
+      </p>
+
+      <H2 id="devices">Several computers</H2>
+      <p>
+        If you use coding agents on more than one machine, run AI Insights on each and publish from each report while signed in to the same
+        account. Your handle, display name, photo choice and referral credit belong to the account; the numbers belong to each computer.
+      </p>
+      <ul>
+        <li>
+          <strong>How computers are told apart.</strong> Each installation makes a random id once and keeps it in{" "}
+          <code>~/.ai-insights/device.json</code>. The share link carries it. It is never made from the computer&apos;s name, your username or any
+          hardware detail, and it grants nothing by itself (see <a href="/docs/privacy#device-id">The device id</a>).
+        </li>
+        <li>
+          <strong>Republishing</strong> from a computer replaces only that computer&apos;s numbers. A new computer is added. An account holds at most
+          10 computers.
+        </li>
+        <li>
+          <strong>Names.</strong> A computer&apos;s name is public only if you tick &ldquo;Show this computer&apos;s name&rdquo; when you publish, or
+          later on your profile. Otherwise visitors see &ldquo;Device 1&rdquo;, &ldquo;Device 2&rdquo; in the order you first published.
+        </li>
+        <li>
+          <strong>Your first publish from 0.5.</strong> An entry published by an older report has no device. When you publish from 0.5 on a computer
+          you used before, the panel asks whether this is the same computer, so the earlier entry is replaced instead of counted twice.
+        </li>
+      </ul>
+      <p>Your profile leads with the combined numbers, and the leaderboard ranks them, with a small &ldquo;n devices&rdquo; marker:</p>
+      <Table
+        caption="How computers are combined"
+        head={["Number", "Combined as"]}
+        rows={[
+          ["Sessions, tokens, estimated spend", "Added up. Spend adds the computers that had a price."],
+          ["Period", "Earliest first day to latest last day."],
+          ["Active days, longest streak", "Recomputed from the days each computer was active, so a day used on two computers counts once. If a computer did not send its active days, these are lower bounds and the profile says “at least”."],
+          ["Agents", "Each agent's share, weighted by each computer's sessions. Agent arenas add each computer's own estimate."],
+          ["Ratios and earned titles", "Recombined from the counts behind each ratio, then titles are earned again with the same rules. A ratio from an older report without its count is shown only on that computer. Sessions at once is a lower bound, since two computers can run at the same time."],
+          ["Recap cards", "“All devices” shows each card once, from the busiest computer that has it, labelled with that computer; tokens and the streak are rebuilt from the totals. Pick a computer to see its own cards and ratios."],
+        ]}
+      />
+      <Callout title="Same history on two computers">
+        <p>
+          If two computers publish exactly the same period, sessions and tokens, usually because they read one synced home folder, the history is
+          counted once and you are told. Remove one of them. Partly overlapping histories cannot be detected.
+        </p>
+      </Callout>
+      <p>
+        On your profile, signed in, <strong>Your devices</strong> lists each computer with its last publish and its own numbers. You can rename a
+        computer, choose whether its name is public, remove it (its numbers leave the total), or remove everything.
       </p>
 
       <H2 id="referrals">Referrals</H2>
@@ -141,8 +191,10 @@ export default function Sharing() {
 
       <H2 id="remove">Remove your entry</H2>
       <p>
-        Open any share link while signed in and press <strong>Remove my entry</strong> in the publish panel. It deletes your leaderboard entry, which
-        holds your published numbers and cards, so your profile and ranks go with it. Publishing without the photo box ticked removes a photo you showed before.
+        Open any share link while signed in and press <strong>Remove my entry</strong> in the publish panel. It deletes your leaderboard entry and every
+        computer&apos;s numbers and cards, so your profile and ranks go with it. <strong>Remove everything</strong> in Your devices on your profile
+        does the same. To remove one computer only, press <strong>Remove device</strong> next to it there; the last one cannot be removed that
+        way. Publishing without the photo box ticked removes a photo you showed before.
       </p>
     </DocShell>
   )

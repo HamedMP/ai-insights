@@ -3,11 +3,15 @@
    sends anything: the person copies or clicks the link. site/lib/share.ts decodes and validates the same format;
    tests/render/share-link.test.ts proves the two agree.
    v2 adds the recap cards as data: a fixed card key, a short headline and a caption, each built here from counts,
-   dates, agent names and fixed wording only. No card field is ever copied from text the person or a model wrote. */
+   dates, agent names and fixed wording only. No card field is ever copied from text the person or a model wrote.
+   v3 adds what the site needs to keep one entry per machine and add them up: the store's random device id and a
+   name the person typed (or none), the count each ratio is out of, and, unless the person turns it off, which days
+   had activity (dates only, as a bitmap) so the site can combine active days and streaks across machines.
+   Without a device id (an unwritable store) the link is v2, exactly as 0.4 made it. */
 const ShareLink = (() => {
   "use strict";
-  const V = 2;
-  const LIMITS = Object.freeze({ name: 40, fact: 120, agents: 8, sessions: 1e7, tokens: 1e13, usd: 1e7, days: 3660, cards: 16, big: 32, caption: 80, titles: 3, ratio: 1000, fragment: 3800 });
+  const V = 3;
+  const LIMITS = Object.freeze({ deviceName: 32, dayBits: 3660, base: 1e9, name: 40, fact: 120, agents: 8, sessions: 1e7, tokens: 1e13, usd: 1e7, days: 3660, cards: 16, big: 32, caption: 80, titles: 3, ratio: 1000, fragment: 3800 });
   // Control characters and bidi overrides: a name must not reorder or hide the text around it on the card.
   const UNSAFE = /[\u0000-\u001f\u007f-\u009f​-‏‪-‮⁠-⁩﻿]/g;
   const clean = (value, max) => Array.from(String(value == null ? "" : value).replace(/\s+/g, " ").replace(UNSAFE, "").trim()).slice(0, max).join("");
@@ -159,15 +163,42 @@ const ShareLink = (() => {
   });
   const r4 = (n) => Math.round(n * 1e4) / 1e4;
 
-  /** The ratios with a value, as {k, v}. `ratios` is the report view's list (VIEW.ratios); absent in older reports. */
-  function ratioData(ratios) {
+  /**
+   * The ratios with a value, as {k, v}, or in v3 {k, v, n} with n the count the ratio is out of (sessions, tool
+   * calls, clock hours), so the site can weigh one machine's ratio against another's. `ratios` is VIEW.ratios.
+   */
+  function ratioData(ratios, withBase = false) {
     const list = Array.isArray(ratios) ? ratios : [];
     const out = [];
     for (const k of RATIO_KEYS) {
       const r = list.find((x) => x && x.key === k);
-      if (r && typeof r.value === "number" && Number.isFinite(r.value)) out.push({ k, v: r4(num(r.value, LIMITS.ratio)) });
+      if (!r || typeof r.value !== "number" || !Number.isFinite(r.value)) continue;
+      const entry = { k, v: r4(num(r.value, LIMITS.ratio)) };
+      if (withBase) entry.n = Math.round(num(r.denominator, LIMITS.base) * 10) / 10;
+      out.push(entry);
     }
     return out;
+  }
+
+  const dayNumber = (d) => Math.floor(Date.UTC(Number(d.slice(0, 4)), Number(d.slice(5, 7)) - 1, Number(d.slice(8, 10))) / 864e5);
+  const dayString = (n) => new Date(n * 864e5).toISOString().slice(0, 10);
+
+  /**
+   * Which days had activity, as {from, bits}: `from` is the first active day and bit i (least significant first,
+   * eight days a byte, base64url) says whether day from+i had a prompt or active minutes, the same rule as the
+   * recap's streak. Dates only: no counts, no times. Null when no day was active.
+   */
+  function activeDays(rc) {
+    const daily = rc && Array.isArray(rc.daily) ? rc.daily : [];
+    const days = daily.filter((d) => d && isDay(d.day) && (num(d.prompts, 1e9) > 0 || num(d.minutes, 1e9) > 0)).map((d) => dayNumber(d.day)).sort((a, b) => a - b);
+    if (!days.length) return null;
+    const first = days[0];
+    const span = Math.min(LIMITS.dayBits, days[days.length - 1] - first + 1);
+    const bytes = new Uint8Array(Math.ceil(span / 8));
+    for (const n of days) { const i = n - first; if (i < span) bytes[i >> 3] |= 1 << (i & 7); }
+    let bin = "";
+    for (const b of bytes) bin += String.fromCharCode(b);
+    return { from: dayString(first), bits: btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "") };
   }
 
   /** The earned titles as {k, v}: a known title key and the number of the ratio that earned it. Nothing else. */
@@ -210,9 +241,14 @@ const ShareLink = (() => {
     return "";
   }
 
-  /** The payload: aggregate numbers, one fun fact and the cards as data. Nothing else from the history goes in. */
-  function payload(rc, name, ratios) {
+  /**
+   * The payload: aggregate numbers, one fun fact and the cards as data. Nothing else from the history goes in.
+   * `device` is {id, name, days}: the store's random id, the name typed in the share box, and whether to include
+   * which days were active. Without an id the link is v2.
+   */
+  function payload(rc, name, ratios, device) {
     if (!rc) return null;
+    const id = device && typeof device.id === "string" && /^[0-9a-f]{32}$/.test(device.id) ? device.id : null;
     const T = rc.totals || {}, U = rc.usage || {}, range = rc.range || {};
     const harnesses = Array.isArray(T.harnesses) ? T.harnesses : [];
     const total = harnesses.reduce((a, x) => a + num(x && x.sessions, LIMITS.sessions), 0);
@@ -222,7 +258,7 @@ const ShareLink = (() => {
       .sort((a, b) => b.p - a.p)
       .slice(0, LIMITS.agents);
     const out = {
-      v: V,
+      v: id ? V : 2,
       name: clean(name, LIMITS.name),
       from: isDay(range.from) ? range.from : "",
       to: isDay(range.to) ? range.to : "",
@@ -235,8 +271,12 @@ const ShareLink = (() => {
       fact: clean(funFact(rc), LIMITS.fact),
       cards: cards(rc),
       titles: titleData(rc, ratios),
-      ratios: ratioData(ratios),
+      ratios: ratioData(ratios, !!id),
     };
+    if (id) {
+      out.device = { id, name: clean(device.name, LIMITS.deviceName) };
+      out.days = device.days === false ? null : activeDays(rc);
+    }
     // Keep the link comfortably short for chat apps and under the site's limit: drop the last cards until it fits.
     while (out.cards.length && encode(out).length > LIMITS.fragment) out.cards.pop();
     return out;
@@ -253,6 +293,7 @@ const ShareLink = (() => {
 
   const TITLE_NAMES = Object.freeze({ clear_briefer: "The Clear Briefer", hands_on_pilot: "The Hands-On Pilot", architect: "The Architect", improviser: "The Improviser", conductor: "The Conductor", deep_focuser: "The Deep Focuser", context_keeper: "The Context Keeper", deep_diver: "The Deep Diver", smooth_operator: "The Smooth Operator", stress_tester: "The Stress Tester" });
   const RATIO_NAMES = Object.freeze({ correctionsPerSession: "mid-run corrections per session", contextResetShare: "sessions with a context reset", toolErrorRate: "tool-call error rate", planFirstShare: "started with a plan", parallelism: "sessions at once" });
+  const RATIO_BASE = Object.freeze({ correctionsPerSession: "sessions you drove", contextResetShare: "sessions", toolErrorRate: "tool calls", planFirstShare: "sessions that edited files", parallelism: "clock hours" });
   const ratioText = (k, v) => (k === "parallelism" ? `${v.toFixed(1)}×` : k === "correctionsPerSession" ? v.toFixed(2) : `${v > 0 && v < 0.01 ? "<1" : Math.round(v * 100)}%`);
 
   /** What the link carries, in plain words, shown before the person copies it. Every card is listed in full. */
@@ -260,9 +301,14 @@ const ShareLink = (() => {
     const agentList = p.agents.map((a) => `${names[a.k] || a.k} ${a.p}%`).join(", ");
     const cardLines = (p.cards || []).map((c) => `Card “${TITLES[c.k] || c.k}”: ${c.b}${c.c ? `, ${c.c}` : ""}`);
     const titleLine = (p.titles || []).length ? `Earned titles: ${p.titles.map((t) => `${TITLE_NAMES[t.k] || t.k} (${RATIO_NAMES[TITLE_RATIO[t.k]]} ${ratioText(TITLE_RATIO[t.k], t.v)})`).join(", ")}` : null;
-    const ratioLine = (p.ratios || []).length ? `Ratios: ${p.ratios.map((r) => `${RATIO_NAMES[r.k] || r.k} ${ratioText(r.k, r.v)}`).join(", ")}` : null;
+    const ratioLine = (p.ratios || []).length ? `Ratios: ${p.ratios.map((r) => `${RATIO_NAMES[r.k] || r.k} ${ratioText(r.k, r.v)}${typeof r.n === "number" ? ` of ${fmt(r.n)} ${RATIO_BASE[r.k]}` : ""}`).join(", ")}` : null;
+    const deviceLines = p.device ? [
+      `Device: ${p.device.name ? `“${p.device.name}”` : "no name (the site calls it “Device 1”, “Device 2”…)"}, random id ${p.device.id} made by AI Insights, not from this computer's name or hardware`,
+      p.days ? `Which days you were active: ${fmt(daysCount(p.days.bits))} dates from ${p.days.from} on (dates only, no counts or times)` : "Which days you were active: not included",
+    ] : [];
     return [
       p.name ? `Name: ${p.name}` : "No name (the card says “Someone”)",
+      ...deviceLines,
       `Period: ${p.from} to ${p.to}`,
       `${fmt(p.sessions)} sessions, ${short(p.tokens)} tokens${p.usd != null ? `, about $${fmt(p.usd)} estimated spend` : ""}`,
       `${fmt(p.activeDays)} active days, longest streak ${fmt(p.streak)} days`,
@@ -274,5 +320,12 @@ const ShareLink = (() => {
     ].filter(Boolean);
   }
 
-  return { V, LIMITS, CARD_KEYS, TITLES, RATIO_KEYS, TITLE_RATIO, payload, cards, encode, url, describe, funFact, clean };
+  function daysCount(bits) {
+    let n = 0;
+    const bin = atob(String(bits).replace(/-/g, "+").replace(/_/g, "/"));
+    for (let i = 0; i < bin.length; i += 1) for (let b = bin.charCodeAt(i); b; b >>= 1) n += b & 1;
+    return n;
+  }
+
+  return { V, LIMITS, activeDays, daysCount, CARD_KEYS, TITLES, RATIO_KEYS, TITLE_RATIO, payload, cards, encode, url, describe, funFact, clean };
 })();

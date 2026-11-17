@@ -3,12 +3,16 @@
  * (src/render/client/sharelink.js builds it). The fragment is untrusted input: anyone can type one. This module
  * decodes it and accepts only the exact v1 or v2 shape, with every number clamped and every string capped and cleaned.
  * v2 adds the recap cards as data (a fixed key, a headline and a caption); v1 links from older reports keep working.
+ * v3 adds the machine it came from: the report store's random device id and an optional name, the count each ratio
+ * is out of, and optionally which days had activity (a bitmap of dates), so one account can publish from several
+ * machines and the site can add them up (lib/devices.ts). v1 and v2 links keep working and publish as one
+ * "earlier publish" device.
  * Pure TypeScript with no imports, so the package tests can prove it agrees with the report-side encoder, and the
  * signed-in leaderboard validates the same payload on the server.
  */
 
-export const SHARE_VERSION = 2
-export const LIMITS = { name: 40, fact: 120, agents: 8, sessions: 1e7, tokens: 1e13, usd: 1e7, days: 3660, cards: 16, big: 32, caption: 80, titles: 3, ratio: 1000, fragment: 4096 } as const
+export const SHARE_VERSION = 3
+export const LIMITS = { deviceName: 32, dayBits: 3660, base: 1e9, name: 40, fact: 120, agents: 8, sessions: 1e7, tokens: 1e13, usd: 1e7, days: 3660, cards: 16, big: 32, caption: 80, titles: 3, ratio: 1000, fragment: 4096 } as const
 
 export interface SharedAgent {
   /** Harness key, e.g. "claude-code". */
@@ -101,6 +105,8 @@ const isTitleKey = (value: unknown): value is TitleKey => typeof value === "stri
 export interface SharedRatio {
   k: RatioKey
   v: number
+  /** v3: the count the ratio is out of (sessions, tool calls, clock hours), so machines can be weighed together. */
+  n?: number
 }
 export interface SharedTitle {
   k: TitleKey
@@ -108,8 +114,19 @@ export interface SharedTitle {
   v: number
 }
 
+/** v3: the report store's random device id (32 hex characters) and the name the person typed, possibly empty. */
+export interface SharedDevice {
+  id: string
+  name: string
+}
+/** v3: which days had activity. Bit i (least significant first, base64url bytes) is day `from` + i. */
+export interface SharedDays {
+  from: string
+  bits: string
+}
+
 export interface SharedStats {
-  v: 1 | 2
+  v: 1 | 2 | 3
   name: string
   from: string
   to: string
@@ -124,12 +141,18 @@ export interface SharedStats {
   cards?: SharedCard[]
   /** v2 only: titles earned from the ratios, at most LIMITS.titles. */
   titles?: SharedTitle[]
-  /** v2 only: the work ratios that had a value. */
+  /** v2 and v3: the work ratios that had a value (v3 with their base count `n`). */
   ratios?: SharedRatio[]
+  /** v3 only. */
+  device?: SharedDevice
+  /** v3 only: null when the person left the active days out. */
+  days?: SharedDays | null
 }
 
 const KEYS_V1 = ["v", "name", "from", "to", "sessions", "tokens", "usd", "activeDays", "streak", "agents", "fact"]
 const KEYS_V2 = [...KEYS_V1, "cards", "titles", "ratios"]
+const KEYS_V3 = [...KEYS_V2, "device", "days"]
+export const DEVICE_ID = /^[0-9a-f]{32}$/
 const UNSAFE = /[\u0000-\u001f\u007f-\u009f​-‏‪-‮⁠-⁩﻿]/g
 const AGENT_KEY = /^[a-z0-9-]{1,20}$/
 
@@ -176,24 +199,92 @@ function ratioValue(key: RatioKey, value: unknown): number | null {
   return v === null ? null : Math.round(v * 1e4) / 1e4
 }
 
-function exactPair(entry: unknown): Record<string, unknown> | null {
+function exactKeys(entry: unknown, expected: readonly string[]): Record<string, unknown> | null {
   if (!entry || typeof entry !== "object" || Array.isArray(entry)) return null
   const keys = Object.keys(entry)
-  return keys.length === 2 && keys.includes("k") && keys.includes("v") ? (entry as Record<string, unknown>) : null
+  return keys.length === expected.length && expected.every((k) => keys.includes(k)) ? (entry as Record<string, unknown>) : null
 }
+const exactPair = (entry: unknown) => exactKeys(entry, ["k", "v"])
 
-/** v2 ratios: exact {k, v} pairs, known unique keys, numbers clamped into range. */
-function validateRatios(input: unknown): SharedRatio[] | null {
+/**
+ * Ratios: exact {k, v} pairs (v2) or {k, v, n} triples (v3), known unique keys, numbers clamped into range.
+ * `base` "any" accepts either per entry: rows read back from the database hold both.
+ */
+function validateRatios(input: unknown, base: "none" | "required" | "any" = "none"): SharedRatio[] | null {
   if (!Array.isArray(input) || input.length > RATIO_KEYS.length) return null
   const out: SharedRatio[] = []
   for (const entry of input) {
-    const pair = exactPair(entry)
-    if (!pair || !isRatioKey(pair.k) || out.some((r) => r.k === pair.k)) return null
-    const v = ratioValue(pair.k, pair.v)
+    const pair = base !== "required" ? exactPair(entry) : null
+    const triple = base !== "none" && !pair ? exactKeys(entry, ["k", "v", "n"]) : null
+    const r = pair ?? triple
+    if (!r || !isRatioKey(r.k) || out.some((x) => x.k === r.k)) return null
+    const v = ratioValue(r.k, r.v)
     if (v === null) return null
-    out.push({ k: pair.k, v })
+    if (triple) {
+      const n = clampNum(triple.n, LIMITS.base)
+      if (n === null) return null
+      out.push({ k: r.k, v, n: Math.round(n * 10) / 10 })
+    } else out.push({ k: r.k, v })
   }
   return out
+}
+
+/** v3 device: exactly {id, name}; the id is 32 lowercase hex characters, the name is cleaned and may be empty. */
+function validateDevice(input: unknown): SharedDevice | null {
+  const d = exactKeys(input, ["id", "name"])
+  if (!d || typeof d.id !== "string" || !DEVICE_ID.test(d.id) || typeof d.name !== "string") return null
+  return { id: d.id, name: cleanText(d.name, LIMITS.deviceName) }
+}
+
+export const dayNumber = (day: string) => Math.floor(Date.UTC(Number(day.slice(0, 4)), Number(day.slice(5, 7)) - 1, Number(day.slice(8, 10))) / 864e5)
+export const dayString = (n: number) => new Date(n * 864e5).toISOString().slice(0, 10)
+const MAX_BITS_CHARS = Math.ceil((Math.ceil(LIMITS.dayBits / 8) * 4) / 3)
+
+/** The day numbers (days since 1970-01-01) a days bitmap marks active. Null for anything that is not one. */
+export function activeDayNumbers(days: SharedDays): number[] | null {
+  if (typeof days.bits !== "string" || days.bits.length > MAX_BITS_CHARS || !/^[A-Za-z0-9_-]*$/.test(days.bits) || !validDay(days.from)) return null
+  let bin: string
+  try {
+    bin = atob(days.bits.replace(/-/g, "+").replace(/_/g, "/"))
+  } catch (error) {
+    if (error instanceof Error && error.name === "InvalidCharacterError") return null
+    throw error
+  }
+  const first = dayNumber(days.from)
+  const out: number[] = []
+  for (let i = 0; i < bin.length; i += 1) {
+    const byte = bin.charCodeAt(i)
+    for (let b = 0; b < 8; b += 1) if (byte & (1 << b)) out.push(first + i * 8 + b)
+  }
+  return out
+}
+
+/** The longest run of consecutive days in a sorted list of day numbers, and the day it ends on. */
+export function longestRun(days: number[]): { days: number; end: number | null } {
+  let best = { days: 0, end: null as number | null }
+  let run = 0
+  for (let i = 0; i < days.length; i += 1) {
+    run = i > 0 && days[i] === days[i - 1]! + 1 ? run + 1 : 1
+    if (run > best.days) best = { days: run, end: days[i]! }
+  }
+  return best
+}
+
+/**
+ * v3 days: null, or exactly {from, bits}. Every marked day must fall inside the period, there cannot be more marked
+ * days than active days, and no run can be longer than the published streak: the report makes the bitmap from the
+ * same days, so a bitmap that disagrees with its own totals is refused.
+ */
+function validateDays(input: unknown, period: { from: string; to: string; activeDays: number; streak: number }): SharedDays | null | undefined {
+  if (input === null) return null
+  const d = exactKeys(input, ["from", "bits"])
+  if (!d || typeof d.from !== "string" || typeof d.bits !== "string") return undefined
+  const days = { from: d.from, bits: d.bits }
+  const marked = activeDayNumbers(days)
+  if (!marked || marked.length === 0) return undefined
+  if (marked[0] !== dayNumber(days.from) || marked[marked.length - 1]! > dayNumber(period.to) || marked.length > period.activeDays) return undefined
+  if (longestRun(marked).days > period.streak) return undefined
+  return days
 }
 
 /**
@@ -218,7 +309,7 @@ function validateTitles(input: unknown, ratios: SharedRatio[]): SharedTitle[] | 
 
 /** Titles and ratios read back from the database: re-validated, and dropped rather than failing the page. */
 export function storedRatios(input: unknown): SharedRatio[] {
-  return Array.isArray(input) ? (validateRatios(input.slice(0, RATIO_KEYS.length)) ?? []) : []
+  return Array.isArray(input) ? (validateRatios(input.slice(0, RATIO_KEYS.length), "any") ?? []) : []
 }
 export function storedTitles(input: unknown, ratios: SharedRatio[]): SharedTitle[] {
   return Array.isArray(input) ? (validateTitles(input.slice(0, LIMITS.titles), ratios) ?? []) : []
@@ -235,12 +326,12 @@ export function storedCards(input: unknown): SharedCard[] {
   return out
 }
 
-/** The strict v1 and v2 schemas. Anything else (wrong version, extra keys, wrong types) is rejected, not repaired. */
+/** The strict v1, v2 and v3 schemas. Anything else (wrong version, extra keys, wrong types) is rejected, not repaired. */
 export function validateStats(input: unknown): SharedStats | null {
   if (!input || typeof input !== "object" || Array.isArray(input)) return null
   const raw = input as Record<string, unknown>
-  if (raw.v !== 1 && raw.v !== 2) return null
-  const expected = raw.v === 1 ? KEYS_V1 : KEYS_V2
+  if (raw.v !== 1 && raw.v !== 2 && raw.v !== 3) return null
+  const expected = raw.v === 1 ? KEYS_V1 : raw.v === 2 ? KEYS_V2 : KEYS_V3
   const keys = Object.keys(raw)
   if (keys.length !== expected.length || !keys.every((k) => expected.includes(k))) return null
   if (typeof raw.name !== "string" || typeof raw.fact !== "string") return null
@@ -270,14 +361,20 @@ export function validateStats(input: unknown): SharedStats | null {
   let cards: SharedCard[] | null = null
   let ratios: SharedRatio[] | null = null
   let titles: SharedTitle[] | null = null
-  if (raw.v === 2) {
+  if (raw.v !== 1) {
     cards = validateCards(raw.cards)
-    ratios = validateRatios(raw.ratios)
+    ratios = validateRatios(raw.ratios, raw.v === 3 ? "required" : "none")
     titles = ratios && validateTitles(raw.titles, ratios)
     if (!cards || !ratios || !titles) return null
   }
+  let device: SharedDevice | null = null
+  let days: SharedDays | null | undefined = null
+  if (raw.v === 3) {
+    device = validateDevice(raw.device)
+    if (!device) return null
+  }
   const out: SharedStats = {
-    v: raw.v,
+    v: raw.v as 1 | 2 | 3,
     name: cleanText(raw.name, LIMITS.name),
     from,
     to,
@@ -289,15 +386,23 @@ export function validateStats(input: unknown): SharedStats | null {
     agents,
     fact: cleanText(raw.fact, LIMITS.fact),
   }
+  if (device) {
+    days = validateDays(raw.days, out)
+    if (days === undefined) return null
+  }
   if (cards && titles && ratios) {
     out.cards = cards
     out.titles = titles
     out.ratios = ratios
   }
+  if (device) {
+    out.device = device
+    out.days = days ?? null
+  }
   return out
 }
 
-/** Decode a fragment (with or without the leading "#"). Returns null for anything that is not a valid v1 or v2 payload. */
+/** Decode a fragment (with or without the leading "#"). Returns null for anything that is not a valid v1, v2 or v3 payload. */
 export function decodeStats(fragment: string): SharedStats | null {
   const data = fragment.replace(/^#/, "")
   if (!data || data.length > LIMITS.fragment || !/^[A-Za-z0-9_-]+$/.test(data)) return null
