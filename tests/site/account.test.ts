@@ -52,6 +52,8 @@ describe("where Clerk runs", () => {
     expect(readFileSync(join(SITE, "app/page.tsx"), "utf8")).not.toMatch(/@clerk|AccountMenu|AuthProvider/);
     // The cached board and profiles mount Clerk the same way: per signed-in part, on demand (clerk-island.tsx).
     for (const path of ["app/leaderboard/layout.tsx", "app/leaderboard/board-view.tsx", "app/u/[handle]/page.tsx", "components/site/you-strip.tsx"]) expect(readFileSync(join(SITE, path), "utf8"), path).not.toMatch(staticClerk);
+    // The share page's card and publish panel import Clerk: a profile must not pull them in for its call to action.
+    expect(readFileSync(join(SITE, "app/u/[handle]/page.tsx"), "utf8")).not.toMatch(/components\/site\/(?:share-card|publish-panel|publish-form)"/);
     const island = readFileSync(join(SITE, "components/site/clerk-island.tsx"), "utf8");
     expect(island).not.toMatch(staticClerk);
     expect(island).toContain('React.lazy(() => import("@/components/site/clerk-island-provider"))');
