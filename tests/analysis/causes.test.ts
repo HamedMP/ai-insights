@@ -59,7 +59,7 @@ describe("friction causes", () => {
     const base = sessionsOverDays(1)[0]!.features;
     const sessions = sessionsOverDays(10, (i) =>
       i === 0
-        ? { features: { ...base, compactions: 2 }, toolCalls: [tool("read", { error: "permission_denied", timestamp: day(0, 1) })] }
+        ? { features: { ...base, compactions: 2 }, toolCalls: [1, 2].map((m) => tool("read", { error: "permission_denied", timestamp: day(0, m) })) }
         : {},
     );
     const causes = report(sessions).frictionCauses!;
@@ -67,8 +67,9 @@ describe("friction causes", () => {
     expect(causes.withAny).toBe(1);
   });
 
-  it("files permission walls and refused prompts under permissions", () => {
-    const sessions = sessionsOverDays(10, (i) => (i < 3 ? { toolCalls: [tool("shell", { command: "rm -rf build", error: i === 0 ? "user_rejected" : "permission_denied", timestamp: day(i, 1) })] } : {}));
+  it("files repeated permission walls and refused prompts under permissions, but not a single deliberate no", () => {
+    const blocked = (i: number, n: number) => Array.from({ length: n }, (_, k) => tool("shell", { command: "rm -rf build", error: i === 0 ? "user_rejected" : "permission_denied", timestamp: day(i, k + 1) }));
+    const sessions = sessionsOverDays(10, (i) => (i < 3 ? { toolCalls: blocked(i, 2) } : i === 3 ? { toolCalls: blocked(i, 1) } : {}));
     expect(cause(sessions, "permissions")).toMatchObject({ sessions: 3, of: 10 });
   });
 
@@ -145,7 +146,7 @@ describe("friction causes", () => {
     const base = sessionsOverDays(1)[0]!.features;
     const sessions = sessionsOverDays(20, (i) => ({
       features: { ...base, compactions: i < 6 ? i + 1 : 0 },
-      ...(i >= 6 && i < 8 ? { toolCalls: [tool("read", { error: "permission_denied", timestamp: day(i, 1) })] } : {}),
+      ...(i >= 6 && i < 8 ? { toolCalls: [1, 2].map((m) => tool("read", { error: "permission_denied", timestamp: day(i, m) })) } : {}),
     }));
     const causes = report(sessions).frictionCauses!;
     expect(causes.causes.map((entry) => entry.key)).toEqual(["context_ran_out", "permissions"]);

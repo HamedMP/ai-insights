@@ -13,7 +13,7 @@ function troubled(): Report {
   const base = session().features;
   const sessions = sessionsOverDays(14, (i) => ({
     features: { ...base, compactions: i < 5 ? 3 : 0, planMode: i % 2 === 0 },
-    ...(i >= 5 && i < 8 ? { toolCalls: [tool("shell", { command: "rm -rf dist", error: "permission_denied", timestamp: day(i, 1) }), tool("edit", { timestamp: day(i, 2) })] } : {}),
+    ...(i >= 5 && i < 8 ? { toolCalls: [tool("shell", { command: "rm -rf dist", error: "permission_denied", timestamp: day(i, 1) }), tool("shell", { command: "rm -rf dist", error: "permission_denied", timestamp: day(i, 2) }), tool("edit", { timestamp: day(i, 3) })] } : {}),
     ...(i >= 8 && i < 12 ? { prompts: [prompt("never touch the generated folder please", day(i, 1))] } : {}),
   }));
   return buildReport({ sessions, coverage: [coverage("claude-code", sessions.length)], now: NOW, timeZone: ZONE });

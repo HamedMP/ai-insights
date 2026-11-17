@@ -831,12 +831,12 @@ const sinceTag = (f) => { if (!prevRun) return null; const p = prevOf(f); if (!p
   const CZ = VIEW.causes;
   if (CZ && CZ.causes.length) {
     const rows = h("div", {}, CZ.causes.map((c) => { const r = h("div", { class: "hbar cause" }, h("span", { class: "nm", title: c.label }, c.label), h("span", { class: "t" }, h("b", { style: { width: c.share * 100 + "%", background: "var(--bad)" } })), h("span", { class: "hv" }, `${pct(c.share)} · ${int(c.sessions)} of ${int(c.of)}`)); bindTip(r, `<b>${esc(c.label)}</b><br>${esc(c.basis)}`); return r; }));
-    const detail = h("div", { class: "cards3" }, CZ.causes.map((c) => h("div", { class: "mini" },
+    const detail = h("div", { class: "cards3 causes" }, CZ.causes.map((c) => h("div", { class: "mini" },
       h("span", { class: "k" }, `${int(c.sessions)} of ${int(c.of)} ${c.of === CZ.judged && c.of !== CZ.sessions ? "judged sessions" : "sessions"}`), h("b", {}, c.label),
       h("span", {}, c.basis),
       c.signs.length > 1 ? h("ul", { class: "examples" }, c.signs.map((x) => h("li", {}, `${x.label}: ${int(x.sessions)}`))) : null,
       c.evidence.length ? h("ul", { class: "ev" }, c.evidence.map((e) => h("li", {}, h("span", { class: "when" }, [e.when, e.harness].filter(Boolean).join(" · ")), h("span", { html: md(e.note) })))) : null,
-      h("p", { class: "small cause-fix" }, h("b", {}, c.suggestion.title), " ", c.suggestion.action, c.action ? [" ", h("a", { href: "#" + c.action }, "What to do →")] : c.finding ? [" ", h("a", { href: "#" + c.finding }, "See the finding →")] : null))));
+      h("p", { class: "small cause-fix" }, h("b", { html: md(c.suggestion.title) }), " ", h("span", { html: md(c.suggestion.action) }), c.action ? [" ", h("a", { href: "#" + c.action }, "What to do →")] : c.finding ? [" ", h("a", { href: "#" + c.finding }, "See the finding →")] : null))));
     const reviewTxt = CZ.usedReview ? `Includes what your agent judged in ${plural(CZ.judged, "session")}.` : `Measured signals only. Running the agent review adds what only it can judge, such as a misread request${CZ.judged ? ` (${int(CZ.judged)} of ${int(CZ.minJudged)} sessions judged so far)` : ""}.`;
     el.append(panel("Why sessions go wrong", `${int(CZ.withAny)} of ${int(CZ.sessions)} sessions showed a sign`, rows,
       h("p", { class: "muted small", style: { margin: "10px 0 0" } }, `Each row counts sessions that showed that sign; a session can show several, so the rows do not add up. A sign is not a diagnosis. ${reviewTxt}`),

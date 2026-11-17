@@ -29,6 +29,8 @@ const MIN_MISSING_FILES = 2;
 const MIN_TOOL_ERRORS = 3;
 /** The same command failing this many times running is retrying, not diagnosing (as in the repeated-command finding). */
 const MIN_FAILED_STREAK = 3;
+/** One refusal is a deliberate "no"; two in a session is the setup getting in the way. */
+const MIN_BLOCKED = 2;
 /** One step-in is ordinary steering; two in a session, or one after a long solo run, is the agent off track. */
 const MIN_STEP_INS = 2;
 
@@ -180,12 +182,15 @@ const CAUSES: CauseDef[] = [
   {
     key: "permissions",
     label: "Permissions and approvals",
-    basis: "Sessions where a tool call was blocked by permissions, refused at a prompt, or stopped by an automatic reviewer.",
+    basis: `Sessions where ${MIN_BLOCKED}+ tool calls were blocked by permissions, refused at a prompt, or stopped by an automatic reviewer, or your agent judged a permission blocked it.`,
     signs: [
       {
         key: "blocked",
-        label: "A tool call was blocked or refused",
-        score: (session) => errorsOf(session, (category) => category === "permission_denied" || category === "user_rejected") + (session.approvals?.autoBlocked ?? 0),
+        label: `${MIN_BLOCKED}+ tool calls blocked or refused`,
+        score: (session) => {
+          const count = errorsOf(session, (category) => category === "permission_denied" || category === "user_rejected") + (session.approvals?.autoBlocked ?? 0);
+          return count >= MIN_BLOCKED ? count : 0;
+        },
         note: (score) => `${plural(score, "tool call")} blocked or refused`,
       },
       judged("permission_block"),
