@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 
 import { TrackOnMount } from "@/components/site/analytics"
+import { BreakfastStrip } from "@/components/site/breakfast"
 import { Footer } from "@/components/site/footer"
 import { Header } from "@/components/site/header"
 import { BoardList, BoardTable } from "@/components/site/leaderboard-table"
@@ -98,6 +99,7 @@ export async function BoardView({ sort, page }: { sort: SortId; page: number }) 
       <main id="top" className="relative overflow-x-clip">
         <div aria-hidden className="hero-glow pointer-events-none absolute inset-x-0 top-0 h-[28rem] opacity-70" />
         <div className="relative mx-auto flex max-w-6xl flex-col gap-5 px-4 pt-8 pb-20 md:px-8 md:pt-12">
+          <BreakfastStrip />
           <div className="flex flex-col gap-3">
             <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
               <h1 className="text-[2.2rem] leading-[1] font-semibold tracking-[-0.04em] sm:text-[2.75rem]">

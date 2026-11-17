@@ -3,6 +3,7 @@
 import * as React from "react"
 
 import { Button } from "@/components/ui/button"
+import { BreakfastNextStep, BreakfastNote } from "@/components/site/breakfast"
 import { PublishPreview } from "@/components/site/publish-preview"
 import { ShareButtons } from "@/components/site/share-buttons"
 import { profilePost } from "@/lib/arena-format"
@@ -86,6 +87,7 @@ export function PublishPanelView({ stats, signedIn, user, account, signInButton 
             }}>Sign in to publish</Button>,
           )}
         </div>
+        <BreakfastNote />
       </section>
     )
   }
@@ -111,6 +113,7 @@ export function PublishPanelView({ stats, signedIn, user, account, signInButton 
     return (
       <section aria-labelledby="publish" className="flex w-full flex-col gap-3 rounded-2xl border bg-card px-5 py-5 text-sm">
         <h2 id="publish" className="text-lg font-semibold">Published</h2>
+        <BreakfastNextStep />
         <p>Your profile is public now{state.devices && state.devices > 1 ? `, adding up ${state.devices} computers` : ""}. Share it: anyone who publishes after arriving through your link counts as referred by you.</p>
         {state.duplicate && (
           <p role="note" className="rounded-xl bg-[#ffe14a]/40 px-3 py-2">
@@ -198,6 +201,7 @@ export function PublishPanelView({ stats, signedIn, user, account, signInButton 
           <Button type="submit" size="lg" className="px-5 max-sm:w-full sm:col-start-2 sm:row-start-1" disabled={!checked.ok || busy}>{busy ? "Publishing…" : "Publish"}</Button>
         </div>
       </form>
+      <BreakfastNote className="mx-5 mt-4" />
 
       <div className="flex flex-col gap-4 px-5 pt-4 pb-5">
         <h3 className="font-mono text-[10.5px] tracking-wide text-muted-foreground uppercase">Your public profile will show</h3>

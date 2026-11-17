@@ -49,5 +49,7 @@ export const EVENTS = {
   publishClicked: "publish_clicked",
   publishCompleted: "publish_completed",
   arenaViewed: "leaderboard_arena_viewed",
+  /** Temporary (components/site/breakfast.tsx): a Luma registration click, with only its `placement`. */
+  breakfastRegisterClicked: "breakfast_register_clicked",
 } as const
 export type EventName = (typeof EVENTS)[keyof typeof EVENTS]
