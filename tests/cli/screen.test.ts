@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { buildReport as realBuildReport } from "../../src/analysis/index.js";
@@ -143,9 +144,8 @@ describe("on a terminal: the designed result screen", () => {
     for (const phrase of [
       "report path above",
       "--open",
-      "Play your recap",
-      "Make a video",
-      "Join the leaderboard",
+      "opens on your cards",
+      "Download video or images",
       "Publish to the leaderboard",
       "ai-insights.app/u/<handle>",
       "#MyAIInsights",
@@ -153,6 +153,16 @@ describe("on a terminal: the designed result screen", () => {
     ]) {
       expect(text, phrase).toContain(phrase);
     }
+  });
+
+  it("names only buttons the report really has, so people can find each one on screen", async () => {
+    const client = ["page.js", "sharebox.js"].map((file) => readFileSync(new URL(`../../src/render/client/${file}`, import.meta.url), "utf8")).join("\n");
+    // Strip comments: a label that survives only in a comment is not on screen.
+    const code = client.replace(/\/\*[\s\S]*?\*\//gu, "").replace(/^\s*\/\/.*$/gmu, "");
+    await run([], deps());
+    const labels = [...out.matchAll(/"([^"\n]{3,60})"/gu)].map((m) => m[1]!).filter((text) => /^[A-Z]/u.test(text) && !text.includes("cleanupPeriodDays"));
+    expect(labels.length).toBeGreaterThan(1);
+    for (const text of new Set(labels.filter((t) => t !== "Publish"))) expect(code, text).toContain(`"${text}"`);
   });
 
   it("says the report is being opened when --open was passed", async () => {

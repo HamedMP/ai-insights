@@ -38,7 +38,7 @@ export default function RecapCards() {
   return (
     <DocShell slug="recap-cards">
       <p>
-        The top of the report is a recap you can post: animated cards built only from counts, dates, allowlisted words and public program, model
+        The report opens on your recap: animated cards you can post, built only from counts, dates, allowlisted words and public program, model
         and agent names. Your prompts, file and project names, paths and session ids never appear on a card, and the private analysis never reaches
         one.
       </p>
@@ -79,8 +79,28 @@ export default function RecapCards() {
       </div>
       <p className="text-sm text-muted-foreground">Pop, Instrument panel and Sticker sheet, from the sample report (invented sessions).</p>
 
+      <H2 id="deck">Reading your cards</H2>
+      <p>
+        The top of the report shows every card you earned, persona first, then the ones people talk about most, with the summary and the closing
+        card last. One card is shown large and plays its animation; a grid of all of them sits beside it (a strip under it on a phone).
+      </p>
+      <ul>
+        <li>
+          <strong>Move between cards</strong> with the arrow buttons, the left and right arrow keys, a swipe, or by picking one in the grid. The
+          cards play on their own until you move; then the card you picked stays.
+        </li>
+        <li>
+          <strong>Full screen</strong> plays the whole set. With reduced motion turned on in your system, cards are shown at rest and do not play
+          on their own.
+        </li>
+        <li>
+          <strong>Browsing does not change your video.</strong> The studio decides which cards go into the video, and your share link is the same
+          whichever card you look at.
+        </li>
+      </ul>
+
       <H2 id="studio">The card studio</H2>
-      <p>Under the player, the studio has everything for making a post:</p>
+      <p>Further down the report, after the Publish section, the studio has everything for making a post:</p>
       <ul>
         <li>
           <strong>Pick and order cards.</strong> Click a card to include or leave it out. Drag it, use its arrow buttons, or press Alt with the left
@@ -158,7 +178,8 @@ export default function RecapCards() {
         <code>{HASHTAG}</code>, kept under X&apos;s 280 characters.
       </p>
       <p>
-        The &ldquo;Share your stats and cards&rdquo; box below the studio makes a link to your card on the website instead. That is covered in{" "}
+        The &ldquo;Share your stats and cards&rdquo; box in the Publish section, just above the studio, makes a link to your card on the website
+        instead. That is covered in{" "}
         <DocLink href="/docs/sharing#share-links">Share links</DocLink>.
       </p>
 

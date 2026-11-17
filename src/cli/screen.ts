@@ -126,34 +126,34 @@ function nextSteps(input: ResultInput, rich: boolean): Step[] {
           : ["click the report path above, or add ", code("--open"), " next time."];
     steps.push({ title: "Open", detail: open });
     if (input.report.recap) {
-      steps.push({ title: "Play", detail: [label("Play your recap"), " in the report, then ", label("Make a video"), " to export it."] });
+      steps.push({ title: "Cards", detail: ["the report opens on your cards; ", label("Download video or images"), " saves them."] });
       steps.push({
         title: "Publish",
         detail: [
-          label("Join the leaderboard"),
-          ", then ",
           label("Publish to the leaderboard"),
-          "; sign in on ",
+          " next to your cards, then again in the box; sign in on ",
           { text: "ai-insights.app", url: SITE_URL, tone: "accent", keep: true },
           " and press ",
           label("Publish"),
-          ". Your profile: ",
-          { text: "ai-insights.app/u/<handle>", url: `${SITE_URL}leaderboard`, tone: "accent", keep: true },
+          ".",
         ],
       });
-      steps.push({ title: "Share", detail: ["post your cards or profile with ", { text: HASHTAG, tone: "brand", bold: true, keep: true }, "."] });
+      steps.push({
+        title: "Share",
+        detail: ["post your cards or ", { text: "ai-insights.app/u/<handle>", url: `${SITE_URL}leaderboard`, tone: "accent", keep: true }, " with ", { text: HASHTAG, tone: "brand", bold: true, keep: true }, "."],
+      });
     }
     if (!input.reviewed) steps.push({ title: "Go deeper", detail: ["run the ", code("analyze-ai-usage"), " skill in your agent."] });
     return steps;
   }
   steps.push({ title: "Open the report", detail: [input.open === "now" ? "opening it in your browser now." : "open the file above in your browser, or run again with --open."] });
   if (input.report.recap) {
-    steps.push({ title: "Play your recap", detail: ["press ", label("Play your recap"), " in the report; ", label("Make a video"), " saves it as a video or images."] });
+    steps.push({ title: "Your cards", detail: ["the report opens on them; ", label("Download video or images"), " saves them."] });
     steps.push({
       title: "Publish to the leaderboard",
-      detail: ["in the report press ", label("Join the leaderboard"), ", then ", label("Publish to the leaderboard"), "; sign in on ", SITE_URL, " and press ", label("Publish"), `. Your profile: ${SITE_URL}u/<handle>`],
+      detail: ["press ", label("Publish to the leaderboard"), " next to your cards, then again in the box; sign in on ", SITE_URL, " and press ", label("Publish"), "."],
     });
-    steps.push({ title: "Share it", detail: [`use the X or LinkedIn buttons in the report, or post your cards with ${HASHTAG}.`] });
+    steps.push({ title: "Share it", detail: [`use the X or LinkedIn buttons in the report, or post your cards or ${SITE_URL}u/<handle> with ${HASHTAG}.`] });
   }
   if (!input.reviewed) steps.push({ title: "Go deeper", detail: ["run the analyze-ai-usage skill in your agent to add what went well and what got in the way."] });
   return steps;
