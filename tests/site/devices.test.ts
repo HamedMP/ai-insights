@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aggregate, deviceLabel, LEGACY_DEVICE, type DeviceRecord } from "../../site/lib/devices.ts";
+import { aggregate, deviceLabel, LEGACY_DEVICE, publicDeviceStats, type DeviceRecord } from "../../site/lib/devices.ts";
 import { activeDayNumbers, dayNumber, type SharedStats } from "../../site/lib/share.ts";
 
 const A = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -129,6 +129,17 @@ describe("one account, several computers", () => {
     const list = [device(A, v3(A), { name: "Work laptop", namePublic: false }), device(B, v3(B), { name: "Home desktop", namePublic: true }), device(C, v3(C), { name: "" })];
     expect(list.map((d, i) => deviceLabel(d, i, "public"))).toEqual(["Device 1", "Home desktop", "Device 3"]);
     expect(list.map((d, i) => deviceLabel(d, i, "owner"))).toEqual(["Work laptop", "Home desktop", "Device 3"]);
+  });
+
+  it("never hands a visitor a device's id, private name or day bitmap", () => {
+    const out = JSON.stringify(publicDeviceStats(v3(A, { device: { id: A, name: "Home desktop" } })));
+    expect(out).not.toContain(A);
+    expect(out).not.toContain("Home desktop");
+    expect(out).not.toContain("bits");
+    expect(JSON.parse(out).sessions).toBe(100);
+    const total = JSON.stringify(aggregate([device(A, v3(A, { device: { id: A, name: "Home desktop" } })), device(B, v3(B))]).stats);
+    expect(total).not.toContain(A);
+    expect(total).not.toContain("Home desktop");
   });
 
   it("never lets one hostile computer push the total past the schema's limits", () => {

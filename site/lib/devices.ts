@@ -88,6 +88,15 @@ export function ordered(devices: DeviceRecord[]): DeviceRecord[] {
   return [...devices].sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
 }
 
+/**
+ * One device's stats as a visitor may receive them: its numbers and cards, never its device id, its private name or
+ * its day bitmap. Everything a public page passes to the browser goes through this.
+ */
+export function publicDeviceStats(s: SharedStats): SharedStats {
+  const { device: _device, days: _days, ...rest } = s
+  return rest
+}
+
 /** The account-row shape of one device's stats: v1 or v2, ratios without their counts. */
 function accountShape(s: SharedStats): SharedStats {
   const base: SharedStats = { v: 1, name: s.name, from: s.from, to: s.to, sessions: s.sessions, tokens: s.tokens, usd: s.usd, activeDays: s.activeDays, streak: s.streak, agents: s.agents, fact: s.fact }

@@ -31,7 +31,7 @@ export function DeviceGallery({ handle, highlights, devices }: { handle: string;
       toolbar={
         <>
           {switcher}
-          <WorkRatios stats={chosen.stats} />
+          <WorkRatios stats={chosen.stats} id="device-ratios" />
         </>
       }
       empty={`${chosen.label} was published from an older report, which carried only the numbers. Cards appear when it publishes again from AI Insights 0.4 or newer.`}

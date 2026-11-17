@@ -239,12 +239,12 @@ export function DevicesStrip({ devices }: { devices: Array<{ label: string; stat
       <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {devices.map((d, i) => (
           <li key={`${d.label}-${i}`} className={cn("flex flex-col gap-2 rounded-2xl border bg-card px-4 py-3.5", d.duplicate && "border-dashed opacity-70")}>
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 flex-col gap-0.5">
               <span className="flex min-w-0 items-center gap-2">
                 <span aria-hidden className="size-2.5 shrink-0 rounded-full" style={{ background: AGENT_COLORS[i % AGENT_COLORS.length] }} />
                 <span className="truncate font-semibold">{d.label}</span>
               </span>
-              <span className="shrink-0 font-mono text-[10.5px] text-muted-foreground">{formatPeriod(d.stats.from, d.stats.to)}</span>
+              <span className="font-mono text-[10.5px] text-muted-foreground">{formatPeriod(d.stats.from, d.stats.to)}</span>
             </div>
             <p className="flex flex-wrap gap-x-3 gap-y-0.5 text-[13px] tabular-nums">
               <span><b className="font-semibold">{formatInt(d.stats.sessions)}</b> <span className="text-muted-foreground">sessions</span></span>
@@ -283,13 +283,13 @@ export function EarnedTitles({ stats }: { stats: SharedStats }) {
 }
 
 /** The five work ratios: habits, not volume. Labels and formats are fixed; only the values were published. */
-export function WorkRatios({ stats }: { stats: SharedStats }) {
+export function WorkRatios({ stats, id = "ratios" }: { stats: SharedStats; id?: string }) {
   const ratios = stats.ratios ?? []
   if (!ratios.length) return null
   return (
-    <section aria-labelledby="ratios" className="flex flex-col gap-3">
+    <section aria-labelledby={id} className="flex flex-col gap-3">
       <div className="flex items-baseline justify-between gap-3">
-        <h2 id="ratios" className="font-mono text-[10.5px] tracking-wide text-muted-foreground uppercase">how they work</h2>
+        <h2 id={id} className="font-mono text-[10.5px] tracking-wide text-muted-foreground uppercase">how they work</h2>
         <span className="font-mono text-[10.5px] text-muted-foreground">ratios of counts, not volume</span>
       </div>
       <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border bg-border sm:grid-cols-5">

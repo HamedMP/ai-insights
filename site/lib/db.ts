@@ -6,7 +6,7 @@ import { Pool } from "pg"
 import { ARENA_COLUMN, PAGE_SIZE, rankAndPercentile, type ArenaId } from "@/lib/leaderboard"
 import { safeAvatarUrl } from "@/lib/avatar"
 import { ACCOUNT_COLUMNS, accountStats, devicesOf, publishDevice, removeDevice, renameDevice, type AccountRecord, type Db } from "@/lib/device-sql"
-import { aggregate, deviceLabel, type DeviceRecord } from "@/lib/devices"
+import { aggregate, deviceLabel, publicDeviceStats, type DeviceRecord } from "@/lib/devices"
 import type { EntryRow, SaveChoices, SaveOutcome } from "@/lib/publish"
 import type { RatioKey, SharedCard, SharedStats } from "@/lib/share"
 
@@ -136,7 +136,7 @@ export async function entryByHandle(handle: string): Promise<PublicProfile | nul
     ...entry,
     stats: { ...total.stats, name: row.display_name },
     deviceCount: Math.max(1, total.counted),
-    devices: devices.map((d) => ({ label: labels.get(d.key)!, stats: d.stats, updatedAt: d.updatedAt, duplicate: duplicates.has(d.key) })),
+    devices: devices.map((d) => ({ label: labels.get(d.key)!, stats: publicDeviceStats(d.stats), updatedAt: d.updatedAt, duplicate: duplicates.has(d.key) })),
     exactDays: total.exactDays,
     highlights: total.highlights.map((h) => ({ card: h.card, from: h.from === null ? null : (labels.get(h.from) ?? null) })),
     perDeviceRatios: total.perDeviceRatios,

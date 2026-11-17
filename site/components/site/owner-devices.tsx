@@ -133,9 +133,11 @@ function DeviceRow({ device, onChanged }: { device: Device; onChanged: () => voi
           <input type="checkbox" className="size-4 accent-primary" checked={shown} onChange={(e) => setShown(e.target.checked)} />
           Show the name publicly
         </label>
-        <Button type="submit" size="sm" variant="outline" disabled={!dirty || state.kind === "busy"}>Save</Button>
-        <Button type="button" size="sm" variant={confirm ? "destructive" : "ghost"} onClick={remove} disabled={state.kind === "busy"}>{confirm ? "Remove its numbers?" : "Remove device"}</Button>
-        {confirm && <Button type="button" size="sm" variant="ghost" onClick={() => setConfirm(false)}>Keep</Button>}
+        <span className="flex flex-wrap items-center gap-2">
+          <Button type="submit" size="sm" variant="outline" disabled={!dirty || state.kind === "busy"}>Save</Button>
+          <Button type="button" size="sm" variant={confirm ? "destructive" : "ghost"} onClick={remove} disabled={state.kind === "busy"}>{confirm ? "Remove its numbers?" : "Remove device"}</Button>
+          {confirm && <Button type="button" size="sm" variant="ghost" onClick={() => setConfirm(false)}>Keep</Button>}
+        </span>
       </form>
       {state.kind === "error" && <p role="alert" className="text-[13px] text-destructive">{state.message}</p>}
       {state.kind === "saved" && <p role="status" className="text-[13px] text-muted-foreground">Saved.</p>}
