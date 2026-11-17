@@ -1,4 +1,4 @@
-/** Set by next.config.ts: "/ai-insights" in the Pages build, "" under `next dev`. */
+/** Always "" now: the site is served at the root of ai-insights.app (next.config.ts). Kept so links stay base-aware. */
 export const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? ""
 export const SITE_URL = "https://ai-insights.app/"
 export const REPO = "https://github.com/hamedmp/ai-insights"

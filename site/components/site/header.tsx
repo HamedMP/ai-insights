@@ -7,7 +7,7 @@ import { Cancel01Icon, GithubIcon, Menu01Icon } from "@hugeicons/core-free-icons
 import { Wordmark } from "@/components/site/rabbit"
 import { ThemeSwitcher } from "@/components/site/theme-switcher"
 import { Button } from "@/components/ui/button"
-import { REPO } from "@/lib/site"
+import { BASE, REPO } from "@/lib/site"
 import { cn } from "@/lib/utils"
 
 const LINKS = [
@@ -123,7 +123,7 @@ export function Header() {
             <a
               key={link.id}
               data-link={link.id}
-              href={`#${link.id}`}
+              href={`${BASE}/#${link.id}`}
               aria-current={active === link.id ? "location" : undefined}
               className={cn(
                 "rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
@@ -149,7 +149,7 @@ export function Header() {
             </span>
           </Button>
           <ThemeSwitcher className="max-lg:hidden" />
-          <Button size="lg" className="h-10 rounded-full px-4 sm:h-9" nativeButton={false} render={<a href="#get" />}>
+          <Button size="lg" className="h-10 rounded-full px-4 sm:h-9" nativeButton={false} render={<a href={`${BASE}/#get`} />}>
             Get yours
           </Button>
           <button
@@ -171,7 +171,7 @@ export function Header() {
           {LINKS.map((link, index) => (
             <a
               key={link.id}
-              href={`#${link.id}`}
+              href={`${BASE}/#${link.id}`}
               onClick={() => setOpen(false)}
               aria-current={active === link.id ? "location" : undefined}
               className="flex h-13 items-center justify-between border-b text-lg font-medium tracking-tight outline-none focus-visible:text-primary"

@@ -3,6 +3,8 @@
 import * as React from "react"
 
 import { CopyButton } from "@/components/site/copy-button"
+import { PublishPanel } from "@/components/site/publish-panel"
+import { restoreFragment } from "@/lib/pending-share"
 import { Wordmark } from "@/components/site/rabbit"
 import { decodeStats, formatCompact, formatInt, formatPeriod, agentName, type SharedStats } from "@/lib/share"
 import { COMMAND, HASHTAG, SITE_URL, intents } from "@/lib/site"
@@ -16,25 +18,35 @@ function readFragment(): SharedStats | null | undefined {
 }
 
 /**
- * The shared stats card. Everything it shows comes from the URL fragment, validated by decodeStats and rendered
- * as React text (never as HTML). With no or a bad fragment it shows the same call to action without numbers.
+ * The shared stats card on /share. Everything it shows comes from the URL fragment, validated by decodeStats and
+ * rendered as React text (never as HTML). With no or a bad fragment it shows the same call to action without numbers.
+ * `publish` renders the leaderboard controls under a valid card (only when sign-in is configured).
  */
-export function ShareCard() {
+export function ShareCard({ publish = false }: { publish?: boolean }) {
   // undefined: not read yet (static HTML before hydration); null: no valid payload.
   const [stats, setStats] = React.useState<SharedStats | null | undefined>(undefined)
   React.useEffect(() => {
+    restoreFragment()
     const read = () => setStats(readFragment() ?? null)
     read()
     window.addEventListener("hashchange", read)
     return () => window.removeEventListener("hashchange", read)
   }, [])
 
-  const who = stats?.name ? stats.name : stats ? "Someone" : null
-  const post = `Find out how you work with AI coding agents: ${COMMAND}\n${SITE_URL}\n${HASHTAG}`
-  const share = intents(post)
-
   return (
     <div className="relative mx-auto flex max-w-6xl flex-col items-center gap-10 px-4 pt-8 pb-20 md:px-8 md:pt-14">
+      <StatsCard stats={stats} />
+      {stats && publish ? <PublishPanel stats={stats} /> : null}
+      <FindOutYours note={stats ? "These numbers were in the link itself; this page sends nothing unless you press Publish." : stats === null ? "This link had no stats in it, so here is the short version." : null} />
+    </div>
+  )
+}
+
+/** The card itself. `undefined` stats means "not read yet" and renders invisible, so the layout does not jump. */
+export function StatsCard({ stats, headingLevel = 1 }: { stats: SharedStats | null | undefined; headingLevel?: 1 | 2 }) {
+  const who = stats?.name ? stats.name : stats ? "Someone" : null
+  const Heading = headingLevel === 1 ? "h1" : "h2"
+  return (
       <article
         aria-label={who ? `${who}'s AI Insights` : "AI Insights"}
         className={cn("w-full max-w-[34rem] overflow-hidden rounded-[1.6rem] bg-[#17140f] text-[#f3f0e8] shadow-2xl ring-1 ring-black/10 transition-opacity duration-300 dark:ring-white/10", stats === undefined && "opacity-0")}
@@ -45,7 +57,7 @@ export function ShareCard() {
             <span>AI Insights</span>
             {stats && <span>{formatPeriod(stats.from, stats.to)}</span>}
           </div>
-          <h1 className="relative text-[2.2rem] leading-[1] font-semibold tracking-[-0.04em] break-words sm:text-[2.8rem]">
+          <Heading className="relative text-[2.2rem] leading-[1] font-semibold tracking-[-0.04em] break-words sm:text-[2.8rem]">
             {who ? (
               <>
                 {who}&rsquo;s <span className="text-[#ff6a1a]">AI Insights</span>
@@ -55,7 +67,7 @@ export function ShareCard() {
                 Your AI coding, <span className="text-[#ff6a1a]">recapped.</span>
               </>
             )}
-          </h1>
+          </Heading>
 
           {stats ? (
             <>
@@ -98,6 +110,14 @@ export function ShareCard() {
         </div>
       </article>
 
+  )
+}
+
+/** The call to action under every card: run it yourself. */
+export function FindOutYours({ note }: { note?: React.ReactNode }) {
+  const post = `Find out how you work with AI coding agents: ${COMMAND}\n${SITE_URL}\n${HASHTAG}`
+  const share = intents(post)
+  return (
       <section aria-labelledby="yours" className="flex w-full max-w-[34rem] flex-col items-center gap-4 text-center">
         <h2 id="yours" className="text-[1.9rem] leading-tight font-semibold tracking-[-0.03em]">
           Find out <span className="text-primary">yours.</span>
@@ -118,11 +138,10 @@ export function ShareCard() {
           <a className="underline-offset-4 hover:underline" href={share.linkedin} target="_blank" rel="noopener noreferrer">Post on LinkedIn</a>
         </div>
         <p className="font-mono text-[11px] text-muted-foreground">
-          {stats ? "These numbers were in the link itself; this page sends nothing and stores nothing." : stats === null ? "This link had no stats in it, so here is the short version." : null}
+          {note}
         </p>
       </section>
-    </div>
-  )
+      )
 }
 
 function Stat({ label, value, wide }: { label: string; value: string; wide?: boolean }) {

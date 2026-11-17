@@ -1,5 +1,5 @@
 import { Rabbit } from "@/components/site/rabbit"
-import { HASHTAG, MATRIX, NPM, REPO, SAMPLE, asset } from "@/lib/site"
+import { BASE, HASHTAG, MATRIX, NPM, REPO, SAMPLE, asset } from "@/lib/site"
 
 export function Footer() {
   return (
@@ -24,6 +24,7 @@ export function Footer() {
           </p>
         </div>
         <nav aria-label="Links" className="flex flex-wrap gap-x-6 text-sm [&>a]:inline-flex [&>a]:min-h-10 [&>a]:items-center md:[&>a]:min-h-0">
+          <a className="link-underline" href={`${BASE}/leaderboard/`}>Leaderboard</a>
           <a className="link-underline" href={REPO}>GitHub</a>
           <a className="link-underline" href={NPM}>npm</a>
           <a className="link-underline" href={SAMPLE}>Sample recap</a>
