@@ -304,8 +304,8 @@ const SHARE = Object.freeze({
   pitch: "Made with AI Insights by Matrix OS",
   command: "npx ai-insights",
   skill: "/analyze-ai-usage",
-  site: "hamedmp.github.io/ai-insights",
-  siteUrl: "https://hamedmp.github.io/ai-insights/",
+  site: "ai-insights.app",
+  siteUrl: "https://ai-insights.app/",
 });
 
 // ------------------------------------------------------------------ style registry

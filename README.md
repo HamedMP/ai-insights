@@ -2,9 +2,9 @@
 
 **Your AI coding, recapped.** One command turns your local agent history (Claude Code, Codex, OpenCode, Pi, Cursor, Gemini CLI) into animated recap cards you can post, and a private analysis of what to change. Nothing leaves your machine.
 
-[![Recap cards from the sample report, in the Pop, Instrument panel and Sticker sheet styles](https://raw.githubusercontent.com/hamedmp/ai-insights/main/assets/report.png)](https://hamedmp.github.io/ai-insights/demo/report.html)
+[![Recap cards from the sample report, in the Pop, Instrument panel and Sticker sheet styles](https://raw.githubusercontent.com/hamedmp/ai-insights/main/assets/report.png)](https://ai-insights.app/demo/report.html)
 
-[Website](https://hamedmp.github.io/ai-insights/) · [Sample recap](https://hamedmp.github.io/ai-insights/demo/report.html) · [npm](https://www.npmjs.com/package/ai-insights)
+[Website](https://ai-insights.app/) · [Sample recap](https://ai-insights.app/demo/report.html) · [npm](https://www.npmjs.com/package/ai-insights)
 
 AI Insights was called Hindsight until v0.2; `@matrix-os/hindsight` is deprecated in favour of `ai-insights`.
 

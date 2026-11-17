@@ -31,8 +31,8 @@ const good = () => JSON.parse(JSON.stringify(SL.payload(JSON.parse(JSON.stringif
 describe("share links: report side to site side", () => {
   it("a link made in the report opens on the site with the same numbers", () => {
     const p = good();
-    const link = SL.url(p, "https://hamedmp.github.io/ai-insights/");
-    expect(link.startsWith("https://hamedmp.github.io/ai-insights/share/#")).toBe(true);
+    const link = SL.url(p, "https://ai-insights.app/");
+    expect(link.startsWith("https://ai-insights.app/share/#")).toBe(true);
     expect(decodeStats(new URL(link).hash)).toEqual(p);
   });
 

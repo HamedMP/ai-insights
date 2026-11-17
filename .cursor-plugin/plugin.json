@@ -1,12 +1,12 @@
 {
   "name": "ai-insights",
   "displayName": "AI Insights",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Look back at how you work with AI coding agents. Local insights and actionable tips from your Claude Code and Codex history.",
   "author": {
     "name": "Matrix OS"
   },
-  "homepage": "https://hamedmp.github.io/ai-insights/",
+  "homepage": "https://ai-insights.app/",
   "repository": "https://github.com/hamedmp/ai-insights",
   "license": "MIT",
   "keywords": [
