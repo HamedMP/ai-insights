@@ -59,6 +59,8 @@ You need Node.js 20 or newer.
 - `ai-insights-coach` turns the findings into edits you review;
 - `ai-insights-setup` checks that everything works.
 
+**From the command line:** `npx ai-insights install` runs the Claude Code and Codex commands below for the agents it finds, after showing them (`--dry-run` only prints them). The end of a normal run offers the same once; a no is remembered for 30 days, and `--no-install-prompt` or `AI_INSIGHTS_NO_INSTALL_PROMPT=1` turns the offer off.
+
 **Claude Code**
 
 ```

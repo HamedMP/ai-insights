@@ -6,6 +6,8 @@ import { packageVersion } from "../mcp/version.js";
 import type { Harness, Source } from "../schema/types.js";
 import type { BuildReportFn, RenderReportFn } from "../store/pipeline.js";
 import type { RetentionPolicy } from "../store/retention.js";
+import type { AgentStatus, DetectContext } from "./agents.js";
+import type { Spawner } from "./spawn.js";
 import { HELP, parseArgs, UsageError, type Parsed } from "./args.js";
 import { richHeader } from "./header.js";
 import { openWithSystem, readAnswer, type Answer } from "./open.js";
@@ -38,6 +40,12 @@ export interface CliDeps {
   /** Runs `handler` on Ctrl-C while work is in progress; returns a function that stops listening. */
   onInterrupt: (handler: () => void) => () => void;
   exit: (code: number) => void;
+  /** Starts an agent's CLI for install and uninstall. Default: a real child process. */
+  spawner?: Spawner;
+  /** Finds the agents on this machine. Default: reads their plugin files under the person's home. */
+  detectAgents?: (context: DetectContext) => Promise<AgentStatus[]>;
+  /** The person's home folder, where agents keep their config. Default: os.homedir(). */
+  userHome?: string;
 }
 
 /** The parts that need the heavy modules; filled in by commands.ts when a test has not supplied them. */
@@ -78,6 +86,15 @@ export async function run(argv: string[], overrides: Partial<CliDeps> = {}): Pro
       return await runImport(argv.slice(1), { stdout: deps.stdout, stderr: deps.stderr, home: resolveHome(deps.env), now: deps.now });
     } catch (error) {
       deps.stderr(`ai-insights: import failed: ${error instanceof Error ? error.message : String(error)}\n`);
+      return 1;
+    }
+  }
+  if (argv[0] === "install" || argv[0] === "uninstall") {
+    try {
+      const [{ installDeps, runInstall }, { resolveHome }] = await Promise.all([import("./install-command.js"), import("../store/home.js")]);
+      return await runInstall(argv[0], argv.slice(1), installDeps(deps, resolveHome(deps.env)));
+    } catch (error) {
+      deps.stderr(`ai-insights: ${argv[0]} failed: ${error instanceof Error ? error.message : String(error)}\n`);
       return 1;
     }
   }

@@ -181,6 +181,11 @@ Next steps
         <DocLink href="/docs/agent-review#install">Install the plugin</DocLink>.
       </p>
 
+      <p>
+        Or let the command line do it: after the report, <code>npx ai-insights</code> offers to install the plugin into Claude Code and Codex, and{" "}
+        <code>npx ai-insights install</code> does the same at any time.
+      </p>
+
       <H2 id="hindsight">Formerly Hindsight</H2>
       <p>
         AI Insights was called Hindsight until version 0.2. If you used it then, nothing needs to change:

@@ -1,25 +1,13 @@
 import { readdir, rm, stat } from "node:fs/promises";
-import { existsSync } from "node:fs";
-import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { z } from "zod";
 import { HARNESSES, type Harness, type Narrative, type Report, type Session, type SessionFacet, type SessionFile } from "../schema/types.js";
 import { deviceId } from "./device.js";
+import { resolveHome } from "./home.js";
 import { ensureDir, mapLimit, readJsonFile, writeFileAtomic } from "./fs.js";
 import { NarrativeInputSchema, NarrativeSchema, SessionFacetSchema, SessionSchema, isSafeId } from "./schemas.js";
 
-/**
- * Where AI Insights keeps its cache: `AI_INSIGHTS_HOME`, else `HINDSIGHT_HOME`, else `~/.ai-insights`.
- * Before 0.2 the product was called Hindsight and kept its store in `~/.hindsight`. When only that folder
- * exists it stays in use where it is, so earlier facets and reports carry over and nothing is moved or deleted.
- */
-export function resolveHome(env: NodeJS.ProcessEnv = process.env, user: string = homedir(), exists: (path: string) => boolean = existsSync): string {
-  const override = env.AI_INSIGHTS_HOME?.trim() || env.HINDSIGHT_HOME?.trim();
-  if (override) return resolve(override);
-  const current = join(user, ".ai-insights");
-  const legacy = join(user, ".hindsight");
-  return !exists(current) && exists(legacy) ? legacy : current;
-}
+export { resolveHome } from "./home.js";
 
 /** Bounds on how much of the store we will list in one go. */
 export const MAX_FACETS = 20_000;
