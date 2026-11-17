@@ -24,7 +24,7 @@ export function PublishPreview({ stats, name, handle, avatarUrl }: { stats: Shar
           <span className="truncate text-[1.05rem] leading-tight font-semibold tracking-[-0.02em]">{name}</span>
           <span className="flex flex-wrap gap-x-2 font-mono text-[11.5px] text-muted-foreground">
             <span className="break-all">@{handle ?? "…"}</span>
-            <span>{formatPeriod(stats.from, stats.to)}</span>
+            <span className="whitespace-nowrap">{formatPeriod(stats.from, stats.to)}</span>
           </span>
         </div>
         <span className="ml-auto inline-flex h-6 shrink-0 self-start items-center rounded-full border border-dashed px-2.5 font-mono text-[10.5px] text-muted-foreground">self-reported</span>

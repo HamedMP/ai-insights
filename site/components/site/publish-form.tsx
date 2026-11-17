@@ -146,8 +146,9 @@ export function PublishPanelView({ stats, signedIn, user, account, signInButton 
           <h2 id="publish" className="text-lg font-semibold">Publish to the leaderboard</h2>
           <p className="text-muted-foreground">{SHORT}</p>
         </div>
-        <div className="flex flex-wrap items-start gap-2">
-          <label className="flex min-w-[14rem] flex-1 flex-col gap-1">
+        {/* DOM order is handle, options, Publish; from `sm` the button moves up beside the handle. */}
+        <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+          <label className="flex min-w-0 flex-col gap-1 sm:col-start-1 sm:row-start-1">
             <span className="sr-only">Public handle</span>
             <span className="flex h-9 items-center rounded-lg border bg-background focus-within:ring-3 focus-within:ring-ring/50">
               <span aria-hidden className="pl-3 font-mono text-[12px] text-muted-foreground select-none">ai-insights.app/u/</span>
@@ -169,10 +170,8 @@ export function PublishPanelView({ stats, signedIn, user, account, signInButton 
               {checked.ok ? "Your public handle: 3 to 30 lowercase letters, digits or hyphens." : checked.problem === "reserved" ? "That handle is reserved. Pick another." : "3 to 30 lowercase letters, digits or single hyphens."}
             </span>
           </label>
-          <Button type="submit" size="lg" className="px-5 max-sm:w-full" disabled={!checked.ok || busy}>{busy ? "Publishing…" : "Publish"}</Button>
-        </div>
         {user?.hasImage || device?.name || offerReplace ? (
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-1.5 sm:col-span-2">
             {user?.hasImage ? (
               <label className={OPTION}>
                 <input type="checkbox" className={CHECK} checked={showAvatar} onChange={(e) => setShowAvatar(e.target.checked)} />
@@ -195,7 +194,9 @@ export function PublishPanelView({ stats, signedIn, user, account, signInButton 
             ) : null}
           </div>
         ) : null}
-        {state.kind === "error" && <p role="alert" className="text-destructive">{state.message}</p>}
+        {state.kind === "error" && <p role="alert" className="text-destructive sm:col-span-2">{state.message}</p>}
+          <Button type="submit" size="lg" className="px-5 max-sm:w-full sm:col-start-2 sm:row-start-1" disabled={!checked.ok || busy}>{busy ? "Publishing…" : "Publish"}</Button>
+        </div>
       </form>
 
       <div className="flex flex-col gap-4 px-5 pt-4 pb-5">
