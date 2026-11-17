@@ -49,7 +49,10 @@ export default async function ProfilePage({ params }: Props) {
   const entry = await loadProfile(handle)
   if (entry === "error") throw new Error("profile unavailable")
   if (!entry) notFound()
-  const { ranks, referrals } = await loadProfileExtras(entry.handle)
+  const extras = await loadProfileExtras(entry.handle)
+  // Thrown, not rendered without ranks: a cached profile keeps its last good version (lib/board-cache.ts).
+  if (extras === "error") throw new Error("profile ranks unavailable")
+  const { ranks, referrals } = extras
   const badges = profileBadges(ranks)
   const shareUrl = referralLink(SITE_URL, entry.handle)
   const hasCards = Boolean(entry.stats.cards && entry.stats.cards.length > 0)

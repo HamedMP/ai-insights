@@ -29,12 +29,15 @@ export const loadProfile = cache(async (raw: string): Promise<PublicProfile | nu
   }
 })
 
-/** Ranks and the public referral count for a profile. Secondary: if they fail, the profile still renders without them. */
-export const loadProfileExtras = cache(async (handle: string): Promise<{ ranks: Ranks; referrals: number }> => {
+/**
+ * Ranks and the public referral count for a profile. "error" when they could not be read: the page throws then, so the
+ * cache keeps its last good copy instead of storing a profile without ranks; the OG image just leaves the badge out.
+ */
+export const loadProfileExtras = cache(async (handle: string): Promise<{ ranks: Ranks; referrals: number } | "error"> => {
   try {
     return await cachedProfileExtras(handle)
   } catch (error) {
     logError("profile extras read failed", error)
-    return { ranks: {}, referrals: 0 }
+    return "error"
   }
 })

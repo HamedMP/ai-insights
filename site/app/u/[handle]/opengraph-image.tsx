@@ -35,7 +35,8 @@ export default async function Image({ params }: { params: Promise<{ handle: stri
   const entry = await loadProfile(handle)
   const s = entry && entry !== "error" ? entry.stats : null
   const name = entry && entry !== "error" ? entry.displayName : "Someone"
-  const badge = entry && entry !== "error" ? (profileBadges((await loadProfileExtras(entry.handle)).ranks)[0] ?? null) : null
+  const extras = entry && entry !== "error" ? await loadProfileExtras(entry.handle) : "error"
+  const badge = extras !== "error" ? (profileBadges(extras.ranks)[0] ?? null) : null
   const cards = s?.cards?.length ?? 0
   const earned = s?.titles?.[0] ? EARNED_TITLES[s.titles[0].k].title : null
   // Already checked against img.clerk.com on write and on read (lib/avatar.ts); the renderer fetches it server-side.
