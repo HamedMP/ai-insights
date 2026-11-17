@@ -1,6 +1,6 @@
 {
   "name": "ai-insights",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "description": "Look back at how you work with AI coding agents. Local insights and actionable tips from your Claude Code and Codex history.",
   "author": {
     "name": "Matrix OS",
