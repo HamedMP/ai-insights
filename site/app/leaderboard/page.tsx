@@ -10,6 +10,7 @@ import { clerkEnabled } from "@/lib/auth-config"
 import { EVENTS } from "@/lib/analytics-sanitize"
 import { arenaPage, databaseConfigured, entryByUser, ranksFor, type ArenaPage } from "@/lib/db"
 import { ARENAS, isArena, PAGE_SIZE, parsePage, type ArenaId } from "@/lib/leaderboard"
+import { referralLink } from "@/lib/referral"
 import { formatPeriod } from "@/lib/share"
 import { BASE, COMMAND, SITE_URL } from "@/lib/site"
 import { currentUserId, logError, recordSignupSource } from "@/lib/server-auth"
@@ -28,7 +29,8 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image", title, description, images: ["og.png"] },
 }
 
-const profileUrl = (handle: string) => new URL(`u/${handle}`, SITE_URL).toString()
+/** Share targets for a published person credit them: `?ref=<handle>` (lib/referral.ts). */
+const profileUrl = (handle: string) => referralLink(SITE_URL, handle)
 
 export default async function LeaderboardPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const params = await searchParams

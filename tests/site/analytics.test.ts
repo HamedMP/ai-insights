@@ -14,6 +14,15 @@ describe("site analytics never sends a share link's fragment", () => {
     expect(stripFragment("#MyAIInsights is a hashtag")).toBe("#MyAIInsights is a hashtag");
   });
 
+  it("reduces a referrer's handle in a URL to a bare flag, so analytics knows only that there was one", () => {
+    expect(stripFragment("https://ai-insights.app/u/ada?ref=ada")).toBe("https://ai-insights.app/u/ada?ref");
+    expect(stripFragment("/leaderboard?arena=codex&ref=grace-h&page=2")).toBe("/leaderboard?arena=codex&ref&page=2");
+    expect(stripFragment(`/share?ref=ada${FRAG}`)).toBe("/share?ref");
+    expect(stripFragment("https://ai-insights.app/?prefer=1")).toBe("https://ai-insights.app/?prefer=1");
+    const out = sanitizeEvent({ properties: { $current_url: "https://ai-insights.app/u/ada?ref=ada", $referrer: "https://x.com/?ref=ada" } })!;
+    expect(JSON.stringify(out)).not.toContain("ref=ada");
+  });
+
   it("cleans every URL-like property, nested ones and $set/$set_once included, and tags the site", () => {
     const event = {
       event: "$pageview",
@@ -52,6 +61,6 @@ describe("site analytics never sends a share link's fragment", () => {
     const sources = ["components/site/share-card.tsx", "components/site/publish-panel.tsx", "components/site/copy-button.tsx", "app/leaderboard/page.tsx"].map((p) => readFileSync(join(SITE, p), "utf8")).join("\n");
     const calls = [...sources.matchAll(/track\(EVENTS\.\w+(?:, \{([^}]*)\})?\)|event=\{EVENTS\.\w+\} properties=\{\{([^}]*)\}\}/g)].map((m) => (m[1] ?? m[2] ?? "").trim());
     expect(calls.length).toBeGreaterThanOrEqual(5);
-    for (const props of calls) expect(props, props).toMatch(/^(?:|valid: readFragment\(\) != null|location: trackAs|signedIn: false|arena, page)$/);
+    for (const props of calls) expect(props, props).toMatch(/^(?:|valid: readFragment\(\) != null|location: trackAs|signedIn: false|arena, page|referred: result\.referred === true)$/);
   });
 });

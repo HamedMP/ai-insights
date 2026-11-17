@@ -2,7 +2,7 @@ import "server-only"
 
 import { cache } from "react"
 
-import { databaseConfigured, entryByHandle, type PublicEntry } from "@/lib/db"
+import { databaseConfigured, entryByHandle, ranksForHandle, referralCount, type PublicEntry, type Ranks } from "@/lib/db"
 import { checkHandle } from "@/lib/leaderboard"
 import { logError } from "@/lib/server-auth"
 
@@ -22,5 +22,16 @@ export const loadProfile = cache(async (raw: string): Promise<PublicEntry | null
   } catch (error) {
     logError("profile read failed", error)
     return "error"
+  }
+})
+
+/** Ranks and the public referral count for a profile. Secondary: if they fail, the profile still renders without them. */
+export const loadProfileExtras = cache(async (handle: string): Promise<{ ranks: Ranks; referrals: number }> => {
+  try {
+    const [ranks, referrals] = await Promise.all([ranksForHandle(handle), referralCount(handle)])
+    return { ranks, referrals }
+  } catch (error) {
+    logError("profile extras read failed", error)
+    return { ranks: {}, referrals: 0 }
   }
 })

@@ -27,3 +27,13 @@ export function metadataPatch(user: ClerkUserLike, now: number): Record<string, 
   if (!hasSource && Number.isFinite(user.createdAt) && now - user.createdAt >= 0 && now - user.createdAt <= NEW_ACCOUNT_MS) patch.signupSource = SIGNUP_SOURCE
   return Object.keys(patch).length ? patch : null
 }
+
+/**
+ * The Clerk patch recording who referred this account: `referredBy` is set once, to the handle credited on their
+ * first publish, and never replaced. Sent through the same merge endpoint as metadataPatch.
+ */
+export function referralPatch(publicMetadata: Record<string, unknown> | null | undefined, handle: string): Record<string, unknown> | null {
+  const existing = (publicMetadata ?? {}).referredBy
+  if (typeof existing === "string" && existing.length > 0) return null
+  return { referredBy: handle }
+}
