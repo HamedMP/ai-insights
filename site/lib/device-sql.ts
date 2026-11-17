@@ -98,8 +98,8 @@ async function lockAccount(db: Db, userId: string): Promise<AccountRecord | null
 async function materialiseLegacy(db: Db, account: AccountRecord): Promise<void> {
   await db.query(
     `INSERT INTO leaderboard_devices (user_id, device_key, name, name_public, stats, created_at, updated_at)
-     SELECT $1, $2, '', false, $3::jsonb, $4, $5
-      WHERE NOT EXISTS (SELECT 1 FROM leaderboard_devices WHERE user_id = $1)`,
+     SELECT $1::text, $2::text, '', false, $3::jsonb, $4::timestamptz, $5::timestamptz
+      WHERE NOT EXISTS (SELECT 1 FROM leaderboard_devices WHERE user_id = $1::text)`,
     [account.user_id, LEGACY_DEVICE, JSON.stringify(accountStats(account)), account.created_at, account.updated_at],
   )
 }
