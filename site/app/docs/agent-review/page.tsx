@@ -99,8 +99,9 @@ scripts/install.sh --harness cursor     # or: --harness opencode`}</Code>
       />
       <p>
         The MCP server is separate: <code>npx -y ai-insights mcp</code> asks the npm registry for the newest version each time your agent starts
-        it, so it follows new releases without an update step (it needs the network at that moment). The skills come from the installed plugin, so
-        they follow the plugin&apos;s version.
+        it, so it follows new releases without an update step (it needs the network at that moment). The skills and the session-start reminder
+        come from the installed plugin, so they follow the plugin&apos;s version. On Codex the reminder runs only after you approve its hook in{" "}
+        <code>/hooks</code>, and again after an update changes it; it has not been seen running in the Codex CLI.
       </p>
       <H3 id="install-manual">By hand</H3>
       <p>If you prefer to register only the MCP server:</p>

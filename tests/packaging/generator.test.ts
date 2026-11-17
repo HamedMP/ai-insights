@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -36,6 +36,9 @@ function copyRepo(): string {
   for (const path of ["package.json", "LICENSE", "scripts", "skills", "harness", ".claude-plugin", ".agents", ".cursor-plugin", "mcp.json", "assets"]) {
     if (existsSync(join(ROOT, path))) cpSync(join(ROOT, path), join(dir, path), { recursive: true });
   }
+  // The hook script is compiled from src/ with the TypeScript compiler.
+  for (const path of ["src/store/home.ts", "src/nudge"]) cpSync(join(ROOT, path), join(dir, path), { recursive: true });
+  symlinkSync(join(ROOT, "node_modules"), join(dir, "node_modules"), "dir");
   return dir;
 }
 
@@ -82,6 +85,21 @@ describe("generated harness output", () => {
     const path = join(dir, "package.json");
     writeFileSync(path, readFileSync(path, "utf8").replace(`"version": "${pkg.version}"`, `"version": "9.9.9"`));
     expect(generate(dir, "--check").status).toBe(1);
+  });
+
+  it("goes stale when the reminder's source changes, so the plugin never runs an old hook", () => {
+    const dir = copyRepo();
+    writeFileSync(join(dir, "src/nudge/nudge.ts"), `${readFileSync(join(dir, "src/nudge/nudge.ts"), "utf8")}\nexport const EXTRA = 1;\n`);
+    const result = generate(dir, "--check");
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("harness/ai-insights/hooks/lib/nudge/nudge.js");
+  });
+
+  it("ships a hook that needs nothing but Node: only node: built-ins and its own files", () => {
+    for (const path of walk(join(TREE, "hooks")).filter((file) => /\.m?js$/.test(file))) {
+      const specifiers = [...readFileSync(path, "utf8").matchAll(/(?:from|import\()\s*["']([^"']+)["']/g)].map((match) => match[1]!);
+      expect(specifiers.filter((specifier) => !specifier.startsWith("node:") && !specifier.startsWith("./") && !specifier.startsWith("../")), path).toEqual([]);
+    }
   });
 
   it("flags a hand-added file inside the generated tree", () => {

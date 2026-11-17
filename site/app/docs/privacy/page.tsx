@@ -64,6 +64,10 @@ export default function Privacy() {
         agent&apos;s config file itself. Once installed, your agent starts the MCP server with <code>npx</code>, which asks the npm registry for the
         current version.
       </p>
+      <p>
+        The monthly reminder runs offline inside the plugin and reads only the date of your last report and its own <code>nudge.json</code>. See{" "}
+        <DocLink href="/docs/getting-started#monthly-reminder">The monthly reminder</DocLink>.
+      </p>
 
       <H2 id="redaction">Redaction</H2>
       <p>Before a prompt, a command or an excerpt is stored or shown, AI Insights replaces:</p>

@@ -1,7 +1,7 @@
 import { homedir } from "node:os";
 import { packageVersion } from "../mcp/version.js";
-import { AGENT_IDS, AGENT_LABELS, detectAgents, missingPlugin, type AgentId, type AgentStatus, type DetectContext } from "./agents.js";
-import { describePlan, executePlans, installPlan, uninstallPlan } from "./install.js";
+import { AGENT_IDS, AGENT_LABELS, PLUGIN_ID, detectAgents, missingPlugin, type AgentId, type AgentStatus, type DetectContext } from "./agents.js";
+import { describePlan, executePlans, installPlan, uninstallPlan, type StepOutcome } from "./install.js";
 import { declineStillHolds, mayOffer, readOfferState, recordDecline } from "./install-offer.js";
 import type { Answer } from "./open.js";
 import { spawnCommand, type Spawner } from "./spawn.js";
@@ -15,8 +15,9 @@ Usage
   ai-insights uninstall [--harness <name>]... [--yes] [--dry-run]
 
 Adds the ai-insights plugin to Claude Code and Codex through their own plugin commands
-(it holds the ai-insights MCP server and the analyze-ai-usage, ai-insights-coach and
-ai-insights-setup skills).
+(it holds the ai-insights MCP server; the analyze-ai-usage, ai-insights-coach and
+ai-insights-setup skills; and a session-start reminder when a monthly review is due,
+which Codex runs only after you approve it in /hooks).
 Cursor, OpenCode and Pi get the steps printed. The commands are shown before anything runs.
 
 Options
@@ -90,6 +91,16 @@ function detectWith(deps: InstallDeps): Promise<AgentStatus[]> {
 }
 
 const AFTER_INSTALL = "Start a new session in your agent, then run /analyze-ai-usage (or ask it to analyze your AI usage).";
+/** Codex skips a plugin's hooks until the person trusts them, and this has not been seen running in the Codex CLI. */
+export const CODEX_HOOK_NOTE =
+  "Codex: the monthly reminder runs only after you approve the ai-insights hook in /hooks. It is untested in the Codex CLI.";
+
+/** What to say after the commands ran: how to start, and the Codex hook caveat when Codex was set up. */
+function afterInstall(outcomes: StepOutcome[]): string[] {
+  if (!outcomes.some((outcome) => outcome.ok)) return [];
+  const codex = outcomes.some((outcome) => outcome.ok && outcome.step.agent === "codex" && outcome.step.args.includes(PLUGIN_ID));
+  return [AFTER_INSTALL, ...(codex ? [CODEX_HOOK_NOTE] : [])];
+}
 const NETWORK_NOTE = "Claude Code and Codex download the plugin from GitHub; AI Insights itself sends nothing.";
 
 /** `ai-insights install` and `ai-insights uninstall`. Returns the exit code. */
@@ -135,7 +146,7 @@ export async function runInstall(verb: "install" | "uninstall", argv: string[], 
   if (verb === "install") deps.stdout(`${NETWORK_NOTE}\n`);
   const outcomes = await executePlans(runnable, deps.spawner ?? spawnCommand, deps.env, (line) => deps.stdout(`${line}\n`));
   const failed = outcomes.some((outcome) => !outcome.ok);
-  if (verb === "install" && outcomes.some((outcome) => outcome.ok)) deps.stdout(`${AFTER_INSTALL}\n`);
+  if (verb === "install") for (const line of afterInstall(outcomes)) deps.stdout(`${line}\n`);
   if (verb === "uninstall" && !failed) deps.stdout("Your report and cache in the AI Insights folder were left as they are.\n");
   return failed || absentAsked ? 1 : 0;
 }
@@ -182,8 +193,9 @@ export function offerText(agents: AgentStatus[], store = "~/.ai-insights"): stri
   const names = listText(agents.map((agent) => agent.label));
   return [
     `Add AI Insights to ${names}? It installs the ai-insights plugin:`,
-    "the MCP server and three skills (analyze-ai-usage, ai-insights-coach,",
-    "ai-insights-setup), so you can run a review from your agent any time.",
+    "the MCP server, three skills (analyze-ai-usage, ai-insights-coach,",
+    "ai-insights-setup) and a once-a-month reminder when a review is due.",
+    ...(agents.some((agent) => agent.id === "codex") ? ["Codex runs the reminder only after you approve it in /hooks."] : []),
     `Each review saves your sessions' stats and prompts in ${store},`,
     "so they outlast agents that delete old transcripts.",
   ];
@@ -231,6 +243,6 @@ export async function offerInstall(deps: OfferDeps): Promise<number | null> {
   const plans = installPlan(agents, agents.map((agent) => agent.id));
   deps.stdout(`${indent}${NETWORK_NOTE}\n`);
   const outcomes = await executePlans(plans, deps.spawner ?? spawnCommand, deps.env, (line) => deps.stdout(`${indent}${line}\n`));
-  if (outcomes.some((outcome) => outcome.ok)) deps.stdout(`${indent}${AFTER_INSTALL}\n`);
+  for (const line of afterInstall(outcomes)) deps.stdout(`${indent}${line}\n`);
   return null;
 }

@@ -98,6 +98,10 @@ export async function run(argv: string[], overrides: Partial<CliDeps> = {}): Pro
       return 1;
     }
   }
+  if (argv[0] === "nudge") {
+    const { runNudge } = await import("../nudge/command.js");
+    return runNudge(argv.slice(1), { stdout: deps.stdout, stderr: deps.stderr, env: deps.env, now: deps.now });
+  }
   let parsed: Parsed;
   try {
     parsed = parseArgs(argv, deps.now());
