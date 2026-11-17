@@ -24,6 +24,16 @@ ai-insights mcp                start the MCP server on stdio (for your agent)`}<
         numbered next steps and a history warning when one applies. Piped or redirected, it prints the same as plain text with no escape codes,
         so scripts can read it. See <a href="/docs/getting-started#first-run">Your first run</a> for both.
       </p>
+      <p>
+        On a terminal it draws its mark first, then one status line on stderr while it works (finding history, reading sessions, analysing,
+        writing the report), ending with a check mark and the time taken. Piped, in CI or on a dumb terminal there is no status line.
+      </p>
+      <p>
+        At the end it asks <code>Open the report in your browser? [Y/n]</code>: Enter or <code>y</code> opens it, <code>n</code> does not, and
+        Ctrl-C exits. It asks only when you are at a terminal: never when stdin or stdout is piped, in CI (<code>CI</code> set), or over SSH
+        without a forwarded display, and never for <code>scan</code>, <code>report</code>, <code>doctor</code> or <code>mcp</code>. So an agent or
+        a script running it never waits on the question. <code>--open</code>, <code>--no-open</code> and <code>AI_INSIGHTS_OPEN</code> skip it.
+      </p>
       <H3 id="cmd-scan">ai-insights scan</H3>
       <p>Scans and prints what was found, without writing a report. Output from a synthetic history:</p>
       <Code label="Output, from a synthetic history" copy={false}>{`History found
@@ -105,7 +115,8 @@ Store: ~/.ai-insights
           [<code key="m">--max-sessions &lt;n&gt;</code>, "Read at most n transcripts, newest first. The default is 5,000; the most is 50,000."],
           [<code key="r">--refresh</code>, "Re-parse every transcript, ignoring the cache."],
           [<code key="j">--json</code>, <>With <code>report</code> only: print the report as JSON instead of writing HTML.</>],
-          [<code key="o">--open</code>, "Open the written report in your default browser."],
+          [<code key="o">--open</code>, "Open the written report in your default browser without asking."],
+          [<code key="no">--no-open</code>, "Do not ask whether to open the report, and do not open it."],
           [<code key="hh">-h, --help</code>, "Show the help."],
           [<code key="v">-v, --version</code>, "Show the version."],
         ]}
@@ -122,6 +133,12 @@ npx ai-insights --refresh`}</Code>
           [<code key="a">AI_INSIGHTS_HOME</code>, <>Where AI Insights keeps its cache, labels, snapshots and reports. Default <code>~/.ai-insights</code>.</>],
           [<code key="h">HINDSIGHT_HOME</code>, <>The pre-0.2 name, used when <code>AI_INSIGHTS_HOME</code> is not set.</>],
           [<code key="d">AI_INSIGHTS_DEBUG</code>, "When set, a failed command also prints the error's stack trace."],
+          [
+            <code key="ao">AI_INSIGHTS_OPEN</code>,
+            <>
+              <code>1</code> opens the report without asking, <code>0</code> never asks. <code>--open</code> and <code>--no-open</code> win over it.
+            </>,
+          ],
           [<code key="nc">NO_COLOR</code>, "When set to anything, the result screen has no colour and no links."],
           [<code key="fc">FORCE_COLOR</code>, <>Colour even when the output is piped, for recordings: <code>1</code>, <code>2</code> (256 colours) or <code>3</code> (truecolor); <code>0</code> turns colour off. It wins over <code>NO_COLOR</code>.</>],
           [<code key="fh">FORCE_HYPERLINK</code>, <><code>0</code> turns off clickable links in terminals that show them as stray characters; <code>1</code> turns them on.</>],

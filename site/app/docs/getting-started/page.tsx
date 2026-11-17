@@ -25,15 +25,18 @@ export default function GettingStarted() {
       <H2 id="first-run">Your first run</H2>
       <Code label="Terminal">npx ai-insights</Code>
       <p>
-        AI Insights scans your history, writes the report and shows what it found. Add <code>--open</code> to open the report in your browser
-        when it is written. On a synthetic history of 58 Claude Code and Codex sessions, an 80-column terminal shows this (in colour, with the
-        report path and the website as links you can click):
+        AI Insights draws its mark at once, then shows what it is doing on one line (finding your history, reading sessions, analysing, writing
+        the report) and ends with a check mark and the time it took. Then it shows what it found and asks whether to open the report. On a
+        synthetic history of 58 Claude Code and Codex sessions, an 80-column terminal ends like this (in colour, with the report path and the
+        website as links you can click):
       </p>
       <Code label="Output, from a synthetic history; home folder shortened to ~" copy={false}>{`   █▄  ▄█
    ██  ██     ▄▀█ █   █ █▄ █ █▀ █ █▀▀ █ █ ▀█▀ █▀
   ▄██████▄    █▀█ █   █ █ ▀█ ▄█ █ █▄█ █▀█  █  ▄█
-  ██▄██▄██    by Matrix OS · v0.5.0
+  ██▄██▄██    by Matrix OS · v0.5.2
    ▀████▀
+
+  ✓ 58 sessions (Claude Code 46 · Codex 12) read and analysed in 0.5s
 
   ╭─ 2026-10-22 → 2026-11-16 ────────────────────────────────────────────────╮
   │ 58             26             26             1.2B           $245+        │
@@ -50,7 +53,8 @@ export default function GettingStarted() {
   ▸ Report  ~/.ai-insights/reports/report.html
 
   What to do next ────────────────────────────────────────────────────────────
-  1  Open       click the report path above, or add --open next time.
+  1  Open       press Enter below to open it in your browser, or click the
+                report path above.
   2  Play       Play your recap in the report, then Make a video to export it.
   3  Publish    Join the leaderboard, then Publish to the leaderboard; sign in
                 on ai-insights.app and press Publish. Your profile:
@@ -60,7 +64,9 @@ export default function GettingStarted() {
 
   ! 5 Claude Code sessions can be deleted within 7 days (from 2026-11-21).
     Keep them: add "cleanupPeriodDays": 365 to ~/.claude/settings.json or run
-    npx packmem archive.`}</Code>
+    npx packmem archive.
+
+  Open the report in your browser? [Y/n] no`}</Code>
       <p>From the top:</p>
       <ul>
         <li>
@@ -86,6 +92,10 @@ export default function GettingStarted() {
         <li>
           <strong>History warning</strong> (only when it applies): how many sessions your agents can delete within the next 7 days, and the setting
           that keeps them.
+        </li>        <li>
+          <strong>The question:</strong> press Enter (or <code>y</code>) to open the report in your browser, <code>n</code> to leave it. Add{" "}
+          <code>--open</code> to open it without asking, <code>--no-open</code> to never be asked, or set <code>AI_INSIGHTS_OPEN=1</code> or{" "}
+          <code>0</code> to make that your default. It is never asked when the output is piped, in CI or over SSH without a display.
         </li>
       </ul>
       <p>
