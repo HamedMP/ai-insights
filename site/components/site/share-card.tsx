@@ -91,8 +91,8 @@ export function ShareCard() {
             </p>
           )}
 
-          <div className="relative flex items-center justify-between gap-3 border-t border-white/10 pt-4 font-mono text-[11px] text-[#f3f0e8]/55">
-            <span>{HASHTAG}</span>
+          <div className="relative flex items-center justify-between gap-3 border-t border-white/10 pt-4 text-[#f3f0e8]/55">
+            <span className="font-mono text-[11px]">{HASHTAG}</span>
             <Wordmark className="h-4 text-[#f3f0e8]/70" />
           </div>
         </div>
