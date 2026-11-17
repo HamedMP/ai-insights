@@ -7,7 +7,7 @@ export const MATRIX = "https://matrix-os.com"
 export const SAMPLE = `${BASE}/demo/report.html`
 
 /** The launch hashtag. Not final: change it here and every mention on the site follows. */
-export const HASHTAG = "#AIInsights"
+export const HASHTAG = "#MyAIInsights"
 /** The one command, and the skill to run it from an agent. */
 export const COMMAND = "npx ai-insights"
 export const SKILL = "/analyze-ai-usage"

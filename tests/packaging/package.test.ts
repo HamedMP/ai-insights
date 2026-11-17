@@ -40,7 +40,10 @@ describe("npm package", () => {
     const env = { ...process.env, PATH: [dirname(process.execPath), process.env.PATH].join(delimiter) };
     const result = spawnSync("npm", ["pack", "--dry-run", "--json", "--ignore-scripts"], { cwd: ROOT, env, encoding: "utf8" });
     expect(result.status, result.stderr).toBe(0);
-    const files: string[] = JSON.parse(result.stdout)[0].files.map((entry: { path: string }) => entry.path);
+    // npm 11 prints an array of packages; npm 12 prints an object keyed by package name.
+    const packed = JSON.parse(result.stdout);
+    const entry: { files: { path: string }[] } = Array.isArray(packed) ? packed[0] : (packed[pkg.name] ?? Object.values(packed)[0]);
+    const files: string[] = entry.files.map((file) => file.path);
 
     for (const path of ["package.json", "README.md", "LICENSE", "pi/extension.ts"]) expect(files).toContain(path);
     for (const skill of ["analyze-ai-usage", "ai-insights-coach", "ai-insights-setup"]) expect(files).toContain(`skills/${skill}/SKILL.md`);

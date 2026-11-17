@@ -95,7 +95,7 @@ describe("the public site", () => {
   });
 
   it("keeps the launch hashtag in one constant", () => {
-    const uses = SITE_SOURCES.filter((path) => read(path).includes("#AIInsights"));
+    const uses = SITE_SOURCES.filter((path) => read(path).includes("#MyAIInsights"));
     expect(uses).toEqual(["site/lib/site.ts"]);
   });
 

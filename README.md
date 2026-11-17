@@ -28,7 +28,7 @@ One self-contained HTML page on your disk, in three parts.
 - **Export in the page:** an MP4 video (in Chromium browsers today; other browsers get a terminal recipe using headless Chrome and ffmpeg) or PNG images.
 - **Share:** X and LinkedIn open with a caption ready; Instagram and TikTok or Shorts get the file saved and the caption copied; your system share sheet where the browser has one.
 
-Cards hold counts and a few allowlisted words only: no prompts, file or project names, paths or session ids. Every card carries the "AI Insights by Matrix OS" mark by default (you can turn it off), and the last card shows how to make your own. The launch hashtag is `#AIInsights`.
+Cards hold counts and a few allowlisted words only: no prompts, file or project names, paths or session ids. Every card carries the "AI Insights by Matrix OS" mark by default (you can turn it off), and the last card shows how to make your own. The launch hashtag is `#MyAIInsights`.
 
 **A private analysis to act on.** Your rhythm, parallel sessions on a timeline, tokens and cost at API list prices, and findings with the evidence behind them: a command that keeps failing, instructions you keep repeating, sessions that end in a context reset, corrections that come late. Then the changes ranked, each with text to paste into `CLAUDE.md` or `AGENTS.md`, a setting, or a habit to try.
 
