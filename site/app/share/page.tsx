@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 import { Footer } from "@/components/site/footer"
 import { Header } from "@/components/site/header"
 import { ShareCard } from "@/components/site/share-card"
+import { clerkEnabled } from "@/lib/auth-config"
 
 const title = "AI Insights: someone's AI coding, recapped"
 const description = "A recap of AI coding-agent stats, made with AI Insights. Find out yours with npx ai-insights."
@@ -14,14 +15,14 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image", title, description, images: ["og.png"] },
 }
 
-/** Static page; the numbers live in the URL fragment and are read in the viewer's browser only. */
+/** Static page; the numbers live in the URL fragment and are read in the viewer's browser, sent only on Publish. */
 export default function SharePage() {
   return (
     <>
       <Header />
       <main id="top" className="relative overflow-hidden">
         <div aria-hidden className="hero-glow pointer-events-none absolute inset-x-0 top-0 h-[40rem]" />
-        <ShareCard />
+        <ShareCard publish={clerkEnabled} />
       </main>
       <Footer />
     </>

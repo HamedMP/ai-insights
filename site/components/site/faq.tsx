@@ -11,6 +11,10 @@ const QUESTIONS: Array<{ q: string; a: React.ReactNode }> = [
     a: "Counts, times and percentages, words from a fixed list of everyday coding words, public program, model and agent names, and a persona from a fixed set of titles. Never your prompts, the agent's replies, file or project names, paths or session ids. The private analysis never goes on a card.",
   },
   {
+    q: "How do I get on the leaderboard?",
+    a: "Only by choice, on this website. Make a share link from your report, open it, sign in with a Matrix account and press Publish. You see exactly what becomes public first: your name and handle, the period, sessions, tokens, estimated spend, active days, streak, agent shares and the fun fact. The numbers are self-reported and not verified. Remove my entry deletes it.",
+  },
+  {
     q: "Which agents does it read?",
     a: "Claude Code, Codex, OpenCode, Pi, Cursor and Gemini CLI, from where each keeps its history. Cursor's local transcripts hold no token counts, so its sessions add no tokens or cost. Gemini CLI support follows its published format but has not been tried on real history yet.",
   },
