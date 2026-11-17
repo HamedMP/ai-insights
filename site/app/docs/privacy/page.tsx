@@ -90,8 +90,8 @@ export default function Privacy() {
         rows={[
           ["Name", "An optional display name you type, up to 40 characters. Without one the card says “Someone”."],
           ["Period", "The first and last day of your history."],
-          ["Totals", "Sessions, tokens, estimated spend, active days and longest streak."],
-          ["Agents", "Each agent's share of your sessions, as a percentage."],
+          ["Totals", "Sessions, tokens, estimated spend, active days and longest streak. Imported chats count as sessions but add no tokens or spend: a link from chats alone says tokens are not measured."],
+          ["Agents", "Each coding agent's share of your sessions, as a percentage. Imported chats are left out, because the site estimates each agent's tokens from this share."],
           ["Fun fact", "One line built from counts, such as how many agents you ran at once."],
           ["Titles", "Up to three earned title keys, each with the number of the ratio that earned it. The site rebuilds the wording from a fixed table."],
           ["Ratios", "The five work ratios as numbers, each with the count it is out of (sessions, tool calls or clock hours), so computers can be combined."],
@@ -143,6 +143,16 @@ export default function Privacy() {
         <li>It does link the share links one installation makes to each other. Delete <code>device.json</code> to get a new one.</li>
         <li>Visitors never see it; your profile shows &ldquo;Device 1&rdquo; or the name you chose to show.</li>
       </ul>
+
+      <H2 id="chat-exports">Imported chat exports</H2>
+      <p>
+        A chat export you import with <code>ai-insights import claude</code> is read on your machine, and what is kept from it goes to{" "}
+        <code>~/.ai-insights/imports/</code> like the rest of the cache. AI Insights keeps the same things it keeps from a coding agent: counts,
+        times, Claude&apos;s own tool names and your own prompts, redacted. It never reads Claude&apos;s answers, its thinking text, tool inputs or
+        results, attachments, file names, chat titles or summaries, and it never opens the export&apos;s account, project or memory files. The zip
+        is read in memory and nothing in it is unpacked to disk. <code>ai-insights import --remove claude</code> deletes all of it. Details are in{" "}
+        <a href="/docs/import#what-is-read">What is read and kept</a>.
+      </p>
 
       <H2 id="website-analytics">The website&apos;s analytics</H2>
       <p>

@@ -34,7 +34,7 @@ const n = (value: number) => value.toLocaleString("en-US");
 
 function describe(manifest: ImportManifest): string[] {
   return [
-    `  Claude chat  ${n(manifest.sessions)} conversations, ${day(manifest.from)} to ${day(manifest.to)}`,
+    `  Claude chat  ${n(manifest.sessions)} ${manifest.sessions === 1 ? "conversation" : "conversations"}, ${day(manifest.from)} to ${day(manifest.to)}`,
     `               ${n(manifest.prompts)} prompts, ${n(manifest.replies)} replies, ${n(manifest.toolCalls)} tool calls`,
     `               imported ${day(manifest.importedAt)}${manifest.issues ? `, ${n(manifest.issues)} unreadable ${manifest.issues === 1 ? "item" : "items"} skipped` : ""}`,
   ];
