@@ -164,6 +164,7 @@ export class ArrayElementParser {
             end += 1;
           }
           if (end > index) {
+            this.flushSurrogate();
             this.appendBytes(chunk, index, end);
             index = end - 1;
             continue;
