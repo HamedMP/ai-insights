@@ -184,7 +184,8 @@ root.append(h("header", { class: "topbar" }, h("div", { class: "wrap" },
 
 // ================================================================== HERO
 const cur = RUNS[RUNS.length - 1], prevRun = RUNS.length > 1 ? RUNS[RUNS.length - 2] : null;
-const rangeTxt = HERO.from && HERO.to ? `${dshort(HERO.from)} – ${dshort(HERO.to)}, ${HERO.to.slice(0, 4)}` : "";
+// A history that spans years (an imported chat export can) names both years.
+const rangeTxt = HERO.from && HERO.to ? (HERO.from.slice(0, 4) === HERO.to.slice(0, 4) ? `${dshort(HERO.from)} – ${dshort(HERO.to)}, ${HERO.to.slice(0, 4)}` : `${dshort(HERO.from)}, ${HERO.from.slice(0, 4)} – ${dshort(HERO.to)}, ${HERO.to.slice(0, 4)}`) : "";
 const METRICS = {
   wallHours: { label: "hours with agents", fmt: (v) => int(v), better: null },
   agentHours: { label: "agent-hours", fmt: (v) => int(v), better: null },
@@ -352,6 +353,7 @@ function statsLink() {
   return h("div", { class: "slink share", id: "share-stats" },
     h("div", { class: "share-h" }, "Share your stats and cards, join the leaderboard"),
     h("p", { class: "muted small" }, "A link to your card and profile on the AI Insights site. It holds only the lines below, in the link itself: your totals and your recap cards as short lines of numbers, dates, agent names and fixed wording. No project names, prompts, commands or paths. Opening the link uploads nothing; on that page you can choose to sign in and publish exactly these lines to your public profile and the leaderboard."),
+    ACT.chat && ACT.chat.only ? h("p", { class: "small slink-chat" }, "Your history is a chat export only. Chat exports record no tokens or spend, so the site shows both as not measured (the link carries tokens as 0 and no spend), and your entry will not rank in the token, spend or agent arenas.") : null,
     nameIn,
     hasDevice ? h("div", { class: "slink-device" },
       deviceIn,
@@ -695,7 +697,10 @@ const harnessColor = (key) => HCOL[Math.max(0, HORDER.indexOf(key)) % HCOL.lengt
 {
   const A2 = ACT;
   const style = VIEW.narrative && VIEW.narrative.interactionStyle ? md(VIEW.narrative.interactionStyle) + " " : "";
-  const el = sub("How you work", `${style}You typed ${int(HERO.prompts)} prompts; your agents made ${int(A2.toolCalls)} tool calls${A2.toolsPerPrompt != null ? `, <b>${int(A2.toolsPerPrompt)} for every message you typed</b>` : ""}.`);
+  const CH = A2.chat;
+  const el = sub("How you work", CH && CH.only
+    ? `${style}You typed ${int(HERO.prompts)} prompts in ${plural(CH.sessions, "conversation")}; Claude used a tool ${plural(CH.toolCalls, "time")}.`
+    : `${style}You typed ${int(HERO.prompts)} prompts; your agents made ${int(A2.toolCalls)} tool calls${A2.toolsPerPrompt != null ? `, <b>${int(A2.toolsPerPrompt)} for every message you typed</b>` : ""}${CH ? ` (chats left out: ${plural(CH.prompts, "prompt")} and ${plural(CH.toolCalls, "tool call")} in ${plural(CH.sessions, "conversation")})` : ""}.`);
   // Habits as ratios of counts: none of them grows with tokens or spend, and each shows the counts behind it.
   const RT = VIEW.ratios, earned = RC && RC.persona ? RC.persona.earned : [];
   if (RT && RT.length) {
@@ -737,7 +742,7 @@ const harnessColor = (key) => HCOL[Math.max(0, HORDER.indexOf(key)) % HCOL.lengt
     const hs = [...new Set(TL.days.flatMap((d) => d.harnesses))];
     el.append(panel("Side by side", `busiest: ${dd.label}`, chips, h("div", { style: { marginTop: "14px" } }, box),
       h("div", { class: "plegend" }, hs.map((k) => h("span", {}, h("i", { style: { background: harnessColor(k) } }), harnessName(k))), h("span", {}, h("i", { style: { background: "transparent", boxShadow: "inset 0 0 0 1.5px var(--ink)" } }), "driven by another agent"), TL.days.some((d) => d.bars.some((b) => b.active.length)) ? h("span", {}, h("i", { style: { height: "3px", opacity: 0.5, background: "var(--muted)" } }), "open but idle (gaps over 10 min)") : null), sayEl));
-  } else {
+  } else if (!(CH && CH.only)) {
     el.append(panel("Side by side", null, h("p", { class: "muted small" }, A2.maxParallel >= 2 ? `Up to ${A2.maxParallel} sessions worked at the same moment (${plural(A2.overlapEvents, "overlap")}).` : "Your sessions ran one at a time: no two overlapped.")));
   }
   const F = VIEW.facets;
@@ -751,16 +756,29 @@ const harnessColor = (key) => HCOL[Math.max(0, HORDER.indexOf(key)) % HCOL.lengt
       h("div", { class: "stackbar" }, out.map((o) => { const sg = h("span", { style: { width: (o.count / outTot) * 100 + "%", background: OUTC[o.key] || "var(--line)" } }); bindTip(sg, `<b>${OUTL[o.key] || esc(o.key)}</b> · ${plural(o.count, "session")}`); return sg; })),
       h("div", { class: "plegend" }, out.map((o) => h("span", {}, h("i", { style: { background: OUTC[o.key] || "var(--line)" } }), `${OUTL[o.key] || o.key} ${o.count}`))))
     : panel("Did it work?", null, h("p", { class: "small" }, "No win rate yet: it comes from your agent judging each session. Run this in your own agent (it uses your existing account; nothing is uploaded):"), snip("Prompt for your agent", VIEW.review.prompt));
-  el.append(h("div", { class: "grid g2", style: { marginTop: "16px" } },
+  // A chat export has no subagents, plan mode, compactions, edits or commits: a panel of zeros would mislead.
+  const chatPanel = CH
+    ? panel("Chats", `${plural(CH.sessions, "conversation")} from an export`,
+      h("div", { class: "facts" },
+        h("div", {}, h("b", {}, int(CH.prompts)), " messages from you, ", h("b", {}, int(CH.replies)), " replies"),
+        h("div", {}, h("b", {}, int(CH.toolCalls)), ` tool calls by Claude${CH.toolErrors ? `, ${int(CH.toolErrors)} failed` : ""}`),
+        h("div", {}, h("b", {}, int(CH.branches)), " regenerated answers or edited prompts"),
+        h("div", {}, h("b", {}, int(CH.attachments + CH.files)), " attachments and files (counted, never read)"),
+        CH.voiceNotes ? h("div", {}, h("b", {}, int(CH.voiceNotes)), " voice notes") : null),
+      h("p", { class: "muted small" }, "Chat exports record no model, tokens or cost, and no shell, files, plan mode or context resets, so those stay out of the numbers above."))
+    : null;
+  if (CH && CH.only) el.append(h("div", { class: "grid g2", style: { marginTop: "16px" } }, chatPanel, didItWork));
+  else el.append(h("div", { class: "grid g2", style: { marginTop: "16px" } },
     panel("Delegation", null,
       h("div", { class: "kpi" }, A2.toolsPerPrompt != null ? int(A2.toolsPerPrompt) : "n/a", h("small", {}, "tool calls per message")),
       h("div", { class: "facts" },
         RC ? h("div", {}, h("b", {}, int(RC.parallel.subagents)), " subagents launched in ", h("b", {}, int(A2.subagentSessions)), " sessions") : h("div", {}, h("b", {}, int(A2.subagentSessions)), " sessions used subagents"),
-        h("div", {}, h("b", {}, int(A2.agentDriven)), ` of ${int(A2.sessions)} sessions were steered by another agent`),
+        h("div", {}, h("b", {}, int(A2.agentDriven)), ` of ${int(A2.sessions - (CH ? CH.sessions : 0))} ${CH ? "coding " : ""}sessions were steered by another agent`),
         h("div", {}, h("b", {}, int(A2.planModeSessions)), " sessions used plan mode"),
         h("div", {}, h("b", {}, int(A2.compactions)), " context compactions"),
         h("div", {}, h("b", {}, `+${compact(A2.linesAdded)} / −${compact(A2.linesRemoved)}`), ` lines, ${plural(A2.commits, "commit")}`))),
     didItWork));
+  if (CH && !CH.only) el.append(h("div", { class: "grid g2", style: { marginTop: "16px" } }, chatPanel));
   const N = VIEW.narrative;
   const extra = [];
   if (N && N.workAreas.length) extra.push(h("div", { class: "cards3" }, N.workAreas.map((w) => h("div", { class: "mini" }, h("span", { class: "k" }, plural(w.sessions, "session")), h("b", { html: md(w.name) }), h("span", { html: md(w.description) })))));
@@ -837,7 +855,8 @@ const sinceTag = (f) => { if (!prevRun) return null; const p = prevOf(f); if (!p
   const F = VIEW.failures, FD = VIEW.findings;
   const prevRate = prevRun && prevRun.metrics.failureRate;
   const rate = F.calls ? F.total / F.calls : 0;
-  const el = sub("What went wrong", F.calls ? `${int(F.total)} of ${int(F.calls)} tool calls failed (${one(rate * 100)}%)${prevRate != null ? `, ${rate <= prevRate ? "down" : "up"} from ${one(prevRate * 100)}% at your ${dshort(prevRun.day)} run` : ""}. ${FD.length ? `AI Insights found ${plural(FD.length, "pattern")} worth fixing, each with evidence you can check.` : "No recurring problems detected. That is a good sign."}` : "No tool calls recorded.");
+  const CHW = ACT.chat;
+  const el = sub("What went wrong", CHW && CHW.only ? `Findings come from coding-agent history: failed commands, context resets, permission prompts. A chat export records none of these, so there is nothing to check yet${CHW.toolErrors ? ` (${int(CHW.toolErrors)} of Claude's ${int(CHW.toolCalls)} tool calls in chats failed)` : ""}.` : F.calls ? `${int(F.total)} of ${int(F.calls)} tool calls failed (${one(rate * 100)}%)${prevRate != null ? `, ${rate <= prevRate ? "down" : "up"} from ${one(prevRate * 100)}% at your ${dshort(prevRun.day)} run` : ""}. ${FD.length ? `AI Insights found ${plural(FD.length, "pattern")} worth fixing, each with evidence you can check.` : "No recurring problems detected. That is a good sign."}` : "No tool calls recorded.");
   // Sessions grouped by the kind of trouble they showed: counts of sessions with a sign, not a diagnosis.
   const CZ = VIEW.causes;
   if (CZ && CZ.causes.length) {
@@ -854,8 +873,8 @@ const sinceTag = (f) => { if (!prevRun) return null; const p = prevOf(f); if (!p
       more("Signs, evidence and a fix for each", detail)));
   } else if (CZ) {
     el.append(panel("Why sessions go wrong", null, h("p", { class: "muted small" }, `None of the ${int(CZ.sessions)} sessions showed a sign of the usual causes.`)));
-  } else if (ACT.sessions > 0) {
-    el.append(h("p", { class: "muted small" }, "“Why sessions go wrong” appears once there are 10 sessions."));
+  } else if (ACT.sessions > 0 && !(CHW && CHW.only)) {
+    el.append(h("p", { class: "muted small" }, CHW ? "“Why sessions go wrong” appears once there are 10 coding-agent sessions; chats are not counted." : "“Why sessions go wrong” appears once there are 10 sessions."));
   }
   const SEVS = ["all", "high", "medium", "low", "info"];
   let sevF = "all", showAll = false;
@@ -880,7 +899,7 @@ const sinceTag = (f) => { if (!prevRun) return null; const p = prevOf(f); if (!p
     showBtn.textContent = `Show all ${shown.length}`;
   }
   draw();
-  el.append(h("div", { class: "grid g2" },
+  if (!(CHW && CHW.only)) el.append(h("div", { class: "grid g2" },
     panel("Why calls failed", plural(F.total, "failure"), hbars(F.categories.map((c) => ({ key: c.key, label: keyLabel(c.key), count: c.count, tip: `${pct(c.count / Math.max(1, F.total))} of failures` })), { empty: "No failed tool calls." })),
     RC && RC.failures.nemesis.length ? panel("Programs that failed most", "failures · share of runs", hbars(RC.failures.nemesis.map((n) => ({ key: n.key, count: n.count, runs: n.runs, tip: `${int(n.count)} of ${int(n.runs)} runs failed` })), { fmt: (r) => `${int(r.count)} · ${one((r.count / Math.max(1, r.runs)) * 100)}%` }))
       : VIEW.facets && VIEW.facets.frictions.length ? panel("Friction your agent saw", null, hbars(VIEW.facets.frictions.map((c) => ({ key: c.key, label: keyLabel(c.key), count: c.count })))) : panel("Programs that failed most", null, h("p", { class: "muted small" }, "Appears with the recap."))));

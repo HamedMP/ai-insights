@@ -15,7 +15,8 @@ export default function Cli() {
 ai-insights scan [options]     scan and show what was found
 ai-insights report [options]   write the report (or print JSON with --json)
 ai-insights doctor             show which histories were found and where
-ai-insights mcp                start the MCP server on stdio (for your agent)`}</Code>
+ai-insights mcp                start the MCP server on stdio (for your agent)
+ai-insights import claude <path>  add a Claude chat export`}</Code>
 
       <H2 id="commands">Commands</H2>
       <H3 id="cmd-run">ai-insights</H3>
@@ -85,6 +86,18 @@ Store: ~/.ai-insights
         Starts the MCP server on standard input and output. Your agent starts this for you once the plugin or server is installed; you do not run
         it by hand. See the <a href="/docs/mcp">MCP reference</a>.
       </p>
+      <H3 id="cmd-import">ai-insights import</H3>
+      <p>
+        Adds the history of a chat product from its data export. Chat exports are never looked for on their own: you point AI Insights at the
+        file. See <a href="/docs/import">Import chat history</a> for what is read and what cannot be measured.
+      </p>
+      <Code label="Usage" copy={false}>{`ai-insights import claude <path>    the export .zip, its unzipped folder, or conversations.json
+ai-insights import --list           show what has been imported
+ai-insights import --remove claude  remove the import and everything made from it`}</Code>
+      <p>
+        A newer import replaces the earlier one. Imported conversations then appear in every run as their own agent, <code>claude-chat</code>{" "}
+        (Claude chat).
+      </p>
       <p>
         <code>help</code> is accepted as a command and prints the same text as <code>--help</code>.
       </p>
@@ -108,8 +121,8 @@ Store: ~/.ai-insights
           [
             <code key="h">--harness &lt;name&gt;</code>,
             <>
-              Only one agent: <code>claude-code</code>, <code>codex</code>, <code>cursor</code>, <code>pi</code>, <code>opencode</code> or{" "}
-              <code>gemini</code>.
+              Only one agent: <code>claude-code</code>, <code>codex</code>, <code>cursor</code>, <code>pi</code>, <code>opencode</code>,{" "}
+              <code>gemini</code> or <code>claude-chat</code> (an imported Claude chat export).
             </>,
           ],
           [<code key="m">--max-sessions &lt;n&gt;</code>, "Read at most n transcripts, newest first. The default is 5,000; the most is 50,000."],

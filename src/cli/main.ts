@@ -71,6 +71,16 @@ function lightDefaults(): LightDeps {
 /** The whole CLI as a function, so tests can drive it. Returns the exit code. */
 export async function run(argv: string[], overrides: Partial<CliDeps> = {}): Promise<number> {
   const deps: LightDeps = { ...lightDefaults(), ...overrides };
+  if (argv[0] === "import") {
+    // Its own small parser and module (src/cli/import.ts), loaded only when asked for.
+    try {
+      const [{ runImport }, { resolveHome }] = await Promise.all([import("./import.js"), import("../store/store.js")]);
+      return await runImport(argv.slice(1), { stdout: deps.stdout, stderr: deps.stderr, home: resolveHome(deps.env), now: deps.now });
+    } catch (error) {
+      deps.stderr(`ai-insights: import failed: ${error instanceof Error ? error.message : String(error)}\n`);
+      return 1;
+    }
+  }
   let parsed: Parsed;
   try {
     parsed = parseArgs(argv, deps.now());

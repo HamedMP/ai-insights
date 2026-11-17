@@ -153,11 +153,11 @@ describe("share links: report side to site side", () => {
  */
 const N = String.raw`[0-9][0-9,.]*`;
 const PUBLISHED: Record<string, { b: RegExp; c: RegExp }> = {
-  persona: { b: /^The (Night|Dawn|Golden-Hour|Afternoon|Morning) (Orchestrator|Shipper|Delegator)$/, c: new RegExp(`^${N} sessions? in ${N} days?$`) },
+  persona: { b: /^The (Night|Dawn|Golden-Hour|Afternoon|Morning) (Orchestrator|Shipper|Delegator|Conversationalist)$/, c: new RegExp(`^${N} sessions? in ${N} days?$`) },
   parallel: { b: new RegExp(`^${N} at once$`), c: new RegExp(`^sessions (side by side, plus ${N} subagents?|running side by side)$`) },
   tokens: { b: new RegExp(`^${N}[KMBT]?$`), c: new RegExp(`^tokens(, about \\$${N} at API list prices| in ${N} model requests?)$`) },
   streak: { b: new RegExp(`^${N} days?$`), c: /^in a row, [A-Z][a-z]{2} \d{1,2} to [A-Z][a-z]{2} \d{1,2}$/ },
-  marathon: { b: new RegExp(`^${N} hrs$`), c: /^of active work in one (Claude Code |Codex |Cursor |Pi |OpenCode |Gemini CLI )?session$/ },
+  marathon: { b: new RegExp(`^${N} hrs$`), c: /^of active work in one (Claude Code |Codex |Cursor |Pi |OpenCode |Gemini CLI |Claude chat )?session$/ },
   clock: { b: /^(Night owl|Early bird|Golden-hour builder|Afternoon engine|Morning mind)$/, c: /^busiest hour \d\d:00$/ },
   manners: { b: new RegExp(`^${N} pleases?$`), c: new RegExp(`^${N} thank-yous? and ${N} (sorry|sorries) in ${N} prompts?$`) },
   danger: { b: new RegExp(`^${N} × rm -rf$`), c: new RegExp(`^${N} force push(es)? and ${N} naps?\\. Nothing caught fire\\.$`) },

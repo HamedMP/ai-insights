@@ -1,5 +1,5 @@
 import { pathToFileURL } from "node:url";
-import type { AnalysisStep, BuildReportInput, RenderExtras, Report, RunSnapshot, Session } from "../schema/types.js";
+import { isChatHarness, type AnalysisStep, type BuildReportInput, type RenderExtras, type Report, type RunSnapshot, type Session } from "../schema/types.js";
 import { notify, type ScanResult } from "./scan.js";
 import { compareRuns, loadRuns, makeSnapshot, saveSnapshot } from "./snapshots.js";
 import { sessionKey, type SavedReport, type Store } from "./store.js";
@@ -127,6 +127,8 @@ export interface Headline {
   toolErrors: number;
   modelRequests: number;
   tokens: number;
+  /** Sessions from chat exports, which record no tokens: their usage is not measured, not zero. */
+  unmeasuredSessions: number;
   firstSession: string | null;
   lastSession: string | null;
 }
@@ -139,10 +141,12 @@ export function headline(sessions: Session[]): Headline {
   let toolErrors = 0;
   let modelRequests = 0;
   let tokens = 0;
+  let unmeasuredSessions = 0;
   let first: number | null = null;
   let last: number | null = null;
   for (const session of sessions) {
     userPrompts += session.userMessageCount || 0;
+    if (isChatHarness(session.harness)) unmeasuredSessions += 1;
     activeMinutes += session.activeMinutes || 0;
     toolCalls += session.toolCalls.length;
     toolErrors += session.toolCalls.filter((call) => call.error).length;
@@ -164,9 +168,20 @@ export function headline(sessions: Session[]): Headline {
     toolErrors,
     modelRequests,
     tokens,
+    unmeasuredSessions,
     firstSession: first === null ? null : new Date(first).toISOString(),
     lastSession: last === null ? null : new Date(last).toISOString(),
   };
+}
+
+/**
+ * "12.3M tokens", said honestly when chat exports are in the history: they record no tokens, so a history of only
+ * chats has tokens "not measured", never 0, and a mixed one says the count covers the coding agents only.
+ */
+export function tokensPhrase(tokens: number, unmeasuredSessions: number, sessions: number, compact: (value: number) => string): string {
+  if (unmeasuredSessions > 0 && unmeasuredSessions >= sessions) return "tokens not measured (chat exports record none)";
+  const count = `${compact(tokens)} tokens`;
+  return unmeasuredSessions > 0 ? `${count} (coding agents; chat not measured)` : count;
 }
 
 function round1(value: number): number {
@@ -200,6 +215,8 @@ export interface ReportHeadline {
   cost: string;
   /** e.g. "90 active hours (120 agent-hours across parallel sessions)". */
   time: string;
+  /** Sessions from chat exports: no tokens or cost recorded, so not measured. */
+  unmeasuredSessions: number;
 }
 
 /**
@@ -222,8 +239,12 @@ export function describeHeadline(report: Report): ReportHeadline {
     .slice(0, 3)
     .map((model) => model.model);
 
+  const unmeasuredSessions = activity.byHarness.filter((row) => isChatHarness(row.harness)).reduce((sum, row) => sum + row.sessions, 0);
+  const chatOnly = unmeasuredSessions > 0 && unmeasuredSessions >= activity.sessions;
   let cost: string;
-  if (usage.estimatedUsd === null) {
+  if (chatOnly && requests === 0) {
+    cost = "cost not measured";
+  } else if (usage.estimatedUsd === null) {
     cost = requests > 0 ? "cost unknown: none of the requests could be priced" : "no model requests to price";
   } else if (unpriced === 0) {
     cost = `about ${formatUsd(usage.estimatedUsd)} at API list prices`;
@@ -251,5 +272,6 @@ export function describeHeadline(report: Report): ReportHeadline {
     unpricedModels,
     cost,
     time,
+    unmeasuredSessions,
   };
 }

@@ -28,10 +28,13 @@ const ShareLink = (() => {
   const dshort = (d) => `${MONTHS[Number(d.slice(5, 7)) - 1] || "?"} ${Number(d.slice(8, 10))}`;
 
   /** Fixed wording only: anything not in these tables is left out, never passed through. */
-  const AGENTS = { "claude-code": "Claude Code", codex: "Codex", cursor: "Cursor", pi: "Pi", opencode: "OpenCode", gemini: "Gemini CLI" };
+  const AGENTS = { "claude-code": "Claude Code", codex: "Codex", cursor: "Cursor", pi: "Pi", opencode: "OpenCode", gemini: "Gemini CLI", "claude-chat": "Claude chat" };
+  // Chat exports record no tokens. The site estimates each agent's tokens as total tokens times its share of
+  // sessions, so their sessions stay out of the per-agent shares (and the arenas built on them).
+  const UNMEASURED = new Set(["claude-chat"]);
   const VERDICTS = { night_owl: "Night owl", early_bird: "Early bird", evening: "Golden-hour builder", afternoon: "Afternoon engine", morning: "Morning mind" };
   const DAYS = { Mon: "Monday", Tue: "Tuesday", Wed: "Wednesday", Thu: "Thursday", Fri: "Friday", Sat: "Saturday", Sun: "Sunday" };
-  const PERSONA = /^The (?:Night|Dawn|Golden-Hour|Afternoon|Morning) (?:Orchestrator|Shipper|Delegator)$/;
+  const PERSONA = /^The (?:Night|Dawn|Golden-Hour|Afternoon|Morning) (?:Orchestrator|Shipper|Delegator|Conversationalist)$/;
   // Display names the analysis makes from known public model families (src/analysis/recap/text.ts modelLabel).
   // A family, then only version numbers and known variant words: a custom model id cannot smuggle a name through.
   const FAMILY = /^(?:Claude|GPT|O[1-9]|Codex|Gemini|Grok|Deepseek|Qwen[0-9][0-9a-z.]*|Kimi|Glm|Mistral|Llama[0-9]*)$/;
@@ -250,7 +253,7 @@ const ShareLink = (() => {
     if (!rc) return null;
     const id = device && typeof device.id === "string" && /^[0-9a-f]{32}$/.test(device.id) ? device.id : null;
     const T = rc.totals || {}, U = rc.usage || {}, range = rc.range || {};
-    const harnesses = Array.isArray(T.harnesses) ? T.harnesses : [];
+    const harnesses = (Array.isArray(T.harnesses) ? T.harnesses : []).filter((x) => x && !UNMEASURED.has(String(x.key)));
     const total = harnesses.reduce((a, x) => a + num(x && x.sessions, LIMITS.sessions), 0);
     const agents = harnesses
       .filter((x) => x && /^[a-z0-9-]{1,20}$/.test(String(x.key)) && num(x.sessions, LIMITS.sessions) > 0)
@@ -310,7 +313,7 @@ const ShareLink = (() => {
       p.name ? `Name: ${p.name}` : "No name (the card says “Someone”)",
       ...deviceLines,
       `Period: ${p.from} to ${p.to}`,
-      `${fmt(p.sessions)} sessions, ${short(p.tokens)} tokens${p.usd != null ? `, about $${fmt(p.usd)} estimated spend` : ""}`,
+      `${fmt(p.sessions)} sessions, ${p.tokens > 0 || p.agents.length ? `${short(p.tokens)} tokens` : "tokens not measured (chat export only)"}${p.usd != null ? `, about $${fmt(p.usd)} estimated spend` : ""}`,
       `${fmt(p.activeDays)} active days, longest streak ${fmt(p.streak)} days`,
       agentList ? `Agents: ${agentList}` : null,
       p.fact ? `Fun fact: ${p.fact}` : null,

@@ -4,8 +4,20 @@
  * modules depend on it.
  */
 
-export const HARNESSES = ["claude-code", "codex", "cursor", "pi", "opencode", "gemini"] as const;
+export const HARNESSES = ["claude-code", "codex", "cursor", "pi", "opencode", "gemini", "claude-chat"] as const;
 export type Harness = (typeof HARNESSES)[number];
+
+/**
+ * Chat products read from a data export the person imported (`ai-insights import`), not coding agents read from
+ * their own folders. Their exports record no model, no token counts and no cost, so their usage is "not measured":
+ * never zero, never estimated. They also have no shell, files, permissions or compactions, so the coding findings,
+ * work ratios and friction causes leave them out.
+ */
+export const CHAT_HARNESSES = ["claude-chat"] as const satisfies readonly Harness[];
+
+export function isChatHarness(harness: Harness): boolean {
+  return (CHAT_HARNESSES as readonly string[]).includes(harness);
+}
 
 // ---------------------------------------------------------------------------
 // Sessions: what a source produces from one transcript
@@ -140,6 +152,18 @@ export interface ApprovalStats {
   autoBlocked?: number;
 }
 
+/** What a chat export records about one conversation beyond turns and tools. Counts only, never content. */
+export interface ChatStats {
+  /** Files the person attached with extracted text (the text itself is never read into a session). */
+  attachments: number;
+  /** Uploaded files and images, by count. */
+  files: number;
+  /** Voice notes in the conversation. */
+  voiceNotes: number;
+  /** Extra replies from regenerating an answer or editing a prompt: messages sharing a parent beyond the first. */
+  branches: number;
+}
+
 /**
  * One normalised session. Holds numbers, tool metadata and the person's own
  * prompts. It never holds assistant text or tool output; those are read on
@@ -198,6 +222,8 @@ export interface Session {
   thinking?: ThinkingStats;
   /** Absent when the harness records no approval decisions, and in sessions cached before it existed. */
   approvals?: ApprovalStats;
+  /** Chat exports only (`isChatHarness`); absent for coding agents. */
+  chat?: ChatStats;
 }
 
 export interface SessionFile {
@@ -635,6 +661,24 @@ export interface Activity {
     sessionsWithWeb: number;
     compactions: number;
   };
+  /** Chat-export sessions summed (`isChatHarness`). Absent when there are none, and in older reports. */
+  chat?: ChatActivity;
+}
+
+/**
+ * What chat-export sessions add up to, kept apart so a page can show chats for what they are and leave them out
+ * of numbers only coding agents produce (tool calls per prompt, delegation). Counts only.
+ */
+export interface ChatActivity {
+  sessions: number;
+  userMessages: number;
+  assistantMessages: number;
+  toolCalls: number;
+  toolErrors: number;
+  attachments: number;
+  files: number;
+  voiceNotes: number;
+  branches: number;
 }
 
 export interface FacetAggregate {
@@ -916,7 +960,8 @@ export interface RecapPersona {
   /** "The Night Orchestrator". */
   title: string;
   time: "Night" | "Dawn" | "Golden-Hour" | "Afternoon" | "Morning";
-  role: "Orchestrator" | "Shipper" | "Delegator";
+  /** "Conversationalist" only when every session is a chat export: the coding roles would say nothing true. */
+  role: "Orchestrator" | "Shipper" | "Delegator" | "Conversationalist";
   /** One sentence built from a fixed template and numbers; the win-rate clause only when facets exist. */
   reason: string;
   /** Extra titles earned from `Report.ratios`, at most three. Absent when none was earned, and in older recaps. */

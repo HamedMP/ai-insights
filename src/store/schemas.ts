@@ -211,6 +211,14 @@ export const SessionSchema = z.object({
       autoBlocked: z.number().int().min(0).optional(),
     })
     .optional(),
+  chat: z
+    .object({
+      attachments: z.number().int().min(0),
+      files: z.number().int().min(0),
+      voiceNotes: z.number().int().min(0),
+      branches: z.number().int().min(0),
+    })
+    .optional(),
   // Keeps keys this schema does not name yet, so a newer source's fields survive a cache round trip.
 }).loose() satisfies z.ZodType<Session, unknown>;
 

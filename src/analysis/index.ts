@@ -1,4 +1,4 @@
-import { REPORT_VERSION, type AnalysisStep, type BuildReportInput, type Recap, type RecapHistory, type Report, type Retention, type Session } from "../schema/types.js";
+import { isChatHarness, REPORT_VERSION, type AnalysisStep, type BuildReportInput, type Recap, type RecapHistory, type Report, type Retention, type Session } from "../schema/types.js";
 import { buildActivity } from "./activity.js";
 import { buildFrictionCauses } from "./causes.js";
 import { aggregateFacets, facetsBySession } from "./facets.js";
@@ -80,16 +80,23 @@ export function buildReport(input: BuildReportInput): Report {
   const requests = uniqueRequests(sessions);
   const usage = summarizeUsage(requests, clock);
   step("activity");
-  const activity = buildActivity(sessions, clock);
+  // Chat exports have no shell, files, permissions, compactions or parallel agents: the coding findings, work
+  // ratios, friction causes and parallel counts are built from coding sessions only, so chats neither trip
+  // them nor dilute them. Activity, rhythm and the person's own words still count every session.
+  const coding = sessions.filter((session) => !isChatHarness(session.harness));
+  const allActivity = buildActivity(sessions, clock);
+  const codingActivity = coding.length === sessions.length ? allActivity : buildActivity(coding, clock);
+  // Chats left open side by side are not agents working in parallel.
+  const activity = { ...allActivity, parallelSessions: codingActivity.parallelSessions, sessionSpans: codingActivity.sessionSpans ?? [] };
   const coverage = withHistoryDays(input.coverage, sessions, now.getTime(), clock);
   step("findings");
-  const findings = detectFindings({ sessions, requests, usage, activity, coverage, now, clock, ...(input.retention ? { retention: input.retention } : {}) });
+  const findings = detectFindings({ sessions: coding, requests, usage, activity: codingActivity, coverage, now, clock, ...(input.retention ? { retention: input.retention } : {}) });
   const facets = aggregateFacets(input.facets, sessions);
   const generatedAt = now.toISOString();
-  const ratios = sessions.length > 0 ? buildWorkRatios(sessions, activity) : undefined;
-  const frictionCauses = buildFrictionCauses({ sessions, facets: facetsBySession(input.facets, sessions), findings, clock });
+  const ratios = coding.length > 0 ? buildWorkRatios(coding, codingActivity) : undefined;
+  const frictionCauses = buildFrictionCauses({ sessions: coding, facets: facetsBySession(input.facets, coding), findings, clock });
   step("recap");
-  const recap = buildRecap({ sessions, activity, usage, findings, facets, clock, timeZone, generatedAt, ...(ratios ? { ratios } : {}) });
+  const recap = buildRecap({ sessions, activity, coding: { sessions: coding, activity: codingActivity }, usage, findings, facets, clock, timeZone, generatedAt, ...(ratios ? { ratios } : {}) });
   return {
     version: REPORT_VERSION,
     generatedAt,

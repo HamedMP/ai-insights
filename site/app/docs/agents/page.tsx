@@ -9,8 +9,8 @@ export default function Agents() {
     <DocShell slug="agents">
       <H2 id="supported-agents">Supported agents</H2>
       <p>
-        AI Insights reads six agents. &ldquo;Untested&rdquo; means the code exists and has tests on synthetic files, but nobody has confirmed it on
-        that agent in daily use yet.
+        AI Insights reads six agents, plus Claude chat history you import from its data export. &ldquo;Untested&rdquo; means the code exists
+        and has tests on synthetic files, but nobody has confirmed it on that agent in daily use yet.
       </p>
       <Table
         caption="Supported agents"
@@ -22,6 +22,14 @@ export default function Agents() {
           ["Pi", "Read", "Yes", "Untested"],
           ["Cursor", "Read", "No: its local transcripts hold no token counts", "Untested"],
           ["Gemini CLI", "Untested: built from its source format, not yet tried on real history", "Yes", "None yet, use npx"],
+          [
+            "Claude chat",
+            <>
+              Imported from a data export with <code>ai-insights import claude</code>; see <a href="/docs/import">Import chat history</a>
+            </>,
+            "No: the export records no model or token counts",
+            "Not needed: it is not a coding agent",
+          ],
         ]}
       />
       <p>

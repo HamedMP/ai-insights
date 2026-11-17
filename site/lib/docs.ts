@@ -63,6 +63,20 @@ export const DOCS: DocPage[] = [
     ],
   },
   {
+    slug: "import",
+    title: "Import chat history",
+    description: "Add your Claude chat history from its data export: how to get the export, the import command, what is read and kept, and what a chat export cannot show.",
+    group: "Start",
+    sections: [
+      { id: "export-claude", title: "Get your Claude export" },
+      { id: "other-products", title: "Other chat products" },
+      { id: "import", title: "Import it" },
+      { id: "what-is-read", title: "What is read and kept" },
+      { id: "not-measured", title: "What chat exports cannot show" },
+      { id: "manage", title: "Replace or remove an import" },
+    ],
+  },
+  {
     slug: "report",
     title: "The report",
     description: "The sections of the report, the findings and their thresholds, why sessions go wrong, and the exact rules behind ratios and earned titles.",
@@ -165,6 +179,7 @@ export const DOCS: DocPage[] = [
       { id: "share-link-contents", title: "What a share link contains" },
       { id: "published-contents", title: "What publishing makes public" },
       { id: "device-id", title: "The device id" },
+      { id: "chat-exports", title: "Imported chat exports" },
       { id: "website-analytics", title: "The website's analytics" },
       { id: "removing", title: "Removing what you published" },
     ],

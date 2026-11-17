@@ -43,6 +43,11 @@ export interface RecapInput {
   generatedAt: string;
   /** The report's work ratios; persona titles are earned from them. */
   ratios?: WorkRatios;
+  /**
+   * The coding sessions (chat exports left out) and their activity, for the stats only coding agents produce:
+   * tool calls, commits, shell, failures, parallel runs, projects and the persona's role. Default: every session.
+   */
+  coding?: { sessions: Session[]; activity: Activity };
 }
 
 export { TITLE_RULES, titlesOf } from "./titles.js";
@@ -103,6 +108,9 @@ const TIME_WORDS = { night_owl: "Night", early_bird: "Dawn", evening: "Golden-Ho
 /** Rules over the numbers, so the persona needs no facets; the win-rate clause appears only when they exist. */
 export function personaOf(input: {
   verdict: keyof typeof TIME_WORDS;
+  /** No coding session at all: only chats, so the coding roles say nothing true. */
+  chatOnly?: boolean;
+  prompts?: number;
   maxConcurrent: number;
   subagents: number;
   sessions: number;
@@ -113,7 +121,10 @@ export function personaOf(input: {
   const time = TIME_WORDS[input.verdict];
   let role: RecapPersona["role"];
   let reason: string;
-  if (input.maxConcurrent >= 5 || input.subagents / Math.max(1, input.sessions) >= 1) {
+  if (input.chatOnly) {
+    role = "Conversationalist";
+    reason = `${input.prompts ?? 0} prompts across ${input.sessions} ${input.sessions === 1 ? "conversation" : "conversations"}`;
+  } else if (input.maxConcurrent >= 5 || input.subagents / Math.max(1, input.sessions) >= 1) {
     role = "Orchestrator";
     reason = `${input.maxConcurrent} agents at once, ${Math.round(input.toolsPerPrompt)} tool calls for every prompt you typed`;
   } else if (input.commitShare >= 0.4) {
@@ -149,32 +160,37 @@ export function tipsOf(findings: Finding[]): RecapTip[] {
  */
 export function buildRecap(input: RecapInput): Recap | undefined {
   const { sessions, activity, usage, clock } = input;
+  const coding = input.coding ?? { sessions, activity };
   const span = range(sessions, clock);
   if (!span) return undefined;
 
   const { rhythm, promptsByDay } = buildRhythm(sessions, clock, input.timeZone);
   const voice = buildVoice(sessions);
-  const { shell, nemesis } = buildShell(sessions);
-  const failures = buildFailures(sessions, nemesis);
-  const { slash, slashTotal } = buildSlash(sessions);
-  const { connectors, skills } = buildFeatures(sessions);
+  const { shell, nemesis } = buildShell(coding.sessions);
+  const failures = buildFailures(coding.sessions, nemesis);
+  const { slash, slashTotal } = buildSlash(coding.sessions);
+  const { connectors, skills } = buildFeatures(coding.sessions);
 
   let prompts = 0;
+  let interrupted = 0;
+  for (const session of sessions) {
+    prompts += session.prompts.length;
+    for (const prompt of session.prompts) if (prompt.interrupted) interrupted += 1;
+  }
+  let codingPrompts = 0;
   let toolCalls = 0;
   let subagents = 0;
   let committed = 0;
-  let interrupted = 0;
   let capped = false;
-  for (const session of sessions) {
-    prompts += session.prompts.length;
+  for (const session of coding.sessions) {
+    codingPrompts += session.prompts.length;
     toolCalls += session.toolCalls.length;
     subagents += session.features.subagents;
     if (session.gitCommits > 0) committed += 1;
-    for (const prompt of session.prompts) if (prompt.interrupted) interrupted += 1;
     if (toolCallsCapped(session)) capped = true;
   }
-  const commitShare = sessions.length ? committed / sessions.length : 0;
-  const toolsPerPrompt = toolCalls / Math.max(1, prompts);
+  const commitShare = coding.sessions.length ? committed / coding.sessions.length : 0;
+  const toolsPerPrompt = toolCalls / Math.max(1, codingPrompts);
 
   const allDaily = activity.daily.map((day) => ({ day: day.day, sessions: day.sessions, prompts: day.userMessages, minutes: day.activeMinutes }));
   const daily = allDaily.slice(-MAX_RECAP_DAYS);
@@ -225,7 +241,7 @@ export function buildRecap(input: RecapInput): Recap | undefined {
     connectors,
     skills,
     shell,
-    parallel: { max: activity.parallelSessions.maxConcurrent, overlapEvents: activity.parallelSessions.overlapEvents, subagents },
+    parallel: { max: coding.activity.parallelSessions.maxConcurrent, overlapEvents: coding.activity.parallelSessions.overlapEvents, subagents },
     failures,
     models,
     usage: recapUsage,
@@ -236,9 +252,11 @@ export function buildRecap(input: RecapInput): Recap | undefined {
     recap.rhythm = rhythm;
     recap.persona = personaOf({
       verdict: rhythm.verdict.key,
-      maxConcurrent: activity.parallelSessions.maxConcurrent,
+      chatOnly: coding.sessions.length === 0,
+      prompts,
+      maxConcurrent: coding.activity.parallelSessions.maxConcurrent,
       subagents,
-      sessions: sessions.length,
+      sessions: coding.sessions.length || sessions.length,
       toolsPerPrompt,
       commitShare,
       ...(winRate === undefined ? {} : { winRate }),
@@ -247,16 +265,16 @@ export function buildRecap(input: RecapInput): Recap | undefined {
     if (earned.length > 0) recap.persona.earned = earned;
   }
   if (bigDay) recap.bigDay = bigDay;
-  const lanes = buildLanes(sessions, activity.parallelSessions.maxConcurrent);
+  const lanes = buildLanes(coding.sessions, coding.activity.parallelSessions.maxConcurrent);
   if (lanes) recap.parallel.lanes = lanes;
   const longest = buildLongestSession(sessions);
   if (longest) recap.longestSession = longest;
-  const top = activity.projects[0];
-  if (top && activity.totalActiveMinutes > 0) recap.topProjectShare = top.activeMinutes / activity.totalActiveMinutes;
+  const top = coding.activity.projects[0];
+  if (top && coding.activity.totalActiveMinutes > 0) recap.topProjectShare = top.activeMinutes / coding.activity.totalActiveMinutes;
   if (winRate !== undefined) recap.winRate = winRate;
   const thinking = buildThinking(sessions);
   if (thinking) recap.thinking = thinking;
-  const approvals = buildApprovals(sessions);
+  const approvals = buildApprovals(coding.sessions);
   if (approvals) recap.approvals = approvals;
   const replies = buildReplies(sessions);
   if (replies) recap.replies = replies;

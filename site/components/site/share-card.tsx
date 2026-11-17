@@ -8,7 +8,7 @@ import { restoreFragment } from "@/lib/pending-share"
 import { track } from "@/lib/analytics"
 import { EVENTS } from "@/lib/analytics-sanitize"
 import { Wordmark } from "@/components/site/rabbit"
-import { decodeStats, formatCompact, formatInt, formatPeriod, agentName, type SharedStats } from "@/lib/share"
+import { decodeStats, formatCompact, formatInt, formatPeriod, agentName, tokensMeasured, type SharedStats } from "@/lib/share"
 import { COMMAND, HASHTAG, SITE_URL, intents } from "@/lib/site"
 import { cn } from "@/lib/utils"
 
@@ -77,7 +77,7 @@ export function StatsCard({ stats, headingLevel = 1 }: { stats: SharedStats | nu
             <>
               <dl className="relative grid grid-cols-2 gap-x-4 gap-y-5">
                 <Stat label="sessions" value={formatInt(stats.sessions)} />
-                <Stat label="tokens" value={formatCompact(stats.tokens)} />
+                <Stat label={tokensMeasured(stats) ? "tokens" : "tokens, not measured"} value={tokensMeasured(stats) ? formatCompact(stats.tokens) : "n/a"} />
                 <Stat label="active days" value={formatInt(stats.activeDays)} />
                 <Stat label="longest streak" value={`${formatInt(stats.streak)} ${stats.streak === 1 ? "day" : "days"}`} />
                 {stats.usd !== null && <Stat label="estimated spend" value={`$${formatInt(stats.usd)}`} wide />}
