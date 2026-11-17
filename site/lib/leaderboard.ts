@@ -106,3 +106,73 @@ export function parsePage(value: unknown): number {
 
 /** Display name shown publicly: the payload's own name if it has one, otherwise the handle. */
 export const displayNameFor = (stats: SharedStats, handle: string) => cleanText(stats.name, LIMITS.name) || handle
+
+/**
+ * The table's sortable columns. Sorting by a column is choosing an arena: the five arenas above are presets over
+ * the first five. Rank is computed for the active sort (competition ranking over people with a positive value), so
+ * a person with no Codex use has no Codex rank and sits below everyone who has one.
+ */
+export const SORTS = [
+  { id: "tokens", column: "tokens", label: "Tokens", short: "tokens", arena: "tokens" },
+  { id: "spend", column: "usd", label: "Est. spend", short: "spend", arena: "spend" },
+  { id: "claude-code", column: "claude_tokens", label: "Claude Code", short: "Claude Code", arena: "claude-code" },
+  { id: "codex", column: "codex_tokens", label: "Codex", short: "Codex", arena: "codex" },
+  { id: "streak", column: "streak", label: "Streak", short: "streak", arena: "streak" },
+  { id: "active", column: "active_days", label: "Active days", short: "active days", arena: null },
+  { id: "sessions", column: "sessions", label: "Sessions", short: "sessions", arena: null },
+  { id: "devices", column: "device_count", label: "Devices", short: "devices", arena: null },
+] as const satisfies ReadonlyArray<{ id: string; column: string; label: string; short: string; arena: ArenaId | null }>
+
+export type SortId = (typeof SORTS)[number]["id"]
+export const DEFAULT_SORT: SortId = "tokens"
+export const isSort = (value: unknown): value is SortId => typeof value === "string" && SORTS.some((s) => s.id === value)
+export const sortOf = (id: SortId) => SORTS.find((s) => s.id === id)!
+
+type Query = Record<string, string | string[] | undefined>
+const first = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value)
+
+/**
+ * The active sort from the query string: `?sort=` first, then the older `?arena=` links (profiles, posts and
+ * bookmarks made before the table), then tokens. Anything unknown falls back rather than failing.
+ */
+export function parseSort(params: Query): SortId {
+  const sort = first(params.sort)
+  if (isSort(sort)) return sort
+  const arena = first(params.arena)
+  if (isArena(arena)) return arena
+  return DEFAULT_SORT
+}
+
+/** A board URL: tokens on page 1 is the bare path, so the canonical link stays short. */
+export function boardHref(base: string, sort: SortId, page = 1, hash = ""): string {
+  const query = new URLSearchParams()
+  if (sort !== DEFAULT_SORT) query.set("sort", sort)
+  if (page > 1) query.set("page", String(Math.min(MAX_PAGE, Math.floor(page))))
+  const qs = query.toString()
+  return `${base}/leaderboard${qs ? `?${qs}` : ""}${hash}`
+}
+
+/** Pages a board of `rows` people spans, at least one and never past MAX_PAGE. */
+export const pageCount = (rows: number) => Math.min(MAX_PAGE, Math.max(1, Math.ceil(Math.max(0, rows) / PAGE_SIZE)))
+
+/** The page a 1-based position falls on, or null when it lies past the last page a visitor can open. */
+export function pageOfPosition(position: number): number | null {
+  if (!Number.isInteger(position) || position < 1) return null
+  const page = Math.ceil(position / PAGE_SIZE)
+  return page <= MAX_PAGE ? page : null
+}
+
+/**
+ * Reference implementation of the table's rank column, which SQL computes with rank() (lib/board-sql.ts): values
+ * in board order, best first; ties share a rank, and a missing or non-positive value has no rank.
+ * scripts/check-board.mjs runs the real SQL and compares it to this.
+ */
+export function competitionRanks(values: Array<number | null>): Array<number | null> {
+  return values.map((v) => (v !== null && v > 0 ? 1 + values.filter((o) => o !== null && o > v).length : null))
+}
+
+/** Width of an inline bar as a percentage of the top value: 0 for nothing, at least 2 so a small value still shows. */
+export function barPercent(value: number | null, top: number | null): number {
+  if (value === null || top === null || !(value > 0) || !(top > 0)) return 0
+  return Math.max(2, Math.min(100, Math.round((value / top) * 1000) / 10))
+}

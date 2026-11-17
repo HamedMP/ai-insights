@@ -3,7 +3,8 @@ import "server-only"
 import { attachDatabasePool } from "@vercel/functions"
 import { Pool } from "pg"
 
-import { ARENA_COLUMN, PAGE_SIZE, rankAndPercentile, type ArenaId } from "@/lib/leaderboard"
+import { ARENA_COLUMN, rankAndPercentile, type ArenaId, type SortId } from "@/lib/leaderboard"
+import { pageParams, pageSql, positionSql, SET_AVATAR_SQL, summarySql } from "@/lib/board-sql"
 import { safeAvatarUrl } from "@/lib/avatar"
 import { ACCOUNT_COLUMNS, accountStats, devicesOf, publishDevice, removeDevice, renameDevice, type AccountRecord, type Db } from "@/lib/device-sql"
 import { aggregate, deviceLabel, publicDeviceStats, type DeviceRecord } from "@/lib/devices"
@@ -70,11 +71,11 @@ export async function removeEntry(userId: string): Promise<boolean> {
 export const removeOwnDevice = (userId: string, key: string) => transaction((client) => removeDevice(client, userId, key), (r) => r === "ok")
 export const renameOwnDevice = (userId: string, key: string, name: string, namePublic: boolean) => transaction((client) => renameDevice(client, userId, key, name, namePublic), (r) => r === "ok")
 
-/** The signed-in person's handle and devices, for their own devices panel. */
-export async function ownDevices(userId: string): Promise<{ handle: string; devices: DeviceRecord[] } | null> {
+/** The signed-in person's handle, devices and photo choice, for their own devices panel and the publish panel. */
+export async function ownDevices(userId: string): Promise<{ handle: string; devices: DeviceRecord[]; photo: boolean } | null> {
   const result = await db().query<AccountRecord>(`SELECT ${ACCOUNT_COLUMNS} FROM leaderboard_entries WHERE user_id = $1`, [userId])
   const account = result.rows[0]
-  return account ? { handle: account.handle, devices: await devicesOf(db() as unknown as Db, account) } : null
+  return account ? { handle: account.handle, devices: await devicesOf(db() as unknown as Db, account), photo: safeAvatarUrl(account.avatar_url) !== null } : null
 }
 
 /** One computer as the public profile shows it: a label (its name only if the owner chose that) and its numbers. */
@@ -149,25 +150,49 @@ export async function entryByUser(userId: string): Promise<PublicEntry | null> {
   return row ? toEntry(row) : null
 }
 
-export interface ArenaPage {
-  rows: Array<PublicEntry & { rank: number; score: number }>
-  total: number
+/** One row of the table: the account total, its agent estimates, and its rank under the active sort (null: unranked). */
+export interface BoardRow extends PublicEntry {
+  rank: number | null
+  claudeTokens: number
+  codexTokens: number
 }
 
-/** One page of an arena, best first. Ties share a rank (competition ranking) and are ordered by who got there first. */
-export async function arenaPage(arena: ArenaId, page: number): Promise<ArenaPage> {
-  const col = ARENA_COLUMN[arena]
-  const offset = (page - 1) * PAGE_SIZE
-  const [rows, count] = await Promise.all([
-      db().query<AccountRecord & { score: string; rank: string }>(
-        `SELECT ${ACCOUNT_COLUMNS}, ${col} AS score, rank() OVER (ORDER BY ${col} DESC) AS rank
-           FROM leaderboard_entries WHERE ${col} > 0
-          ORDER BY ${col} DESC, updated_at ASC, handle ASC LIMIT $1 OFFSET $2`,
-        [PAGE_SIZE, offset],
-      ),
-      db().query<{ n: string }>(`SELECT count(*) AS n FROM leaderboard_entries WHERE ${col} > 0`),
-    ])
-  return { rows: rows.rows.map((r) => ({ ...toEntry(r), rank: Number(r.rank), score: Number(r.score) })), total: Number(count.rows[0]?.n ?? 0) }
+export interface BoardPage {
+  rows: BoardRow[]
+  /** Everyone on the board, ranked under this sort or not: what pagination counts. */
+  total: number
+  /** People with a positive value under this sort. */
+  ranked: number
+  /** The best value under this sort: the inline bars scale to it. */
+  top: number | null
+}
+
+/** One capped page of the table under a sort (lib/board-sql.ts), plus the counts pagination and the bars need. */
+export async function boardPage(sort: SortId, page: number): Promise<BoardPage> {
+  const [rows, summary] = await Promise.all([
+    db().query<AccountRecord & { rank: string | null; claude_tokens: string; codex_tokens: string }>(pageSql(sort), pageParams(page)),
+    db().query<{ n: string; ranked: string; top: string | null }>(summarySql(sort)),
+  ])
+  const s = summary.rows[0]
+  return {
+    rows: rows.rows.map((r) => ({ ...toEntry(r), rank: r.rank === null ? null : Number(r.rank), claudeTokens: Number(r.claude_tokens), codexTokens: Number(r.codex_tokens) })),
+    total: Number(s?.n ?? 0),
+    ranked: Number(s?.ranked ?? 0),
+    top: s?.top === null || s?.top === undefined ? null : Number(s.top),
+  }
+}
+
+/** The signed-in person's position in board order under a sort, for "jump to me". */
+export async function boardPosition(userId: string, sort: SortId): Promise<{ position: number; rank: number | null } | null> {
+  const result = await db().query<{ pos: string; rank: string | null }>(positionSql(sort), [userId])
+  const row = result.rows[0]
+  return row ? { position: Number(row.pos), rank: row.rank === null ? null : Number(row.rank) } : null
+}
+
+/** Store (a checked img.clerk.com URL) or clear (null) the caller's public photo. False: they have not published. */
+export async function setOwnAvatar(userId: string, url: string | null): Promise<boolean> {
+  const result = await db().query(SET_AVATAR_SQL, [userId, url])
+  return result.rowCount === 1
 }
 
 export type Ranks = Partial<Record<ArenaId, { rank: number; total: number; topPercent: number }>>

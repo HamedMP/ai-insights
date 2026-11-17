@@ -2,6 +2,7 @@
 
 import * as React from "react"
 
+import { PhotoSwitch } from "@/components/site/photo-switch"
 import { callEntryApi } from "@/components/site/publish-panel"
 import { Button } from "@/components/ui/button"
 import { formatCompact, formatInt, formatPeriod } from "@/lib/share"
@@ -29,7 +30,7 @@ interface Device {
   duplicateOf: string | null
   stats: { from: string; to: string; sessions: number; tokens: number; usd: number | null; activeDays: number; streak: number; cards: number; days: boolean }
 }
-type Mine = { devices: Device[]; max: number; exactDays: boolean }
+type Mine = { devices: Device[]; max: number; exactDays: boolean; photo: boolean }
 
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : null)
 
@@ -51,7 +52,7 @@ function parse(data: unknown, handle: string): Mine | null {
       stats: { from: s.from, to: s.to, sessions, tokens, usd: num(s.usd), activeDays, streak, cards, days: s.days === true },
     })
   }
-  return { devices, max: num(d.max) ?? 10, exactDays: d.exactDays === true }
+  return { devices, max: num(d.max) ?? 10, exactDays: d.exactDays === true, photo: d.photo === true }
 }
 
 async function call(method: "PATCH" | "DELETE", url: string, body?: unknown): Promise<string | null> {
@@ -179,6 +180,10 @@ export function OwnerDevices({ handle }: { handle: string }) {
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 id="my-devices" className="scroll-mt-24 text-lg font-semibold">Your devices</h2>
         <span className="font-mono text-[11px] text-muted-foreground">{mine.devices.length} of {mine.max} · only you see this panel</span>
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-background px-4 py-3">
+        <p className="text-[13.5px] text-muted-foreground">Your Matrix account photo on your profile and the leaderboard, instead of initials. Off unless you turn it on.</p>
+        <PhotoSwitch initial={mine.photo} />
       </div>
       <p className="text-[14px] text-muted-foreground">
         Each computer you publish from keeps its own numbers, and your profile adds them up. To add one, run <code className="font-mono">{COMMAND}@latest</code> there and publish from its report while signed in to this account. Publishing again from a computer replaces only that computer&rsquo;s numbers. Names stay private unless you tick &ldquo;Show the name publicly&rdquo;; otherwise visitors see &ldquo;Device 1&rdquo;, &ldquo;Device 2&rdquo;.

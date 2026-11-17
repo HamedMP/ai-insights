@@ -44,7 +44,8 @@ export default function Sharing() {
           handles are reserved, such as <code>admin</code>, <code>docs</code> or <code>leaderboard</code>.
         </li>
         <li>
-          Choose whether to show your Matrix account photo. It is off by default; without it your profile shows your initials.
+          Choose whether to show your Matrix account photo. It is off by default; without it your profile shows your initials. You can turn it on
+          or off later without publishing again: use <strong>Show my photo</strong> on the leaderboard or in Your devices on your profile.
         </li>
         <li>
           Check the preview. It lists exactly what becomes public: name, photo choice, profile address, period, sessions, tokens, estimated spend,
@@ -68,8 +69,11 @@ export default function Sharing() {
 
       <H2 id="arenas">Arenas and ranks</H2>
       <p>
-        The leaderboard at <a href="/leaderboard">ai-insights.app/leaderboard</a> has five arenas. You rank in an arena only with a score above zero
-        there.
+        The leaderboard at <a href="/leaderboard">ai-insights.app/leaderboard</a> is one table: rank, person, tokens, estimated spend, Claude Code
+        and Codex tokens, longest streak, active days, sessions, devices and period. Click a column header to sort by it; the sort is part of the
+        address (for example <code>/leaderboard?sort=codex</code>), so a sorted view can be shared. The five arenas below are quick presets above
+        the table. Rank is computed for the column you sort by, and you rank there only with a value above zero; people without one are listed
+        after everyone ranked, with no rank. On a phone each row shows the sorted number with its bar, and the other numbers on a second line.
       </p>
       <Table
         caption="Arenas"
@@ -83,7 +87,7 @@ export default function Sharing() {
         ]}
       />
       <p>
-        The per-agent arenas are estimates: the payload has no per-agent token split, so each agent&apos;s tokens are approximated from its share
+        Older links that use <code>?arena=</code> still open the same arena. The per-agent arenas are estimates: the payload has no per-agent token split, so each agent&apos;s tokens are approximated from its share
         of sessions. Ties share a rank. On boards with fewer than 20 entries a rank reads &ldquo;#3 of 12&rdquo;; on larger boards it reads as a
         top percentage, such as &ldquo;Top 4%&rdquo;.
       </p>
@@ -191,10 +195,10 @@ export default function Sharing() {
 
       <H2 id="remove">Remove your entry</H2>
       <p>
-        Open any share link while signed in and press <strong>Remove my entry</strong> in the publish panel. It deletes your leaderboard entry and every
-        computer&apos;s numbers and cards, so your profile and ranks go with it. <strong>Remove everything</strong> in Your devices on your profile
-        does the same. To remove one computer only, press <strong>Remove device</strong> next to it there; the last one cannot be removed that
-        way. Publishing without the photo box ticked removes a photo you showed before.
+        Press <strong>Remove everything</strong> in Your devices on your profile (visible only to you, signed in). It deletes your leaderboard entry
+        and every computer&apos;s numbers and cards, so your profile and ranks go with it. <strong>Remove my entry</strong> in the publish panel on
+        any share link does the same. To remove one computer only, press <strong>Remove device</strong> next to it there; the last one cannot be
+        removed that way. To hide your photo, turn off <strong>Show my photo</strong>; publishing with the photo box unticked also removes it.
       </p>
     </DocShell>
   )

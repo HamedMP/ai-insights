@@ -1,6 +1,7 @@
 import type { Badge, BadgeTone } from "@/lib/arena-format"
 import { initials, safeAvatarUrl } from "@/lib/avatar"
 import { agentName, CARD_TITLES, EARNED_TITLES, formatCompact, formatInt, formatPeriod, RATIOS, ratioText, type CardKey, type SharedCard, type SharedStats } from "@/lib/share"
+import { boardHref } from "@/lib/leaderboard"
 import { BASE } from "@/lib/site"
 import { cn } from "@/lib/utils"
 
@@ -106,7 +107,7 @@ const TONE: Record<BadgeTone, string> = {
 export function BadgePill({ badge, big = false }: { badge: Badge; big?: boolean }) {
   return (
     <a
-      href={`${BASE}/leaderboard?arena=${badge.arena}`}
+      href={boardHref(BASE, badge.arena)}
       className={cn("inline-flex items-center gap-2 rounded-full font-semibold ring-1 transition-transform outline-none hover:-translate-y-px focus-visible:ring-3 focus-visible:ring-ring/50", TONE[badge.tone], big ? "h-8 px-3.5 text-[14px]" : "h-7 px-3 text-[13px]")}
     >
       {badge.tone !== "plain" && <span aria-hidden className="size-2 rounded-full bg-[#141210]/70" />}

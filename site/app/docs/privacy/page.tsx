@@ -122,8 +122,9 @@ export default function Privacy() {
         <li>your ranks and badges, computed from those numbers;</li>
         <li>how many people you referred (the list of who is shown only to you);</li>
         <li>
-          your Matrix account photo, only if you ticked that box when you published. The site reads it from your Matrix account on its server and
-          accepts only images hosted by the sign-in provider.
+          your Matrix account photo, only if you ticked that box when you published or turned on <strong>Show my photo</strong> later. It is off by
+          default. The site reads it from your Matrix account on its server, never from your browser, and accepts only photos you uploaded,
+          hosted by the sign-in provider.
         </li>
       </ul>
       <p>
@@ -171,7 +172,7 @@ export default function Privacy() {
           <strong>Remove device</strong> in Your devices on your profile removes one computer&apos;s numbers and cards; your totals are recomputed
           without it.
         </li>
-        <li>Publishing again without the photo box ticked removes your photo.</li>
+        <li>Turning off <strong>Show my photo</strong> (on the leaderboard or your profile) removes your photo at once; so does publishing again with the photo box unticked.</li>
         <li>
           A share link is not stored anywhere by the site. To stop it working as a profile you published, remove your entry; the link itself
           keeps the numbers it was made with.

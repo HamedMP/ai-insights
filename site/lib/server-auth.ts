@@ -72,6 +72,15 @@ export async function clerkAvatar(userId: string): Promise<string | null> {
   }
 }
 
+/**
+ * The same photo for the photo switch, where a Clerk failure must surface as an error rather than read as "you have no
+ * photo". Throws on a Clerk failure; the caller logs it and answers with the generic message.
+ */
+export async function clerkPhoto(userId: string): Promise<string | null> {
+  const client = await clerkClient()
+  return avatarFromClerkUser(await client.users.getUser(userId))
+}
+
 export const logError = (message: string, error?: unknown) => {
   const code = error && typeof error === "object" && "code" in error ? String((error as { code: unknown }).code).slice(0, 16) : ""
   console.error(`ai-insights: ${message}`, error instanceof Error ? error.name : "unknown", code)
