@@ -25,18 +25,23 @@ export default function GettingStarted() {
       <H2 id="first-run">Your first run</H2>
       <Code label="Terminal">npx ai-insights</Code>
       <p>
-        AI Insights draws its mark at once, then shows what it is doing on one line (finding your history, reading sessions, analysing, writing
+        AI Insights draws the Matrix OS rabbit at once, then shows what it is doing on one line (finding your history, reading sessions, analysing, writing
         the report) and ends with a check mark and the time it took. Then it shows what it found and asks whether to open the report. On a
         synthetic history of 58 Claude Code and Codex sessions, an 80-column terminal ends like this (in colour, with the report path and the
         website as links you can click):
       </p>
-      <Code label="Output, from a synthetic history; home folder shortened to ~" copy={false}>{`   █▄  ▄█
-   ██  ██     ▄▀█ █   █ █▄ █ █▀ █ █▀▀ █ █ ▀█▀ █▀
-  ▄██████▄    █▀█ █   █ █ ▀█ ▄█ █ █▄█ █▀█  █  ▄█
-  ██▄██▄██    by Matrix OS · v0.5.2
-   ▀████▀
+      <Code label="Output, from a synthetic history; home folder shortened to ~" copy={false}>{`         ▀▄▄
+      ▄▄▖ ▀▜▄
+       ▀▛█▄ ▀▙
+         ▝▀▀▌▝▄▄
+             ▐██▙     ▄▀█ █   █ █▄ █ █▀ █ █▀▀ █ █ ▀█▀ █▀
+         ▝▀▀▀▀▝       █▀█ █   █ █ ▀█ ▄█ █ █▄█ █▀█  █  ▄█
+      ▀▀▀▀▀ ▀▝▀▘      by Matrix OS · v0.5.2
+    ▝▀▀▀▀▘▀ ▀▀▀▘
+    ▀▀▀▀▀▘▀▘ ▀▀
+  ▀▀ ▀▘▝▀▀▘▝▘ ▀
 
-  ✓ 58 sessions (Claude Code 46 · Codex 12) read and analysed in 0.5s
+  ✓ 58 sessions (Claude Code 46 · Codex 12) read and analysed in 0.2s
 
   ╭─ 2026-10-22 → 2026-11-16 ────────────────────────────────────────────────╮
   │ 58             26             26             1.2B           $245+        │
@@ -66,6 +71,8 @@ export default function GettingStarted() {
     Keep them: add "cleanupPeriodDays": 365 to ~/.claude/settings.json or run
     npx packmem archive.
 
+  Keep your history with Matrix OS  →  matrix-os.com
+
   Open the report in your browser? [Y/n] no`}</Code>
       <p>From the top:</p>
       <ul>
@@ -93,6 +100,10 @@ export default function GettingStarted() {
           <strong>History warning</strong> (only when it applies): how many sessions your agents can delete within the next 7 days, and the setting
           that keeps them.
         </li>        <li>
+          <strong>Keep your history with Matrix OS:</strong> a link to <a href="https://matrix-os.com">matrix-os.com</a>, the same one the report
+          ends with. AI Insights itself uploads nothing.
+        </li>
+        <li>
           <strong>The question:</strong> press Enter (or <code>y</code>) to open the report in your browser, <code>n</code> to leave it. Add{" "}
           <code>--open</code> to open it without asking, <code>--no-open</code> to never be asked, or set <code>AI_INSIGHTS_OPEN=1</code> or{" "}
           <code>0</code> to make that your default. It is never asked when the output is piped, in CI or over SSH without a display.
