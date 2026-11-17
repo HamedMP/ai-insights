@@ -55,9 +55,10 @@ describe("the public site", () => {
     expect(provider).toContain("if (!clerkEnabled) return");
     expect(provider).toContain("telemetry={false}");
     const mounts = SITE_SOURCES.filter((path) => read(path).includes("<AuthProvider>")).sort();
-    expect(mounts).toEqual(["site/app/account/layout.tsx", "site/app/share/layout.tsx"]);
+    expect(mounts).toEqual(["site/app/account/layout.tsx"]);
     // Elsewhere Clerk mounts only on demand, in a browser that has signed in here before (lib/session-hint.ts gates it),
-    // without the client-side satellite redirect: the header's account menu and the leaderboard's "you" strip.
+    // without the client-side satellite redirect: the header's account menu, the leaderboard's "you" strip and the
+    // /share publish panel.
     expect(SITE_SOURCES.filter((path) => /<AuthProvider\b/.test(read(path)) && !read(path).includes("<AuthProvider>")).sort()).toEqual(["site/components/site/clerk-island-provider.tsx", "site/components/site/clerk-slot.tsx"]);
     expect(read("site/components/site/clerk-slot.tsx")).toContain("<AuthProvider autoSync={false}>");
     expect(read("site/app/layout.tsx")).not.toMatch(/clerk/i);

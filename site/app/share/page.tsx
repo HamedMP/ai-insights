@@ -1,7 +1,6 @@
 import type { Metadata } from "next"
 
 import { Footer } from "@/components/site/footer"
-import { AccountMenu } from "@/components/site/account-menu"
 import { Header } from "@/components/site/header"
 import { ShareCard } from "@/components/site/share-card"
 import { clerkEnabled } from "@/lib/auth-config"
@@ -20,7 +19,7 @@ export const metadata: Metadata = {
 export default function SharePage() {
   return (
     <>
-      <Header account={<AccountMenu />} />
+      <Header />
       <main id="top" className="relative overflow-hidden">
         <div aria-hidden className="hero-glow pointer-events-none absolute inset-x-0 top-0 h-[40rem]" />
         <ShareCard publish={clerkEnabled} />

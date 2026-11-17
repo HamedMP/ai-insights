@@ -4,6 +4,7 @@ import * as React from "react"
 import { usePathname } from "next/navigation"
 
 import { clerkEnabled } from "@/lib/auth-config"
+import { rememberFragment } from "@/lib/pending-share"
 import { hasSessionHint } from "@/lib/session-hint"
 import { BASE } from "@/lib/site"
 import { cn } from "@/lib/utils"
@@ -26,7 +27,8 @@ export function SessionAccount({ className }: { className?: string }) {
   const hint = React.useSyncExternalStore(noSubscribe, readHint, () => false)
   if (!clerkEnabled) return null
   const link = (
-    <a className={cn(SIGN_IN, className)} href={`${BASE}/account/sign-in?to=${encodeURIComponent(pathname)}`}>
+    // On /share the numbers live in the fragment, which must never go into `to`: keep it in the tab for the way back.
+    <a className={cn(SIGN_IN, className)} href={`${BASE}/account/sign-in?to=${encodeURIComponent(pathname)}`} onClick={() => pathname.startsWith("/share") && rememberFragment()}>
       Sign in
     </a>
   )

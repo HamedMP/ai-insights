@@ -3,7 +3,7 @@
 import * as React from "react"
 
 import { FindOutYours } from "@/components/site/find-out-yours"
-import { PublishPanel } from "@/components/site/publish-panel"
+import { PublishSlot } from "@/components/site/publish-slot"
 import { restoreFragment } from "@/lib/pending-share"
 import { track } from "@/lib/analytics"
 import { EVENTS } from "@/lib/analytics-sanitize"
@@ -37,7 +37,7 @@ export function ShareCard({ publish = false }: { publish?: boolean }) {
     return () => window.removeEventListener("hashchange", read)
   }, [])
 
-  return <ShareLayout stats={stats} panel={stats && publish ? <PublishPanel stats={stats} /> : null} />
+  return <ShareLayout stats={stats} panel={stats && publish ? <PublishSlot stats={stats} /> : null} />
 }
 
 /**
