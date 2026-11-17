@@ -23,8 +23,15 @@ export const clerkEnabled = Boolean(/^pk_(?:test|live)_[A-Za-z0-9+/=_-]+$/.test(
 /** Server side also needs the secret key; without it, auth is treated as off rather than half-on. */
 export const serverAuthEnabled = () => clerkEnabled && Boolean(process.env.CLERK_SECRET_KEY)
 
-/** The satellite options, shared by ClerkProvider and clerkMiddleware. */
-export const satelliteOptions = () => (isSatellite ? { isSatellite: true as const, domain: clerkDomain, signInUrl, signUpUrl } : {})
+/**
+ * The satellite options, shared by ClerkProvider and clerkMiddleware. Auto-sync makes a satellite recognise someone
+ * who is already signed in on the primary domain; without it they are sent to the primary sign-in page, which has
+ * nothing to do and does not send them back.
+ */
+export const satelliteOptions = () => (isSatellite ? { isSatellite: true as const, domain: clerkDomain, signInUrl, signUpUrl, satelliteAutoSync: true as const } : {})
+
+/** Pages that have sign-in. Only these pay for the sync round trip; the landing page and profiles stay direct. */
+export const needsAuthSync = (pathname: string) => /^\/(?:share|leaderboard|api)(?:\/|$)/.test(pathname)
 
 /**
  * The Clerk Frontend API host(s) the browser loads clerk-js from and talks to. A publishable key is

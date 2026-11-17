@@ -1,7 +1,7 @@
 import { clerkMiddleware } from "@clerk/nextjs/server"
 import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server"
 
-import { clerkHosts, contentSecurityPolicy, satelliteOptions, serverAuthEnabled } from "@/lib/auth-config"
+import { clerkHosts, contentSecurityPolicy, needsAuthSync, satelliteOptions, serverAuthEnabled } from "@/lib/auth-config"
 
 const csp = contentSecurityPolicy(serverAuthEnabled() ? clerkHosts() : [], process.env.NODE_ENV !== "production")
 
@@ -14,7 +14,7 @@ function withHeaders(response: Response | NextResponse | undefined | null | void
 }
 
 // Without Clerk keys the site runs signed-out only: no Clerk code runs and no Clerk host is allowed.
-const clerk = serverAuthEnabled() ? clerkMiddleware(satelliteOptions()) : null
+const clerk = serverAuthEnabled() ? clerkMiddleware(() => {}, (request) => ({ ...satelliteOptions(), ...(needsAuthSync(request.nextUrl.pathname) ? {} : { satelliteAutoSync: false }) })) : null
 
 export default async function proxy(request: NextRequest, event: NextFetchEvent) {
   if (!clerk) return withHeaders(NextResponse.next())
