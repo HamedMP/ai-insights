@@ -148,7 +148,7 @@ ai-insights uninstall [--harness <name>]... [--yes] [--dry-run]`}</Code>
         <code>--harness</code> takes <code>claude-code</code>, <code>codex</code>, <code>cursor</code>, <code>opencode</code> or <code>pi</code>{" "}
         and can repeat. <code>--dry-run</code> prints the plan and changes nothing. Without <code>--yes</code> it only asks at a terminal;
         piped, it prints the plan and exits 1. Claude Code and Codex download the plugin from GitHub when they install it; see{" "}
-        <a href="/docs/privacy#installing">Privacy</a>. Uninstalling leaves your report and cache in place.
+        <DocLink href="/docs/privacy#installing">Privacy</DocLink>. Uninstalling leaves your report and cache in place.
       </p>
       <p>
         <code>help</code> is accepted as a command and prints the same text as <code>--help</code>.

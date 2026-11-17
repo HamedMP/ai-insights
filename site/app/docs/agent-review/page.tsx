@@ -36,7 +36,7 @@ export default function AgentReview() {
       <p>
         <code>npx ai-insights install</code> runs the Claude Code and Codex commands below for whichever of the two is on your machine, after
         showing them to you. The end of a normal <code>npx ai-insights</code> run offers the same. See the{" "}
-        <a href="/docs/cli#cmd-install">CLI reference</a>.
+        <DocLink href="/docs/cli#cmd-install">CLI reference</DocLink>.
       </p>
       <Code label="Terminal">{`npx ai-insights install --dry-run   # print the commands only
 npx ai-insights install             # run them after you say yes`}</Code>
