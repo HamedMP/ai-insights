@@ -34,3 +34,26 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+  # Site component tests (tests/site-render) render site/ React components, so they need site/'s own install.
+  site:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            site/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm --dir site install --frozen-lockfile
+
+      - name: Site component tests
+        run: pnpm test:site

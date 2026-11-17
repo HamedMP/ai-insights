@@ -10,10 +10,10 @@ import { cn } from "@/lib/utils"
  * text, never as HTML. Colours follow the report's "Pop" card style so a profile reads as the person's recap.
  */
 
-const AGENT_COLORS = ["#ff7a2f", "#3d1bb3", "#8ff0c3", "#ffe14a", "#ff6b57", "#8ad3ff", "#ffb6d9", "#d6f25c"]
+export const AGENT_COLORS = ["#ff7a2f", "#3d1bb3", "#8ff0c3", "#ffe14a", "#ff6b57", "#8ad3ff", "#ffb6d9", "#d6f25c"]
 
 /** Card colours from the report's Pop style (src/render/client/card.css swatches), per card key. */
-const CARD_STYLE: Record<CardKey, { bg: string; fg: string; dark?: boolean }> = {
+export const CARD_STYLE: Record<CardKey, { bg: string; fg: string; dark?: boolean }> = {
   persona: { bg: "#3d1bb3", fg: "#f7f3ea", dark: true },
   parallel: { bg: "#ff7a2f", fg: "#141210" },
   tokens: { bg: "#c9b8ff", fg: "#141210" },
@@ -172,21 +172,28 @@ export function AgentsAndFact({ stats }: { stats: SharedStats }) {
 }
 
 /** Wide cards: the persona headline is a phrase, not a number, so it gets two columns. */
-const WIDE = new Set<CardKey>(["persona"])
+export const WIDE = new Set<CardKey>(["persona"])
 
-export function RecapCard({ card, span, note }: { card: SharedCard; span?: string; note?: string | null }) {
+/** `small`: the same card as a tile, for the publish preview, where a whole recap has to fit beside the form. */
+export function RecapCard({ card, span, note, small = false }: { card: SharedCard; span?: string; note?: string | null; small?: boolean }) {
   const style = CARD_STYLE[card.k]
   const long = Array.from(card.b).length > 9
   return (
     <li
-      className={cn("relative flex min-h-[10.5rem] flex-col justify-between gap-4 overflow-hidden rounded-[1.4rem] p-4 shadow-[0_1px_0_rgb(0_0_0/0.04)] ring-1 ring-black/10 sm:min-h-[12.5rem] sm:p-5", WIDE.has(card.k) && "col-span-2", span, card.k === "danger" && "ring-2 ring-[#141210]")}
+      className={cn(
+        "relative flex flex-col justify-between overflow-hidden shadow-[0_1px_0_rgb(0_0_0/0.04)] ring-1 ring-black/10",
+        small ? "min-h-[6.75rem] gap-2.5 rounded-2xl p-3" : "min-h-[10.5rem] gap-4 rounded-[1.4rem] p-4 sm:min-h-[12.5rem] sm:p-5",
+        WIDE.has(card.k) && "col-span-2",
+        span,
+        card.k === "danger" && "ring-2 ring-[#141210]",
+      )}
       style={{ background: style.bg, color: style.fg }}
     >
-      <div aria-hidden className={cn("pointer-events-none absolute -right-10 -bottom-10 size-32 rounded-full", style.dark ? "bg-white/10" : "bg-white/35")} />
-      <h3 className="relative font-mono text-[10.5px] font-medium tracking-[0.08em] uppercase opacity-70">{CARD_TITLES[card.k]}</h3>
-      <div className="relative flex flex-col gap-1.5">
-        <p className={cn("leading-[0.95] font-semibold tracking-[-0.045em] break-words tabular-nums", long ? "text-[1.4rem] sm:text-[1.9rem]" : "text-[2.1rem] sm:text-[2.7rem]")}>{card.b}</p>
-        {card.c && <p className="text-[12.5px] leading-snug font-medium opacity-75 sm:text-[13.5px]">{card.c}</p>}
+      <div aria-hidden className={cn("pointer-events-none absolute rounded-full", small ? "-right-8 -bottom-8 size-20" : "-right-10 -bottom-10 size-32", style.dark ? "bg-white/10" : "bg-white/35")} />
+      <h3 className={cn("relative font-mono font-medium uppercase opacity-70", small ? "text-[9.5px] tracking-[0.07em]" : "text-[10.5px] tracking-[0.08em]")}>{CARD_TITLES[card.k]}</h3>
+      <div className={cn("relative flex flex-col", small ? "gap-1" : "gap-1.5")}>
+        <p className={cn("leading-[0.95] font-semibold tracking-[-0.045em] break-words tabular-nums", small ? (long ? "text-[1.05rem]" : "text-[1.5rem]") : long ? "text-[1.4rem] sm:text-[1.9rem]" : "text-[2.1rem] sm:text-[2.7rem]")}>{card.b}</p>
+        {card.c && <p className={cn("leading-snug font-medium opacity-75", small ? "text-[11px]" : "text-[12.5px] sm:text-[13.5px]")}>{card.c}</p>}
         {note && <p className="mt-1 font-mono text-[10px] tracking-[0.06em] uppercase opacity-55">{note}</p>}
       </div>
     </li>
@@ -194,7 +201,7 @@ export function RecapCard({ card, span, note }: { card: SharedCard; span?: strin
 }
 
 /** Widen the last card when it would sit alone in its row: two columns on phones, three from `sm`. */
-function lastSpan(cards: SharedCard[]): string | undefined {
+export function lastSpan(cards: SharedCard[]): string | undefined {
   const wide = cards.filter((c) => WIDE.has(c.k)).length
   const narrow = cards.length - wide
   const phone = narrow % 2 === 1 ? "col-span-2" : ""
