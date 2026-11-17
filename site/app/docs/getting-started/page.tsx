@@ -76,11 +76,12 @@ Tip: run the analyze-ai-usage skill in your agent to add what went well and what
           [<code key="s">sessions/&lt;agent&gt;/</code>, "The parsed sessions, cached so the next run only re-reads transcripts that changed."],
           [<code key="f">facets/&lt;agent&gt;/</code>, "Session labels your agent saved during the agent review."],
           [<code key="n">snapshots/</code>, "A small summary of each run, used for “Since your last run”."],
+          [<code key="d">device.json</code>, "A random id for this installation, made once. Share links carry it so the website keeps one entry per computer. Never made from your computer's name or hardware."],
         ]}
       />
       <p>
         Deleting the folder is safe: the next run rebuilds the cache from whatever transcripts your agents still keep. You lose the stats of
-        sessions whose transcripts are gone, the saved labels and the run history.
+        sessions whose transcripts are gone, the saved labels and the run history. A new device id is made too, so the next publish from this computer shows up on your profile as a new computer; remove the old one there.
       </p>
 
       <H2 id="run-it-again">Run it again</H2>

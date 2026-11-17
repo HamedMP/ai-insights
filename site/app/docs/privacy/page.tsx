@@ -94,7 +94,9 @@ export default function Privacy() {
           ["Agents", "Each agent's share of your sessions, as a percentage."],
           ["Fun fact", "One line built from counts, such as how many agents you ran at once."],
           ["Titles", "Up to three earned title keys, each with the number of the ratio that earned it. The site rebuilds the wording from a fixed table."],
-          ["Ratios", "The five work ratios as numbers."],
+          ["Ratios", "The five work ratios as numbers, each with the count it is out of (sessions, tool calls or clock hours), so computers can be combined."],
+          ["Device", "This installation's random device id and an optional name you type for the computer. See The device id below."],
+          ["Active days", "Unless you untick it: which dates had activity, as a compact bitmap. Dates only, no counts or times. It lets the site combine active days and streaks across computers."],
           ["Cards", "Up to 16 recap cards, each as a fixed card key, a short headline and a caption. See below."],
         ]}
       />
@@ -112,6 +114,10 @@ export default function Privacy() {
       </p>
       <ul>
         <li>your display name and handle, and the date you first published;</li>
+        <li>
+          your combined numbers, and each computer&apos;s own numbers and cards, labelled &ldquo;Device 1&rdquo;, &ldquo;Device 2&rdquo; unless you
+          chose to show a computer&apos;s name. Device ids and the active-days bitmap are stored but never shown or sent to visitors;
+        </li>
         <li>everything in the table above: period, totals, agents, fun fact, titles, ratios and cards;</li>
         <li>your ranks and badges, computed from those numbers;</li>
         <li>how many people you referred (the list of who is shown only to you);</li>
@@ -124,6 +130,18 @@ export default function Privacy() {
         Leaderboard numbers are self-reported and not verified. More about the flow is in{" "}
         <a href="/docs/sharing#publish">Publish to the leaderboard</a>.
       </p>
+
+      <H2 id="device-id">The device id</H2>
+      <p>
+        From 0.5, AI Insights makes a random id the first time it runs (16 random bytes) and keeps it in <code>~/.ai-insights/device.json</code>.
+        It is not made from your computer&apos;s name, your username, a network address or any hardware detail. It sits in the report&apos;s share
+        link so that publishing again from the same computer replaces that computer&apos;s numbers instead of adding a new one.
+      </p>
+      <ul>
+        <li>It is not a secret and grants nothing: every change happens only in the signed-in account, and an id from another account is ignored.</li>
+        <li>It does link the share links one installation makes to each other. Delete <code>device.json</code> to get a new one.</li>
+        <li>Visitors never see it; your profile shows &ldquo;Device 1&rdquo; or the name you chose to show.</li>
+      </ul>
 
       <H2 id="website-analytics">The website&apos;s analytics</H2>
       <p>
@@ -147,7 +165,11 @@ export default function Privacy() {
       <ul>
         <li>
           <strong>Remove my entry</strong> in the publish panel on any share page, while signed in, deletes your leaderboard entry and with it your
-          profile.
+          profile, including every computer&apos;s numbers. <strong>Remove everything</strong> in Your devices on your profile does the same.
+        </li>
+        <li>
+          <strong>Remove device</strong> in Your devices on your profile removes one computer&apos;s numbers and cards; your totals are recomputed
+          without it.
         </li>
         <li>Publishing again without the photo box ticked removes your photo.</li>
         <li>
