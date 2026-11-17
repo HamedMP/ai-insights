@@ -186,6 +186,31 @@ Next steps
         <code>npx ai-insights install</code> does the same at any time.
       </p>
 
+      <H2 id="monthly-reminder">The monthly reminder</H2>
+      <p>
+        With the plugin installed, a new Claude Code or Codex session can show one line when a review is due:
+      </p>
+      <Code label="Shown at session start" copy={false}>{`AI Insights: your monthly review is due. Run /analyze-ai-usage, or npx ai-insights in a terminal. (Turn this off: npx ai-insights nudge --off)`}</Code>
+      <ul>
+        <li>It is due when no report has been written this calendar month. It shows at most once a month, on the first new session that finds it due.</li>
+        <li>
+          It is shown to you, not added to your agent&apos;s context, and it runs offline: a small script inside the plugin reads two files in your
+          AI Insights folder (<code>reports/report.html</code> for its date, and <code>nudge.json</code>, where it records the month it last showed).
+        </li>
+        <li>
+          Codex runs plugin hooks only after you review and trust them, so there it starts once you have approved it. Resumed, cleared and
+          compacted sessions never show it.
+        </li>
+        <li>
+          <code>npx ai-insights nudge --off</code> turns it off; <code>--on</code> turns it back on. Uninstalling the plugin removes it.
+        </li>
+      </ul>
+      <p>
+        Why monthly: Claude Code and Gemini CLI delete transcripts after 30 days by default. Each run saves the stats and your prompts from every
+        transcript it reads (see <a href="/docs/agents#what-is-kept">What is kept</a>), so a review a month keeps that history after the
+        transcripts are gone. It does not keep the agent&apos;s replies or anything needed to resume a session.
+      </p>
+
       <H2 id="hindsight">Formerly Hindsight</H2>
       <p>
         AI Insights was called Hindsight until version 0.2. If you used it then, nothing needs to change:

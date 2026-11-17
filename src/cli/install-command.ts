@@ -15,8 +15,8 @@ Usage
   ai-insights uninstall [--harness <name>]... [--yes] [--dry-run]
 
 Adds the ai-insights plugin to Claude Code and Codex through their own plugin commands
-(it holds the ai-insights MCP server and the analyze-ai-usage, ai-insights-coach and
-ai-insights-setup skills).
+(it holds the ai-insights MCP server; the analyze-ai-usage, ai-insights-coach and
+ai-insights-setup skills; and a session-start reminder when a monthly review is due).
 Cursor, OpenCode and Pi get the steps printed. The commands are shown before anything runs.
 
 Options
@@ -182,8 +182,8 @@ export function offerText(agents: AgentStatus[], store = "~/.ai-insights"): stri
   const names = listText(agents.map((agent) => agent.label));
   return [
     `Add AI Insights to ${names}? It installs the ai-insights plugin:`,
-    "the MCP server and three skills (analyze-ai-usage, ai-insights-coach,",
-    "ai-insights-setup), so you can run a review from your agent any time.",
+    "the MCP server, three skills (analyze-ai-usage, ai-insights-coach,",
+    "ai-insights-setup) and a once-a-month reminder when a review is due.",
     `Each review saves your sessions' stats and prompts in ${store},`,
     "so they outlast agents that delete old transcripts.",
   ];

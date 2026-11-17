@@ -218,7 +218,7 @@ describe("the offer after a normal run", () => {
     expect(asked).toEqual(["Open the report in your browser? [Y/n]", "Install it now? [Y/n]"]);
     expect(out).toContain("Add AI Insights to Claude Code and Codex? It installs the ai-insights plugin:");
     expect(out).toContain("analyze-ai-usage");
-    expect(out).toContain("ai-insights-setup), so you can run a review");
+    expect(out).toContain("ai-insights-setup) and a once-a-month reminder");
     expect(spawned).toHaveLength(4);
   });
 

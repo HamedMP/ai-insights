@@ -18,7 +18,8 @@ ai-insights doctor             show which histories were found and where
 ai-insights mcp                start the MCP server on stdio (for your agent)
 ai-insights import claude <path>  add a Claude chat export
 ai-insights install            add the plugin to your agents
-ai-insights uninstall          remove it again`}</Code>
+ai-insights uninstall          remove it again
+ai-insights nudge              print a line when a monthly review is due`}</Code>
 
       <H2 id="commands">Commands</H2>
       <H3 id="cmd-run">ai-insights</H3>
@@ -43,8 +44,8 @@ ai-insights uninstall          remove it again`}</Code>
         days, or until a newer minor version runs. <code>--no-install-prompt</code> and <code>AI_INSIGHTS_NO_INSTALL_PROMPT=1</code> turn it off.
       </p>
       <Code label="Output, after the report" copy={false}>{`Add AI Insights to Claude Code and Codex? It installs the ai-insights plugin:
-the MCP server and three skills (analyze-ai-usage, ai-insights-coach,
-ai-insights-setup), so you can run a review from your agent any time.
+the MCP server, three skills (analyze-ai-usage, ai-insights-coach,
+ai-insights-setup) and a once-a-month reminder when a review is due.
 Each review saves your sessions' stats and prompts in ~/.ai-insights,
 so they outlast agents that delete old transcripts.
 Install it now? [Y/n]`}</Code>
@@ -150,6 +151,14 @@ ai-insights uninstall [--harness <name>]... [--yes] [--dry-run]`}</Code>
         piped, it prints the plan and exits 1. Claude Code and Codex download the plugin from GitHub when they install it; see{" "}
         <DocLink href="/docs/privacy#installing">Privacy</DocLink>. Uninstalling leaves your report and cache in place.
       </p>
+      <H3 id="cmd-nudge">ai-insights nudge</H3>
+      <p>
+        Prints one line when a monthly review is due, and nothing otherwise. The plugin runs the same code when a new Claude Code or Codex
+        session starts; see <a href="/docs/getting-started#monthly-reminder">The monthly reminder</a>. It always exits 0.
+      </p>
+      <Code label="Usage" copy={false}>{`ai-insights nudge          the line, if a review is due
+ai-insights nudge --off    never remind me
+ai-insights nudge --on     remind me again`}</Code>
       <p>
         <code>help</code> is accepted as a command and prints the same text as <code>--help</code>.
       </p>

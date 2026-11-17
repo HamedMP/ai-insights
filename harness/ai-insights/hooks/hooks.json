@@ -1,0 +1,17 @@
+{
+  "description": "Once a month, a one-line reminder when an AI Insights review is due",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/nudge.mjs\" --format hook",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
