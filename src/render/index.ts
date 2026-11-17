@@ -2,6 +2,7 @@ import { clientAssets } from "./assets.js";
 import { safeTimeZone } from "./format.js";
 import type { RenderExtras } from "../schema/types.js";
 import { buildView, type PageView, type RenderInput } from "./view.js";
+import { eventBanner } from "./event-banner.js";
 
 export type { PageView, RenderInput, RunSnapshotInput } from "./view.js";
 export { buildView, recapView } from "./view.js";
@@ -30,6 +31,7 @@ export function renderReport(report: RenderInput, extras: RenderExtras = {}): st
   const zone = safeTimeZone(String(report.timeZone ?? "UTC"));
   const view = buildView(report, zone, extras);
   const assets = clientAssets();
+  const banner = eventBanner(view.recap !== null);
   const title = view.generatedLabel ? `AI Insights · ${view.generatedLabel}` : "AI Insights report";
   return `<!doctype html>
 <html lang="en">
@@ -46,7 +48,7 @@ export function renderReport(report: RenderInput, extras: RenderExtras = {}): st
 </head>
 <body>
 <noscript><p class="noscript">This report draws its charts and cards with JavaScript, which is turned off. Open it in a browser with JavaScript on; it still loads nothing from the network.</p></noscript>
-<div id="root"></div>
+${banner ? banner + "\n" : ""}<div id="root"></div>
 <div id="measure" aria-hidden="true"></div>
 <script id="report-data" type="application/json">${dataJson(view)}</script>
 ${Object.entries(assets.styleFonts).map(([id, css]) => `<script id="style-fonts-${id}" type="text/plain">${css}</script>`).join("\n")}
