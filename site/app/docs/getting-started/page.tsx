@@ -91,9 +91,9 @@ export default function GettingStarted() {
           <strong>Report:</strong> the full path to the HTML file. Most terminals let you click it (with Cmd or Ctrl held in some).
         </li>
         <li>
-          <strong>What to do next:</strong> open the report, play your recap and export it with <strong>Make a video</strong>, publish to the
-          leaderboard (<strong>Join the leaderboard</strong>, then <strong>Publish to the leaderboard</strong>, then sign in on ai-insights.app
-          and press <strong>Publish</strong>; see <DocLink href="/docs/sharing#publish">Publish to the leaderboard</DocLink>), share with <code>{HASHTAG}</code>, and run the{" "}
+          <strong>What to do next:</strong> open the report, which starts on your cards; export them with{" "}
+          <strong>Download video or images</strong>, publish to the leaderboard (<strong>Publish to the leaderboard</strong> next to your cards,
+          then the same button in the box it takes you to, then sign in on ai-insights.app and press <strong>Publish</strong>; see <DocLink href="/docs/sharing#publish">Publish to the leaderboard</DocLink>), share with <code>{HASHTAG}</code>, and run the{" "}
           <DocLink href="/docs/agent-review">agent review</DocLink>. The last step goes away once you have run the review.
         </li>
         <li>

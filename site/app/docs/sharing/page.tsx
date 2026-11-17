@@ -14,7 +14,8 @@ export default function Sharing() {
 
       <H2 id="share-links">Share links</H2>
       <p>
-        Below the card studio in your report, the &ldquo;Share your stats and cards, join the leaderboard&rdquo; box builds a link to a card page on
+        In the Publish section of your report, right after your cards and the short summary (the <strong>Publish to the leaderboard</strong>{" "}
+        button next to your cards takes you there), the &ldquo;Share your stats and cards, join the leaderboard&rdquo; box builds a link to a card page on
         ai-insights.app. You can type a display name (optional, up to 40 characters) and a name for this computer, such as &ldquo;Work
         laptop&rdquo; (optional, up to 32 characters). The box lists every line the link contains before you copy it.
       </p>

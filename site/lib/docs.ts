@@ -96,11 +96,12 @@ export const DOCS: DocPage[] = [
   {
     slug: "recap-cards",
     title: "Recap cards",
-    description: "The animated recap cards, their three styles and four shapes, the card studio, and exporting video and images.",
+    description: "The animated recap cards, reading them at the top of the report, their three styles and four shapes, the card studio, and exporting video and images.",
     group: "Using it",
     sections: [
       { id: "cards", title: "The cards" },
       { id: "styles-and-shapes", title: "Styles and shapes" },
+      { id: "deck", title: "Reading your cards" },
       { id: "studio", title: "The card studio" },
       { id: "export", title: "Export video and images" },
       { id: "terminal-recipe", title: "Render in a terminal" },

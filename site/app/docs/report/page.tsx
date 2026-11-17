@@ -93,9 +93,20 @@ export default function Report() {
       <H2 id="layout">How the page is laid out</H2>
       <ol>
         <li>
-          <strong>The recap.</strong> A headline with your hours and how many agents ran at once at the peak, a player for your recap cards, and the{" "}
-          <DocLink href="/docs/recap-cards#studio">card studio</DocLink> where you pick cards, a shape and a style, export them, and make a{" "}
-          <DocLink href="/docs/sharing#share-links">share link</DocLink>.
+          <strong>Your cards.</strong> The report opens on every <DocLink href="/docs/recap-cards#deck">recap card</DocLink> you earned, persona
+          first, one large at a time with the whole set beside it. Next to them: your hours, how many agents ran at once at the peak, your totals,
+          and the buttons to publish to the leaderboard or download a video.
+        </li>
+        <li>
+          <strong>In short.</strong> A few sentences on how your weeks went, and your main totals with the change since your last run.
+        </li>
+        <li>
+          <strong>Publish.</strong> The box that builds your <DocLink href="/docs/sharing#share-links">share link</DocLink> and takes you to{" "}
+          <DocLink href="/docs/sharing#publish">publish to the leaderboard</DocLink>.
+        </li>
+        <li>
+          <strong>Card studio.</strong> The <DocLink href="/docs/recap-cards#studio">studio</DocLink>, where you pick which cards go into a video,
+          choose a shape and a style, and export them.
         </li>
         <li>
           <strong>How it actually went.</strong> The private analysis, in five numbered parts: Rhythm, How you work, What it cost, What went wrong,
