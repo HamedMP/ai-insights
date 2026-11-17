@@ -1,6 +1,6 @@
 {
   "name": "ai-insights",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Look back at how you work with AI coding agents. Local insights and actionable tips from your Claude Code and Codex history.",
   "license": "MIT",
   "type": "module",
@@ -37,7 +37,7 @@
     "insights",
     "agent-skills"
   ],
-  "homepage": "https://hamedmp.github.io/ai-insights/",
+  "homepage": "https://ai-insights.app/",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/HamedMP/ai-insights.git"

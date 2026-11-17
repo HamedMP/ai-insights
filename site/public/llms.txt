@@ -6,7 +6,7 @@
 - From an agent: install the plugin, then run `/analyze-ai-usage` in a new session.
 - Package: ai-insights on npm
 - Source: https://github.com/hamedmp/ai-insights (MIT). Built by the Matrix OS team (https://matrix-os.com). Formerly Hindsight.
-- Sample recap, built from invented sessions: https://hamedmp.github.io/ai-insights/demo/report.html
+- Sample recap, built from invented sessions: https://ai-insights.app/demo/report.html
 
 ## The recap
 

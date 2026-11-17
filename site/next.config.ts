@@ -1,7 +1,7 @@
 import type { NextConfig } from "next"
 
-// GitHub Pages serves the project site from /ai-insights; `next dev` runs at the root.
-const basePath = process.env.NODE_ENV === "production" ? (process.env.PAGES_BASE_PATH ?? "/ai-insights") : ""
+// The site is served at the root of ai-insights.app. The GitHub Pages build sets PAGES_BASE_PATH=/ai-insights so older links keep working.
+const basePath = process.env.NODE_ENV === "production" ? (process.env.PAGES_BASE_PATH ?? "") : ""
 
 const nextConfig: NextConfig = {
   output: "export",

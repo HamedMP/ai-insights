@@ -26,10 +26,10 @@ function pageData(html: string): { hero: { sessions: number }; actions: Record<"
 }
 
 describe("the public site", () => {
-  it("is a static export served from /ai-insights, kept out of the package build and tests", () => {
+  it("is a static export served from the domain root (base path set by the host), kept out of the package build and tests", () => {
     const config = read("site/next.config.ts");
     expect(config).toContain('output: "export"');
-    expect(config).toContain('"/ai-insights"');
+    expect(config).toContain("process.env.PAGES_BASE_PATH");
     const root = JSON.parse(read("package.json"));
     expect(root.files.some((entry: string) => entry.startsWith("site"))).toBe(false);
     expect(JSON.parse(read("tsconfig.json")).include).toEqual(["src", "tests"]);

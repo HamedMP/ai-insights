@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8"));
-const SITE = "https://hamedmp.github.io/ai-insights/";
+const SITE = "https://ai-insights.app/";
 
 describe("npm package", () => {
   it("points people at the site and the issue tracker", () => {
@@ -68,7 +68,7 @@ describe("README", () => {
 
   it("links the site and the sample report", () => {
     expect(readme).toContain(SITE);
-    expect(readme).toContain("https://hamedmp.github.io/ai-insights/demo/report.html");
+    expect(readme).toContain("https://ai-insights.app/demo/report.html");
   });
 
   it("tells people who know the old name where it went", () => {
