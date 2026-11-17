@@ -1,9 +1,10 @@
 "use client"
 
 import * as React from "react"
-import { SignInButton, useAuth, useUser } from "@clerk/nextjs"
+import { useAuth, useUser } from "@clerk/nextjs"
 
 import { PublishPanelView, type Account } from "@/components/site/publish-form"
+import { signInHandoff } from "@/components/site/sign-in-link"
 import { BASE } from "@/lib/site"
 import { type SharedStats } from "@/lib/share"
 
@@ -32,7 +33,10 @@ function useAccount(signedIn: boolean | undefined): Account | "loading" {
   return account
 }
 
-/** Under a valid /share card: Clerk's sign-in state, handed to the Clerk-free panel (publish-form.tsx). */
+/**
+ * Under a valid /share card, in a browser that has signed in here (publish-slot.tsx): Clerk's sign-in state, handed to
+ * the Clerk-free panel (publish-form.tsx). A signed-out answer (an expired session) signs in through /account/sign-in.
+ */
 export function PublishPanel({ stats }: { stats: SharedStats }) {
   const { isLoaded, isSignedIn } = useAuth()
   const { user } = useUser()
@@ -52,7 +56,7 @@ export function PublishPanel({ stats }: { stats: SharedStats }) {
       signedIn={isLoaded ? Boolean(isSignedIn) : null}
       user={user ? { handleSource: user.username ?? user.firstName ?? "", hasImage: user.hasImage, imageUrl: user.imageUrl } : null}
       account={account}
-      signInButton={(button) => <SignInButton mode="redirect">{button}</SignInButton>}
+      signInButton={signInHandoff}
     />
   )
 }

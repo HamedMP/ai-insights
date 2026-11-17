@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { AUTH_CHECKED_COOKIE, clerkRun, contentSecurityPolicy, mountsClerk, needsAuthSync } from "../../site/lib/auth-config.ts";
@@ -109,9 +109,18 @@ describe("Clerk's round trips on the cached leaderboard and profiles", () => {
     expect(visit("/u/ada/opengraph-image", { fetchDest: "image" })).toBe("skip");
   });
 
-  it("keeps Clerk on every route handler, /share and /account, and off the landing page and docs", () => {
+  it("treats /share like the board: one sync on arrival, then straight from the cache while signed out", () => {
+    // Someone arriving from their report while signed in on Matrix OS is recognised by the first-visit sync.
+    expect(visit("/share")).toBe("sync");
+    expect(visit("/share", { cookies: `__client_uat=0; ${AUTH_CHECKED_COOKIE}=1` })).toBe("skip");
+    // A returning signed-in person keeps the server check, so their session is fresh for the Publish form.
+    expect(visit("/share", { cookies: `__client_uat=1763000000; ${AUTH_CHECKED_COOKIE}=1` })).toBe("sync");
+    // Coming back from the Matrix sign-in, the sync parameter always reaches Clerk.
+    expect(visit("/share", { search: "?__clerk_synced=false", cookies: `${AUTH_CHECKED_COOKIE}=1` })).toBe("sync");
+  });
+
+  it("keeps Clerk on every route handler and /account, and off the landing page and docs", () => {
     expect(visit("/api/leaderboard/me", { fetchDest: "empty", cookies: `${AUTH_CHECKED_COOKIE}=1` })).toBe("sync");
-    expect(visit("/share", { cookies: `${AUTH_CHECKED_COOKIE}=1` })).toBe("sync");
     expect(visit("/account/sign-in", { cookies: `${AUTH_CHECKED_COOKIE}=1` })).toBe("sync");
     expect(visit("/__clerk/v1/client")).toBe("no-sync");
     expect(visit("/")).toBe("skip");
@@ -121,6 +130,34 @@ describe("Clerk's round trips on the cached leaderboard and profiles", () => {
   it("only marks a browser as checked once Clerk's middleware actually answered a page for it", () => {
     const proxy = readFileSync(join(SITE, "proxy.ts"), "utf8");
     expect(proxy).toContain('run === "sync" && cachedClerkPage(pathname) && res.status < 300');
+  });
+});
+
+describe("signing in to publish from /share", () => {
+  const read = (path: string) => readFileSync(join(SITE, path), "utf8");
+  const staticClerk = /from "(?:@clerk\/|@\/components\/site\/(?:account-menu|auth-provider|clerk-slot|publish-panel))"/;
+
+  it("loads no Clerk code for a visitor who never signed in here; the publish panel comes with Clerk on demand", () => {
+    for (const path of ["app/share/page.tsx", "components/site/share-card.tsx", "components/site/publish-slot.tsx", "components/site/sign-in-link.tsx"]) expect(read(path), path).not.toMatch(staticClerk);
+    expect(existsSync(join(SITE, "app/share/layout.tsx"))).toBe(false);
+    const slot = read("components/site/publish-slot.tsx");
+    expect(slot).toContain('React.lazy(() => import("@/components/site/publish-panel")');
+    expect(slot).toContain("<ClerkIsland");
+  });
+
+  it("goes through /account/sign-in, which always syncs, so a person signed in on Matrix OS comes straight back", () => {
+    expect(read("components/site/publish-panel.tsx")).toContain("signInButton={signInHandoff}");
+    expect(read("components/site/publish-panel.tsx")).not.toContain("SignInButton");
+    expect(read("components/site/sign-in-link.tsx")).toContain("/account/sign-in?to=${encodeURIComponent(window.location.pathname + window.location.search)}");
+  });
+
+  it("never puts the fragment (the numbers) in a URL a server sees; the tab keeps it for the way back", () => {
+    for (const path of ["components/site/sign-in-link.tsx", "components/site/session-account.tsx"]) expect(read(path), path).not.toMatch(/to=\$\{[^}]*hash/);
+    // The button's own handler (rememberFragment in publish-form.tsx) runs before the hand-off navigates.
+    const link = read("components/site/sign-in-link.tsx");
+    expect(link.indexOf("children.props.onClick?.(event)")).toBeLessThan(link.indexOf("window.location.assign("));
+    expect(read("components/site/publish-form.tsx")).toContain("rememberFragment()");
+    expect(read("components/site/session-account.tsx")).toContain('pathname.startsWith("/share") && rememberFragment()');
   });
 });
 

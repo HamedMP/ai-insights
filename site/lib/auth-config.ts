@@ -55,7 +55,7 @@ export function needsAuthSync(pathname: string, userAgent: string | null = null,
 }
 
 /**
- * The leaderboard and profiles are one cached page for everyone: their server render reads no session, and the
+ * The leaderboard, profiles and /share are one cached page for everyone: their server render reads no session, and the
  * signed-in pieces (the "you" strip, owner panels, the account menu) load in the browser. So Clerk's middleware has one
  * job there: the satellite sync that recognises someone already signed in on Matrix OS. That sync is four cross-domain
  * redirects, and for a signed-out browser Clerk repeats it on every visit (it leaves `__client_uat=0`, which it reads
@@ -68,8 +68,11 @@ export function needsAuthSync(pathname: string, userAgent: string | null = null,
 export const AUTH_CHECKED_COOKIE = "aii_auth_checked"
 export const AUTH_CHECKED_MAX_AGE = 24 * 60 * 60
 
-/** Pages served from the cache whose server render reads no session (see AUTH_CHECKED_COOKIE). */
-export const cachedClerkPage = (pathname: string) => /^\/(?:leaderboard|u)(?:\/|$)/.test(pathname)
+/**
+ * Pages served from the cache whose server render reads no session (see AUTH_CHECKED_COOKIE): the board, profiles and
+ * /share, whose numbers live in the URL fragment and whose publish panel reads Clerk in the browser.
+ */
+export const cachedClerkPage = (pathname: string) => /^\/(?:leaderboard|u|share)(?:\/|$)/.test(pathname)
 
 /** A Clerk sync or handshake in progress: its query parameter or cookie must reach Clerk's middleware. */
 const CLERK_FLOW_COOKIE = /(?:^|;\s*)(?:__clerk_handshake(?:_nonce)?|__clerk_db_jwt)(?:_[A-Za-z0-9_-]{1,64})?=/

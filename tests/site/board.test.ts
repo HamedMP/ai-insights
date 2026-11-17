@@ -82,6 +82,13 @@ describe("the cached board and profiles", () => {
     for (const path of ["app/leaderboard/view/[sort]/[page]/page.tsx", "app/u/[handle]/page.tsx"]) expect(read(path), path).toMatch(/export const revalidate = \d+[\s\S]*generateStaticParams/);
   });
 
+  it("never store a degraded render: a failed board or ranks read throws, so the last good copy keeps being served", () => {
+    expect(read("app/leaderboard/board-view.tsx")).toContain('throw new Error("leaderboard unavailable")');
+    expect(read("app/u/[handle]/data.ts")).toContain('return "error"');
+    expect(read("app/u/[handle]/data.ts")).not.toContain("return { ranks: {}, referrals: 0 }");
+    expect(read("app/u/[handle]/page.tsx")).toContain('if (extras === "error") throw new Error("profile ranks unavailable")');
+  });
+
   it("show a publish, a removal, a device change or the photo switch on the very next load", () => {
     expect(read("lib/board-cache.ts")).toContain("revalidateTag(BOARD_TAG, { expire: 0 })");
     expect(read("app/api/leaderboard/entry/route.ts").match(/boardChanged\(/g)?.length).toBe(2);
