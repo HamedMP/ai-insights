@@ -1,4 +1,4 @@
-/* export.js: card -> pixels (SVG foreignObject), MP4 via WebCodecs + Mediabunny, PNG zip, caption text. */
+/* export.js: card -> pixels (SVG foreignObject), MP4 via WebCodecs + Mediabunny, PNG zip, PDF (pdf.js), caption text. */
 const Exporter = (() => {
   const FPS = 30;
   const cardCss = () => document.getElementById("card-css").textContent;
@@ -91,6 +91,33 @@ const Exporter = (() => {
     return await new Promise((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error("toBlob failed"))), "image/png"));
   }
 
+  /** One card at rest as a JPEG `px` pixels across. The SVG is vector, so drawing it larger stays sharp. */
+  async function jpeg(inst, px, quality = 0.9) {
+    render(inst, inst.dur);
+    const canvas = document.createElement("canvas");
+    canvas.width = px; canvas.height = Math.round((px * inst.H) / inst.W);
+    const ctx = canvas.getContext("2d");
+    ctx.scale(canvas.width / inst.W, canvas.height / inst.H);
+    await rasterize(inst, ctx);
+    const blob = await new Promise((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error("toBlob failed"))), "image/jpeg", quality));
+    return { jpeg: new Uint8Array(await blob.arrayBuffer()), width: canvas.width, height: canvas.height };
+  }
+
+  /**
+   * The selected cards as one PDF, one card per page, for a LinkedIn document post. seq: [{ make: () => inst,
+   * done(inst) }] in page order. Returns a Blob, or null when cancelled. onProgress({ page, pages }).
+   */
+  async function pdf(seq, { px = 1080, quality = 0.9, size = 1080, title = "AI Insights recap", onProgress, signal } = {}) {
+    const pages = [];
+    for (const [i, item] of seq.entries()) {
+      if (signal && signal.aborted) return null;
+      const inst = item.make();
+      try { pages.push(await jpeg(inst, px, quality)); } finally { item.done && item.done(inst); }
+      if (onProgress) onProgress({ page: i + 1, pages: seq.length });
+    }
+    return new Blob([PdfWriter.build(pages, { size, title })], { type: "application/pdf" });
+  }
+
   // ---- minimal store-only ZIP (no compression: PNGs are already compressed)
   const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
   const crc32 = (u8) => { let c = 0xffffffff; for (let i = 0; i < u8.length; i++) c = CRC[(c ^ u8[i]) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
@@ -122,5 +149,5 @@ const Exporter = (() => {
     setTimeout(() => URL.revokeObjectURL(url), 60000);
     return url;
   }
-  return { video, png, zip, download, support, FPS };
+  return { video, png, pdf, zip, download, support, FPS };
 })();

@@ -107,8 +107,9 @@ export default function RecapCards() {
           or right arrow key to move it. Select all and Reset are next to the export buttons.
         </li>
         <li>
-          <strong>Where you will post.</strong> Choose X, Instagram feed, Instagram Reels, Instagram Stories, TikTok, LinkedIn or YouTube Shorts. The
-          studio checks the total length against that platform&apos;s limit and recommends a shape.
+          <strong>Where you will post.</strong> Choose X, Instagram feed, Instagram Reels, Instagram Stories, TikTok, LinkedIn,
+          LinkedIn carousel (PDF) or YouTube Shorts. The studio checks the total length against that platform&apos;s limit and recommends a shape;
+          for the carousel it counts pages instead (see <a href="#linkedin">Post to LinkedIn</a>).
         </li>
         <li>
           <strong>Pace.</strong> Full plays each card at its own length; Quick caps every card at 4 seconds.
@@ -126,7 +127,7 @@ export default function RecapCards() {
         caption="The card studio, from the sample report (invented sessions)."
       />
 
-      <H2 id="export">Export video and images</H2>
+      <H2 id="export">Export video, images and PDF</H2>
       <ul>
         <li>
           <strong>Download video</strong> renders an MP4 of the selected cards in the page. It needs a browser with the WebCodecs video encoder,
@@ -137,10 +138,32 @@ export default function RecapCards() {
           <strong>Download images</strong> saves a PNG of each selected card; several come as one zip.
         </li>
         <li>
+          <strong>Download PDF</strong> saves the selected cards as one square PDF, one card per page, for a{" "}
+          <a href="#linkedin">LinkedIn carousel</a>.
+        </li>
+        <li>
           <strong>Copy caption</strong> copies the post text described under <a href="#share-buttons">Share buttons</a>.
         </li>
       </ul>
       <p>Nothing is uploaded: the files are made in the page and saved by your browser.</p>
+
+      <H2 id="linkedin">Post to LinkedIn</H2>
+      <p>
+        LinkedIn shows a PDF in a post as slides people swipe through. In the studio, set <strong>Posting to</strong> to{" "}
+        <strong>LinkedIn carousel (PDF)</strong>: the shape switches to square, the length bar counts pages, and <strong>Download PDF</strong>{" "}
+        becomes the main button. It saves <code>ai-insights-linkedin.pdf</code> with your selected cards in the studio&apos;s order, each at
+        rest (the last frame of its animation), in the style you picked and with the AI Insights mark if it is on. The file&apos;s only metadata
+        is the title &ldquo;AI Insights recap&rdquo;.
+      </p>
+      <ol>
+        <li>In LinkedIn, press <strong>Start a post</strong>, then <strong>More</strong> and <strong>Add a document</strong>.</li>
+        <li>Choose the PDF, give the document a title and press <strong>Done</strong>.</li>
+        <li>Paste the caption (<strong>Copy caption</strong> in the studio gives a LinkedIn version) and press <strong>Post</strong>.</li>
+      </ol>
+      <p>
+        LinkedIn takes documents of up to 300 pages and 100 MB (<a href="https://www.linkedin.com/help/linkedin/answer/a518909">Upload and share
+        documents on LinkedIn</a>). A full deck of 23 cards is about 6 MB. The plain <strong>LinkedIn</strong> target is still there for posting the video.
+      </p>
 
       <H2 id="terminal-recipe">Render in a terminal</H2>
       <p>
