@@ -73,6 +73,7 @@ export const HARNESS_LABELS: Record<Harness, string> = {
   pi: "Pi",
   opencode: "OpenCode",
   gemini: "Gemini CLI",
+  "claude-chat": "Claude chat",
 };
 
 export const SEVERITY_RANK: Record<Severity, number> = { high: 3, medium: 2, low: 1, info: 0 };
