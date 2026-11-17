@@ -3,7 +3,8 @@
 import { readdirSync, readFileSync } from "node:fs"
 import pg from "pg"
 
-const url = process.env.DATABASE_URL
+// Migrations prefer the direct (unpooled) connection Neon provides; the app uses the pooled DATABASE_URL.
+const url = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL
 if (!url) {
   console.error("migrate: DATABASE_URL is not set (run `neon env pull` or `vercel env pull` first)")
   process.exit(1)
