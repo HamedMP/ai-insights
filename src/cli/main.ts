@@ -8,7 +8,7 @@ import { buildReport as realBuildReport } from "../analysis/index.js";
 import { startStdioServer, type ServerDeps } from "../mcp/server.js";
 import { packageVersion } from "../mcp/version.js";
 import { renderReport as realRenderReport } from "../render/index.js";
-import { HARNESSES, type Coverage, type Harness, type Report, type Retention, type SessionFile, type Source } from "../schema/types.js";
+import { HARNESSES, type Coverage, type Harness, type SessionFile, type Source } from "../schema/types.js";
 import { sources as realSources } from "../sources/index.js";
 import { ensureDir, pathExists, writeFileAtomic } from "../store/fs.js";
 import { buildFromScan, describeHeadline, headline, renderFromScan, type BuildReportFn, type RenderReportFn } from "../store/pipeline.js";
@@ -16,6 +16,8 @@ import { harnessLabel, scan, totalBytes, type ScanOptions } from "../store/scan.
 import { measureRetention, readRetentionPolicies, type RetentionPolicy } from "../store/retention.js";
 import { parseSince, SINCE_HELP } from "../store/since.js";
 import { Store, resolveHome } from "../store/store.js";
+import { compact, day, failureHint, noHistoryText, plural, resultScreen, retentionLine } from "./screen.js";
+import { detectStyle, type TerminalInfo } from "./terminal.js";
 
 export interface CliDeps {
   stdout: (text: string) => void;
@@ -31,7 +33,11 @@ export interface CliDeps {
   startMcp: (deps: ServerDeps) => Promise<unknown>;
   /** How long each harness keeps transcripts. Default: read from this machine's settings files. */
   retentionPolicies?: () => Promise<Map<Harness, RetentionPolicy>>;
+  /** What stdout is. Absent means not a terminal: plain text, no escape codes. */
+  terminal?: TerminalInfo;
 }
+
+export { retentionLine, summaryLines } from "./screen.js";
 
 class UsageError extends Error {}
 
@@ -65,6 +71,8 @@ For the qualitative analysis, run the analyze-ai-usage skill in your agent.
 interface Parsed {
   command: string;
   since?: Date;
+  /** The --since value as typed, to repeat it back when it filtered everything out. */
+  sinceText?: string;
   harness?: Harness;
   maxSessions?: number;
   refresh: boolean;
@@ -104,6 +112,7 @@ function parseArgs(argv: string[], now: Date): Parsed {
         const since = parseSince(value!, now);
         if (!since) throw new UsageError(`--since must be ${SINCE_HELP}`);
         parsed.since = since;
+        parsed.sinceText = value!;
         break;
       }
       case "--harness":
@@ -151,13 +160,6 @@ function scanOptions(parsed: Parsed): ScanOptions {
 
 // -- formatting ---------------------------------------------------------------
 
-function compact(value: number): string {
-  if (value >= 1e9) return `${(value / 1e9).toFixed(1)}B`;
-  if (value >= 1e6) return `${(value / 1e6).toFixed(1)}M`;
-  if (value >= 1e4) return `${Math.round(value / 1e3)}k`;
-  return value.toLocaleString("en-US");
-}
-
 function capitalise(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
@@ -175,19 +177,6 @@ export function formatBytes(bytes: number): string {
   return unit === 0 ? `${Math.round(value)} B` : `${value.toFixed(1)} ${units[unit]}`;
 }
 
-/** "A", "A and B", "A, B and C". */
-function listText(items: string[]): string {
-  return items.length <= 2 ? items.join(" and ") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
-}
-
-function day(iso: string | null): string {
-  return iso ? iso.slice(0, 10) : "?";
-}
-
-function plural(count: number, word: string): string {
-  return `${count.toLocaleString("en-US")} ${word}${count === 1 ? "" : "s"}`;
-}
-
 function coverageLines(coverage: Coverage[]): string[] {
   const width = Math.max(...coverage.map((entry) => entry.label.length));
   return coverage.map((entry) => {
@@ -201,60 +190,24 @@ function coverageLines(coverage: Coverage[]): string[] {
   });
 }
 
-/**
- * One line when transcripts are about to be deleted, naming the change that keeps them; null otherwise.
- * "12 Claude Code sessions can be deleted within 7 days (from 2026-11-18). ..."
- */
-export function retentionLine(retention: Retention | undefined, now: Date): string | null {
-  if (!retention || retention.atRisk.sessions <= 0) return null;
-  const due = retention.harnesses.filter((entry) => (entry.atRisk?.sessions ?? 0) > 0).sort((a, b) => b.atRisk!.sessions - a.atRisk!.sessions);
-  const counts = due.map((entry) => `${entry.atRisk!.sessions.toLocaleString("en-US")} ${harnessLabel(entry.harness)}`).join(" and ");
-  const noun = retention.atRisk.sessions === 1 ? "session" : "sessions";
-  const next = retention.atRisk.nextDeletion ? Date.parse(retention.atRisk.nextDeletion) : Number.NaN;
-  const when = Number.isFinite(next) ? (next <= now.getTime() ? " (some at the agent's next start)" : ` (from ${day(new Date(next).toISOString())})`) : "";
-  const lead = due[0]!;
-  const file = lead.setting?.file;
-  const fix =
-    lead.source === "managed"
-      ? "ask an admin (managed settings set this) or "
-      : lead.harness === "claude-code" && file
-        ? `add "cleanupPeriodDays": 365 to ${file} or `
-        : lead.harness === "gemini" && file
-          ? `set general.sessionRetention.maxAge to "365d" in ${file} or `
-          : "";
-  return `${counts} ${noun} can be deleted within ${plural(retention.windowDays, "day")}${when}. AI Insights keeps their stats; to keep the transcripts, ${fix}archive them with \`npx packmem archive\`.`;
-}
-
-/** Three lines a person can read at a glance: what was covered, how much, and the top finding. */
-export function summaryLines(report: Report): string[] {
-  const found = report.coverage.filter((entry) => entry.sessions > 0).map((entry) => entry.label);
-  const activity = report.activity;
-  const numbers = describeHeadline(report);
-  const rank = { high: 0, medium: 1, low: 2, info: 3 } as const;
-  const top = [...report.findings].sort((a, b) => rank[a.severity] - rank[b.severity])[0];
-  return [
-    `${plural(activity.sessions, "session")} across ${found.length > 0 ? listText(found) : "no harness"}, ${day(report.range.from)} to ${day(report.range.to)}.`,
-    `${numbers.time} on ${plural(activity.activeDays, "day")}; ${compact(report.usage.tokens)} tokens, ${numbers.cost}.`,
-    top ? `Top finding: ${top.title}` : "No findings yet: more history makes for better tips.",
-  ];
-}
-
 // -- commands -----------------------------------------------------------------
 
 async function commandRun(parsed: Parsed, deps: CliDeps, store: Store): Promise<number> {
   const result = await scan(scanDeps(deps, store), scanOptions(parsed));
   if (result.sessions.length === 0) {
-    deps.stderr("No agent sessions found. Run `ai-insights doctor` to see where AI Insights looked.\n");
+    const filters = [...(parsed.sinceText ? [`--since ${parsed.sinceText}`] : []), ...(parsed.harness ? [`--harness ${parsed.harness}`] : [])];
+    deps.stderr(noHistoryText(filters));
     return 1;
   }
   const outcome = await renderFromScan(pipelineDeps(deps, store), result);
-  deps.stdout(`${summaryLines(outcome.report).join("\n")}\n\nReport: ${outcome.htmlPath}\n`);
-  const keep = retentionLine(outcome.report.retention, deps.now());
-  if (keep) deps.stdout(`${keep}\n`);
-  if (outcome.facetCount === 0 && !outcome.hasNarrative) {
-    deps.stdout("Tip: run the analyze-ai-usage skill in your agent to add what went well and what got in the way.\n");
-  }
   if (parsed.open) await deps.openFile(outcome.htmlPath);
+  const style = detectStyle(deps.env, deps.terminal);
+  deps.stdout(
+    resultScreen(
+      { report: outcome.report, htmlPath: outcome.htmlPath, version: packageVersion(), now: deps.now(), opened: parsed.open, reviewed: outcome.facetCount > 0 || outcome.hasNarrative },
+      style,
+    ),
+  );
   return 0;
 }
 
@@ -421,6 +374,7 @@ export function defaultDeps(): CliDeps {
     now: () => new Date(),
     openFile: openWithSystem,
     startMcp: startStdioServer,
+    terminal: { isTTY: process.stdout.isTTY === true, ...(process.stdout.columns ? { columns: process.stdout.columns } : {}) },
   };
 }
 
@@ -470,6 +424,7 @@ export async function run(argv: string[], overrides: Partial<CliDeps> = {}): Pro
     const detail = error instanceof Error ? error.message : String(error);
     deps.stderr(`ai-insights: ${parsed.command === "run" ? "could not build the report" : `${parsed.command} failed`}: ${detail}\n`);
     if (deps.env.AI_INSIGHTS_DEBUG && error instanceof Error && error.stack) deps.stderr(`${error.stack}\n`);
+    else deps.stderr(failureHint());
     return 1;
   }
 }
