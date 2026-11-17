@@ -5,6 +5,7 @@ import * as React from "react"
 import { PhotoSwitch } from "@/components/site/photo-switch"
 import { callEntryApi } from "@/lib/entry-api"
 import { Button } from "@/components/ui/button"
+import { hasSessionHint } from "@/lib/session-hint"
 import { formatInt, formatPeriod, tokensText } from "@/lib/share"
 import { BASE, COMMAND } from "@/lib/site"
 
@@ -155,6 +156,8 @@ export function OwnerDevices({ handle }: { handle: string }) {
   const [mine, setMine] = React.useState<Mine | null>(null)
   const [gone, setGone] = React.useState<"idle" | "confirm" | "busy" | "removed" | string>("idle")
   const load = React.useCallback(() => {
+    // Only a browser that has signed in here can be the owner: everyone else skips the request (lib/session-hint.ts).
+    if (!hasSessionHint(document.cookie)) return
     let live = true
     fetch(API, { credentials: "same-origin", signal: AbortSignal.timeout(10_000), headers: { Accept: "application/json" } })
       .then((res) => (res.ok ? res.json() : null))

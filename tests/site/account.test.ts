@@ -124,6 +124,16 @@ describe("Clerk's round trips on the cached leaderboard and profiles", () => {
   });
 });
 
+describe("owner-only panels on a cached profile", () => {
+  it("ask their owner-only routes only from a browser that has signed in here, never for every visitor", () => {
+    for (const path of ["components/site/owner-referrals.tsx", "components/site/owner-devices.tsx"]) {
+      const text = readFileSync(join(SITE, path), "utf8");
+      expect(text.indexOf("if (!hasSessionHint(document.cookie)) return"), path).toBeGreaterThan(-1);
+      expect(text.indexOf("if (!hasSessionHint(document.cookie)) return"), path).toBeLessThan(text.indexOf("fetch(API"));
+    }
+  });
+});
+
 describe("the signed-in hint on pages that do not mount Clerk", () => {
   it("is set only by a positive Clerk client timestamp, suffixed or not", () => {
     expect(hasSessionHint("__client_uat=1731840000")).toBe(true);
