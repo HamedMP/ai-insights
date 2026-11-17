@@ -5,3 +5,5 @@ dist
 .ai-insights
 .hindsight
 coverage
+.env*
+!.env.example
