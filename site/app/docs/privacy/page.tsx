@@ -1,5 +1,5 @@
 import { DocShell } from "@/components/docs/doc-shell"
-import { Callout, H2, Table } from "@/components/docs/prose"
+import { Callout, DocLink, H2, Table } from "@/components/docs/prose"
 import { docMetadata } from "@/lib/docs-metadata"
 
 export const metadata = docMetadata("privacy")
@@ -49,7 +49,7 @@ export default function Privacy() {
         </li>
         <li>
           <strong>Your agent does the judging.</strong> The optional agent review runs in the agent you already use, under your existing account
-          and settings. See <a href="/docs/agent-review#what-the-model-sees">What your agent sees</a>.
+          and settings. See <DocLink href="/docs/agent-review#what-the-model-sees">What your agent sees</DocLink>.
         </li>
       </ul>
       <p>
@@ -129,7 +129,7 @@ export default function Privacy() {
       </ul>
       <p>
         Leaderboard numbers are self-reported and not verified. More about the flow is in{" "}
-        <a href="/docs/sharing#publish">Publish to the leaderboard</a>.
+        <DocLink href="/docs/sharing#publish">Publish to the leaderboard</DocLink>.
       </p>
 
       <H2 id="device-id">The device id</H2>
@@ -151,7 +151,7 @@ export default function Privacy() {
         times, Claude&apos;s own tool names and your own prompts, redacted. It never reads Claude&apos;s answers, its thinking text, tool inputs or
         results, attachments, file names, chat titles or summaries, and it never opens the export&apos;s account, project or memory files. The zip
         is read in memory and nothing in it is unpacked to disk. <code>ai-insights import --remove claude</code> deletes all of it. Details are in{" "}
-        <a href="/docs/import#what-is-read">What is read and kept</a>.
+        <DocLink href="/docs/import#what-is-read">What is read and kept</DocLink>.
       </p>
 
       <H2 id="website-analytics">The website&apos;s analytics</H2>

@@ -1,5 +1,5 @@
 import { DocShell } from "@/components/docs/doc-shell"
-import { Code, H2, H3, Table } from "@/components/docs/prose"
+import { Code, DocLink, H2, H3, Table } from "@/components/docs/prose"
 import { docMetadata } from "@/lib/docs-metadata"
 
 export const metadata = docMetadata("cli")
@@ -23,7 +23,7 @@ ai-insights import claude <path>  add a Claude chat export`}</Code>
       <p>
         With no command, AI Insights scans, writes the report and shows the numbers, your persona, the top finding, the report path as a link,
         numbered next steps and a history warning when one applies. Piped or redirected, it prints the same as plain text with no escape codes,
-        so scripts can read it. See <a href="/docs/getting-started#first-run">Your first run</a> for both.
+        so scripts can read it. See <DocLink href="/docs/getting-started#first-run">Your first run</DocLink> for both.
       </p>
       <p>
         On a terminal it draws its mark first, then one status line on stderr while it works (finding history, reading sessions, analysing,
@@ -84,12 +84,12 @@ Store: ~/.ai-insights
       <H3 id="cmd-mcp">ai-insights mcp</H3>
       <p>
         Starts the MCP server on standard input and output. Your agent starts this for you once the plugin or server is installed; you do not run
-        it by hand. See the <a href="/docs/mcp">MCP reference</a>.
+        it by hand. See the <DocLink href="/docs/mcp">MCP reference</DocLink>.
       </p>
       <H3 id="cmd-import">ai-insights import</H3>
       <p>
         Adds the history of a chat product from its data export. Chat exports are never looked for on their own: you point AI Insights at the
-        file. See <a href="/docs/import">Import chat history</a> for what is read and what cannot be measured.
+        file. See <DocLink href="/docs/import">Import chat history</DocLink> for what is read and what cannot be measured.
       </p>
       <Code label="Usage" copy={false}>{`ai-insights import claude <path>    the export .zip, its unzipped folder, or conversations.json
 ai-insights import --list           show what has been imported
@@ -160,7 +160,7 @@ npx ai-insights --refresh`}</Code>
             <>
               <code>CLAUDE_CONFIG_DIR</code>, <code>CODEX_HOME</code>, <code>OPENCODE_DB</code>, <code>PI_CODING_AGENT_DIR</code>,{" "}
               <code>CURSOR_CONFIG_DIR</code>, <code>GEMINI_CLI_HOME</code> and others move where history is read from. See{" "}
-              <a href="/docs/agents#locations">Where each agent&apos;s history lives</a>.
+              <DocLink href="/docs/agents#locations">Where each agent&apos;s history lives</DocLink>.
             </>,
           ],
         ]}

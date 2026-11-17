@@ -203,6 +203,14 @@ export const DOCS: DocPage[] = [
 
 export const docHref = (slug: string) => (slug ? `/docs/${slug}` : "/docs")
 
+/** The docs page at a pathname ("/docs/import" or "/docs/import/" -> "import", "/docs" -> ""), or null if it is not one. */
+export function docSlugFromPath(pathname: string): string | null {
+  const match = /^\/docs(?:\/([a-z0-9-]+))?\/?$/.exec(pathname)
+  if (!match) return null
+  const slug = match[1] ?? ""
+  return DOCS.some((doc) => doc.slug === slug) ? slug : null
+}
+
 export function docBySlug(slug: string): DocPage {
   const page = DOCS.find((doc) => doc.slug === slug)
   if (!page) throw new Error(`unknown docs page "${slug}"`)

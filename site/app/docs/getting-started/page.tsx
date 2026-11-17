@@ -1,5 +1,5 @@
 import { DocShell } from "@/components/docs/doc-shell"
-import { Callout, Code, H2, Table } from "@/components/docs/prose"
+import { Callout, Code, DocLink, H2, Table } from "@/components/docs/prose"
 import { docMetadata } from "@/lib/docs-metadata"
 import { HASHTAG } from "@/lib/site"
 
@@ -13,11 +13,11 @@ export default function GettingStarted() {
         <li>
           <strong>Node.js 20 or newer.</strong> Check with <code>node --version</code>. A few sources need more: OpenCode&apos;s database needs Node
           22.5 or later, and compressed Codex rollouts need Node 22.15 or later or a <code>zstd</code> program on your <code>PATH</code>. See{" "}
-          <a href="/docs/troubleshooting#node-version">Node version problems</a>.
+          <DocLink href="/docs/troubleshooting#node-version">Node version problems</DocLink>.
         </li>
         <li>
           <strong>Some agent history.</strong> At least one of Claude Code, Codex, Cursor, Pi, OpenCode or Gemini CLI used on this machine. See{" "}
-          <a href="/docs/agents">What it reads</a>.
+          <DocLink href="/docs/agents">What it reads</DocLink>.
         </li>
         <li>No account, no API key and no network access beyond what <code>npx</code> needs to download the package.</li>
       </ul>
@@ -93,8 +93,8 @@ export default function GettingStarted() {
         <li>
           <strong>What to do next:</strong> open the report, play your recap and export it with <strong>Make a video</strong>, publish to the
           leaderboard (<strong>Join the leaderboard</strong>, then <strong>Publish to the leaderboard</strong>, then sign in on ai-insights.app
-          and press <strong>Publish</strong>; see <a href="/docs/sharing#publish">Publish to the leaderboard</a>), share with <code>{HASHTAG}</code>, and run the{" "}
-          <a href="/docs/agent-review">agent review</a>. The last step goes away once you have run the review.
+          and press <strong>Publish</strong>; see <DocLink href="/docs/sharing#publish">Publish to the leaderboard</DocLink>), share with <code>{HASHTAG}</code>, and run the{" "}
+          <DocLink href="/docs/agent-review">agent review</DocLink>. The last step goes away once you have run the review.
         </li>
         <li>
           <strong>History warning</strong> (only when it applies): how many sessions your agents can delete within the next 7 days, and the setting
@@ -160,13 +160,13 @@ Next steps
       <H2 id="run-it-again">Run it again</H2>
       <p>
         Later runs are faster because unchanged transcripts come from the cache. Each run saves a snapshot, so the report gains a{" "}
-        <a href="/docs/report#over-time">Since your last run</a> section. To use the newest release rather than a copy <code>npx</code> cached
+        <DocLink href="/docs/report#over-time">Since your last run</DocLink> section. To use the newest release rather than a copy <code>npx</code> cached
         earlier, ask for it by tag:
       </p>
       <Code label="Terminal">npx ai-insights@latest</Code>
       <p>
         To look at part of your history, pass <code>--since 30d</code> (or <code>12w</code>, <code>6m</code>, <code>1y</code>, or a date like{" "}
-        <code>2026-01-31</code>) or <code>--harness codex</code>. Every option is in the <a href="/docs/cli">CLI reference</a>.
+        <code>2026-01-31</code>) or <code>--harness codex</code>. Every option is in the <DocLink href="/docs/cli">CLI reference</DocLink>.
       </p>
 
       <H2 id="from-your-agent">From your agent instead</H2>
@@ -178,7 +178,7 @@ Next steps
 /plugin install ai-insights@ai-insights`}</Code>
       <p>
         Then start a new session and run <code>/analyze-ai-usage</code>. Other agents and details are in{" "}
-        <a href="/docs/agent-review#install">Install the plugin</a>.
+        <DocLink href="/docs/agent-review#install">Install the plugin</DocLink>.
       </p>
 
       <H2 id="hindsight">Formerly Hindsight</H2>

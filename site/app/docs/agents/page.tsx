@@ -1,5 +1,5 @@
 import { DocShell } from "@/components/docs/doc-shell"
-import { Callout, Code, H2, Table } from "@/components/docs/prose"
+import { Callout, Code, DocLink, H2, Table } from "@/components/docs/prose"
 import { docMetadata } from "@/lib/docs-metadata"
 
 export const metadata = docMetadata("agents")
@@ -25,7 +25,7 @@ export default function Agents() {
           [
             "Claude chat",
             <>
-              Imported from a data export with <code>ai-insights import claude</code>; see <a href="/docs/import">Import chat history</a>
+              Imported from a data export with <code>ai-insights import claude</code>; see <DocLink href="/docs/import">Import chat history</DocLink>
             </>,
             "No: the export records no model or token counts",
             "Not needed: it is not a coding agent",
@@ -118,9 +118,9 @@ export default function Agents() {
         ]}
       />
       <p>
-        During the <a href="/docs/agent-review">agent review</a>, your agent can ask for an excerpt of one session. That excerpt is read from the
+        During the <DocLink href="/docs/agent-review">agent review</DocLink>, your agent can ask for an excerpt of one session. That excerpt is read from the
         transcript on demand, redacted and cut to about 4,000 characters, and handed to your agent. It is not stored. See{" "}
-        <a href="/docs/agent-review#what-the-model-sees">What your agent sees</a>.
+        <DocLink href="/docs/agent-review#what-the-model-sees">What your agent sees</DocLink>.
       </p>
 
       <H2 id="retention">How long agents keep history</H2>
@@ -186,7 +186,7 @@ export default function Agents() {
         </li>
         <li>
           Models without a known price are counted as unpriced rather than guessed. See{" "}
-          <a href="/docs/troubleshooting#unpriced">Cost says some requests are unpriced</a>.
+          <DocLink href="/docs/troubleshooting#unpriced">Cost says some requests are unpriced</DocLink>.
         </li>
       </ul>
     </DocShell>

@@ -73,11 +73,15 @@ function useDetailsMenus(root: React.RefObject<HTMLElement | null>) {
  * `account` is the slot on pages that mount Clerk (<AccountMenu />). Everywhere else it is <SessionAccount />, which
  * imports no Clerk code: a quiet "Sign in" link, or the account menu loaded on demand for a browser that has signed in
  * here before.
+ *
+ * `docsLink` renders the "Docs" links; only the docs pass next/link (components/docs/docs-header.tsx), so next/link
+ * stays out of the landing page's bundle and links from Clerk pages to the docs stay full loads (lib/navigation.ts).
  */
-export function Header({ account }: { account?: React.ReactNode } = {}) {
+export function Header({ account, docsLink }: { account?: React.ReactNode; docsLink?: React.ElementType } = {}) {
   const pathname = usePathname() ?? ""
   const inDocs = pathname.startsWith("/docs")
   const inLeaderboard = pathname.startsWith("/leaderboard")
+  const DocsAnchor = docsLink ?? "a"
   const root = React.useRef<HTMLElement>(null)
   useDetailsMenus(root)
 
@@ -110,9 +114,9 @@ export function Header({ account }: { account?: React.ReactNode } = {}) {
           <a href={`${BASE}/leaderboard`} aria-current={inLeaderboard ? "page" : undefined} className={cn(LINK, inLeaderboard && CURRENT)}>
             Leaderboard
           </a>
-          <a href={`${BASE}/docs`} aria-current={inDocs ? "page" : undefined} className={cn(LINK, inDocs && CURRENT)}>
+          <DocsAnchor href={`${BASE}/docs`} aria-current={inDocs ? "page" : undefined} className={cn(LINK, inDocs && CURRENT)}>
             Docs
-          </a>
+          </DocsAnchor>
         </nav>
 
         <div className="ml-auto flex items-center gap-1 sm:gap-1.5">
@@ -139,9 +143,9 @@ export function Header({ account }: { account?: React.ReactNode } = {}) {
               <a href={`${BASE}/leaderboard`} aria-current={inLeaderboard ? "page" : undefined} className="flex h-11 items-center border-b text-[17px] font-medium tracking-tight outline-none focus-visible:text-primary aria-[current=page]:text-primary">
                 Leaderboard
               </a>
-              <a href={`${BASE}/docs`} aria-current={inDocs ? "page" : undefined} className="flex h-11 items-center border-b text-[17px] font-medium tracking-tight outline-none focus-visible:text-primary aria-[current=page]:text-primary">
+              <DocsAnchor href={`${BASE}/docs`} aria-current={inDocs ? "page" : undefined} className="flex h-11 items-center border-b text-[17px] font-medium tracking-tight outline-none focus-visible:text-primary aria-[current=page]:text-primary">
                 Docs
-              </a>
+              </DocsAnchor>
               <a href={REPO} className="flex h-11 items-center justify-between border-b text-[17px] font-medium tracking-tight outline-none focus-visible:text-primary">
                 GitHub
                 <HugeiconsIcon icon={GithubIcon} strokeWidth={2} className="size-4 text-muted-foreground" />

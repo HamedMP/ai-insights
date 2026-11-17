@@ -1,5 +1,5 @@
 import { DocShell } from "@/components/docs/doc-shell"
-import { Code, H2, H3 } from "@/components/docs/prose"
+import { Code, DocLink, H2, H3 } from "@/components/docs/prose"
 import { docMetadata } from "@/lib/docs-metadata"
 import { REPO } from "@/lib/site"
 
@@ -25,7 +25,7 @@ More help: https://ai-insights.app/docs/troubleshooting`}</Code>
         <li>
           <strong>History in another place.</strong> If you set <code>CLAUDE_CONFIG_DIR</code>, <code>CODEX_HOME</code> or a similar variable for
           your agent, set it the same way when you run AI Insights. <code>doctor</code> lists each location as found or missing. The variables are
-          in <a href="/docs/agents#locations">Where each agent&apos;s history lives</a>.
+          in <DocLink href="/docs/agents#locations">Where each agent&apos;s history lives</DocLink>.
         </li>
         <li>
           <strong>A narrow window.</strong> <code>--since</code> or <code>--harness</code> may leave nothing. Run without them.
@@ -55,7 +55,7 @@ More help: https://ai-insights.app/docs/troubleshooting`}</Code>
       <p>
         Claude Code deletes transcripts 30 days after they last changed, and Gemini CLI deletes chats after 30 days, unless you raise their
         settings. AI Insights cannot read what is gone. Raise the setting now so the next run can look further back; see{" "}
-        <a href="/docs/agents#retention">How long agents keep history</a>. AI Insights keeps the stats of sessions it has already read, so running
+        <DocLink href="/docs/agents#retention">How long agents keep history</DocLink>. AI Insights keeps the stats of sessions it has already read, so running
         it regularly keeps more of your history in the report.
       </p>
 
@@ -78,7 +78,7 @@ More help: https://ai-insights.app/docs/troubleshooting`}</Code>
         </li>
         <li>
           Check the server is registered, for example with <code>claude mcp get ai-insights</code> or <code>codex mcp get ai-insights</code>.
-          Register it by hand if needed; see <a href="/docs/agent-review#install-manual">By hand</a>.
+          Register it by hand if needed; see <DocLink href="/docs/agent-review#install-manual">By hand</DocLink>.
         </li>
         <li>
           Ask your agent to run the <code>ai-insights-setup</code> skill. It checks each step and tells you the fix.
@@ -113,7 +113,7 @@ More help: https://ai-insights.app/docs/troubleshooting`}</Code>
       <H3 id="faq-same">Why does every run give the same findings?</H3>
       <p>
         The deterministic layer has no randomness: the same history gives the same result. Findings change when your history does, and{" "}
-        <a href="/docs/report#over-time">Since your last run</a> shows which look resolved.
+        <DocLink href="/docs/report#over-time">Since your last run</DocLink> shows which look resolved.
       </p>
       <H3 id="faq-agent-hours">Why are agent-hours larger than the hours in a day?</H3>
       <p>
@@ -130,7 +130,7 @@ More help: https://ai-insights.app/docs/troubleshooting`}</Code>
       <H3 id="faq-delete">How do I remove everything?</H3>
       <p>
         Delete <code>~/.ai-insights/</code> (or the folder <code>AI_INSIGHTS_HOME</code> points to). If you published, use Remove my entry on the
-        website; see <a href="/docs/privacy#removing">Removing what you published</a>.
+        website; see <DocLink href="/docs/privacy#removing">Removing what you published</DocLink>.
       </p>
       <H3 id="faq-matrix">Do I need Matrix OS?</H3>
       <p>

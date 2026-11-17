@@ -1,5 +1,5 @@
 import { DocShell } from "@/components/docs/doc-shell"
-import { Callout, Code, H2, Table } from "@/components/docs/prose"
+import { Callout, Code, DocLink, H2, Table } from "@/components/docs/prose"
 import { docMetadata } from "@/lib/docs-metadata"
 
 export const metadata = docMetadata("mcp")
@@ -68,7 +68,7 @@ export default function Mcp() {
         </li>
       </ol>
       <p>
-        The <code>analyze-ai-usage</code> skill walks your agent through exactly this. See <a href="/docs/agent-review#run-it">Run the review</a>.
+        The <code>analyze-ai-usage</code> skill walks your agent through exactly this. See <DocLink href="/docs/agent-review#run-it">Run the review</DocLink>.
       </p>
 
       <H2 id="ai_insights_scan">ai_insights_scan</H2>
@@ -184,7 +184,7 @@ export default function Mcp() {
       <H2 id="ai_insights_save_facets">ai_insights_save_facets</H2>
       <p>
         Saves your agent&apos;s judgement of one or more sessions, one facet per session, from the fixed lists in{" "}
-        <a href="/docs/agent-review#facets">Session labels</a>. Valid facets are saved even if others in the batch are rejected; each rejection
+        <DocLink href="/docs/agent-review#facets">Session labels</DocLink>. Valid facets are saved even if others in the batch are rejected; each rejection
         says what to fix. Saving again overwrites. The response lists what was saved and rejected, how many sessions still need a label, and how
         many were held back.
       </p>
