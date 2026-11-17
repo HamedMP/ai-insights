@@ -13,14 +13,14 @@ const RECAP = JSON.parse(readFileSync(new URL("./recap-fixture.json", import.met
 const D = recapView({ ...makeReport(), recap: RECAP })!;
 
 /** The engine and the given style scripts in a fresh global scope, as the page loads them, without a DOM. */
-function engineWith(styles: string[]): { CardStyles: { list(): Array<{ id: string; ok: boolean }>; specs(id: string): Record<string, { id: string; build: unknown; dur: number }> | null; setData(d: unknown): void }; errors: string[] } {
+function engineWith(styles: string[], data: unknown = D): { CardStyles: { list(): Array<{ id: string; ok: boolean }>; specs(id: string): Record<string, { id: string; build: unknown; dur: number }> | null; setData(d: unknown): void }; errors: string[] } {
   const errors: string[] = [];
   // Just enough DOM for a style that measures text on a detached canvas while building its specs.
   const document = { createElement: () => ({ getContext: () => ({ font: "", measureText: (text: string) => ({ width: String(text).length * 10 }) }) }) };
   const context = createContext({ document, console: { error: (...args: unknown[]) => errors.push(args.map(String).join(" ")), warn: () => {}, log: () => {} }, Math, Object, Array, JSON, Number, String, Map, Set, Date, Intl, Promise });
   for (const code of [read("rabbit.js"), read("engine.js"), ...styles]) new Script(code).runInContext(context);
   const CardStyles = new Script("CardStyles").runInContext(context);
-  CardStyles.setData(JSON.parse(JSON.stringify(D)));
+  CardStyles.setData(JSON.parse(JSON.stringify(data)));
   return { CardStyles, errors };
 }
 
@@ -60,6 +60,16 @@ describe("card style registry", () => {
         expect(specs[card]!.dur, `${id}/${card}`).toBeGreaterThan(0);
       }
     }
+  });
+
+  it("adds the earned-titles card to every style when the persona earned a title, and leaves it out otherwise", () => {
+    const styles = styleIds();
+    const earned = { ...D, persona: { ...D.persona!, earned: [{ key: "architect", title: "The Architect", rule: "62% of sessions that edited files started with a plan (half or more earns it)" }] } };
+    const { CardStyles, errors } = engineWith(styles.map((id) => read(`styles/${id}.js`)), earned);
+    expect(errors).toEqual([]);
+    for (const id of styles) expect(typeof CardStyles.specs(id)!.titles?.build, id).toBe("function");
+    const without = engineWith(styles.map((id) => read(`styles/${id}.js`)), { ...D, persona: { ...D.persona!, earned: [] } });
+    for (const id of styles) expect(without.CardStyles.specs(id)!.titles, id).toBeUndefined();
   });
 
   it("refuses a style without an id, name or specs, and a second style with the same id", () => {

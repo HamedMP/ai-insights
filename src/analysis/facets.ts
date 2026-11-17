@@ -1,18 +1,28 @@
 import type { FacetAggregate, Session, SessionFacet } from "../schema/types.js";
 import { bump, toCounts } from "./activity.js";
 
+/** The newest facet per session in the report, keyed by harness and session id. Facets for other sessions are dropped. */
+export function facetsBySession(facets: SessionFacet[] | undefined, sessions: Session[]): Map<string, SessionFacet> {
+  const latest = new Map<string, SessionFacet>();
+  if (!facets || facets.length === 0) return latest;
+  const known = new Set(sessions.map((session) => facetKey(session.harness, session.id)));
+  for (const facet of facets) {
+    const key = facetKey(facet.harness, facet.sessionId);
+    if (known.has(key)) latest.set(key, facet);
+  }
+  return latest;
+}
+
+export function facetKey(harness: string, sessionId: string): string {
+  return `${harness}\u0000${sessionId}`;
+}
+
 /**
  * Counts over the facets that belong to sessions in this report. Facets saved for
  * sessions outside the report's range would otherwise skew the totals.
  */
 export function aggregateFacets(facets: SessionFacet[] | undefined, sessions: Session[]): FacetAggregate | null {
-  if (!facets || facets.length === 0) return null;
-  const known = new Set(sessions.map((session) => `${session.harness}\u0000${session.id}`));
-  const latest = new Map<string, SessionFacet>();
-  for (const facet of facets) {
-    const key = `${facet.harness}\u0000${facet.sessionId}`;
-    if (known.has(key)) latest.set(key, facet);
-  }
+  const latest = facetsBySession(facets, sessions);
   if (latest.size === 0) return null;
 
   const goals = new Map<string, number>();

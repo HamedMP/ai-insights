@@ -1,5 +1,6 @@
 import type { Finding, Session } from "../../schema/types.js";
 import { clean } from "../../sources/shared.js";
+import type { Clock } from "../time.js";
 import { evidence, harnessesOf, label, MAX_EVIDENCE, MAX_FINDINGS_PER_KIND, projectKey, type Detector } from "./context.js";
 
 /** Typed in this many separate sessions, it is a standing rule rather than a task. */
@@ -35,7 +36,16 @@ interface Cluster {
   members: Array<{ session: Session; text: string; timestamp: string }>;
 }
 
-export const repeatedInstruction: Detector = ({ sessions, clock }) => {
+/** A rule typed again and again: its wording per session, in sessions on at least `MIN_DAYS` days. */
+export interface RepeatedRule {
+  tokens: Set<string>;
+  members: Cluster["members"];
+  bySession: Map<Session, { text: string; timestamp: string }>;
+  days: Set<string>;
+}
+
+/** The clusters the repeated-instruction finding reports on, before its per-kind cap. */
+export function repeatedRules(sessions: Session[], clock: Clock): RepeatedRule[] {
   const clusters: Cluster[] = [];
   const index = new Map<string, number[]>();
   let considered = 0;
@@ -74,13 +84,22 @@ export const repeatedInstruction: Detector = ({ sessions, clock }) => {
     }
   }
 
-  const findings: Finding[] = [];
+  const rules: RepeatedRule[] = [];
   for (const cluster of clusters) {
     const bySession = new Map<Session, { text: string; timestamp: string }>();
     for (const member of cluster.members) if (!bySession.has(member.session)) bySession.set(member.session, member);
     if (bySession.size < MIN_SESSIONS) continue;
-    const days = new Set([...bySession.values()].map((member) => clock.day(member.timestamp)).filter(Boolean));
+    const days = new Set([...bySession.values()].map((member) => clock.day(member.timestamp)).filter((day): day is string => !!day));
     if (days.size < MIN_DAYS) continue;
+    rules.push({ tokens: cluster.tokens, members: cluster.members, bySession, days });
+  }
+  return rules;
+}
+
+export const repeatedInstruction: Detector = ({ sessions, clock }) => {
+  const findings: Finding[] = [];
+  for (const cluster of repeatedRules(sessions, clock)) {
+    const { bySession, days } = cluster;
     // The wording typed most often reads most naturally as a rule.
     const wording = new Map<string, number>();
     for (const member of cluster.members) wording.set(member.text, (wording.get(member.text) ?? 0) + 1);

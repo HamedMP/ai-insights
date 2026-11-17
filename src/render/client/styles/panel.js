@@ -32,7 +32,7 @@ registerCardStyle({
       friction: { n: 4, name: "Friction", col: "var(--c-friction)" },
       findings: { n: 5, name: "Findings", col: "var(--ink)" },
     };
-    const ORDER = ["intro", "hours", "clock", "weekday", "streak", "words", "manners", "slash", "shell", "tests", "danger", "parallel", "marathon", "failures", "nemesis", "model", "tokens", "persona", "tips", "summary", "outro", "thinking", "approvals", "history"];
+    const ORDER = ["intro", "hours", "clock", "weekday", "streak", "words", "manners", "slash", "shell", "tests", "danger", "parallel", "marathon", "failures", "nemesis", "model", "tokens", "persona", "tips", "summary", "outro", "thinking", "approvals", "history", "titles"];
 
     // ------------------------------------------------------------ svg helpers
     function tx(c, x, y, str, o = {}) {
@@ -1254,6 +1254,28 @@ registerCardStyle({
         .filter(([, value], i) => value != null && (i < 2 || value > 0)).map(([label, value]) => ({ label, value, text: compact(value) }));
       return { head: h("div", {}, k, big, p), artMin: 0.3, split: 0.46, legend: `${int(A.sessions)} sessions recorded it`,
         art: (w, hgt) => tracks(c, w, hgt, rows, { unit: "DECISIONS", at: 900 }) };
+    });
+
+    if (D.persona && D.persona.earned && D.persona.earned.length) card({ id: "titles", title: "Titles earned", ch: "findings", dur: 6500 }, (c) => {
+      const T = D.persona.earned;
+      const k = lab(T.length === 1 ? "Title earned" : `${T.length} titles earned`);
+      const tt = hero(c, "Earned, not given.", 150, 70);
+      enter(c, [k, tt], 120, 160);
+      return { head: h("div", {}, k, tt), artMin: 0.48, split: 0.36, legend: "from your ratios", center: false,
+        art(w, hgt) {
+          const u = c.u, svg = box(w, hgt), n = Math.max(1, T.length), rowH = Math.min((c.tall ? 380 : 260) * u, hgt / n);
+          T.forEach((t, i) => {
+            const y = i * rowH, g = s("g");
+            g.append(ln(0, y + 2 * u, w, y + 2 * u, { w: 2.4 * u }));
+            const ts = Math.max(30 * u, Math.min(fitPx(t.title, "cond", (c.tall ? 96 : 80) * u, w), rowH * 0.42));
+            g.append(tx(c, 0, y + 24 * u + ts * 0.86, t.title, { f: "cond", size: ts, fill: ["var(--ink)", "var(--c-work)", "var(--c-friction)"][i] }));
+            const ry = y + 24 * u + ts * 0.86 + 18 * u + (c.tall ? 20 : 14) * u;
+            if (ry <= y + rowH) g.append(tx(c, 0, ry, t.rule, { f: "text", size: fitPx(t.rule, "text", (c.tall ? 34 : 28) * u, w), fill: "var(--ink-2)" }));
+            svg.append(g);
+            c.tl.in(g, 600 + i * 260, { y: 40 * u, dur: 650 });
+          });
+          return svg;
+        } };
     });
 
     if (D.history) card({ id: "history", title: "History kept", ch: "rhythm", dur: 6000 }, (c) => {

@@ -373,3 +373,34 @@ html.capture #root { position: relative; width: 100vw; height: 100vh; overflow: 
   .studio-bar .field { max-width: 100%; }
 }
 .closing-card .btn, .step .btn, .learn a { white-space: normal; max-width: 100%; overflow-wrap: anywhere; }
+/* how you work: ratios and earned titles */
+.ratios { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.ratio { background: var(--bg); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; min-width: 0; outline-offset: 2px; }
+.ratio b { font: 800 28px/1 var(--display); letter-spacing: -0.04em; }
+.ratio .rl { font: 650 13.5px/1.25 var(--text); }
+.ratio .rc { font: 500 11.5px/1.35 var(--mono); color: var(--muted); }
+.earned { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+.title-chip { display: flex; flex-direction: column; gap: 3px; border: 1.5px solid var(--ink); border-radius: 12px; padding: 9px 13px; background: var(--accent-soft); min-width: 0; }
+.title-chip b { font: 800 17px/1.1 var(--display); letter-spacing: -0.02em; }
+.title-chip span { font-size: 12.5px; color: var(--muted); }
+dl.defs { display: grid; grid-template-columns: minmax(140px, 220px) 1fr; gap: 6px 16px; font-size: 14px; margin: 0 0 8px; }
+dl.defs dt { font-weight: 650; }
+dl.defs dd { margin: 0; color: var(--muted); }
+/* what went wrong: causes */
+.hbar.cause { grid-template-columns: minmax(120px, 220px) 1fr 9.5em; }
+.hbar.cause .hv { text-align: right; }
+.cards3.causes { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.mini .ev .when { white-space: normal; }
+.mini .ev { margin: 10px 0 0; }
+.cause-fix { margin: 10px 0 0; }
+@media (max-width: 1020px) { .ratios { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 720px) {
+  .ratios { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  dl.defs { grid-template-columns: 1fr; }
+  dl.defs dd { margin-bottom: 6px; }
+  .hbar.cause { grid-template-columns: 1fr auto; grid-template-areas: "nm hv" "t t"; row-gap: 6px; }
+  .hbar.cause .nm { grid-area: nm; white-space: normal; }
+  .hbar.cause .hv { grid-area: hv; }
+  .hbar.cause .t { grid-area: t; }
+  .ratio:last-child:nth-child(odd) { grid-column: span 2; }
+}

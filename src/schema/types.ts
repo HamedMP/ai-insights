@@ -648,6 +648,82 @@ export interface FacetAggregate {
   successes: Count[];
 }
 
+// ---------------------------------------------------------------------------
+// Friction causes: sessions grouped by the kind of trouble they showed. A count of sessions showing a sign,
+// never a diagnosis of why.
+// ---------------------------------------------------------------------------
+
+export const FRICTION_CAUSES = ["missing_context", "unclear_request", "context_ran_out", "tool_environment", "permissions", "off_course"] as const;
+export type FrictionCauseKey = (typeof FRICTION_CAUSES)[number];
+
+export interface FrictionCauseSign {
+  /** A deterministic signal (`stepped_in`, `compacted`) or `judged:<FrictionType>` for the agent review's call. */
+  key: string;
+  /** Fixed wording, e.g. "Context was compacted". */
+  label: string;
+  sessions: number;
+}
+
+export interface FrictionCause {
+  key: FrictionCauseKey;
+  /** Fixed wording, e.g. "Context ran out". */
+  label: string;
+  /** Sessions showing at least one of `signs`. */
+  sessions: number;
+  /** Sessions the signs could be seen in: every session, or only judged ones when every sign comes from the review. */
+  of: number;
+  /** sessions / of, 0..1. */
+  share: number;
+  /** One fixed sentence on what is counted. */
+  basis: string;
+  signs: FrictionCauseSign[];
+  /** At most two sessions that show it most, notes from fixed templates only. */
+  evidence: Evidence[];
+  /** The finding whose suggestion is used, when one fired. */
+  findingId?: string;
+  suggestion: { title: string; action: string };
+}
+
+export interface FrictionCauses {
+  /** Sessions looked at. */
+  sessions: number;
+  /** Sessions with a facet; their judged friction is used only when there are at least `minJudged`. */
+  judged: number;
+  /** True when judged friction was used. */
+  usedReview: boolean;
+  minSessions: number;
+  minJudged: number;
+  /** Sessions showing a sign of any cause. A session can show several, so the causes' shares do not add up to this. */
+  withAny: number;
+  /** Causes with at least one session, highest share first. */
+  causes: FrictionCause[];
+}
+
+// ---------------------------------------------------------------------------
+// Work ratios: how the person works, as ratios of counts. None of them grows with tokens or spend.
+// ---------------------------------------------------------------------------
+
+export const WORK_RATIO_KEYS = ["correctionsPerSession", "contextResetShare", "toolErrorRate", "planFirstShare", "parallelism"] as const;
+export type WorkRatioKey = (typeof WORK_RATIO_KEYS)[number];
+
+export interface WorkRatio {
+  key: WorkRatioKey;
+  /** Fixed wording, e.g. "Mid-run corrections". */
+  label: string;
+  /** One fixed sentence: what is counted, over what. */
+  definition: string;
+  /** numerator / denominator; null when the denominator is 0. */
+  value: number | null;
+  numerator: number;
+  denominator: number;
+  /** How `value` reads: a per-item rate, a 0..1 share, or a multiple ("1.8×"). */
+  unit: "per_session" | "share" | "times";
+  /** What the numerator and denominator count, e.g. "corrections", "sessions". */
+  counts: { numerator: string; denominator: string };
+}
+
+export type WorkRatios = Record<WorkRatioKey, WorkRatio>;
+
 /** Written by the person's own agent during the insights skill, then saved through the MCP server. */
 export interface Narrative {
   /** Two or three sentences shown at the top of the report. */
@@ -681,6 +757,10 @@ export interface Report {
   recap?: Recap;
   /** How long each harness keeps transcripts. Absent when the scan did not measure it (tests, older reports). */
   retention?: Retention;
+  /** Sessions grouped by the kind of trouble they showed. Absent with too few sessions, and in older reports. */
+  frictionCauses?: FrictionCauses;
+  /** How the person works, as ratios of counts. Absent when there are no sessions, and in older reports. */
+  ratios?: WorkRatios;
 }
 
 // ---------------------------------------------------------------------------
@@ -839,6 +919,19 @@ export interface RecapPersona {
   role: "Orchestrator" | "Shipper" | "Delegator";
   /** One sentence built from a fixed template and numbers; the win-rate clause only when facets exist. */
   reason: string;
+  /** Extra titles earned from `Report.ratios`, at most three. Absent when none was earned, and in older recaps. */
+  earned?: RecapTitle[];
+}
+
+/** A title earned from one work ratio: fixed wording, and the rule with the number that earned it. */
+export interface RecapTitle {
+  key: string;
+  /** "The Clear Briefer". */
+  title: string;
+  ratio: WorkRatioKey;
+  value: number;
+  /** Fixed template and numbers, e.g. "0.05 mid-run corrections per session (under 0.1 earns it)". */
+  rule: string;
 }
 
 export interface RecapTip {
