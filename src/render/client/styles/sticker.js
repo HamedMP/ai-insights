@@ -53,7 +53,7 @@ registerCardStyle({
       }
       const tape = (txt, bg = "var(--ink)", o = {}) => {
         const fs = PX((o.size || 30) * K);
-        return h("div", { class: "sk-tape", "data-fit": fs, "data-min": 22, style: { fontSize: fs + "px", background: bg, color: o.fg || "#fff" } }, txt);
+        return h("div", { class: "sk-tape", "data-fit": fs, "data-min": 22, style: { fontSize: fs + "px", background: bg, color: o.fg || "#fff", ...(o.wrap && { whiteSpace: "normal" }) } }, txt);
       };
       /** Die-cut type: transparent HTML text for layout, fitting and audit; an SVG overlay paints the contour. */
       function cut(txt, size, fill = "var(--ink)", o = {}) {
@@ -322,7 +322,7 @@ registerCardStyle({
         const harn = T.harnesses.map((x) => harnessName(x.key));
         const who = harn.length === 1 ? harn[0] : harn.length === 2 ? `${harn[0]} and ${harn[1]}` : "Your coding agents";
         const hd = head(K, [
-          K.tape(rangeLabel),
+          K.tape(rangeLabel, "var(--ink)", { wrap: true }),
           K.cut("My last", F(c.wide ? 150 : 168), "var(--ink)"),
           K.cut(`${D.range.days} days`, F(c.wide ? 190 : 210), "holo"),
           K.cut("with AI.", F(c.wide ? 150 : 168), "var(--tomato)"),
@@ -877,7 +877,7 @@ registerCardStyle({
       build(c) {
         const K = kitFor(c, "summary"), F = (n) => n * K.K;
         const hd = head(K, [
-          K.tape(rangeLabel),
+          K.tape(rangeLabel, "var(--ink)", { wrap: true }),
           c.tall || c.wide ? K.cut(`My last ${D.range.days} days`, F(c.wide ? 130 : 140), "var(--ink)") : K.cut(`My last ${D.range.days} days with AI.`, F(110), "var(--ink)"),
           c.tall || c.wide ? K.cut("with AI.", F(c.wide ? 130 : 140), "var(--tomato)") : null,
         ]);

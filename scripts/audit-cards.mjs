@@ -42,11 +42,11 @@ const work = mkdtempSync(join(tmpdir(), "ai-insights-audit-"));
 try {
   execFileSync(process.execPath, [join(root, "scripts/demo-report.mjs"), join(work, "demo.html"), "--json", join(work, "demo.json"), "--no-site"], { stdio: "ignore" });
   const report = JSON.parse(readFileSync(join(work, "demo.json"), "utf8"));
-  // A long, busy history: 300 days of activity and counts past the caps, to catch layouts that only fit a month.
+  // A long, busy history spanning two calendar years, with counts past the caps.
   const long = structuredClone(report.recap);
-  const start = Date.parse("2026-01-17T12:00:00Z");
-  long.daily = Array.from({ length: 300 }, (_, i) => ({ day: new Date(start + i * 86_400_000).toISOString().slice(0, 10), sessions: i % 3 ? 4 : 0, prompts: i % 3 ? 37 : 0, minutes: i % 3 ? 300 : 0 }));
-  long.range = { from: long.daily[0].day, to: long.daily.at(-1).day, days: 300 };
+  const start = Date.parse("2025-09-18T12:00:00Z");
+  long.daily = Array.from({ length: 400 }, (_, i) => ({ day: new Date(start + i * 86_400_000).toISOString().slice(0, 10), sessions: i % 3 ? 4 : 0, prompts: i % 3 ? 37 : 0, minutes: i % 3 ? 300 : 0 }));
+  long.range = { from: long.daily[0].day, to: long.daily.at(-1).day, days: 400 };
   long.streak = { days: 117, start: long.daily[100].day, end: long.daily[216].day };
   long.totals = { ...long.totals, sessions: 4321, prompts: 98765, wallHours: 1234, agentHours: 5678, toolCalls: 456789, commits: 12345, toolCallsCapped: true };
   if (long.longestSession) long.longestSession = { ...long.longestSession, activeMinutes: 14000, toolCalls: 10000, toolCallsCapped: true };
@@ -55,7 +55,7 @@ try {
   // The optional cards at a year's scale: hours of thinking, six-digit approvals, 300 days of history kept.
   long.thinking = { blocks: 234_567, totalMs: 1_234 * 3_600_000, longestMs: 1_234_000, sessions: 4000 };
   long.approvals = { auto: 345_678, byPerson: 98_765, denied: 4321, autoBlocked: 987, guardianReviews: 5000, sessions: 4000 };
-  long.history = { days: 300, firstDay: long.daily[0].day, cachedOnly: 2345 };
+  long.history = { days: 400, firstDay: long.daily[0].day, cachedOnly: 2345 };
   if (long.longestSession) long.longestSession.skippedAutomated = 12;
   writeFileSync(join(work, "long.html"), renderReport({ ...report, recap: long }));
 
