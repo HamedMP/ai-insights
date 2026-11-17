@@ -16,7 +16,9 @@ ai-insights scan [options]     scan and show what was found
 ai-insights report [options]   write the report (or print JSON with --json)
 ai-insights doctor             show which histories were found and where
 ai-insights mcp                start the MCP server on stdio (for your agent)
-ai-insights import claude <path>  add a Claude chat export`}</Code>
+ai-insights import claude <path>  add a Claude chat export
+ai-insights install            add the plugin to your agents
+ai-insights uninstall          remove it again`}</Code>
 
       <H2 id="commands">Commands</H2>
       <H3 id="cmd-run">ai-insights</H3>
@@ -35,6 +37,17 @@ ai-insights import claude <path>  add a Claude chat export`}</Code>
         without a forwarded display, and never for <code>scan</code>, <code>report</code>, <code>doctor</code> or <code>mcp</code>. So an agent or
         a script running it never waits on the question. <code>--open</code>, <code>--no-open</code> and <code>AI_INSIGHTS_OPEN</code> skip it.
       </p>
+      <p>
+        After that, when Claude Code or Codex is on your machine without the AI Insights plugin, it asks once whether to add it. See{" "}
+        <a href="#cmd-install">ai-insights install</a> for what that runs. The same rules decide whether it asks, and a no is remembered for 30
+        days, or until a newer minor version runs. <code>--no-install-prompt</code> and <code>AI_INSIGHTS_NO_INSTALL_PROMPT=1</code> turn it off.
+      </p>
+      <Code label="Output, after the report" copy={false}>{`Add AI Insights to Claude Code and Codex? It installs the ai-insights plugin:
+the MCP server and three skills (analyze-ai-usage, ai-insights-coach,
+ai-insights-setup), so you can run a review from your agent any time.
+Each review saves your sessions' stats and prompts in ~/.ai-insights,
+so they outlast agents that delete old transcripts.
+Install it now? [Y/n]`}</Code>
       <H3 id="cmd-scan">ai-insights scan</H3>
       <p>Scans and prints what was found, without writing a report. Output from a synthetic history:</p>
       <Code label="Output, from a synthetic history" copy={false}>{`History found
@@ -98,6 +111,45 @@ ai-insights import --remove claude  remove the import and everything made from i
         A newer import replaces the earlier one. Imported conversations then appear in every run as their own agent, <code>claude-chat</code>{" "}
         (Claude chat).
       </p>
+      <H3 id="cmd-install">ai-insights install</H3>
+      <p>
+        Adds the AI Insights plugin to the agents it finds, through each agent&apos;s own plugin commands. It prints the exact commands first and
+        runs them only after you say yes (or with <code>--yes</code>). It edits no agent config file itself, and running it again changes
+        nothing once the plugin is there. A step that fails or takes longer than two minutes is reported with the command to run yourself.
+      </p>
+      <Code label="Usage" copy={false}>{`ai-insights install [--harness <name>]... [--yes] [--dry-run]
+ai-insights uninstall [--harness <name>]... [--yes] [--dry-run]`}</Code>
+      <Table
+        caption="What install runs"
+        head={["Agent", "Commands", "Uninstall"]}
+        rows={[
+          [
+            "Claude Code",
+            <>
+              <code>claude plugin marketplace add hamedmp/ai-insights</code>, then <code>claude plugin install ai-insights@ai-insights --scope user</code>
+            </>,
+            <>
+              <code>claude plugin uninstall ai-insights@ai-insights</code>, <code>claude plugin marketplace remove ai-insights</code>
+            </>,
+          ],
+          [
+            "Codex",
+            <>
+              <code>codex plugin marketplace add hamedmp/ai-insights</code>, then <code>codex plugin add ai-insights@ai-insights</code>
+            </>,
+            <>
+              <code>codex plugin remove ai-insights@ai-insights</code>, <code>codex plugin marketplace remove ai-insights</code>
+            </>,
+          ],
+          ["Cursor, OpenCode, Pi", "Nothing: it prints the install steps (untested installs)", "Prints the removal steps"],
+        ]}
+      />
+      <p>
+        <code>--harness</code> takes <code>claude-code</code>, <code>codex</code>, <code>cursor</code>, <code>opencode</code> or <code>pi</code>{" "}
+        and can repeat. <code>--dry-run</code> prints the plan and changes nothing. Without <code>--yes</code> it only asks at a terminal;
+        piped, it prints the plan and exits 1. Claude Code and Codex download the plugin from GitHub when they install it; see{" "}
+        <DocLink href="/docs/privacy#installing">Privacy</DocLink>. Uninstalling leaves your report and cache in place.
+      </p>
       <p>
         <code>help</code> is accepted as a command and prints the same text as <code>--help</code>.
       </p>
@@ -130,6 +182,7 @@ ai-insights import --remove claude  remove the import and everything made from i
           [<code key="j">--json</code>, <>With <code>report</code> only: print the report as JSON instead of writing HTML.</>],
           [<code key="o">--open</code>, "Open the written report in your default browser without asking."],
           [<code key="no">--no-open</code>, "Do not ask whether to open the report, and do not open it."],
+          [<code key="ni">--no-install-prompt</code>, "Do not offer to add AI Insights to your agents after the run."],
           [<code key="hh">-h, --help</code>, "Show the help."],
           [<code key="v">-v, --version</code>, "Show the version."],
         ]}
@@ -150,6 +203,12 @@ npx ai-insights --refresh`}</Code>
             <code key="ao">AI_INSIGHTS_OPEN</code>,
             <>
               <code>1</code> opens the report without asking, <code>0</code> never asks. <code>--open</code> and <code>--no-open</code> win over it.
+            </>,
+          ],
+          [
+            <code key="ni">AI_INSIGHTS_NO_INSTALL_PROMPT</code>,
+            <>
+              <code>1</code> never offers to add AI Insights to your agents, like <code>--no-install-prompt</code>.
             </>,
           ],
           [<code key="nc">NO_COLOR</code>, "When set to anything, the result screen has no colour and no links."],
@@ -175,7 +234,9 @@ npx ai-insights --refresh`}</Code>
           [
             "1",
             <>
-              No sessions were found (the default command only), or the command failed. The message starts with <code>ai-insights:</code>.
+              No sessions were found (the default command only), or the command failed. The message starts with <code>ai-insights:</code>.{" "}
+              <code>install</code> and <code>uninstall</code> also exit 1 when a step failed, a named agent is not installed, or they would have
+              needed <code>--yes</code>.
             </>,
           ],
           [

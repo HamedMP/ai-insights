@@ -18,6 +18,8 @@ Usage
   ai-insights doctor             show which histories were found and where
   ai-insights mcp                start the MCP server on stdio (for your agent)
   ai-insights import claude <path>  add a Claude chat export (see import --help)
+  ai-insights install            add the plugin to your agents (see install --help)
+  ai-insights uninstall          remove it again
 
 Options
   --since <window>     only history from ${SINCE_HELP}
@@ -27,6 +29,8 @@ Options
   --json               report: print the report as JSON instead of writing HTML
   --open               open the written report in your browser without asking
   --no-open            do not ask to open it, and do not open it
+  --no-install-prompt  do not offer to add AI Insights to your agents
+                       (or set AI_INSIGHTS_NO_INSTALL_PROMPT=1)
   -h, --help           show this help
   -v, --version        show the version
 
@@ -46,6 +50,8 @@ export interface Parsed {
   json: boolean;
   /** --open or --no-open, the last one given winning; null when neither was. */
   open: "open" | "no-open" | null;
+  /** --no-install-prompt: skip the offer to install into agents after the run. */
+  noInstallPrompt: boolean;
   help: boolean;
   version: boolean;
 }
@@ -54,7 +60,7 @@ const COMMANDS = new Set(["run", "scan", "report", "doctor", "mcp", "help"]);
 const VALUE_FLAGS = new Set(["--since", "--harness", "--max-sessions"]);
 
 export function parseArgs(argv: string[], now: Date): Parsed {
-  const parsed: Parsed = { command: "run", refresh: false, json: false, open: null, help: false, version: false };
+  const parsed: Parsed = { command: "run", refresh: false, json: false, open: null, noInstallPrompt: false, help: false, version: false };
   let commandSeen = false;
   for (let index = 0; index < argv.length; index += 1) {
     const raw = argv[index]!;
@@ -104,6 +110,9 @@ export function parseArgs(argv: string[], now: Date): Parsed {
         break;
       case "--no-open":
         parsed.open = "no-open";
+        break;
+      case "--no-install-prompt":
+        parsed.noInstallPrompt = true;
         break;
       case "-h":
       case "--help":

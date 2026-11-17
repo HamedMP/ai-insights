@@ -141,7 +141,11 @@ async function commandRun(parsed: Parsed, deps: CliDeps, store: Store, style: St
       style,
     ),
   );
-  return deliver(mode, outcome.htmlPath, deps, style);
+  const delivered = await deliver(mode, outcome.htmlPath, deps, style);
+  if (delivered !== 0) return delivered;
+  const { installDeps, offerInstall } = await import("./install-command.js");
+  const offered = await offerInstall({ ...installDeps(deps, store.home), disabled: parsed.noInstallPrompt, indent: style.rich ? "  " : "" });
+  return offered ?? 0;
 }
 
 /** Opens the report now, after asking, or not at all. A failed opener costs one line, never the run. */

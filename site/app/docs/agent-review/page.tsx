@@ -32,6 +32,14 @@ export default function AgentReview() {
         Each install adds the same MCP server, <code>npx -y ai-insights mcp</code>, and three skills. Start a new session afterwards: agents usually
         load new tools and skills only at startup.
       </p>
+      <H3 id="install-from-cli">From the command line</H3>
+      <p>
+        <code>npx ai-insights install</code> runs the Claude Code and Codex commands below for whichever of the two is on your machine, after
+        showing them to you. The end of a normal <code>npx ai-insights</code> run offers the same. See the{" "}
+        <DocLink href="/docs/cli#cmd-install">CLI reference</DocLink>.
+      </p>
+      <Code label="Terminal">{`npx ai-insights install --dry-run   # print the commands only
+npx ai-insights install             # run them after you say yes`}</Code>
       <H3 id="install-claude-code">Claude Code</H3>
       <Code label="Claude Code">{`/plugin marketplace add hamedmp/ai-insights
 /plugin install ai-insights@ai-insights`}</Code>
@@ -59,6 +67,40 @@ scripts/install.sh --harness cursor     # or: --harness opencode`}</Code>
         MCP server with each agent&apos;s own <code>mcp add</code> command. It needs no root, writes only inside your home folder, and is safe to
         run again. Add <code>--dry-run</code> to see what it would do first. All options are in the{" "}
         <DocLink href="/docs/cli#install-script">CLI reference</DocLink>.
+      </p>
+      <H3 id="updates">Getting updates</H3>
+      <p>
+        The plugin carries the package version, and both agents keep the installed copy until that version changes. Neither updates it on its
+        own unless you turn that on:
+      </p>
+      <Table
+        caption="Updates by agent"
+        head={["Agent", "To update", "Automatic"]}
+        rows={[
+          [
+            "Claude Code",
+            <>
+              <code>claude plugin update ai-insights@ai-insights</code> in a terminal, or <code>/plugin marketplace update ai-insights</code> in a
+              session; then restart
+            </>,
+            <>
+              Off by default for this marketplace. Turn it on in <code>/plugin</code>, under Marketplaces, ai-insights, Enable auto-update
+            </>,
+          ],
+          [
+            "Codex",
+            <>
+              <code>codex plugin marketplace upgrade ai-insights</code>, then start a new session
+            </>,
+            "Not documented. Codex's source refreshes Git marketplaces in the background at startup and reinstalls a plugin whose version changed, so new releases may arrive on their own",
+          ],
+          ["Pi, Cursor, OpenCode", "Run the install again", "No"],
+        ]}
+      />
+      <p>
+        The MCP server is separate: <code>npx -y ai-insights mcp</code> asks the npm registry for the newest version each time your agent starts
+        it, so it follows new releases without an update step (it needs the network at that moment). The skills come from the installed plugin, so
+        they follow the plugin&apos;s version.
       </p>
       <H3 id="install-manual">By hand</H3>
       <p>If you prefer to register only the MCP server:</p>

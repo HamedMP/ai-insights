@@ -56,6 +56,15 @@ export default function Privacy() {
         Nothing leaves your machine unless you create a share link and open or send it, or publish from the website. Both are described below.
       </p>
 
+      <H2 id="installing">Installing into your agents</H2>
+      <p>
+        <code>ai-insights install</code>, and the offer at the end of a run, set up the plugin by running Claude Code&apos;s and Codex&apos;s own
+        plugin commands. Those commands download the plugin from GitHub, the same as if you typed them. AI Insights itself still sends
+        nothing: it starts the agent&apos;s command, and only after showing it to you and getting a yes (or <code>--yes</code>). It never edits an
+        agent&apos;s config file itself. Once installed, your agent starts the MCP server with <code>npx</code>, which asks the npm registry for the
+        current version.
+      </p>
+
       <H2 id="redaction">Redaction</H2>
       <p>Before a prompt, a command or an excerpt is stored or shown, AI Insights replaces:</p>
       <ul>
