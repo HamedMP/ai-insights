@@ -685,6 +685,19 @@ const harnessColor = (key) => HCOL[Math.max(0, HORDER.indexOf(key)) % HCOL.lengt
   const A2 = ACT;
   const style = VIEW.narrative && VIEW.narrative.interactionStyle ? md(VIEW.narrative.interactionStyle) + " " : "";
   const el = sub("How you work", `${style}You typed ${int(HERO.prompts)} prompts; your agents made ${int(A2.toolCalls)} tool calls${A2.toolsPerPrompt != null ? `, <b>${int(A2.toolsPerPrompt)} for every message you typed</b>` : ""}.`);
+  // Habits as ratios of counts: none of them grows with tokens or spend, and each shows the counts behind it.
+  const RT = VIEW.ratios, earned = RC && RC.persona ? RC.persona.earned : [];
+  if (RT && RT.length) {
+    const tiles = h("div", { class: "ratios" }, RT.map((r) => {
+      const t = h("div", { class: "ratio", tabindex: "0" }, h("b", {}, r.text), h("span", { class: "rl" }, r.label), h("span", { class: "rc" }, r.denominator ? `${r.unit === "times" ? one(r.numerator) : int(r.numerator)} ${r.counts.numerator} / ${r.unit === "times" ? one(r.denominator) : int(r.denominator)} ${r.counts.denominator}` : `no ${r.counts.denominator} yet`));
+      bindTip(t, `<b>${esc(r.label)}</b><br>${esc(r.definition)}`);
+      return t;
+    }));
+    const titles = earned.length ? h("div", { class: "earned" }, earned.map((t) => h("div", { class: "title-chip" }, h("b", {}, t.title), h("span", {}, "Earned: ", t.rule)))) : null;
+    el.append(panel("Your ratios", earned.length ? `${plural(earned.length, "title")} earned` : "habits, not volume", titles, tiles,
+      more("What each ratio counts", h("dl", { class: "defs" }, RT.map((r) => [h("dt", {}, r.label), h("dd", {}, r.definition)])),
+        h("p", { class: "muted small" }, "Titles are earned from these ratios alone, by fixed rules, once there are enough sessions (10, or 200 tool calls, or 5 clock hours). There is no overall score: token volume and spend say how much ran, not how well."))));
+  }
   const TL = VIEW.timeline;
   if (TL) {
     const box = h("div", { class: "lanes-wrap" }), sayEl = h("p", { class: "muted small", style: { margin: "10px 0 0" } });
@@ -814,6 +827,25 @@ const sinceTag = (f) => { if (!prevRun) return null; const p = prevOf(f); if (!p
   const prevRate = prevRun && prevRun.metrics.failureRate;
   const rate = F.calls ? F.total / F.calls : 0;
   const el = sub("What went wrong", F.calls ? `${int(F.total)} of ${int(F.calls)} tool calls failed (${one(rate * 100)}%)${prevRate != null ? `, ${rate <= prevRate ? "down" : "up"} from ${one(prevRate * 100)}% at your ${dshort(prevRun.day)} run` : ""}. ${FD.length ? `AI Insights found ${plural(FD.length, "pattern")} worth fixing, each with evidence you can check.` : "No recurring problems detected. That is a good sign."}` : "No tool calls recorded.");
+  // Sessions grouped by the kind of trouble they showed: counts of sessions with a sign, not a diagnosis.
+  const CZ = VIEW.causes;
+  if (CZ && CZ.causes.length) {
+    const rows = h("div", {}, CZ.causes.map((c) => { const r = h("div", { class: "hbar cause" }, h("span", { class: "nm", title: c.label }, c.label), h("span", { class: "t" }, h("b", { style: { width: c.share * 100 + "%", background: "var(--bad)" } })), h("span", { class: "hv" }, `${pct(c.share)} · ${int(c.sessions)} of ${int(c.of)}`)); bindTip(r, `<b>${esc(c.label)}</b><br>${esc(c.basis)}`); return r; }));
+    const detail = h("div", { class: "cards3" }, CZ.causes.map((c) => h("div", { class: "mini" },
+      h("span", { class: "k" }, `${int(c.sessions)} of ${int(c.of)} ${c.of === CZ.judged && c.of !== CZ.sessions ? "judged sessions" : "sessions"}`), h("b", {}, c.label),
+      h("span", {}, c.basis),
+      c.signs.length > 1 ? h("ul", { class: "examples" }, c.signs.map((x) => h("li", {}, `${x.label}: ${int(x.sessions)}`))) : null,
+      c.evidence.length ? h("ul", { class: "ev" }, c.evidence.map((e) => h("li", {}, h("span", { class: "when" }, [e.when, e.harness].filter(Boolean).join(" · ")), h("span", { html: md(e.note) })))) : null,
+      h("p", { class: "small cause-fix" }, h("b", {}, c.suggestion.title), " ", c.suggestion.action, c.action ? [" ", h("a", { href: "#" + c.action }, "What to do →")] : c.finding ? [" ", h("a", { href: "#" + c.finding }, "See the finding →")] : null))));
+    const reviewTxt = CZ.usedReview ? `Includes what your agent judged in ${plural(CZ.judged, "session")}.` : `Measured signals only. Running the agent review adds what only it can judge, such as a misread request${CZ.judged ? ` (${int(CZ.judged)} of ${int(CZ.minJudged)} sessions judged so far)` : ""}.`;
+    el.append(panel("Why sessions go wrong", `${int(CZ.withAny)} of ${int(CZ.sessions)} sessions showed a sign`, rows,
+      h("p", { class: "muted small", style: { margin: "10px 0 0" } }, `Each row counts sessions that showed that sign; a session can show several, so the rows do not add up. A sign is not a diagnosis. ${reviewTxt}`),
+      more("Signs, evidence and a fix for each", detail)));
+  } else if (CZ) {
+    el.append(panel("Why sessions go wrong", null, h("p", { class: "muted small" }, `None of the ${int(CZ.sessions)} sessions showed a sign of the usual causes.`)));
+  } else if (ACT.sessions > 0) {
+    el.append(h("p", { class: "muted small" }, "“Why sessions go wrong” appears once there are 10 sessions."));
+  }
   const SEVS = ["all", "high", "medium", "low", "info"];
   let sevF = "all", showAll = false;
   const list = h("div", {});

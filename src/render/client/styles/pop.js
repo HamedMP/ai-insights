@@ -745,6 +745,23 @@ if (D.approvals) add({ id: "approvals", title: "Rubber stamp", bg: "var(--mint)"
       art(w, hgt) { return rankList(c, rows, w, hgt, { bars: true, noTop: true, fmt: (r) => compact(r.count), maxRow: 150 }); }, artAlign: "center" };
   } });
 
+if (D.persona && D.persona.earned && D.persona.earned.length) add({ id: "titles", title: "Titles earned", bg: "var(--lime)", fg: "var(--ink)", dur: 6500, squareSide: false,
+  build(c) {
+    const T = D.persona.earned;
+    const k = kick(T.length === 1 ? "title earned" : `${T.length} titles earned`);
+    const tt = h("div", { class: "h1", style: { marginTop: 20 * c.k + "px" } }, "Earned, not given.");
+    c.tl.in(k, 100).in(tt, 200, { y: 80 });
+    return { head: head(k, tt), artMin: 0.45, split: 0.36, legend: "from your ratios, by fixed rules", center: false,
+      art(w, hgt) {
+        const rowH = Math.min(300 * c.u, hgt / T.length);
+        const items = T.map((t, i) => h("div", { style: { borderTop: `${5 * c.k}px solid var(--ink)`, height: rowH + "px", paddingTop: rowH * 0.12 + "px" } },
+          h("div", { class: "h2", "data-fit": Math.round(Math.min(96 * c.u, rowH * 0.36)), "data-min": Math.round(30 * c.u), style: { fontSize: Math.min(96 * c.u, rowH * 0.36) + "px", whiteSpace: "nowrap", color: ["var(--ink)", "var(--purple)", "var(--red)"][i] } }, t.title),
+          h("div", { class: "p", style: { marginTop: rowH * 0.05 + "px", opacity: 0.75, fontSize: Math.min(38 * c.u, rowH * 0.14) + "px" } }, t.rule)));
+        c.tl.stagger(items, 600, 260, (el, st) => c.tl.in(el, st, { x: 0, y: 80, rot: -1.5 }));
+        return h("div", { style: { width: w + "px" } }, items);
+      }, artAlign: "start" };
+  } });
+
 if (D.history) add({ id: "history", title: "History kept", bg: "var(--sky)", fg: "var(--ink)", dur: 6000, squareSide: false,
   build(c) {
     const Hh = D.history;

@@ -957,6 +957,23 @@ registerCardStyle({
         return done(K, { head: hd, artMin: 0.3, split: 0.46, legend: `${int(A.sessions)} sessions recorded it`, art: art(K, items, { start: 700 }) });
       } });
 
+    if (D.persona && D.persona.earned && D.persona.earned.length) add({ id: "titles", title: "Titles earned", dur: 6500,
+      build(c) {
+        const K = kitFor(c, "titles"), F = (n) => n * K.K, T = D.persona.earned;
+        const hd = head(K, [
+          K.tape(T.length === 1 ? "title earned" : `${T.length} titles earned`, "var(--cobalt)"),
+          K.cut("Earned, not given.", F(120), "var(--ink)"),
+        ]);
+        const cols = ["var(--lemon)", "var(--mint)", "var(--pink)"];
+        const items = T.map((t, i) => ({ ars: [1.5, 2.4, 3.6, 5], wt: 1, rmax: 1.6, make: (w, hg) => {
+          const ts = Math.max(28, Math.min(hg * 0.3, w * 0.07, 78 * c.u)), ws = Math.max(22, Math.min(ts * 0.5, 34 * c.u));
+          return K.stk(w, hg, { bg: cols[i], pad: Math.round(Math.min(hg * 0.12, 34 * c.u)), style: { flexDirection: "column", alignItems: "flex-start", justifyContent: "center", textAlign: "left" } },
+            K.txtl(t.title, ts, { style: { fontFamily: "var(--display)", fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.04 } }),
+            K.txtl(t.rule, ws, { style: { marginTop: ts * 0.22 + "px", color: "var(--ink)", opacity: 0.72, fontWeight: 500 } }));
+        } }));
+        return done(K, { head: hd, artMin: 0.45, split: 0.38, legend: "from your ratios, by fixed rules", center: false, art: art(K, items, { start: 600, gap2: 260, gap: 22 }) });
+      } });
+
     if (D.history) add({ id: "history", title: "History kept", dur: 6000,
       build(c) {
         const K = kitFor(c, "history"), F = (n) => n * K.K, Hh = D.history;

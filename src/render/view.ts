@@ -131,7 +131,8 @@ export interface RecapView {
   /** MCP servers by sessions and skills by invocations, public names only. */
   connectors: KeyCount[];
   skills: KeyCount[];
-  persona: { title: string; time: string; role: string; reason: string } | null;
+  /** `earned`: titles from the work ratios, fixed wording and the rule that earned each. */
+  persona: { title: string; time: string; role: string; reason: string; earned: Array<{ key: string; title: string; rule: string }> } | null;
   tips: Array<{ title: string; kind: string; metric: { value: number; unit: string; label: string } | null }>;
   /** false: the page does not build that card (its data is missing). */
   avail: Record<string, boolean>;
@@ -294,6 +295,45 @@ export interface PageView {
   };
   runs: RunView[];
   retention: RetentionView | null;
+  /** Sessions grouped by the kind of trouble they showed; null with too few sessions or in older reports. */
+  causes: CausesView | null;
+  /** The work ratios in their fixed order; null in older reports. */
+  ratios: RatioView[] | null;
+}
+
+export interface CausesView {
+  sessions: number;
+  judged: number;
+  usedReview: boolean;
+  minJudged: number;
+  withAny: number;
+  causes: Array<{
+    key: string;
+    label: string;
+    sessions: number;
+    of: number;
+    share: number;
+    basis: string;
+    signs: Array<{ label: string; sessions: number }>;
+    evidence: Array<{ when: string | null; harness: string; note: string; session: string }>;
+    suggestion: { title: string; action: string };
+    /** Anchors of the finding behind the suggestion and of its ranked action, when they are on the page. */
+    finding: string | null;
+    action: string | null;
+  }>;
+}
+
+export interface RatioView {
+  key: string;
+  label: string;
+  definition: string;
+  value: number | null;
+  /** The value as it should read: "0.42", "18%", "1.7×", or "n/a". */
+  text: string;
+  numerator: number;
+  denominator: number;
+  counts: { numerator: string; denominator: string };
+  unit: string;
 }
 
 export interface RetentionView {
@@ -384,7 +424,7 @@ const WEEKDAY_KEYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 /** Every card id, in the default order. Matches `CARD_IDS` in the client engine. */
 /** Cards a style may leave out; they are never in the default selection. */
-export const OPTIONAL_CARD_IDS = ["thinking", "approvals", "history"] as const;
+export const OPTIONAL_CARD_IDS = ["thinking", "approvals", "history", "titles"] as const;
 export const CARD_IDS = ["intro", "hours", "clock", "weekday", "streak", "words", "manners", "slash", "shell", "tests", "danger", "parallel", "marathon", "failures", "nemesis", "model", "tokens", "persona", "tips", "summary", "outro"] as const;
 
 /** Generic card wording per finding kind: a card never repeats a finding's own title, which can name a command. */
@@ -522,7 +562,7 @@ export function recapView(input: RenderInput): RecapView | null {
     replies: repliesOf(raw.replies),
     connectors: keyCounts(raw.connectors, 5, 40),
     skills: keyCounts(raw.skills, 5, 40),
-    persona: persona && str(persona.title, 60) ? { title: str(persona.title, 60), time: str(persona.time, 30), role: str(persona.role, 30), reason: str(persona.reason, 160) } : null,
+    persona: persona && str(persona.title, 60) ? { title: str(persona.title, 60), time: str(persona.time, 30), role: str(persona.role, 30), reason: str(persona.reason, 160), earned: earnedOf(persona.earned) } : null,
     tips: [],
     avail: {},
   };
@@ -558,6 +598,13 @@ export function lanesOf(raw: RecapLanes | undefined | unknown, max: number): Lan
   }).filter((lane) => lane.end > lane.start);
   if (rows.filter((lane) => lane.atPeak).length !== atPeak) return null;
   return { windowMinutes: span, peak: ratio(peakAt / span), atPeak, rows };
+}
+
+function earnedOf(raw: unknown): Array<{ key: string; title: string; rule: string }> {
+  return arr(raw, 3)
+    .map((entry) => obj(entry))
+    .map((entry) => ({ key: str(entry.key, 40), title: str(entry.title, 40), rule: str(entry.rule, 160) }))
+    .filter((entry) => entry.title && entry.rule);
 }
 
 function historyOf(raw: unknown): RecapView["history"] {
@@ -634,6 +681,7 @@ export function availability(d: RecapView): Record<string, boolean> {
     // The card compares who let actions through: it needs the automatic and the person's counts both recorded.
     approvals: d.approvals !== null && d.approvals.auto !== null && d.approvals.byPerson !== null && d.approvals.auto + d.approvals.byPerson > 0,
     history: d.history !== null,
+    titles: d.persona !== null && d.persona.earned.length > 0,
   };
 }
 
@@ -989,6 +1037,57 @@ export function recordedSpend(usage: Pick<UsageSummary, "recorded" | "recordedBy
   return { usd, requests: count(total.requests), zeroRequests: count(total.zeroRequests), text: line(usd, count(total.requests), count(total.zeroRequests)), harnesses };
 }
 
+const RATIO_ORDER = ["correctionsPerSession", "contextResetShare", "toolErrorRate", "planFirstShare", "parallelism"];
+
+export function ratioText(value: number | null, unit: string): string {
+  if (value === null || !Number.isFinite(value)) return "n/a";
+  if (unit === "share") return `${value > 0 && value < 0.01 ? "<1" : Math.round(value * 100)}%`;
+  if (unit === "times") return `${value.toFixed(1)}×`;
+  return value.toFixed(2);
+}
+
+export function ratiosView(report: Report): RatioView[] | null {
+  const raw = obj(report.ratios);
+  if (!report.ratios) return null;
+  return RATIO_ORDER.map((key) => obj(raw[key]))
+    .filter((r) => str(r.key, 40) && str(r.label, 80))
+    .map((r) => {
+      const value = maybe(r.value);
+      const unit = str(r.unit, 20);
+      const counts = obj(r.counts);
+      return { key: str(r.key, 40), label: str(r.label, 80), definition: str(r.definition, 300), value, text: ratioText(value, unit), numerator: num(r.numerator), denominator: num(r.denominator), counts: { numerator: str(counts.numerator, 40), denominator: str(counts.denominator, 40) }, unit };
+    });
+}
+
+export function causesView(report: Report, zone: string, findings: FindingView[]): CausesView | null {
+  const raw = report.frictionCauses;
+  if (!raw || !Array.isArray(raw.causes)) return null;
+  const byId = new Map(findings.map((f) => [f.id, f]));
+  return {
+    sessions: count(raw.sessions),
+    judged: count(raw.judged),
+    usedReview: raw.usedReview === true,
+    minJudged: count(raw.minJudged),
+    withAny: count(raw.withAny),
+    causes: raw.causes.slice(0, 8).map((c) => {
+      const finding = c.findingId ? byId.get(clip(String(c.findingId), 200)) : undefined;
+      return {
+        key: str(c.key, 40),
+        label: str(c.label, 80),
+        sessions: count(c.sessions),
+        of: count(c.of),
+        share: ratio(c.share),
+        basis: str(c.basis, 400),
+        signs: arr(c.signs, 10).map((x) => obj(x)).map((x) => ({ label: str(x.label, 120), sessions: count(x.sessions) })).filter((x) => x.label),
+        evidence: arr(c.evidence, 2).map((x) => obj(x)).map((x) => ({ when: formatDateTime(typeof x.timestamp === "string" ? x.timestamp : undefined, zone), harness: harnessLabel(String(x.harness ?? "")), note: str(x.note, 300), session: str(x.sessionId, 40) })),
+        suggestion: { title: str(c.suggestion?.title, MAX_TITLE), action: str(c.suggestion?.action, MAX_TEXT) },
+        finding: finding ? finding.anchor : null,
+        action: finding ? finding.action : null,
+      };
+    }),
+  };
+}
+
 function listText(items: string[]): string {
   return items.length <= 1 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
 }
@@ -1190,6 +1289,8 @@ export function buildView(input: RenderInput, zone: string, extras: RenderExtras
     },
     runs,
     retention,
+    causes: causesView(report, zone, findings),
+    ratios: ratiosView(report),
   };
 }
 

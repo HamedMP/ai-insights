@@ -312,7 +312,7 @@ const SHARE = Object.freeze({
 const CARD_IDS = ["intro", "hours", "clock", "weekday", "streak", "words", "manners", "slash", "shell", "tests", "danger",
   "parallel", "marathon", "failures", "nemesis", "model", "tokens", "persona", "tips", "summary", "outro"];
 /** Cards a style may leave out: the page offers them only in styles that have them. */
-const OPTIONAL_CARD_IDS = ["thinking", "approvals", "history"];
+const OPTIONAL_CARD_IDS = ["thinking", "approvals", "history", "titles"];
 const KIT = { h, s, clamp, lerp, E, int, one, pct, compact, capped, dshort, hh, DAYNAME, rng, smooth, rabbitSvg, cellGrid, harnessName, fitAll, share: SHARE };
 /**
  * Styles register themselves from their own script. specs() runs lazily, once, with the recap data, so a style
