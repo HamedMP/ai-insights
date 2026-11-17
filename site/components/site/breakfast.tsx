@@ -98,7 +98,7 @@ export function BreakfastLanding({ now, cookies = "", search = "" }: { now?: num
       <div className="flex flex-col gap-4 rounded-2xl border border-primary/30 bg-primary/10 px-5 py-5 md:flex-row md:items-center md:justify-between md:gap-8 md:px-7">
         <div className="flex max-w-2xl flex-col gap-1.5">
           <span className="font-mono text-xs tracking-wide text-primary">In Helsinki for Slush?</span>
-          <h2 id="breakfast" className="text-[1.35rem] leading-tight font-semibold tracking-[-0.02em] md:text-[1.6rem]">Slush AI Breakfast Club · Thu 19 Nov, 8:00–10:00</h2>
+          <h2 id="breakfast" className="text-[1.35rem] leading-tight font-semibold tracking-[-0.02em] md:text-[1.6rem]">Slush AI Breakfast Club&nbsp;· <span className="whitespace-nowrap">Thu 19 Nov, 8:00–10:00</span></h2>
           <p className="text-[15px] leading-relaxed text-ink-soft">Matrix OS is hosting a breakfast on AI insights, real usage and upskilling. Run your report, publish to the leaderboard and register: we&rsquo;re sending invites to people on the leaderboard.</p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2.5">
