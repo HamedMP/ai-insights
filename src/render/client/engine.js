@@ -24,6 +24,11 @@ function compact(n) {
 }
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const dshort = (day) => { const [, m, d] = day.split("-"); return `${MON[+m - 1]} ${+d}`; };
+function dateRangeLabel(from, to) {
+  const startYear = from.slice(0, 4), endYear = to.slice(0, 4);
+  const start = startYear === endYear ? dshort(from) : `${dshort(from)}, ${startYear}`;
+  return `${start} – ${dshort(to)}, ${endYear}`;
+}
 const DAYNAME = { Mon: "Mondays", Tue: "Tuesdays", Wed: "Wednesdays", Thu: "Thursdays", Fri: "Fridays", Sat: "Saturdays", Sun: "Sundays" };
 const hh = (x) => `${String(x).padStart(2, "0")}:00`;
 /** Counts that can run into the hundreds of thousands: past `cap`, say "10,000+" instead of a wall of digits. */
@@ -313,7 +318,7 @@ const CARD_IDS = ["intro", "hours", "clock", "weekday", "streak", "words", "mann
   "parallel", "marathon", "failures", "nemesis", "model", "tokens", "persona", "tips", "summary", "outro"];
 /** Cards a style may leave out: the page offers them only in styles that have them. */
 const OPTIONAL_CARD_IDS = ["thinking", "approvals", "history"];
-const KIT = { h, s, clamp, lerp, E, int, one, pct, compact, capped, dshort, hh, DAYNAME, rng, smooth, rabbitSvg, cellGrid, harnessName, fitAll, share: SHARE };
+const KIT = { h, s, clamp, lerp, E, int, one, pct, compact, capped, dshort, dateRangeLabel, hh, DAYNAME, rng, smooth, rabbitSvg, cellGrid, harnessName, fitAll, share: SHARE };
 /**
  * Styles register themselves from their own script. specs() runs lazily, once, with the recap data, so a style
  * that throws only loses itself: the page falls back to the default style and says so in the console.

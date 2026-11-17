@@ -39,6 +39,12 @@ describe("the client sources", () => {
     }
   });
 
+  it("keeps both years visible when the recap range crosses New Year", () => {
+    const format = new Script(read("engine.js") + "\ndateRangeLabel").runInNewContext({});
+    expect(format("2025-12-20", "2026-01-07")).toBe("Dec 20, 2025 – Jan 7, 2026");
+    expect(format("2026-01-01", "2026-01-07")).toBe("Jan 1 – Jan 7, 2026");
+  });
+
   it("keep the launch hashtag and pitch in one config object, not in cards or captions", () => {
     const share = /const SHARE = Object\.freeze\(\{([\s\S]*?)\}\);/.exec(read("engine.js"))![1]!;
     const tag = /hashtag: "([^"]+)"/.exec(share)![1]!;

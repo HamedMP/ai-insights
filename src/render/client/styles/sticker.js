@@ -8,8 +8,7 @@ registerCardStyle({
   specs(D, kit) {
     const { h, s, clamp, lerp, E, int, one, pct, compact, capped, dshort, hh, DAYNAME, rng, smooth, rabbitSvg, cellGrid, harnessName } = kit;
     const T = D.totals, R = D.rhythm, V = D.voice || {}, SH = D.shell || {}, SHARE = kit.share;
-    const YEAR = D.range.to.slice(0, 4);
-    const rangeLabel = `${dshort(D.range.from)} – ${dshort(D.range.to)}, ${YEAR}`;
+    const rangeLabel = kit.dateRangeLabel(D.range.from, D.range.to);
     const has = (x) => x !== undefined && x !== null && !(typeof x === "number" && !Number.isFinite(x));
     const activeDay = (d) => d.prompts > 0 || d.minutes > 0;
     const topWeekday = R.weekdays.slice().sort((a, b) => b.count - a.count)[0];
@@ -469,7 +468,7 @@ registerCardStyle({
           const sv = s("svg", { width: iw, height: ih, viewBox: `0 0 ${iw} ${ih}`, style: "margin-top:10px;overflow:visible" });
           let marks, cols, rows, pos;
           if (days) {
-            const first = (new Date(D.range.from + "T12:00:00Z").getUTCDay() + 6) % 7, nW = Math.ceil((D.daily.length + first) / 7);
+            const first = (new Date((D.daily[0]?.day ?? D.range.from) + "T12:00:00Z").getUTCDay() + 6) % 7, nW = Math.ceil((D.daily.length + first) / 7);
             const across = iw / ih > 1.6;
             cols = across ? nW : 7; rows = across ? 7 : nW;
             marks = D.daily.map((d, i) => ({ on: activeDay(d), s: inS(d.day, d.day), big: D.bigDay && d.day === D.bigDay.day, j: i + first }));
