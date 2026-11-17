@@ -224,7 +224,7 @@ const hero = h("section", { class: "hero" + (RC ? "" : " solo"), id: "recap" }, 
     h("div", { class: "eyebrow" }, h("span", { class: "dot" }), `Your AI coding report${rangeTxt ? ` · ${rangeTxt}` : ""}`),
     h1,
     h("p", { class: "lede", html: md(HERO.lede) }),
-    RC ? h("div", { class: "cta" }, h("button", { class: "btn primary big", type: "button", onclick: () => openTheater(0) }, h("span", { class: "pl", html: ICON.play }), "Play your recap"), h("a", { class: "btn", href: "#studio" }, h("span", { html: ICON.film }), "Make a video")) : null,
+    RC ? h("div", { class: "cta" }, h("button", { class: "btn primary big", type: "button", onclick: () => openTheater(0) }, h("span", { class: "pl", html: ICON.play }), "Play your recap"), h("a", { class: "btn", href: "#studio" }, h("span", { html: ICON.film }), "Make a video"), h("a", { class: "btn", href: "#share-stats" }, "Join the leaderboard")) : null,
     heroStats,
     VIEW.notes.recap ? h("p", { class: "note" }, VIEW.notes.recap) : null),
   RC ? heroPlayerSlot : null));
@@ -343,16 +343,16 @@ function statsLink() {
   const btn = (label, fn, cls = "btn small") => h("button", { class: cls, type: "button", onclick: fn }, label);
   refresh();
   return h("div", { class: "slink share", id: "share-stats" },
-    h("div", { class: "share-h" }, "Share your stats"),
-    h("p", { class: "muted small" }, "A link to a card on the AI Insights site with these numbers. It holds only the lines below, in the link itself: no project names, prompts or paths. Nothing is uploaded; the page reads the numbers from the link in the viewer's browser."),
+    h("div", { class: "share-h" }, "Share your stats and join the leaderboard"),
+    h("p", { class: "muted small" }, "A link to a card on the AI Insights site with these numbers. It holds only the lines below, in the link itself: no project names, prompts or paths. Opening the link uploads nothing; on that page you can choose to sign in and publish these numbers to the public leaderboard."),
     nameIn,
     h("div", { class: "slink-what" }, h("strong", { class: "small" }, "The link contains exactly:"), list),
     preview,
     h("div", { class: "share-row" },
-      btn("Copy link", () => copy(link, "Link copied"), "btn small primary"),
+      btn("Publish to the leaderboard", () => open(link), "btn small primary"),
+      btn("Copy link", () => copy(link, "Link copied")),
       btn("X", () => open(INTENT.x(post()))),
-      btn("LinkedIn", () => open(INTENT.linkedin(post()))),
-      btn("Open it", () => open(link))),
+      btn("LinkedIn", () => open(INTENT.linkedin(post())))),
     status);
 }
 function setRatio(r) { if (!CardKit.RATIOS[r]) return; S.ratio = r; saveStudio(); buildWall(); refreshStudio(); heroPlayer.reload(); }
