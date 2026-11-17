@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'sha256-mq2FdRSS/fGc4GIOh5SfoZVwL7KM8ZKXIBApzxWz/2E='; img-src data: blob:; font-src data:; media-src blob:; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'sha256-7zsCgvwX2VWSNLDZrGxlIGNX/MhedwefRgo+wDJmNeE='; img-src data: blob:; font-src data:; media-src blob:; base-uri 'none'; form-action 'none'">
 <meta name="color-scheme" content="light">
 <meta name="referrer" content="no-referrer">
 <meta name="generator" content="AI Insights">
@@ -530,16 +530,54 @@ html.capture #root { position: relative; width: 100vw; height: 100vh; overflow: 
 .share-h { font: 600 11.5px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
 .share-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .share-status { margin: 10px 0 0; min-height: 1.4em; }
-.slink { max-width: 720px; }
-.slink-name { display: block; width: min(320px, 100%); box-sizing: border-box; margin: 10px 0; border: 1.5px solid var(--ink); background: var(--surface); border-radius: 99px; padding: 8px 14px; font: 600 14px/1.2 var(--text); color: var(--ink); }
-.slink-device { margin: 4px 0 10px; padding: 10px 14px; border: 1.5px dashed var(--ink); border-radius: 14px; }
-.slink-device .slink-name { margin: 2px 0 8px; }
-.slink-device p { margin: 0 0 8px; }
+.share.slink { margin-top: 18px; border: 1.5px solid var(--ink); border-radius: 18px; background: var(--surface); padding: 18px 20px 16px; scroll-margin-top: calc(var(--studio-bar-h, 0px) + 12px); }
+.slink .share-h { margin-bottom: 8px; }
+.slink-title { margin: 0; font: 800 clamp(20px, 2.4vw, 24px)/1.15 var(--display); letter-spacing: -0.02em; }
+.slink-lede { margin: 6px 0 0; max-width: 92ch; }
+.slink-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-top: 14px; }
+.slink-field { display: block; }
+.slink-name { display: block; width: 210px; max-width: 100%; margin: 0; border: 1.5px solid var(--ink); background: var(--bg); border-radius: 99px; padding: 6px 14px; font: 600 13.5px/1.2 var(--text); color: var(--ink); }
+.slink .share-status { margin: 6px 0 0; min-height: 0; }
+.slink .share-status:empty { display: none; }
+.slink-chat { margin: 10px 0 0; }
+.slink-preview { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.slink-who { font-size: 14px; }
+.slink-sum { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 0; }
+.slink-sum li { display: flex; flex-direction: column; gap: 4px; padding: 0 16px; border-left: 1px solid var(--line); min-width: 0; }
+.slink-sum li:first-child { padding-left: 0; border-left: 0; }
+.slink-sum-v { font: 700 17px/1.1 var(--display); letter-spacing: -0.01em; }
+.slink-sum-l { font: 600 10.5px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.slink-meta { margin: 12px 0 0; display: grid; gap: 4px; font-size: 13.5px; }
+.slink-meta > div { display: flex; flex-wrap: wrap; gap: 2px 10px; align-items: baseline; }
+.slink-meta dt { font: 600 10.5px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); min-width: 56px; }
+.slink-meta dd { margin: 0; font-weight: 600; }
+.slink-fact { margin: 12px 0 0; font-style: italic; }
+.slink-fact:empty { display: none; }
+.slink-tiles { list-style: none; margin: 12px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(152px, 1fr)); gap: 8px; }
+.slink-tile { display: flex; flex-direction: column; gap: 5px; padding: 10px 12px 11px; border-radius: 12px; background: var(--bg); border: 1px solid var(--line); min-width: 0; }
+.slink-tile-k { font: 600 10px/1.2 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.slink-tile-big { font: 800 18px/1.1 var(--display); letter-spacing: -0.02em; overflow-wrap: anywhere; }
+.slink-tile-cap { font-size: 12px; line-height: 1.35; color: var(--muted); }
+.slink-also { margin: 10px 0 0; }
+.slink-also:empty { display: none; }
+.slink-more { margin-top: 12px; }
+.slink-more + .slink-more { margin-top: 8px; }
+.slink-more > summary { font-size: 12.5px; padding: 7px 12px; }
+.slink-more-body { margin-top: 10px; max-width: 760px; }
+.slink-more-body > p { margin: 0 0 8px; }
+.slink-field-row { display: grid; gap: 6px; margin: 0 0 10px; }
 .slink-check { display: flex; gap: 8px; align-items: flex-start; line-height: 1.4; cursor: pointer; }
 .slink-check input { margin-top: 2px; accent-color: var(--ink); }
-.slink-what { margin: 6px 0 8px; }
-.slink-list { margin: 6px 0 0; padding-left: 18px; font-size: 13.5px; line-height: 1.5; }
-.slink-url { display: block; margin: 0 0 10px; padding: 8px 10px; border-radius: 8px; background: var(--surface-2); font: 12px/1.4 var(--mono); overflow-wrap: anywhere; max-height: 4.2em; overflow: hidden; }
+.slink-list { margin: 0; padding-left: 18px; font-size: 13.5px; line-height: 1.5; }
+.slink-url { display: block; margin: 10px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--surface-2); font: 12px/1.4 var(--mono); overflow-wrap: anywhere; max-height: 7em; overflow: auto; }
+@media (max-width: 720px) {
+  .share.slink { padding: 16px 14px 14px; border-radius: 16px; }
+  .slink-name { width: 100%; }
+  .slink-field { flex: 1 1 100%; }
+  .slink-sum { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 10px; }
+  .slink-sum li, .slink-sum li:first-child { padding: 0; border-left: 0; }
+  .slink-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 .theater.on { grid-auto-flow: row; align-content: center; gap: 12px; }
 .th-share { width: min(720px, calc(100vw - 32px)); background: var(--surface); color: var(--ink); border-radius: 16px; padding: 14px 16px; }
 .th-share:empty { display: none; }
@@ -4622,6 +4660,41 @@ const ShareLink = (() => {
     ].filter(Boolean);
   }
 
+  const period = (from, to) => {
+    if (!isDay(from) || !isDay(to)) return "";
+    const y1 = from.slice(0, 4), y2 = to.slice(0, 4);
+    return y1 === y2 ? `${dshort(from)} – ${dshort(to)}, ${y2}` : `${dshort(from)}, ${y1} – ${dshort(to)}, ${y2}`;
+  };
+
+  /**
+   * The share box's visual preview, read from the payload alone so it can never show what the link does not carry.
+   * What it does not draw (ratios, the device id, the day bitmap) is named in `also`; describe() spells it out.
+   */
+  function preview(p, names = {}) {
+    const titles = (p.titles || []).map((t) => TITLE_NAMES[t.k] || t.k);
+    const stats = [
+      ["Sessions", fmt(p.sessions)],
+      ["Tokens", p.tokens > 0 || p.agents.length ? short(p.tokens) : "not measured"],
+      p.usd != null ? ["Est. spend", `$${fmt(p.usd)}`] : null,
+      ["Active days", fmt(p.activeDays)],
+      ["Longest streak", plural(p.streak, "day")],
+      p.agents.length ? ["Agents", p.agents.map((a) => `${names[a.k] || a.k} ${a.p}%`).join(" · "), true] : null,
+      titles.length ? [titles.length === 1 ? "Title" : "Titles", titles.join(" · "), true] : null,
+    ].filter(Boolean).map(([label, value, wide]) => ({ label, value, wide: !!wide }));
+    const also = [];
+    if ((p.ratios || []).length) also.push(plural(p.ratios.length, "work ratio"));
+    if (p.device) also.push(p.device.name ? `a random id for this computer, named “${p.device.name}”` : "a random id for this computer");
+    if (p.days) also.push("which days you were active (dates only)");
+    return {
+      name: p.name || "Someone",
+      period: period(p.from, p.to),
+      fact: p.fact || "",
+      stats,
+      cards: (p.cards || []).map((c) => ({ k: c.k, title: TITLES[c.k] || c.k, big: c.b, caption: c.c || "" })),
+      also,
+    };
+  }
+
   function daysCount(bits) {
     let n = 0;
     const bin = atob(String(bits).replace(/-/g, "+").replace(/_/g, "/"));
@@ -4629,7 +4702,95 @@ const ShareLink = (() => {
     return n;
   }
 
-  return { V, LIMITS, activeDays, daysCount, CARD_KEYS, TITLES, RATIO_KEYS, TITLE_RATIO, payload, cards, encode, url, describe, funFact, clean };
+  return { V, LIMITS, activeDays, daysCount, CARD_KEYS, TITLES, RATIO_KEYS, TITLE_RATIO, payload, cards, encode, url, describe, preview, funFact, clean };
+})();
+
+;
+/* sharebox.js: the "Join the leaderboard" box under the card studio. The buttons come first so they are in view when
+   the box is; then a preview of what the link carries, drawn from the same payload that is encoded (ShareLink.preview),
+   then two collapsed sections: options for publishing from several computers, and the exact line-by-line list with
+   the raw link. Everything the page owns (storage, clipboard, new tabs, the report data) is passed in, so tests can
+   build the real box without a browser. Nothing here sends anything: the person copies or clicks the link. */
+const ShareBox = (() => {
+  "use strict";
+
+  /**
+   * env: { rc, ratios, deviceId, chatOnly, names, site: {siteUrl, command, hashtag}, intent: {x, linkedin},
+   *        store: {get, set}, copy(text, what), open(url) -> boolean (false when the browser blocked the tab) }
+   */
+  function build(env) {
+    const LIMITS = ShareLink.LIMITS;
+    const hasDevice = typeof env.deviceId === "string";
+    const nameIn = h("input", { class: "slink-name", type: "text", maxlength: String(LIMITS.name), placeholder: "Your name (optional)", "aria-label": "Display name for the link", autocomplete: "off", spellcheck: "false" });
+    // The device name is remembered in this browser only, so the next report from this machine offers it again.
+    const deviceIn = h("input", { class: "slink-name", type: "text", maxlength: String(LIMITS.deviceName), placeholder: "e.g. Work laptop", "aria-label": "Name for this computer", autocomplete: "off", spellcheck: "false", value: env.store.get("deviceName", "") || "" });
+    const daysIn = h("input", { type: "checkbox", checked: env.store.get("shareDays", true) !== false });
+    const who = h("div", { class: "slink-who" });
+    const sum = h("ul", { class: "slink-sum" });
+    const meta = h("dl", { class: "slink-meta" });
+    const fact = h("p", { class: "slink-fact small" });
+    const grid = h("ul", { class: "slink-tiles" });
+    const also = h("p", { class: "slink-also muted small" });
+    const list = h("ul", { class: "slink-list" });
+    const raw = h("code", { class: "slink-url" });
+    const status = h("p", { class: "share-status small", role: "status" });
+    let link = "";
+    const post = () => `My AI coding, recapped: ${link}\nFind out yours: ${env.site.command}\n${env.site.hashtag}`;
+
+    const refresh = () => {
+      const device = hasDevice ? { id: env.deviceId, name: deviceIn.value, days: daysIn.checked } : null;
+      const p = ShareLink.payload(env.rc, nameIn.value, env.ratios, device);
+      link = ShareLink.url(p, env.site.siteUrl);
+      const v = ShareLink.preview(p, env.names);
+      who.replaceChildren(h("strong", {}, v.name), v.period ? h("span", { class: "muted" }, ` · ${v.period}`) : null);
+      sum.replaceChildren(...v.stats.filter((s) => !s.wide).map((s) => h("li", {}, h("span", { class: "slink-sum-v" }, s.value), h("span", { class: "slink-sum-l" }, s.label))));
+      meta.replaceChildren(...v.stats.filter((s) => s.wide).map((s) => h("div", {}, h("dt", {}, s.label), h("dd", {}, s.value))));
+      fact.textContent = v.fact ? `“${v.fact}”` : "";
+      grid.replaceChildren(...v.cards.map((c) => h("li", { class: "slink-tile" },
+        h("span", { class: "slink-tile-k" }, c.title),
+        h("span", { class: "slink-tile-big" }, c.big),
+        c.caption ? h("span", { class: "slink-tile-cap" }, c.caption) : null)));
+      also.textContent = v.also.length ? `Also in the link: ${v.also.join(", ")}.` : "";
+      list.replaceChildren(...ShareLink.describe(p, env.names).map((line) => h("li", {}, line)));
+      raw.textContent = link;
+    };
+    nameIn.addEventListener("input", refresh);
+    deviceIn.addEventListener("input", () => { env.store.set("deviceName", deviceIn.value); refresh(); });
+    daysIn.addEventListener("change", () => { env.store.set("shareDays", daysIn.checked); refresh(); });
+    const open = (url) => { status.textContent = env.open(url) ? "" : "Your browser blocked the new tab. Copy the link instead."; };
+    const btn = (label, fn, cls = "btn small") => h("button", { class: cls, type: "button", onclick: fn }, label);
+    refresh();
+
+    return h("div", { class: "slink share", id: "share-stats" },
+      h("div", { class: "share-h" }, "Leaderboard"),
+      h("h3", { class: "slink-title" }, "Share your stats and cards, join the leaderboard"),
+      h("p", { class: "slink-lede muted small" }, "The link holds only the numbers and cards shown below. Nothing is uploaded until you sign in and press Publish on the site."),
+      h("div", { class: "slink-actions" },
+        h("label", { class: "slink-field" }, h("span", { class: "sr" }, "Display name"), nameIn),
+        h("div", { class: "share-row" },
+          btn("Publish to the leaderboard", () => open(link), "btn small primary"),
+          btn("Copy link", () => env.copy(link, "Link copied")),
+          btn("X", () => open(env.intent.x(post()))),
+          btn("LinkedIn", () => open(env.intent.linkedin(post()))))),
+      status,
+      env.chatOnly ? h("p", { class: "small slink-chat" }, "Your history is a chat export only. Chat exports record no tokens or spend, so the site shows both as not measured (the link carries tokens as 0 and no spend), and your entry will not rank in the token, spend or agent arenas.") : null,
+      h("div", { class: "slink-preview", "aria-label": "Preview of what the link shares", role: "group" },
+        who, sum, meta, fact, grid, also),
+      hasDevice ? h("details", { class: "more slink-more" },
+        h("summary", {}, "Publishing from more than one computer?"),
+        h("div", { class: "slink-more-body" },
+          h("p", { class: "muted small" }, "Publish from each one with the same account and the site adds them up. Each computer has a random id AI Insights made, never its name or hardware."),
+          h("label", { class: "slink-field slink-field-row small" }, h("span", {}, "Name this computer (optional, shown only if you choose when publishing)"), deviceIn),
+          h("label", { class: "slink-check small" }, daysIn, " Include which days I was active (dates only), so streaks combine across computers"))) : null,
+      h("details", { class: "more slink-more" },
+        h("summary", {}, "See exactly what's in the link"),
+        h("div", { class: "slink-more-body" },
+          h("p", { class: "small" }, h("strong", {}, "The link contains exactly these lines:")),
+          list,
+          raw)));
+  }
+
+  return { build };
 })();
 
 ;
@@ -4955,53 +5116,23 @@ if (RC) {
     warn,
     h("div", { class: "studio-actions" }, bVideo, bPngs, bText, bPreview, bAll, bReset, countTxt),
     exportPanel, statsLink(), cliBox, wall)));
+  // The studio bar stays stuck over the share box, so "Join the leaderboard" lands below it, not under it.
+  const bar = root.querySelector("#studio .studio-bar");
+  if (bar && typeof ResizeObserver === "function") new ResizeObserver(() => document.documentElement.style.setProperty("--studio-bar-h", `${bar.offsetHeight}px`)).observe(bar);
 }
 /**
- * "Share your stats": a link to the site's /share page with aggregate numbers in its fragment. The person sees
- * every line the link carries before copying it; nothing is sent, the name is not stored, and fragments never
- * reach a server.
+ * "Join the leaderboard": a link to the site's /share page with aggregate numbers in its fragment, built by
+ * sharebox.js. The person sees every line the link carries before copying it; nothing is sent, the name is not
+ * stored, and fragments never reach a server.
  */
 function statsLink() {
-  const nameIn = h("input", { class: "slink-name", type: "text", maxlength: String(ShareLink.LIMITS.name), placeholder: "Your name (optional)", "aria-label": "Display name for the link", autocomplete: "off", spellcheck: "false" });
-  const hasDevice = typeof VIEW.deviceId === "string";
-  // The device name is remembered in this browser only, so the next report from this machine offers it again.
-  const deviceIn = h("input", { class: "slink-name", type: "text", maxlength: String(ShareLink.LIMITS.deviceName), placeholder: "Name this computer (optional), e.g. Work laptop", "aria-label": "Name for this computer", autocomplete: "off", spellcheck: "false", value: store.get("deviceName", "") || "" });
-  const daysIn = h("input", { type: "checkbox", checked: store.get("shareDays", true) !== false });
-  const list = h("ul", { class: "slink-list" });
-  const preview = h("code", { class: "slink-url" });
-  const status = h("p", { class: "share-status small", role: "status" });
-  let link = "";
-  const post = () => `My AI coding, recapped: ${link}\nFind out yours: ${SHARE.command}\n${SHARE.hashtag}`;
-  const refresh = () => {
-    const device = hasDevice ? { id: VIEW.deviceId, name: deviceIn.value, days: daysIn.checked } : null;
-    const p = ShareLink.payload(RC, nameIn.value, VIEW.ratios, device);
-    link = ShareLink.url(p, SHARE.siteUrl);
-    list.replaceChildren(...ShareLink.describe(p, HARNESS_NAMES).map((line) => h("li", {}, line)));
-    preview.textContent = link;
-  };
-  nameIn.addEventListener("input", refresh);
-  deviceIn.addEventListener("input", () => { store.set("deviceName", deviceIn.value); refresh(); });
-  daysIn.addEventListener("change", () => { store.set("shareDays", daysIn.checked); refresh(); });
-  const open = (url) => { const w = window.open(url, "_blank", "noopener,noreferrer"); if (!w) status.textContent = "Your browser blocked the new tab. Copy the link instead."; };
-  const btn = (label, fn, cls = "btn small") => h("button", { class: cls, type: "button", onclick: fn }, label);
-  refresh();
-  return h("div", { class: "slink share", id: "share-stats" },
-    h("div", { class: "share-h" }, "Share your stats and cards, join the leaderboard"),
-    h("p", { class: "muted small" }, "A link to your card and profile on the AI Insights site. It holds only the lines below, in the link itself: your totals and your recap cards as short lines of numbers, dates, agent names and fixed wording. No project names, prompts, commands or paths. Opening the link uploads nothing; on that page you can choose to sign in and publish exactly these lines to your public profile and the leaderboard."),
-    ACT.chat && ACT.chat.only ? h("p", { class: "small slink-chat" }, "Your history is a chat export only. Chat exports record no tokens or spend, so the site shows both as not measured (the link carries tokens as 0 and no spend), and your entry will not rank in the token, spend or agent arenas.") : null,
-    nameIn,
-    hasDevice ? h("div", { class: "slink-device" },
-      deviceIn,
-      h("p", { class: "muted small" }, "Use AI Insights on more than one computer? Publish from each with the same account: the site keeps one entry per computer and adds them up. Each computer is told apart by a random id AI Insights made for it, never by its name or hardware. The name you type here is shown on your profile only if you choose that when you publish."),
-      h("label", { class: "slink-check small" }, daysIn, " Include which days I was active (dates only), so the site can combine active days and streaks across computers")) : null,
-    h("div", { class: "slink-what" }, h("strong", { class: "small" }, "The link contains exactly these lines:"), list),
-    preview,
-    h("div", { class: "share-row" },
-      btn("Publish to the leaderboard", () => open(link), "btn small primary"),
-      btn("Copy link", () => copy(link, "Link copied")),
-      btn("X", () => open(INTENT.x(post()))),
-      btn("LinkedIn", () => open(INTENT.linkedin(post())))),
-    status);
+  return ShareBox.build({
+    rc: RC, ratios: VIEW.ratios, deviceId: VIEW.deviceId, chatOnly: !!(ACT.chat && ACT.chat.only),
+    // INTENT is declared further down this file, after the studio is built, so it is read only when clicked.
+    names: HARNESS_NAMES, site: SHARE, intent: { x: (t) => INTENT.x(t), linkedin: (t) => INTENT.linkedin(t) }, store, copy,
+    // "noopener" makes window.open return null even when the tab opened, so cut the opener by hand instead.
+    open: (url) => { const w = window.open(url, "_blank"); if (w) w.opener = null; return !!w; },
+  });
 }
 function setRatio(r) { if (!CardKit.RATIOS[r]) return; S.ratio = r; saveStudio(); buildWall(); refreshStudio(); heroPlayer.reload(); }
 let tiles = new Map();
