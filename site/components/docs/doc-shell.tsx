@@ -93,7 +93,7 @@ export function DocShell({ slug, children }: { slug: string; children: React.Rea
   return (
     <div className="mx-auto w-full max-w-6xl px-4 pt-6 pb-20 md:px-8 lg:grid lg:grid-cols-[13.5rem_minmax(0,1fr)] lg:gap-10 lg:pt-10 xl:grid-cols-[13.5rem_minmax(0,1fr)_12rem]">
       <aside className="max-lg:hidden">
-        <div className="sticky top-20 flex max-h-[calc(100dvh-6rem)] flex-col gap-5 overflow-y-auto pr-1 pb-6">
+        <div className="sticky top-16 flex max-h-[calc(100dvh-5rem)] flex-col gap-5 overflow-y-auto pr-1 pb-6">
           <DocsSearch />
           <DocNav current={slug} label="Docs" />
         </div>
@@ -148,7 +148,7 @@ export function DocShell({ slug, children }: { slug: string; children: React.Rea
       </main>
 
       <aside className="max-xl:hidden">
-        <div className="sticky top-20">
+        <div className="sticky top-16">
           <Toc page={page} />
         </div>
       </aside>

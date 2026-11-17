@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { mountsClerk, needsAuthSync } from "../../site/lib/auth-config.ts";
+import { contentSecurityPolicy, mountsClerk, needsAuthSync } from "../../site/lib/auth-config.ts";
+import { hasSessionHint, returnPath } from "../../site/lib/session-hint.ts";
 import { avatarFromClerkUser, initials, safeAvatarUrl } from "../../site/lib/avatar.ts";
 import { SAVE_ENTRY_SQL } from "../../site/lib/entry-sql.ts";
 import { ERRORS, handlePublish, type EntryRow, type PublishDeps } from "../../site/lib/publish.ts";
@@ -14,8 +15,8 @@ const CHROME = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/537.36 
 
 describe("where Clerk runs", () => {
   it("mounts Clerk on share, leaderboard, profiles and the API, never on the landing page", () => {
-    for (const path of ["/share", "/leaderboard", "/u/ada", "/api/leaderboard/me"]) expect(mountsClerk(path), path).toBe(true);
-    for (const path of ["/", "/demo/report.html", "/user", "/uploads", "/sharex"]) expect(mountsClerk(path), path).toBe(false);
+    for (const path of ["/share", "/leaderboard", "/u/ada", "/account/sign-in", "/api/leaderboard/me"]) expect(mountsClerk(path), path).toBe(true);
+    for (const path of ["/", "/docs", "/docs/sharing", "/demo/report.html", "/user", "/uploads", "/sharex", "/accounts"]) expect(mountsClerk(path), path).toBe(false);
   });
 
   it("syncs the satellite session when a browser opens a profile, so the owner sees it as the owner", () => {
@@ -31,20 +32,48 @@ describe("where Clerk runs", () => {
     expect(needsAuthSync("/", CHROME, "document")).toBe(false);
   });
 
-  it("gives Clerk hosts only to the pages that mount Clerk, and keeps the landing header free of Clerk imports", () => {
+  it("gives Clerk hosts to pages that mount Clerk and to signed-in browsers only; anonymous visitors elsewhere get none", () => {
     const proxy = readFileSync(join(SITE, "proxy.ts"), "utf8");
-    expect(proxy).toContain("mountsClerk(request.nextUrl.pathname) ? cspWithClerk : cspPlain");
+    expect(proxy).toContain("mountsClerk(pathname) || (serverAuthEnabled() && hasSessionHint(cookies)) ? cspWithClerk : cspPlain");
     expect(proxy).toContain("const cspPlain = contentSecurityPolicy([], dev)");
-    expect(readFileSync(join(SITE, "components/site/header.tsx"), "utf8")).not.toMatch(/from "(?:@clerk\/|@\/components\/site\/(?:account-menu|auth-provider))/);
+    // Pages that do not mount Clerk never run its middleware, so the landing page never takes a sync or handshake redirect.
+    expect(proxy).toContain("if (!clerk || !(mountsClerk(request.nextUrl.pathname)");
+    expect(contentSecurityPolicy([])).not.toMatch(/clerk/);
+  });
+
+  it("keeps the shared header and its landing account slot free of Clerk imports; the account menu loads only on demand", () => {
+    const staticClerk = /from "(?:@clerk\/|@\/components\/site\/(?:account-menu|auth-provider|clerk-slot))/;
+    expect(readFileSync(join(SITE, "components/site/header.tsx"), "utf8")).not.toMatch(staticClerk);
+    const slot = readFileSync(join(SITE, "components/site/session-account.tsx"), "utf8");
+    expect(slot).not.toMatch(staticClerk);
+    expect(slot).toContain('React.lazy(() => import("@/components/site/clerk-slot"))');
+    expect(slot).toContain("hasSessionHint(document.cookie)");
     expect(readFileSync(join(SITE, "app/page.tsx"), "utf8")).not.toMatch(/@clerk|AccountMenu|AuthProvider/);
     expect(readFileSync(join(SITE, "app/u/layout.tsx"), "utf8")).toContain("<AuthProvider>");
-    expect(readFileSync(join(SITE, "scripts/check-build.mjs"), "utf8")).toContain("only pages that mount Clerk may");
+    const check = readFileSync(join(SITE, "scripts/check-build.mjs"), "utf8");
+    expect(check).toContain("only pages that mount Clerk may");
+    expect(check).toContain("anonymous HTML names the Clerk host");
+    expect(check).toContain("anonymous HTML carries Clerk code");
   });
 
   it("builds the signed-out link with buildSignInUrl, so the satellite sync parameter is kept", () => {
     const menu = readFileSync(join(SITE, "components/site/account-menu.tsx"), "utf8");
     expect(menu).toContain("clerk.buildSignInUrl(");
     for (const label of ["My profile", "Leaderboard", "People I referred", "Open Matrix OS"]) expect(menu).toContain(label);
+  });
+});
+
+describe("the signed-in hint on pages that do not mount Clerk", () => {
+  it("is set only by a positive Clerk client timestamp, suffixed or not", () => {
+    expect(hasSessionHint("__client_uat=1731840000")).toBe(true);
+    expect(hasSessionHint("a=1; __client_uat_AbC-12=1731840000; b=2")).toBe(true);
+    for (const anonymous of [null, undefined, "", "__client_uat=0", "__client_uat_x=0", "x__client_uat=5", "__client_uat=abc", "__client_uatx=5", "aii_ref=ada"]) expect(hasSessionHint(anonymous), String(anonymous)).toBe(false);
+    expect(hasSessionHint(`__client_uat=1; ${"x".repeat(20_000)}`)).toBe(false);
+  });
+
+  it("sends the Sign in link back to a same-site path only", () => {
+    for (const ok of ["/", "/docs/sharing", "/leaderboard?sort=codex"]) expect(returnPath(ok)).toBe(ok);
+    for (const bad of ["https://evil.example", "//evil.example", "/\\evil.example", "javascript:alert(1)", "", 42, null, `/${"a".repeat(600)}`, "/a b"]) expect(returnPath(bad), String(bad)).toBe("/");
   });
 });
 

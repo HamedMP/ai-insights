@@ -52,8 +52,11 @@ export async function callEntryApi(method: "POST" | "DELETE", body?: unknown): P
   }
 }
 
-/** What the signed-in person already has: their computers' keys, to tell a new computer from a republish. */
-type Account = { devices: Array<{ key: string; legacy: boolean }> } | null
+/**
+ * What the signed-in person already has: their computers' keys, to tell a new computer from a republish, and whether
+ * their photo is showing now, so a republish keeps a photo they switched on instead of silently clearing it.
+ */
+type Account = { devices: Array<{ key: string; legacy: boolean }>; photo: boolean } | null
 
 function useAccount(signedIn: boolean | undefined): Account | "loading" {
   const [account, setAccount] = React.useState<Account | "loading">("loading")
@@ -67,7 +70,7 @@ function useAccount(signedIn: boolean | undefined): Account | "loading" {
         const devices = Array.isArray(d.devices)
           ? d.devices.slice(0, 10).map((x) => (x ?? {}) as Record<string, unknown>).filter((x) => typeof x.key === "string").map((x) => ({ key: x.key as string, legacy: x.legacy === true }))
           : []
-        if (live) setAccount(d.ok === true ? { devices } : null)
+        if (live) setAccount(d.ok === true ? { devices, photo: d.photo === true } : null)
       })
       .catch((error: unknown) => {
         if (!(error instanceof Error)) throw error
@@ -86,8 +89,8 @@ export function PublishPanel({ stats }: { stats: SharedStats }) {
   const { user } = useUser()
   const [handle, setHandle] = React.useState("")
   const [touched, setTouched] = React.useState(false)
-  // Off by default: the photo becomes public only when the person ticks the box on this publish.
-  const [showAvatar, setShowAvatar] = React.useState(false)
+  // Off by default: the photo becomes public only when the person ticks the box, or already shows it (photo switch).
+  const [avatarChoice, setShowAvatar] = React.useState<boolean | null>(null)
   // Off by default: a computer's name becomes public only when the person ticks the box on this publish.
   const [showDeviceName, setShowDeviceName] = React.useState(false)
   const [replaceLegacy, setReplaceLegacy] = React.useState<boolean | null>(null)
@@ -95,6 +98,7 @@ export function PublishPanel({ stats }: { stats: SharedStats }) {
   const account = useAccount(isSignedIn)
   const device = stats.device
   const known = account && account !== "loading" ? account.devices : []
+  const showAvatar = avatarChoice ?? (account && account !== "loading" ? account.photo : false)
   const isKnownDevice = Boolean(device && known.some((d) => d.key === device.id))
   const hasLegacy = known.some((d) => d.legacy)
   // A first publish from 0.5 on the computer that published before: offer to replace that earlier entry, ticked when

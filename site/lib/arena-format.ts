@@ -1,4 +1,4 @@
-import { ARENA_SHORT, type ArenaId } from "./leaderboard.ts"
+import { ARENA_SHORT, type ArenaId, type SortId } from "./leaderboard.ts"
 import { formatCompact, formatInt } from "./share.ts"
 import { COMMAND, HASHTAG } from "./site.ts"
 
@@ -44,4 +44,68 @@ export function profileBadges(ranks: Partial<Record<ArenaId, { rank: number; tot
   }
   const weight = (b: Badge) => (b.rank <= 10 ? b.rank : 10 + b.topPercent)
   return out.sort((a, b) => weight(a) - weight(b) || ARENA_ORDER.indexOf(a.arena) - ARENA_ORDER.indexOf(b.arena))
+}
+
+export interface Standing {
+  arena: ArenaId
+  /** The compact chip: "#2 tokens" near the top or on a small board, "top 34% Codex" further down. */
+  chip: string
+  /** The sentence a share prefills: rankLabel's wording. */
+  label: string
+  rank: number
+  topPercent: number
+}
+
+/** The signed-in person's rank in every arena they score in, best standing first (the order profile badges use). */
+export function standings(ranks: Partial<Record<ArenaId, { rank: number; total: number; topPercent: number }>>): Standing[] {
+  const out: Standing[] = []
+  for (const arena of ARENA_ORDER) {
+    const r = ranks[arena]
+    if (!r) continue
+    const chip = r.rank <= 10 || r.total < 20 ? `#${r.rank} ${ARENA_SHORT[arena]}` : `top ${r.topPercent}% ${ARENA_SHORT[arena]}`
+    out.push({ arena, chip, label: rankLabel(arena, r.rank, r.topPercent, r.total), rank: r.rank, topPercent: r.topPercent })
+  }
+  const weight = (s: Standing) => (s.rank <= 10 ? s.rank : 10 + s.topPercent)
+  return out.sort((a, b) => weight(a) - weight(b) || ARENA_ORDER.indexOf(a.arena) - ARENA_ORDER.indexOf(b.arena))
+}
+
+const SHORT_DAY = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" })
+
+/** A period for a narrow column: "Sep 1 – Nov 10" within one year, "Dec 3 ’25 – Jan 9 ’26" across years. */
+export function shortPeriod(from: string, to: string): string {
+  const f = new Date(`${from}T00:00:00Z`)
+  const t = new Date(`${to}T00:00:00Z`)
+  if (Number.isNaN(f.getTime()) || Number.isNaN(t.getTime())) return ""
+  if (f.getUTCFullYear() === t.getUTCFullYear()) return `${SHORT_DAY.format(f)} – ${SHORT_DAY.format(t)}`
+  const withYear = (d: Date) => `${SHORT_DAY.format(d)} ’${String(d.getUTCFullYear() % 100).padStart(2, "0")}`
+  return `${withYear(f)} – ${withYear(t)}`
+}
+
+/** What a table row holds for each column. */
+export interface MetricSource {
+  tokens: number
+  usd: number | null
+  claudeTokens: number
+  codexTokens: number
+  streak: number
+  activeDays: number
+  sessions: number
+  deviceCount: number
+}
+
+/** A row's value under a sort; null when there is nothing to show (no spend estimate, an agent never used). */
+export function metricValue(sort: SortId, m: MetricSource): number | null {
+  const v = sort === "tokens" ? m.tokens : sort === "spend" ? m.usd : sort === "claude-code" ? m.claudeTokens : sort === "codex" ? m.codexTokens : sort === "streak" ? m.streak : sort === "active" ? m.activeDays : sort === "sessions" ? m.sessions : m.deviceCount
+  if (v === null || !Number.isFinite(v)) return null
+  if ((sort === "spend" || sort === "claude-code" || sort === "codex") && v <= 0) return null
+  return v
+}
+
+/** A table cell: compact tokens, whole dollars, "12d" streaks, plain counts; an em dash for nothing. */
+export function formatMetric(sort: SortId, value: number | null): string {
+  if (value === null) return "—"
+  if (sort === "tokens" || sort === "claude-code" || sort === "codex") return formatCompact(value)
+  if (sort === "spend") return `$${formatInt(value)}`
+  if (sort === "streak") return `${formatInt(value)}d`
+  return formatInt(value)
 }

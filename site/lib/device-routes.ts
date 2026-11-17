@@ -26,7 +26,7 @@ export interface DeviceSummary {
   stats: { from: string; to: string; sessions: number; tokens: number; usd: number | null; activeDays: number; streak: number; cards: number; days: boolean }
 }
 
-export type DeviceListBody = { ok: true; handle: string; max: number; exactDays: boolean; devices: DeviceSummary[] } | { ok: false; error?: string }
+export type DeviceListBody = { ok: true; handle: string; max: number; exactDays: boolean; devices: DeviceSummary[]; photo: boolean } | { ok: false; error?: string }
 
 export function summarise(devices: DeviceRecord[]): { exactDays: boolean; devices: DeviceSummary[] } {
   const list = ordered(devices)
@@ -55,7 +55,8 @@ export function summarise(devices: DeviceRecord[]): { exactDays: boolean; device
 export interface DeviceListDeps {
   userId: string | null
   allow: (key: string) => boolean
-  list: (userId: string) => Promise<{ handle: string; devices: DeviceRecord[] } | null>
+  /** `photo`: the account shows its photo now (the publish panel and the photo switch start from it). */
+  list: (userId: string) => Promise<{ handle: string; devices: DeviceRecord[]; photo?: boolean } | null>
   log: (message: string, error?: unknown) => void
 }
 
@@ -66,7 +67,7 @@ export async function handleDeviceList(deps: DeviceListDeps): Promise<{ status: 
   try {
     const mine = await deps.list(deps.userId)
     if (!mine) return { status: 404, body: { ok: false } }
-    return { status: 200, body: { ok: true, handle: mine.handle, max: MAX_DEVICES, ...summarise(mine.devices) } }
+    return { status: 200, body: { ok: true, handle: mine.handle, max: MAX_DEVICES, ...summarise(mine.devices), photo: mine.photo === true } }
   } catch (error) {
     deps.log("device list failed", error)
     return { status: 500, body: { ok: false } }

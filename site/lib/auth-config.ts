@@ -31,10 +31,11 @@ export const serverAuthEnabled = () => clerkEnabled && Boolean(process.env.CLERK
 export const satelliteOptions = () => (isSatellite ? { isSatellite: true as const, domain: clerkDomain, signInUrl, signUpUrl, satelliteAutoSync: true as const } : {})
 
 /**
- * Pages that mount Clerk (sign-in, the account menu, owner views). Only these get Clerk hosts in their CSP and may run
- * the satellite sync; the landing page stays free of Clerk code and of the round trip.
+ * Pages that mount Clerk (sign-in, the account menu, owner views, /account/sign-in). Only these run Clerk's middleware
+ * and the satellite sync. The landing page and the docs stay free of Clerk code and of the round trip for anonymous
+ * visitors; a browser that has signed in here before loads the account menu there on demand (lib/session-hint.ts).
  */
-export const mountsClerk = (pathname: string) => /^\/(?:share|leaderboard|u|api)(?:\/|$)/.test(pathname)
+export const mountsClerk = (pathname: string) => /^\/(?:share|leaderboard|u|account|api)(?:\/|$)/.test(pathname)
 
 /** Link-preview crawlers and fetch tools: they must get the page itself, not a redirect to the primary domain. */
 const CRAWLER = /bot|crawl|spider|slurp|facebookexternalhit|embedly|preview|whatsapp|telegram|discord|slack|linkedin|skype|vkshare|pinterest|quora|outbrain|redditbot|curl|wget|python-requests|go-http-client|node-fetch|headless/i
