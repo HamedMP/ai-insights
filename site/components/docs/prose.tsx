@@ -1,5 +1,18 @@
 import { CopyButton } from "@/components/site/copy-button"
+import { SiteLink } from "@/components/site/site-link"
 import { cn } from "@/lib/utils"
+
+/**
+ * A link from a docs page to another page on this site. Another docs page (with or without "#section") opens in
+ * place; a page that mounts Clerk, such as /leaderboard, loads as a new document (components/site/site-link.tsx).
+ */
+export function DocLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <SiteLink href={href} from="/docs">
+      {children}
+    </SiteLink>
+  )
+}
 
 /** A section heading with its own anchor link. The id must match the page's entry in lib/docs.ts. */
 export function H2({ id, children }: { id: string; children: React.ReactNode }) {

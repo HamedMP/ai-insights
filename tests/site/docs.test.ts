@@ -32,9 +32,13 @@ describe("the docs", () => {
     for (let i = 1; i < DOCS.length; i += 1) expect(neighbours(DOCS[i]!.slug).prev?.slug).toBe(DOCS[i - 1]!.slug);
   });
 
+  it("links to other pages of the site through DocLink, so docs pages switch in place and Clerk pages still load in full", () => {
+    for (const doc of DOCS) expect(page(doc.slug), doc.slug).not.toMatch(/<a href="\/(?!\/)/);
+  });
+
   it("stays a page without Clerk, so the docs load nothing from a sign-in host", () => {
     for (const doc of DOCS) expect(mountsClerk(`/docs${doc.slug ? `/${doc.slug}` : ""}`)).toBe(false);
-    const files = ["site/app/docs/layout.tsx", "site/components/docs/doc-shell.tsx", "site/components/docs/prose.tsx", "site/components/docs/docs-search.tsx", ...DOCS.map((doc) => docSource(doc.slug))];
+    const files = ["site/app/docs/layout.tsx", "site/components/docs/doc-shell.tsx", "site/components/docs/prose.tsx", "site/components/docs/docs-search.tsx", "site/components/docs/docs-nav.tsx", "site/components/docs/docs-header.tsx", "site/components/site/site-link.tsx", "site/lib/navigation.ts", ...DOCS.map((doc) => docSource(doc.slug))];
     for (const file of files) expect(read(file), file).not.toMatch(/@clerk\/|auth-provider|account-menu/);
   });
 });

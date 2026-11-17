@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 
 import { DOCS, docHref } from "@/lib/docs"
 import { cn } from "@/lib/utils"
@@ -62,14 +63,14 @@ export function DocsSearch({ className }: { className?: string }) {
             ) : (
               hits.map((hit) => (
                 <li key={hit.href}>
-                  <a
+                  <Link
                     href={hit.href}
                     onClick={() => setQuery("")}
                     className="flex flex-col rounded-md px-2.5 py-1.5 outline-none hover:bg-muted focus-visible:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
                   >
                     <span className="font-medium">{hit.title}</span>
                     <span className="text-xs text-muted-foreground">{hit.page}</span>
-                  </a>
+                  </Link>
                 </li>
               ))
             )}

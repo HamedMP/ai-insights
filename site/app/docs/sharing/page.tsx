@@ -1,5 +1,5 @@
 import { DocShell } from "@/components/docs/doc-shell"
-import { Callout, H2, Table } from "@/components/docs/prose"
+import { Callout, DocLink, H2, Table } from "@/components/docs/prose"
 import { docMetadata } from "@/lib/docs-metadata"
 
 export const metadata = docMetadata("sharing")
@@ -25,7 +25,7 @@ export default function Sharing() {
         </li>
         <li>
           <strong>It holds only aggregate numbers and fixed wording:</strong> your totals, earned titles and ratios as numbers, and your recap cards
-          as short lines. The exact list is in <a href="/docs/privacy#share-link-contents">What a share link contains</a>.
+          as short lines. The exact list is in <DocLink href="/docs/privacy#share-link-contents">What a share link contains</DocLink>.
         </li>
         <li>
           <strong>Buttons:</strong> Publish to the leaderboard (opens the link), Copy link, and X or LinkedIn posts with the link.
@@ -69,7 +69,7 @@ export default function Sharing() {
 
       <H2 id="arenas">Arenas and ranks</H2>
       <p>
-        The leaderboard at <a href="/leaderboard">ai-insights.app/leaderboard</a> is one table: rank, person, tokens, estimated spend, Claude Code
+        The leaderboard at <DocLink href="/leaderboard">ai-insights.app/leaderboard</DocLink> is one table: rank, person, tokens, estimated spend, Claude Code
         and Codex tokens, longest streak, active days, sessions, devices and period. Click a column header to sort by it; the sort is part of the
         address (for example <code>/leaderboard?sort=codex</code>), so a sorted view can be shared. The five arenas below are quick presets above
         the table. Rank is computed for the column you sort by, and you rank there only with a value above zero; people without one are listed
@@ -111,7 +111,7 @@ export default function Sharing() {
         <li>
           <strong>How computers are told apart.</strong> Each installation makes a random id once and keeps it in{" "}
           <code>~/.ai-insights/device.json</code>. The share link carries it. It is never made from the computer&apos;s name, your username or any
-          hardware detail, and it grants nothing by itself (see <a href="/docs/privacy#device-id">The device id</a>).
+          hardware detail, and it grants nothing by itself (see <DocLink href="/docs/privacy#device-id">The device id</DocLink>).
         </li>
         <li>
           <strong>Republishing</strong> from a computer replaces only that computer&apos;s numbers. A new computer is added. An account holds at most

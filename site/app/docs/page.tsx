@@ -1,5 +1,5 @@
 import { DocShell } from "@/components/docs/doc-shell"
-import { Code, H2, Shot } from "@/components/docs/prose"
+import { Code, DocLink, H2, Shot } from "@/components/docs/prose"
 import { docMetadata } from "@/lib/docs-metadata"
 import { SAMPLE } from "@/lib/site"
 
@@ -23,12 +23,12 @@ export default function DocsHome() {
       <ul>
         <li>
           <strong>A recap to share.</strong> Up to 25 animated cards about how you work, in three styles and four shapes, with video and image
-          export. Cards hold counts and a few allowlisted words, never your prompts, paths or project names. See <a href="/docs/recap-cards">Recap cards</a>.
+          export. Cards hold counts and a few allowlisted words, never your prompts, paths or project names. See <DocLink href="/docs/recap-cards">Recap cards</DocLink>.
         </li>
         <li>
           <strong>A private analysis.</strong> Your rhythm, parallel sessions on a timeline, tokens and an estimated cost at API list prices,
           findings with the evidence behind them, and the changes ranked, each with text you can paste into <code>CLAUDE.md</code> or{" "}
-          <code>AGENTS.md</code>. See <a href="/docs/report">The report</a>.
+          <code>AGENTS.md</code>. See <DocLink href="/docs/report">The report</DocLink>.
         </li>
         <li>
           <strong>Change over time.</strong> Every run saves a small snapshot. The next run shows what changed: findings that look resolved, still
@@ -63,7 +63,7 @@ export default function DocsHome() {
         <li>
           <strong>Optionally, review.</strong> From inside your agent, the <code>analyze-ai-usage</code> skill has your own agent read short,
           redacted excerpts of a sample of sessions, label each one from a fixed list, and write a short narrative. The next report includes it.
-          See <a href="/docs/agent-review">The agent review</a>.
+          See <DocLink href="/docs/agent-review">The agent review</DocLink>.
         </li>
       </ol>
 
@@ -77,7 +77,7 @@ export default function DocsHome() {
         </li>
         <li>
           <strong>Not a backup.</strong> It can only look back as far as your agents keep their files, and it keeps the stats of deleted sessions,
-          not the transcripts. See <a href="/docs/agents#retention">How long agents keep history</a>.
+          not the transcripts. See <DocLink href="/docs/agents#retention">How long agents keep history</DocLink>.
         </li>
         <li>
           <strong>Not verified.</strong> Leaderboard numbers are self-reported. The site checks the format of what you publish, not that it is true.

@@ -31,7 +31,8 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" suppressHydrationWarning className={cn(GeistSans.variable, GeistMono.variable)}>
+    // data-scroll-behavior: the page scrolls smoothly (globals.css) except when Next switches pages in place.
+    <html lang="en" suppressHydrationWarning data-scroll-behavior="smooth" className={cn(GeistSans.variable, GeistMono.variable)}>
       <head>
         {/* lets CSS hold scroll reveals back only when script is running to release them */}
         <script dangerouslySetInnerHTML={{ __html: "document.documentElement.classList.add('js')" }} />

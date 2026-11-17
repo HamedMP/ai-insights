@@ -1,5 +1,5 @@
 import { DocShell } from "@/components/docs/doc-shell"
-import { Callout, Code, H2, Shot, Table } from "@/components/docs/prose"
+import { Callout, Code, DocLink, H2, Shot, Table } from "@/components/docs/prose"
 import { docMetadata } from "@/lib/docs-metadata"
 import { HASHTAG } from "@/lib/site"
 
@@ -159,7 +159,7 @@ export default function RecapCards() {
       </p>
       <p>
         The &ldquo;Share your stats and cards&rdquo; box below the studio makes a link to your card on the website instead. That is covered in{" "}
-        <a href="/docs/sharing#share-links">Share links</a>.
+        <DocLink href="/docs/sharing#share-links">Share links</DocLink>.
       </p>
 
       <H2 id="url-options">Report URL options</H2>

@@ -1,5 +1,5 @@
 import { DocShell } from "@/components/docs/doc-shell"
-import { Callout, H2, H3, Shot, Table } from "@/components/docs/prose"
+import { Callout, DocLink, H2, H3, Shot, Table } from "@/components/docs/prose"
 import { docMetadata } from "@/lib/docs-metadata"
 
 export const metadata = docMetadata("report")
@@ -87,15 +87,15 @@ export default function Report() {
     <DocShell slug="report">
       <p>
         The report is one HTML file, <code>~/.ai-insights/reports/report.html</code>. Everything on it is computed from your history without a
-        model, except the parts marked as coming from your agent, which appear only after you run the <a href="/docs/agent-review">agent review</a>.
+        model, except the parts marked as coming from your agent, which appear only after you run the <DocLink href="/docs/agent-review">agent review</DocLink>.
       </p>
 
       <H2 id="layout">How the page is laid out</H2>
       <ol>
         <li>
           <strong>The recap.</strong> A headline with your hours and how many agents ran at once at the peak, a player for your recap cards, and the{" "}
-          <a href="/docs/recap-cards#studio">card studio</a> where you pick cards, a shape and a style, export them, and make a{" "}
-          <a href="/docs/sharing#share-links">share link</a>.
+          <DocLink href="/docs/recap-cards#studio">card studio</DocLink> where you pick cards, a shape and a style, export them, and make a{" "}
+          <DocLink href="/docs/sharing#share-links">share link</DocLink>.
         </li>
         <li>
           <strong>How it actually went.</strong> The private analysis, in five numbered parts: Rhythm, How you work, What it cost, What went wrong,
@@ -144,7 +144,7 @@ export default function Report() {
       <H3 id="where-your-history-lives">05 Where your history lives</H3>
       <p>
         How long each agent keeps its transcripts, how many are due for deletion, and the steps that keep them. See{" "}
-        <a href="/docs/agents#retention">How long agents keep history</a>.
+        <DocLink href="/docs/agents#retention">How long agents keep history</DocLink>.
       </p>
 
       <H2 id="findings">Findings</H2>

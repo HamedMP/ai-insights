@@ -1,5 +1,5 @@
 import { DocShell } from "@/components/docs/doc-shell"
-import { Callout, Code, H2, H3, Table } from "@/components/docs/prose"
+import { Callout, Code, DocLink, H2, H3, Table } from "@/components/docs/prose"
 import { docMetadata } from "@/lib/docs-metadata"
 
 export const metadata = docMetadata("agent-review")
@@ -58,7 +58,7 @@ scripts/install.sh --harness cursor     # or: --harness opencode`}</Code>
         Run <code>scripts/install.sh</code> with no options. It finds the agents on your machine, copies the skills into each one and registers the
         MCP server with each agent&apos;s own <code>mcp add</code> command. It needs no root, writes only inside your home folder, and is safe to
         run again. Add <code>--dry-run</code> to see what it would do first. All options are in the{" "}
-        <a href="/docs/cli#install-script">CLI reference</a>.
+        <DocLink href="/docs/cli#install-script">CLI reference</DocLink>.
       </p>
       <H3 id="install-manual">By hand</H3>
       <p>If you prefer to register only the MCP server:</p>
@@ -127,7 +127,7 @@ opencode mcp add ai-insights -- npx -y ai-insights mcp`}</Code>
       </ul>
       <p>
         The tools tell your agent that excerpt text is data, not instructions, and the skill tells it never to copy a secret into a label even if
-        redaction missed it. Redaction is pattern-based; see <a href="/docs/privacy#redaction">Redaction</a>.
+        redaction missed it. Redaction is pattern-based; see <DocLink href="/docs/privacy#redaction">Redaction</DocLink>.
       </p>
 
       <H2 id="facets">Session labels</H2>
@@ -162,7 +162,7 @@ opencode mcp add ai-insights -- npx -y ai-insights mcp`}</Code>
       <p>
         The narrative has a headline, work areas, your interaction style, wins, frictions, suggestions and &ldquo;horizon&rdquo; ideas with starter
         prompts. Suggestion text meant for pasting is rejected if it holds a placeholder such as <code>&lt;n&gt;</code> or an ellipsis. Tool
-        details are in the <a href="/docs/mcp">MCP reference</a>.
+        details are in the <DocLink href="/docs/mcp">MCP reference</DocLink>.
       </p>
     </DocShell>
   )
