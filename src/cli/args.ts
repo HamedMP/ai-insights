@@ -7,7 +7,8 @@ export class UsageError extends Error {}
 
 export const HELP = `ai-insights: look back at how you work with AI coding agents.
 
-Reads your local agent history (Claude Code, Codex, OpenCode, Pi, Cursor, Gemini CLI), writes one HTML report.
+Reads your local agent history (Claude Code, Codex, OpenCode, Pi, Cursor, Gemini CLI) and any chat
+export you imported, writes one HTML report.
 Nothing leaves this machine.
 
 Usage
@@ -16,6 +17,7 @@ Usage
   ai-insights report [options]   write the report (or print JSON with --json)
   ai-insights doctor             show which histories were found and where
   ai-insights mcp                start the MCP server on stdio (for your agent)
+  ai-insights import claude <path>  add a Claude chat export (see import --help)
 
 Options
   --since <window>     only history from ${SINCE_HELP}

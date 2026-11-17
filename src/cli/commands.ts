@@ -3,10 +3,10 @@ import { join } from "node:path";
 import { buildReport as realBuildReport } from "../analysis/index.js";
 import { packageVersion } from "../mcp/version.js";
 import { renderReport as realRenderReport } from "../render/index.js";
-import { HARNESSES, type AnalysisStep, type Coverage, type Harness, type SessionFile, type Source } from "../schema/types.js";
+import { HARNESSES, isChatHarness, type AnalysisStep, type Coverage, type Harness, type SessionFile, type Source } from "../schema/types.js";
 import { sources as realSources } from "../sources/index.js";
 import { ensureDir, pathExists, writeFileAtomic } from "../store/fs.js";
-import { buildFromScan, describeHeadline, headline, renderFromScan, type PipelineProgress } from "../store/pipeline.js";
+import { buildFromScan, describeHeadline, headline, renderFromScan, tokensPhrase, type PipelineProgress } from "../store/pipeline.js";
 import { harnessLabel, scan, totalBytes, type ScanOptions, type ScanProgress } from "../store/scan.js";
 import { measureRetention, readRetentionPolicies, type RetentionPolicy } from "../store/retention.js";
 import { Store, resolveHome } from "../store/store.js";
@@ -189,7 +189,7 @@ async function commandScan(parsed: Parsed, deps: CliDeps, store: Store): Promise
     "History found",
     ...coverageLines(result.coverage),
     "",
-    `${plural(numbers.sessions, "session")}, ${plural(numbers.userPrompts, "prompt")}, ${numbers.agentHours} agent-hours, ${compact(numbers.tokens)} tokens.`,
+    `${plural(numbers.sessions, "session")}, ${plural(numbers.userPrompts, "prompt")}, ${numbers.agentHours} agent-hours, ${tokensPhrase(numbers.tokens, numbers.unmeasuredSessions, numbers.sessions, compact)}.`,
     ...(analysed ? [analysed] : []),
     `Parsed ${result.stats.parsed}, reused ${result.stats.cached} from cache${result.stats.failed ? `, ${result.stats.failed} unreadable` : ""}.`,
   ];
@@ -255,6 +255,7 @@ async function commandDoctor(deps: CliDeps, store: Store): Promise<number> {
     if (policy && files.length) lines.push(`  keeps   ${keepsText(policy)}`);
     const note = source.diagnose ? await source.diagnose().catch(() => null) : null;
     if (note) lines.push(`  note    ${note}`);
+    if (isChatHarness(harness) && files.length === 0) lines.push("  import  not imported: run `ai-insights import claude <path>` with your Claude data export");
     for (const root of roots) lines.push(`  ${(await pathExists(root)) ? "found  " : "missing"} ${root}`);
     if (roots.length === 0) lines.push("  (no default location on this machine)");
   }

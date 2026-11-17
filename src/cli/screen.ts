@@ -1,5 +1,5 @@
 import type { Report, Retention } from "../schema/types.js";
-import { describeHeadline, formatUsd } from "../store/pipeline.js";
+import { describeHeadline, formatUsd, tokensPhrase } from "../store/pipeline.js";
 import { harnessLabel } from "../store/scan.js";
 import { MATRIX_URL } from "../render/view.js";
 import { ASCII, UNICODE, type Glyphs } from "./header.js";
@@ -47,8 +47,12 @@ export function summaryLines(report: Report): string[] {
   const top = topFinding(report);
   return [
     `${plural(report.activity.sessions, "session")} across ${found.length > 0 ? listText(found) : "no harness"}, ${day(report.range.from)} to ${day(report.range.to)}.`,
-    `${numbers.time} on ${plural(report.activity.activeDays, "day")}; ${compact(report.usage.tokens)} tokens, ${numbers.cost}.`,
-    top ? `Top finding: ${top.title}` : "No findings yet: more history makes for better tips.",
+    `${numbers.time} on ${plural(report.activity.activeDays, "day")}; ${tokensPhrase(report.usage.tokens, numbers.unmeasuredSessions, report.activity.sessions, compact)}, ${numbers.cost}.`,
+    top
+      ? `Top finding: ${top.title}`
+      : numbers.unmeasuredSessions >= report.activity.sessions && numbers.unmeasuredSessions > 0
+        ? "No tips: they come from coding-agent history (tool errors, context resets, permissions), which chat exports do not record."
+        : "No findings yet: more history makes for better tips.",
   ];
 }
 
@@ -190,13 +194,15 @@ function statsPanel(input: ResultInput, style: Style, paint: Paint, glyphs: Glyp
   // Two columns of margin each side: a line that fills the last column makes some terminals wrap early.
   const outer = style.width - 4;
   const inner = outer - 4;
-  const cost = numbers.estimatedUsd === null ? "n/a" : `${formatUsd(numbers.estimatedUsd)}${numbers.unpricedRequests > 0 ? "+" : ""}`;
+  // Chat exports record no tokens: a history of only chats says "not measured" rather than showing 0.
+  const unmeasured = numbers.unmeasuredSessions > 0 && numbers.unmeasuredSessions >= report.activity.sessions;
+  const cost = unmeasured ? "n/a" : numbers.estimatedUsd === null ? "n/a" : `${formatUsd(numbers.estimatedUsd)}${numbers.unpricedRequests > 0 ? "+" : ""}`;
   const tiles: Array<[string, string]> = [
     [report.activity.sessions.toLocaleString("en-US"), report.activity.sessions === 1 ? "session" : "sessions"],
     [report.activity.activeDays.toLocaleString("en-US"), report.activity.activeDays === 1 ? "active day" : "active days"],
     numbers.activeHours === null ? [hoursValue(numbers.agentHours), "agent-hours"] : [hoursValue(numbers.activeHours), "active hours"],
-    [compact(report.usage.tokens), "tokens"],
-    [cost, "est. cost"],
+    unmeasured ? ["n/a", "tokens, not measured"] : [compact(report.usage.tokens), numbers.unmeasuredSessions > 0 ? "tokens (coding)" : "tokens"],
+    [cost, unmeasured ? "cost, not measured" : "est. cost"],
   ];
   // A grid like a scoreboard: equal cells spread across the panel, as many per row as fit.
   const gap = 3;

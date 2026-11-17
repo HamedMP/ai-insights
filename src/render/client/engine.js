@@ -28,7 +28,7 @@ const DAYNAME = { Mon: "Mondays", Tue: "Tuesdays", Wed: "Wednesdays", Thu: "Thur
 const hh = (x) => `${String(x).padStart(2, "0")}:00`;
 /** Counts that can run into the hundreds of thousands: past `cap`, say "10,000+" instead of a wall of digits. */
 const capped = (n, cap = 10000) => (n > cap ? `${int(cap)}+` : int(n));
-const HARNESS_NAMES = { "claude-code": "Claude Code", codex: "Codex", cursor: "Cursor", pi: "Pi", opencode: "OpenCode", gemini: "Gemini CLI" };
+const HARNESS_NAMES = { "claude-code": "Claude Code", codex: "Codex", cursor: "Cursor", pi: "Pi", opencode: "OpenCode", gemini: "Gemini CLI", "claude-chat": "Claude chat" };
 const harnessName = (key) => HARNESS_NAMES[key] || String(key);
 function rng(seed) { let q = seed >>> 0 || 1; return () => ((q = (q * 1664525 + 1013904223) >>> 0) / 4294967296); }
 

@@ -942,7 +942,8 @@ export interface RecapPersona {
   /** "The Night Orchestrator". */
   title: string;
   time: "Night" | "Dawn" | "Golden-Hour" | "Afternoon" | "Morning";
-  role: "Orchestrator" | "Shipper" | "Delegator";
+  /** "Conversationalist" only when every session is a chat export: the coding roles would say nothing true. */
+  role: "Orchestrator" | "Shipper" | "Delegator" | "Conversationalist";
   /** One sentence built from a fixed template and numbers; the win-rate clause only when facets exist. */
   reason: string;
   /** Extra titles earned from `Report.ratios`, at most three. Absent when none was earned, and in older recaps. */
