@@ -76,7 +76,9 @@ export function Header({ account }: { account?: React.ReactNode } = {}) {
   const [scrolled, setScrolled] = React.useState(false)
   const [open, setOpen] = React.useState(false)
   const active = useActiveSection()
-  const inDocs = usePathname()?.startsWith("/docs") ?? false
+  const pathname = usePathname() ?? ""
+  const inDocs = pathname.startsWith("/docs")
+  const inLeaderboard = pathname.startsWith("/leaderboard")
   const nav = React.useRef<HTMLElement>(null)
   const panel = React.useRef<HTMLDivElement>(null)
   const toggle = React.useRef<HTMLButtonElement>(null)
@@ -139,6 +141,16 @@ export function Header({ account }: { account?: React.ReactNode } = {}) {
             </a>
           ))}
           <a
+            href={`${BASE}/leaderboard`}
+            aria-current={inLeaderboard ? "page" : undefined}
+            className={cn(
+              "rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
+              inLeaderboard && "text-foreground",
+            )}
+          >
+            Leaderboard
+          </a>
+          <a
             href={`${BASE}/docs`}
             aria-current={inDocs ? "page" : undefined}
             className={cn(
@@ -151,11 +163,7 @@ export function Header({ account }: { account?: React.ReactNode } = {}) {
           <Indicator nav={nav} active={active} />
         </nav>
         <div className="flex items-center gap-2">
-          {account ?? (
-            <Button variant="outline" size="lg" className="h-10 rounded-full px-4 max-sm:hidden sm:h-9" nativeButton={false} render={<a href={`${BASE}/leaderboard`} />}>
-              Leaderboard
-            </Button>
-          )}
+          {account}
           <Button
             variant="secondary"
             size="lg"
