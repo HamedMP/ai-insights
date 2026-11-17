@@ -1,6 +1,7 @@
 import { DocShell } from "@/components/docs/doc-shell"
 import { Callout, Code, H2, Table } from "@/components/docs/prose"
 import { docMetadata } from "@/lib/docs-metadata"
+import { HASHTAG } from "@/lib/site"
 
 export const metadata = docMetadata("getting-started")
 
@@ -24,41 +25,92 @@ export default function GettingStarted() {
       <H2 id="first-run">Your first run</H2>
       <Code label="Terminal">npx ai-insights</Code>
       <p>
-        AI Insights scans your history, writes the report and prints a short summary. Add <code>--open</code> to open the report in your browser
-        when it is written. On a synthetic history of twelve Claude Code sessions the output looks like this:
+        AI Insights scans your history, writes the report and shows what it found. Add <code>--open</code> to open the report in your browser
+        when it is written. On a synthetic history of 58 Claude Code and Codex sessions, an 80-column terminal shows this (in colour, with the
+        report path and the website as links you can click):
       </p>
-      <Code label="Output, from a synthetic history; home folder shortened to ~" copy={false}>{`12 sessions across Claude Code, 2026-11-05 to 2026-11-16.
-2.2 active hours (2.2 agent-hours across parallel sessions) on 12 days; 1.6M tokens, about $1.13 at API list prices.
-Top finding: You keep telling the agent: "run the tests and fix what fails"
+      <Code label="Output, from a synthetic history; home folder shortened to ~" copy={false}>{`   █▄  ▄█
+   ██  ██     ▄▀█ █   █ █▄ █ █▀ █ █▀▀ █ █ ▀█▀ █▀
+  ▄██████▄    █▀█ █   █ █ ▀█ ▄█ █ █▄█ █▀█  █  ▄█
+  ██▄██▄██    by Matrix OS · v0.5.0
+   ▀████▀
 
-Report: ~/.ai-insights/reports/report.html
-Tip: run the analyze-ai-usage skill in your agent to add what went well and what got in the way.`}</Code>
-      <p>The lines are:</p>
+  ╭─ 2026-10-22 → 2026-11-16 ────────────────────────────────────────────────╮
+  │ 58             26             26             1.2B           $245+        │
+  │ sessions       active days    active hours   tokens         est. cost    │
+  │                                                                          │
+  │ Claude Code, Codex · 29 agent-hours in parallel · 80% of requests        │
+  │ unpriced                                                                 │
+  ╰──────────────────────────────────────────────────────────────────────────╯
+
+  ◆ The Night Delegator
+    also The Clear Briefer · The Context Keeper · The Stress Tester
+  ▲ Top finding  You keep telling the agent: "run the tests and fix what
+    fails"
+  ▸ Report  ~/.ai-insights/reports/report.html
+
+  What to do next ────────────────────────────────────────────────────────────
+  1  Open       click the report path above, or add --open next time.
+  2  Play       Play your recap in the report, then Make a video to export it.
+  3  Publish    Join the leaderboard, then Publish to the leaderboard; sign in
+                on ai-insights.app and press Publish. Your profile:
+                ai-insights.app/u/<handle>
+  4  Share      post your cards or profile with ${HASHTAG}.
+  5  Go deeper  run the analyze-ai-usage skill in your agent.
+
+  ! 5 Claude Code sessions can be deleted within 7 days (from 2026-11-21).
+    Keep them: add "cleanupPeriodDays": 365 to ~/.claude/settings.json or run
+    npx packmem archive.`}</Code>
+      <p>From the top:</p>
       <ul>
         <li>
-          <strong>Coverage:</strong> how many sessions, from which agents, over which dates.
+          <strong>The numbers:</strong> the dates covered, sessions, active days, active hours (clock time with at least one agent working),
+          tokens and the estimated cost at API list prices. Under them: which agents, the agent-hours (the same time summed over sessions running
+          in parallel, so it can be larger) and how much usage could not be priced.
         </li>
         <li>
-          <strong>Time and tokens:</strong> active hours (clock time with at least one agent working), agent-hours (the same time summed over
-          sessions running in parallel, so it can be larger), active days, tokens and the estimated cost.
+          <strong>Your persona</strong> and the extra titles you earned, when the report has a recap.
         </li>
         <li>
           <strong>Top finding:</strong> the most severe finding, or a note that more history makes for better tips.
         </li>
         <li>
-          <strong>Report:</strong> the path to the HTML file. The real output prints the full path.
+          <strong>Report:</strong> the full path to the HTML file. Most terminals let you click it (with Cmd or Ctrl held in some).
+        </li>
+        <li>
+          <strong>What to do next:</strong> open the report, play your recap and export it with <strong>Make a video</strong>, publish to the
+          leaderboard (<strong>Join the leaderboard</strong>, then <strong>Publish to the leaderboard</strong>, then sign in on ai-insights.app
+          and press <strong>Publish</strong>; see <a href="/docs/sharing#publish">Publish to the leaderboard</a>), share with <code>{HASHTAG}</code>, and run the{" "}
+          <a href="/docs/agent-review">agent review</a>. The last step goes away once you have run the review.
         </li>
         <li>
           <strong>History warning</strong> (only when it applies): how many sessions your agents can delete within the next 7 days, and the setting
           that keeps them.
         </li>
-        <li>
-          <strong>Tip</strong> (until you run the agent review): a pointer to the <code>analyze-ai-usage</code> skill.
-        </li>
       </ul>
       <p>
+        The screen fits narrower windows down to 40 columns, uses plain ASCII where the terminal cannot draw boxes, and drops colour and links
+        when <code>NO_COLOR</code> is set. When the output is piped or redirected (a script, CI), it prints stable plain text with no escape codes
+        instead:
+      </p>
+      <Code label="Piped output, same history" copy={false}>{`58 sessions across Claude Code and Codex, 2026-10-22 to 2026-11-16.
+26 active hours (29 agent-hours across parallel sessions) on 26 days; 1.2B tokens, about $245 for the requests we can price; 80% unpriced.
+Top finding: You keep telling the agent: "run the tests and fix what fails"
+Persona: The Night Delegator (also The Clear Briefer, The Context Keeper and The Stress Tester)
+
+Report: ~/.ai-insights/reports/report.html
+5 Claude Code sessions can be deleted within 7 days (from 2026-11-21). AI Insights keeps their stats; to keep the transcripts, add "cleanupPeriodDays": 365 to ~/.claude/settings.json or archive them with \`npx packmem archive\`.
+
+Next steps
+  1. Open the report: open the file above in your browser, or run again with --open.
+  2. Play your recap: press "Play your recap" in the report; "Make a video" saves it as a video or images.
+  3. Publish to the leaderboard: in the report press "Join the leaderboard", then "Publish to the leaderboard"; sign in on https://ai-insights.app/ and press "Publish". Your profile: https://ai-insights.app/u/<handle>
+  4. Share it: use the X or LinkedIn buttons in the report, or post your cards with ${HASHTAG}.
+  5. Go deeper: run the analyze-ai-usage skill in your agent to add what went well and what got in the way.`}</Code>
+      <p>
         Open the report in any browser. It is one file with everything inside it, so you can also move it or keep a copy. If nothing is found, the
-        command prints <code>No agent sessions found.</code> and exits with code 1; run <code>npx ai-insights doctor</code> to see where it looked.
+        command prints <code>No agent sessions found.</code> with what to try and exits with code 1; run <code>npx ai-insights doctor</code> to
+        see where it looked.
       </p>
 
       <H2 id="where-files-go">Where files go</H2>

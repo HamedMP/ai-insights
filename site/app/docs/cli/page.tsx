@@ -20,8 +20,9 @@ ai-insights mcp                start the MCP server on stdio (for your agent)`}<
       <H2 id="commands">Commands</H2>
       <H3 id="cmd-run">ai-insights</H3>
       <p>
-        With no command, AI Insights scans, writes the report and prints a three-line summary, the report path, a history warning when one applies,
-        and a tip until you have run the agent review. See <a href="/docs/getting-started#first-run">Your first run</a> for the output.
+        With no command, AI Insights scans, writes the report and shows the numbers, your persona, the top finding, the report path as a link,
+        numbered next steps and a history warning when one applies. Piped or redirected, it prints the same as plain text with no escape codes,
+        so scripts can read it. See <a href="/docs/getting-started#first-run">Your first run</a> for both.
       </p>
       <H3 id="cmd-scan">ai-insights scan</H3>
       <p>Scans and prints what was found, without writing a report. Output from a synthetic history:</p>
@@ -121,6 +122,9 @@ npx ai-insights --refresh`}</Code>
           [<code key="a">AI_INSIGHTS_HOME</code>, <>Where AI Insights keeps its cache, labels, snapshots and reports. Default <code>~/.ai-insights</code>.</>],
           [<code key="h">HINDSIGHT_HOME</code>, <>The pre-0.2 name, used when <code>AI_INSIGHTS_HOME</code> is not set.</>],
           [<code key="d">AI_INSIGHTS_DEBUG</code>, "When set, a failed command also prints the error's stack trace."],
+          [<code key="nc">NO_COLOR</code>, "When set to anything, the result screen has no colour and no links."],
+          [<code key="fc">FORCE_COLOR</code>, <>Colour even when the output is piped, for recordings: <code>1</code>, <code>2</code> (256 colours) or <code>3</code> (truecolor); <code>0</code> turns colour off. It wins over <code>NO_COLOR</code>.</>],
+          [<code key="fh">FORCE_HYPERLINK</code>, <><code>0</code> turns off clickable links in terminals that show them as stray characters; <code>1</code> turns them on.</>],
           [
             "Agent variables",
             <>

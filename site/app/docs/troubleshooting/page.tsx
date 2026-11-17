@@ -15,7 +15,12 @@ export default function Troubleshooting() {
       <Code label="Terminal">npx ai-insights doctor</Code>
 
       <H2 id="no-sessions">No agent sessions found</H2>
-      <Code label="Output" copy={false}>{`No agent sessions found. Run \`ai-insights doctor\` to see where AI Insights looked.`}</Code>
+      <Code label="Output" copy={false}>{`No agent sessions found. Run \`ai-insights doctor\` to see where AI Insights looked.
+AI Insights reads Claude Code, Codex, Cursor, Pi, OpenCode and Gemini CLI history from their usual folders on this machine.
+More help: https://ai-insights.app/docs/troubleshooting`}</Code>
+      <p>
+        With <code>--since</code> or <code>--harness</code>, a third line names them: the filter may be what left nothing.
+      </p>
       <ul>
         <li>
           <strong>History in another place.</strong> If you set <code>CLAUDE_CONFIG_DIR</code>, <code>CODEX_HOME</code> or a similar variable for
