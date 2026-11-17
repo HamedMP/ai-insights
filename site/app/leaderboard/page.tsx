@@ -1,11 +1,13 @@
 import type { Metadata } from "next"
 import { after } from "next/server"
 
+import { TrackOnMount } from "@/components/site/analytics"
 import { Footer } from "@/components/site/footer"
 import { Header } from "@/components/site/header"
 import { RankShare, RemoveEntry } from "@/components/site/rank-share"
 import { formatScore, rankLabel, rankPost } from "@/lib/arena-format"
 import { clerkEnabled } from "@/lib/auth-config"
+import { EVENTS } from "@/lib/analytics-sanitize"
 import { arenaPage, databaseConfigured, entryByUser, ranksFor, type ArenaPage } from "@/lib/db"
 import { ARENAS, isArena, PAGE_SIZE, parsePage, type ArenaId } from "@/lib/leaderboard"
 import { formatPeriod } from "@/lib/share"
@@ -21,12 +23,12 @@ const description = "Who uses AI coding agents the most: tokens, spend, Claude C
 export const metadata: Metadata = {
   title,
   description,
-  alternates: { canonical: new URL("leaderboard/", SITE_URL).toString() },
-  openGraph: { title, description, url: new URL("leaderboard/", SITE_URL).toString(), siteName: "AI Insights", type: "website", images: [{ url: "og.png", width: 1200, height: 630, alt: "AI Insights by Matrix OS" }] },
+  alternates: { canonical: new URL("leaderboard", SITE_URL).toString() },
+  openGraph: { title, description, url: new URL("leaderboard", SITE_URL).toString(), siteName: "AI Insights", type: "website", images: [{ url: "og.png", width: 1200, height: 630, alt: "AI Insights by Matrix OS" }] },
   twitter: { card: "summary_large_image", title, description, images: ["og.png"] },
 }
 
-const profileUrl = (handle: string) => new URL(`u/${handle}/`, SITE_URL).toString()
+const profileUrl = (handle: string) => new URL(`u/${handle}`, SITE_URL).toString()
 
 export default async function LeaderboardPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const params = await searchParams
@@ -47,11 +49,12 @@ export default async function LeaderboardPage({ searchParams }: { searchParams: 
     }
   }
   const pages = board ? Math.max(1, Math.ceil(board.total / PAGE_SIZE)) : 1
-  const href = (a: ArenaId, p = 1) => `${BASE}/leaderboard/?arena=${a}${p > 1 ? `&page=${p}` : ""}`
+  const href = (a: ArenaId, p = 1) => `${BASE}/leaderboard?arena=${a}${p > 1 ? `&page=${p}` : ""}`
 
   return (
     <>
       <Header />
+      <TrackOnMount event={EVENTS.arenaViewed} properties={{ arena, page }} />
       <main id="top" className="relative overflow-hidden">
         <div aria-hidden className="hero-glow pointer-events-none absolute inset-x-0 top-0 h-[40rem]" />
         <div className="relative mx-auto flex max-w-4xl flex-col gap-8 px-4 pt-8 pb-20 md:px-8 md:pt-14">
@@ -67,7 +70,7 @@ export default async function LeaderboardPage({ searchParams }: { searchParams: 
           {mine && (
             <section aria-labelledby="you" className="flex flex-col gap-4 rounded-2xl border bg-card p-5">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h2 id="you" className="text-lg font-semibold">You, as <a className="underline-offset-4 hover:underline" href={`${BASE}/u/${mine.handle}/`}>{mine.displayName}</a></h2>
+                <h2 id="you" className="text-lg font-semibold">You, as <a className="underline-offset-4 hover:underline" href={`${BASE}/u/${mine.handle}`}>{mine.displayName}</a></h2>
                 <RemoveEntry />
               </div>
               <ul className="flex flex-col divide-y">
@@ -113,7 +116,7 @@ export default async function LeaderboardPage({ searchParams }: { searchParams: 
                 {board.rows.map((row) => (
                   <li key={row.handle} className="flex items-center gap-4 px-4 py-3">
                     <span className="w-10 shrink-0 font-mono text-sm text-muted-foreground tabular-nums">#{row.rank}</span>
-                    <a href={`${BASE}/u/${row.handle}/`} className="flex min-w-0 flex-1 flex-col underline-offset-4 hover:underline">
+                    <a href={`${BASE}/u/${row.handle}`} className="flex min-w-0 flex-1 flex-col underline-offset-4 hover:underline">
                       <span className="truncate font-medium">{row.displayName}</span>
                       <span className="truncate font-mono text-[11px] text-muted-foreground">@{row.handle} · {formatPeriod(row.stats.from, row.stats.to)}</span>
                     </a>

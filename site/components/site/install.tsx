@@ -38,7 +38,7 @@ export function GetIt({ className }: { className?: string }) {
             <span aria-hidden className="mr-2.5 select-none text-[#ff7a2f]">$</span>
             {COMMAND}
           </code>
-          <CopyButton text={COMMAND} ariaLabel={`Copy: ${COMMAND}`} className="h-10 border-white/15 bg-white/10 px-3 text-[12px] text-white/80 hover:border-white/30 hover:text-white dark:bg-white/5" />
+          <CopyButton text={COMMAND} trackAs="hero" ariaLabel={`Copy: ${COMMAND}`} className="h-10 border-white/15 bg-white/10 px-3 text-[12px] text-white/80 hover:border-white/30 hover:text-white dark:bg-white/5" />
         </div>
         <p className="mt-2.5 font-mono text-[11.5px] leading-relaxed text-muted-foreground">
           Node.js 20+ · writes one HTML page · add <span className="text-foreground">--open</span> to open it

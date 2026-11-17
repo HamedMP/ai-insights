@@ -6,10 +6,12 @@ import { SignInButton, useAuth, useUser } from "@clerk/nextjs"
 import { Button } from "@/components/ui/button"
 import { checkHandle, displayNameFor, suggestHandle } from "@/lib/leaderboard"
 import { rememberFragment } from "@/lib/pending-share"
+import { track } from "@/lib/analytics"
+import { EVENTS } from "@/lib/analytics-sanitize"
 import { agentName, formatInt, formatPeriod, type SharedStats } from "@/lib/share"
 import { BASE } from "@/lib/site"
 
-const ENTRY_API = `${BASE}/api/leaderboard/entry/`
+const ENTRY_API = `${BASE}/api/leaderboard/entry`
 
 /** Client-side messages are shown only from this list; anything else from the server becomes the generic one. */
 const KNOWN_ERRORS = new Set([
@@ -62,7 +64,7 @@ export function PublishPanel({ stats }: { stats: SharedStats }) {
   React.useEffect(() => {
     if (!isSignedIn) return
     // Lets the server record, once, that this Matrix account has used AI Insights (see lib/signup-source.ts).
-    void fetch(`${BASE}/api/leaderboard/seen/`, { method: "POST", credentials: "same-origin", signal: AbortSignal.timeout(10_000) }).catch((error: unknown) => {
+    void fetch(`${BASE}/api/leaderboard/seen`, { method: "POST", credentials: "same-origin", signal: AbortSignal.timeout(10_000) }).catch((error: unknown) => {
       if (!(error instanceof Error)) throw error
     })
   }, [isSignedIn])
@@ -75,7 +77,10 @@ export function PublishPanel({ stats }: { stats: SharedStats }) {
         <h2 id="publish" className="text-lg font-semibold">Publish to the leaderboard</h2>
         <p className="text-sm text-muted-foreground">Put these numbers on the public AI Insights leaderboard. Sign in with your Matrix account first; you will see exactly what becomes public before anything is sent.</p>
         <SignInButton mode="redirect">
-          <Button onClick={rememberFragment}>Sign in to publish</Button>
+          <Button onClick={() => {
+            track(EVENTS.publishClicked, { signedIn: false })
+            rememberFragment()
+          }}>Sign in to publish</Button>
         </SignInButton>
       </section>
     )
@@ -84,8 +89,10 @@ export function PublishPanel({ stats }: { stats: SharedStats }) {
   async function publish(event: React.FormEvent) {
     event.preventDefault()
     if (!checked.ok) return
+    track(EVENTS.publishClicked)
     setState({ kind: "busy" })
     const result = await callEntryApi("POST", { handle: checked.handle, stats })
+    if (result.ok) track(EVENTS.publishCompleted)
     setState(result.ok ? { kind: "done", handle: result.handle ?? checked.handle } : { kind: "error", message: result.error })
   }
 
@@ -115,8 +122,8 @@ export function PublishPanel({ stats }: { stats: SharedStats }) {
         <div className="flex flex-col gap-3 text-sm">
           <p>Published. Your profile is public now.</p>
           <div className="flex flex-wrap gap-2">
-            <Button nativeButton={false} render={<a href={`${BASE}/u/${state.handle}/`} />}>View your profile</Button>
-            <Button variant="outline" nativeButton={false} render={<a href={`${BASE}/leaderboard/`} />}>See the leaderboard</Button>
+            <Button nativeButton={false} render={<a href={`${BASE}/u/${state.handle}`} />}>View your profile</Button>
+            <Button variant="outline" nativeButton={false} render={<a href={`${BASE}/leaderboard`} />}>See the leaderboard</Button>
             <Button variant="destructive" onClick={remove}>Remove my entry</Button>
           </div>
         </div>

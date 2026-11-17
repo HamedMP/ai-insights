@@ -5,6 +5,8 @@ import * as React from "react"
 import { CopyButton } from "@/components/site/copy-button"
 import { PublishPanel } from "@/components/site/publish-panel"
 import { restoreFragment } from "@/lib/pending-share"
+import { track } from "@/lib/analytics"
+import { EVENTS } from "@/lib/analytics-sanitize"
 import { Wordmark } from "@/components/site/rabbit"
 import { decodeStats, formatCompact, formatInt, formatPeriod, agentName, type SharedStats } from "@/lib/share"
 import { COMMAND, HASHTAG, SITE_URL, intents } from "@/lib/site"
@@ -29,6 +31,8 @@ export function ShareCard({ publish = false }: { publish?: boolean }) {
     restoreFragment()
     const read = () => setStats(readFragment() ?? null)
     read()
+    // Only whether the link was valid: never the payload, name or numbers.
+    track(EVENTS.shareCardViewed, { valid: readFragment() != null })
     window.addEventListener("hashchange", read)
     return () => window.removeEventListener("hashchange", read)
   }, [])
@@ -128,7 +132,7 @@ export function FindOutYours({ note }: { note?: React.ReactNode }) {
             <span className="text-muted-foreground select-none">$ </span>
             {COMMAND}
           </code>
-          <CopyButton text={COMMAND} ariaLabel="Copy the command" />
+          <CopyButton text={COMMAND} trackAs="card" ariaLabel="Copy the command" />
         </div>
         <div className="flex flex-wrap items-center justify-center gap-3 text-[14px]">
           <a className="underline-offset-4 hover:underline" href={SITE_URL}>What it shows</a>

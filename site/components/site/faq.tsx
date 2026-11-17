@@ -7,6 +7,10 @@ const QUESTIONS: Array<{ q: string; a: React.ReactNode }> = [
     a: "No. AI Insights makes no network calls and has no telemetry or account. Your recap is one HTML file on your disk that loads nothing from the network. Sharing is up to you: the share buttons open X or LinkedIn in a new tab, or save a file for you to post.",
   },
   {
+    q: "Does this website track me?",
+    a: "This website, not the tool or the report, counts visits with first-party PostHog analytics sent through ai-insights.app itself: page views and a few clicks such as copying the install command or pressing Publish. It never sends the #part of a share link (where your name and numbers live), records no sessions, captures nothing you type, and sends nothing if your browser asks not to be tracked.",
+  },
+  {
     q: "What can a shared card show?",
     a: "Counts, times and percentages, words from a fixed list of everyday coding words, public program, model and agent names, and a persona from a fixed set of titles. Never your prompts, the agent's replies, file or project names, paths or session ids. The private analysis never goes on a card.",
   },

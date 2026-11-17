@@ -4,10 +4,13 @@ import * as React from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Copy01Icon, Tick02Icon } from "@hugeicons/core-free-icons"
 
+import { track } from "@/lib/analytics"
+import { EVENTS } from "@/lib/analytics-sanitize"
 import { cn } from "@/lib/utils"
 
 /** Copies `text`; the icon turns into a tick and the label into "Copied" for a moment. */
-export function CopyButton({ text, label = "Copy", className, ariaLabel }: { text: string; label?: string; className?: string; ariaLabel?: string }) {
+/** `trackAs` names where an install command was copied from, for the site's analytics (no-op without a key). */
+export function CopyButton({ text, label = "Copy", className, ariaLabel, trackAs }: { text: string; label?: string; className?: string; ariaLabel?: string; trackAs?: string }) {
   const [state, setState] = React.useState<"idle" | "copied" | "failed">("idle")
   const timer = React.useRef<number | undefined>(undefined)
   React.useEffect(() => () => window.clearTimeout(timer.current), [])
@@ -16,6 +19,7 @@ export function CopyButton({ text, label = "Copy", className, ariaLabel }: { tex
     try {
       await navigator.clipboard.writeText(text)
       setState("copied")
+      if (trackAs) track(EVENTS.installCommandCopied, { location: trackAs })
     } catch {
       setState("failed")
     }
