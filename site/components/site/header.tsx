@@ -5,7 +5,6 @@ import { HugeiconsIcon } from "@hugeicons/react"
 import { Cancel01Icon, GithubIcon, Menu01Icon } from "@hugeicons/core-free-icons"
 
 import { Wordmark } from "@/components/site/rabbit"
-import { ThemeSwitcher } from "@/components/site/theme-switcher"
 import { Button } from "@/components/ui/button"
 import { BASE, REPO } from "@/lib/site"
 import { cn } from "@/lib/utils"
@@ -148,7 +147,6 @@ export function Header() {
               GitHub
             </span>
           </Button>
-          <ThemeSwitcher className="max-lg:hidden" />
           <Button size="lg" className="h-10 rounded-full px-4 sm:h-9" nativeButton={false} render={<a href={`${BASE}/#get`} />}>
             Get yours
           </Button>
@@ -184,10 +182,6 @@ export function Header() {
             GitHub
             <HugeiconsIcon icon={GithubIcon} strokeWidth={2} className="size-4 text-muted-foreground" />
           </a>
-          <div className="flex items-center justify-between pt-4">
-            <span className="mono-comment text-xs">theme</span>
-            <ThemeSwitcher size="lg" />
-          </div>
         </nav>
       </div>
     </header>

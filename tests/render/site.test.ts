@@ -130,6 +130,15 @@ describe("the public site", () => {
     expect(readme).toMatch(/\| Gemini CLI \| untested/);
   });
 
+  it("is light only until the dark theme is redesigned: no switcher, no hotkey, no dark theme colour", () => {
+    expect(read("site/components/theme-provider.tsx")).toContain('forcedTheme="light"');
+    expect(read("site/components/theme-provider.tsx")).not.toMatch(/keydown|setTheme/);
+    expect(existsSync(join(ROOT, "site/components/site/theme-switcher.tsx"))).toBe(false);
+    expect(SITE_SOURCES.filter((path) => /useTheme|ThemeSwitcher/.test(read(path)))).toEqual([]);
+    expect(read("site/app/layout.tsx")).not.toContain("prefers-color-scheme: dark");
+    expect(read("site/app/globals.css")).toContain(".dark {");
+  });
+
   it("keeps the launch hashtag in one constant", () => {
     const uses = SITE_SOURCES.filter((path) => read(path).includes("#MyAIInsights"));
     expect(uses).toEqual(["site/lib/site.ts"]);
