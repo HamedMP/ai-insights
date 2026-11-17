@@ -20,7 +20,7 @@ export const FONTS: Array<[string, string, string]> = [
 
 /** Script files in load order. Styles go between the engine and the page; Pop first, as the default. */
 const BEFORE_STYLES = ["vendor/mediabunny.js", "rabbit.js", "engine.js"];
-const AFTER_STYLES = ["export.js", "sharelink.js", "sharebox.js", "page.js"];
+const AFTER_STYLES = ["export.js", "sharelink.js", "sharebox.js", "deck.js", "page.js"];
 
 export interface ClientAssets {
   /** @font-face rules + base card CSS + every style's card CSS: also copied into exported frames. */
