@@ -323,6 +323,41 @@ const ShareLink = (() => {
     ].filter(Boolean);
   }
 
+  const period = (from, to) => {
+    if (!isDay(from) || !isDay(to)) return "";
+    const y1 = from.slice(0, 4), y2 = to.slice(0, 4);
+    return y1 === y2 ? `${dshort(from)} – ${dshort(to)}, ${y2}` : `${dshort(from)}, ${y1} – ${dshort(to)}, ${y2}`;
+  };
+
+  /**
+   * The share box's visual preview, read from the payload alone so it can never show what the link does not carry.
+   * What it does not draw (ratios, the device id, the day bitmap) is named in `also`; describe() spells it out.
+   */
+  function preview(p, names = {}) {
+    const titles = (p.titles || []).map((t) => TITLE_NAMES[t.k] || t.k);
+    const stats = [
+      ["Sessions", fmt(p.sessions)],
+      ["Tokens", p.tokens > 0 || p.agents.length ? short(p.tokens) : "not measured"],
+      p.usd != null ? ["Est. spend", `$${fmt(p.usd)}`] : null,
+      ["Active days", fmt(p.activeDays)],
+      ["Longest streak", plural(p.streak, "day")],
+      p.agents.length ? ["Agents", p.agents.map((a) => `${names[a.k] || a.k} ${a.p}%`).join(" · "), true] : null,
+      titles.length ? [titles.length === 1 ? "Title" : "Titles", titles.join(" · "), true] : null,
+    ].filter(Boolean).map(([label, value, wide]) => ({ label, value, wide: !!wide }));
+    const also = [];
+    if ((p.ratios || []).length) also.push(plural(p.ratios.length, "work ratio"));
+    if (p.device) also.push(p.device.name ? `a random id for this computer, named “${p.device.name}”` : "a random id for this computer");
+    if (p.days) also.push("which days you were active (dates only)");
+    return {
+      name: p.name || "Someone",
+      period: period(p.from, p.to),
+      fact: p.fact || "",
+      stats,
+      cards: (p.cards || []).map((c) => ({ k: c.k, title: TITLES[c.k] || c.k, big: c.b, caption: c.c || "" })),
+      also,
+    };
+  }
+
   function daysCount(bits) {
     let n = 0;
     const bin = atob(String(bits).replace(/-/g, "+").replace(/_/g, "/"));
@@ -330,5 +365,5 @@ const ShareLink = (() => {
     return n;
   }
 
-  return { V, LIMITS, activeDays, daysCount, CARD_KEYS, TITLES, RATIO_KEYS, TITLE_RATIO, payload, cards, encode, url, describe, funFact, clean };
+  return { V, LIMITS, activeDays, daysCount, CARD_KEYS, TITLES, RATIO_KEYS, TITLE_RATIO, payload, cards, encode, url, describe, preview, funFact, clean };
 })();

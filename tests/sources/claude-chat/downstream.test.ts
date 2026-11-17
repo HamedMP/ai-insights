@@ -132,7 +132,9 @@ describe("imported chats downstream", () => {
     const { report } = await importedSessions();
     expect(buildView(report, "UTC").activity.chat?.only).toBe(true);
     const page = readFileSync(new URL("../../../src/render/client/page.js", import.meta.url), "utf8");
-    expect(page).toMatch(/ACT\.chat && ACT\.chat\.only \? h\("p", \{ class: "small slink-chat" \}, "Your history is a chat export only\. Chat exports record no tokens or spend, so the site shows both as not measured[^"]*will not rank in the token, spend or agent arenas\."\)/);
+    expect(page).toContain("chatOnly: !!(ACT.chat && ACT.chat.only)");
+    const box = readFileSync(new URL("../../../src/render/client/sharebox.js", import.meta.url), "utf8");
+    expect(box).toMatch(/env\.chatOnly \? h\("p", \{ class: "small slink-chat" \}, "Your history is a chat export only\. Chat exports record no tokens or spend, so the site shows both as not measured[^"]*will not rank in the token, spend or agent arenas\."\)/);
   });
 
   it("no site page renders a token count without the not-measured check", () => {
