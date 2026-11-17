@@ -237,7 +237,7 @@ export async function offerInstall(deps: OfferDeps): Promise<number | null> {
   deps.stdout(answer === "yes" ? "yes\n" : "no\n");
   if (answer === "no") {
     await recordDecline(deps.home, deps.now(), version).catch(() => undefined);
-    deps.stdout(`${indent}Not asking again for 30 days. Any time: npx ai-insights install\n`);
+    deps.stdout(`${indent}Not asking again for 30 days. Any time: npx ai-insights@latest install\n`);
     return null;
   }
   const plans = installPlan(agents, agents.map((agent) => agent.id));

@@ -2,7 +2,7 @@
 
 > AI Insights turns a person's local AI coding-agent history (Claude Code, Codex, OpenCode, Pi, Cursor, Gemini CLI) into one HTML page on their machine: a recap of animated cards they can share, a private analysis of where their time and tokens go with ranked changes to make, and a comparison with their previous runs. It makes no network calls, has no telemetry and never calls a model API.
 
-- Run it: `npx ai-insights` (Node.js 20 or newer). `npx ai-insights doctor` shows which history it found.
+- Run it: `npx ai-insights@latest` (Node.js 20 or newer). `npx ai-insights@latest doctor` shows which history it found.
 - From an agent: install the plugin, then run `/analyze-ai-usage` in a new session.
 - Package: ai-insights on npm
 - Source: https://github.com/hamedmp/ai-insights (MIT). Built by the Matrix OS team (https://matrix-os.com). Formerly Hindsight.

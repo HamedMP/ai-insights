@@ -66,7 +66,7 @@ function fail(message: string): CallToolResult {
 function safeMessage(error: unknown, action: string): string {
   if (error instanceof ToolError || error instanceof StoreError) return error.message;
   if (error instanceof ZodError) return `Invalid input: ${describeIssues(error)}`;
-  return `AI Insights could not ${action}. Try again; if it keeps failing run \`ai-insights doctor\` in a terminal.`;
+  return `AI Insights could not ${action}. Try again; if it keeps failing run \`npx ai-insights@latest doctor\` in a terminal.`;
 }
 
 function guarded<A>(action: string, handler: (args: A) => Promise<CallToolResult>) {
@@ -231,7 +231,7 @@ function judgedCoverage(sessions: Session[]) {
 
 /** What to do after a scan, and for a returning person, what is already there and what a new narrative does to it. */
 function nextAfterScan(state: { sessions: number; withFacets: number; toJudge: number; stale: number; staleStillRunning: number; narrativeSaved: boolean }): string {
-  if (state.sessions === 0) return "No sessions found. Run ai_insights_scan with a wider since window, or check `ai-insights doctor`.";
+  if (state.sessions === 0) return "No sessions found. Run ai_insights_scan with a wider since window, or check `npx ai-insights@latest doctor`.";
   const start = "Call ai_insights_report for findings, then ai_insights_sessions with missingFacets: true to start the qualitative pass.";
   if (state.withFacets === 0 && !state.narrativeSaved) return start;
   const earlier = [
@@ -746,7 +746,7 @@ export function createServer(deps: ServerDeps): McpServer {
       try {
         outcome = await renderFromScan(deps, result);
       } catch {
-        throw new ToolError("Could not build or write the report. Run `ai-insights doctor` in a terminal to check the setup.");
+        throw new ToolError("Could not build or write the report. Run `npx ai-insights@latest doctor` in a terminal to check the setup.");
       }
       const rank = { high: 0, medium: 1, low: 2, info: 3 } as const;
       return ok({

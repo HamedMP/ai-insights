@@ -9,7 +9,7 @@
 AI Insights was called Hindsight until v0.2; `@matrix-os/hindsight` is deprecated in favour of `ai-insights`.
 
 ```
-npx ai-insights
+npx ai-insights@latest
 ```
 
 Or, from your agent: install the plugin (below) and run `/analyze-ai-usage`.
@@ -53,16 +53,16 @@ Early (0.2). History is read from six agents:
 
 You need Node.js 20 or newer.
 
-**Without an agent:** `npx ai-insights` writes the report and asks whether to open it (`--open` opens it without asking, `--no-open` never asks; it never asks when piped, in CI or over SSH). `npx ai-insights doctor` shows which history it found and where.
+**Without an agent:** `npx ai-insights@latest` writes the report and asks whether to open it (`--open` opens it without asking, `--no-open` never asks; it never asks when piped, in CI or over SSH). `npx ai-insights@latest doctor` shows which history it found and where.
 
 **From your agent:** each install adds the same MCP server (`npx -y ai-insights mcp`) and three skills:
 - `analyze-ai-usage` builds the report, with your own agent labelling a sample of sessions and writing a short narrative;
 - `ai-insights-coach` turns the findings into edits you review;
 - `ai-insights-setup` checks that everything works.
 
-The Claude Code and Codex plugin also shows one line at the start of a new session when a monthly review is due (offline, at most once a month; `npx ai-insights nudge --off` turns it off). Codex runs it only after you approve the hook in `/hooks`; it is untested in the Codex CLI.
+The Claude Code and Codex plugin also shows one line at the start of a new session when a monthly review is due (offline, at most once a month; `npx ai-insights@latest nudge --off` turns it off). Codex runs it only after you approve the hook in `/hooks`; it is untested in the Codex CLI.
 
-**From the command line:** `npx ai-insights install` runs the Claude Code and Codex commands below for the agents it finds, after showing them (`--dry-run` only prints them). The end of a normal run offers the same once; a no is remembered for 30 days, and `--no-install-prompt` or `AI_INSIGHTS_NO_INSTALL_PROMPT=1` turns the offer off.
+**From the command line:** `npx ai-insights@latest install` runs the Claude Code and Codex commands below for the agents it finds, after showing them (`--dry-run` only prints them). The end of a normal run offers the same once; a no is remembered for 30 days, and `--no-install-prompt` or `AI_INSIGHTS_NO_INSTALL_PROMPT=1` turns the offer off.
 
 **Claude Code**
 

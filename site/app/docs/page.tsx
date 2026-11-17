@@ -13,7 +13,7 @@ export default function DocsHome() {
         CLI) and turns it into one HTML page: a recap of animated cards you can post, and a private analysis of what to change. It runs on your
         machine, makes no network calls and never calls a model API.
       </p>
-      <Code label="Terminal">npx ai-insights</Code>
+      <Code label="Terminal">npx ai-insights@latest</Code>
       <p>
         That is the whole install. You need Node.js 20 or newer. The rest of these docs explain what the page shows, what the tool reads, and the
         optional parts: an agent review that adds judgement to the numbers, and a public leaderboard you can join from the website.

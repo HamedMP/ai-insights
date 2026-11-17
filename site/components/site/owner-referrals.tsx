@@ -62,7 +62,7 @@ export function OwnerReferrals({ handle, hasCards }: { handle: string; hasCards:
       <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-4">
         <p className="text-[14px]">
           <span className="font-semibold">This is your profile.</span>{" "}
-          <span className="text-muted-foreground">To update it, run <code className="font-mono">{COMMAND}@latest</code> and publish from the new report&rsquo;s share link.</span>
+          <span className="text-muted-foreground">To update it, run <code className="font-mono">{COMMAND}</code> and publish from the new report&rsquo;s share link.</span>
         </p>
         <RemoveEntry />
       </div>
@@ -72,7 +72,7 @@ export function OwnerReferrals({ handle, hasCards }: { handle: string; hasCards:
       </div>
       {!hasCards && (
         <p className="rounded-xl bg-primary/10 px-4 py-3 text-[14px]">
-          Your profile has no recap cards yet. Run <code className="font-mono">{COMMAND}@latest</code>, open the share link from the new report and press Publish: the cards replace this notice.
+          Your profile has no recap cards yet. Run <code className="font-mono">{COMMAND}</code>, open the share link from the new report and press Publish: the cards replace this notice.
         </p>
       )}
       <p className="flex items-baseline gap-2">

@@ -58,7 +58,7 @@ function box(opts: { deviceId?: string | null; chatOnly?: boolean; stored?: Reco
     deviceId: opts.deviceId === undefined ? DEVICE : opts.deviceId,
     chatOnly: !!opts.chatOnly,
     names: NAMES,
-    site: { siteUrl: "https://ai-insights.app/", command: "npx ai-insights", hashtag: "#AIInsights" },
+    site: { siteUrl: "https://ai-insights.app/", command: "npx ai-insights@latest", hashtag: "#AIInsights" },
     intent: { x: (t: string) => `https://x.com/intent/post?text=${encodeURIComponent(t)}`, linkedin: (t: string) => `https://www.linkedin.com/feed/?text=${encodeURIComponent(t)}` },
     store: { get: (k: string, d: unknown) => (k in saved ? saved[k] : d), set: (k: string, v: unknown) => { saved[k] = v; } },
     copy: (text: string) => { copied.push(text); },

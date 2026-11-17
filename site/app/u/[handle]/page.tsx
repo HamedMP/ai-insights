@@ -33,7 +33,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!entry || entry === "error") return { title: "AI Insights", robots: { index: false } }
   const title = `${entry.displayName}'s AI Insights: find out yours`
   const url = new URL(`u/${entry.handle}`, SITE_URL).toString()
-  const description = `${entry.displayName}'s AI coding recap (self-reported). Find out yours with npx ai-insights.`
+  const description = `${entry.displayName}'s AI coding recap (self-reported). Find out yours with npx ai-insights@latest.`
   return {
     title,
     description,

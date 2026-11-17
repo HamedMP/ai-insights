@@ -231,7 +231,7 @@ export default function Page() {
             <Reveal className="grid grid-cols-1 gap-px overflow-hidden rounded-2xl border bg-border md:grid-cols-3">
               <Verify title="Read the code" body={<>MIT licensed. The repository&apos;s first rule: no network calls anywhere in the source. <a className="link-underline text-foreground" href={REPO}>On GitHub</a>.</>} />
               <Verify title="Check the page" body={<>The report&apos;s Content-Security-Policy starts with <code className="font-mono text-[13px] text-foreground">default-src &apos;none&apos;</code>, so the page cannot load or send anything by itself.</>} />
-              <Verify title="See what it read" body={<><code className="font-mono text-[13px] text-foreground">npx ai-insights doctor</code> lists each history it found and where. Secrets are redacted before anything is stored.</>} />
+              <Verify title="See what it read" body={<><code className="font-mono text-[13px] text-foreground">npx ai-insights@latest doctor</code> lists each history it found and where. Secrets are redacted before anything is stored.</>} />
             </Reveal>
           </div>
         </section>

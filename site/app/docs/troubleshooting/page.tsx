@@ -12,10 +12,10 @@ export default function Troubleshooting() {
         Start with <code>doctor</code>. It shows the version, your Node version, every place AI Insights looked for each agent, and whether its own
         folder is writable.
       </p>
-      <Code label="Terminal">npx ai-insights doctor</Code>
+      <Code label="Terminal">npx ai-insights@latest doctor</Code>
 
       <H2 id="no-sessions">No agent sessions found</H2>
-      <Code label="Output" copy={false}>{`No agent sessions found. Run \`ai-insights doctor\` to see where AI Insights looked.
+      <Code label="Output" copy={false}>{`No agent sessions found. Run \`npx ai-insights@latest doctor\` to see where AI Insights looked.
 AI Insights reads Claude Code, Codex, Cursor, Pi, OpenCode and Gemini CLI history from their usual folders on this machine.
 More help: https://ai-insights.app/docs/troubleshooting`}</Code>
       <p>
@@ -93,7 +93,7 @@ More help: https://ai-insights.app/docs/troubleshooting`}</Code>
         If <code>doctor</code> prints <code>NOT writable: set AI_INSIGHTS_HOME to a folder you own</code>, point AI Insights at a folder you can
         write to:
       </p>
-      <Code label="Terminal">{`AI_INSIGHTS_HOME="$HOME/ai-insights-data" npx ai-insights`}</Code>
+      <Code label="Terminal">{`AI_INSIGHTS_HOME="$HOME/ai-insights-data" npx ai-insights@latest`}</Code>
       <p>
         For a full error trace on any failing command, set <code>AI_INSIGHTS_DEBUG=1</code> and include the output when you{" "}
         <a href={`${REPO}/issues`}>open an issue</a>, after checking it for anything private.
@@ -107,7 +107,7 @@ More help: https://ai-insights.app/docs/troubleshooting`}</Code>
       </p>
       <H3 id="faq-plugin">Do I need the plugin?</H3>
       <p>
-        No. <code>npx ai-insights</code> gives you the cards, the video, the findings and the suggestions. The plugin adds the agent review and the
+        No. <code>npx ai-insights@latest</code> gives you the cards, the video, the findings and the suggestions. The plugin adds the agent review and the
         coach that turns findings into edits you approve.
       </p>
       <H3 id="faq-same">Why does every run give the same findings?</H3>
@@ -139,7 +139,7 @@ More help: https://ai-insights.app/docs/troubleshooting`}</Code>
       </p>
       <H3 id="faq-bug">Where do I report a bug?</H3>
       <p>
-        In <a href={`${REPO}/issues`}>GitHub issues</a>. Include the output of <code>npx ai-insights doctor</code>, and never paste transcript
+        In <a href={`${REPO}/issues`}>GitHub issues</a>. Include the output of <code>npx ai-insights@latest doctor</code>, and never paste transcript
         content or prompts you would not want public.
       </p>
     </DocShell>

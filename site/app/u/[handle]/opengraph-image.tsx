@@ -89,7 +89,7 @@ export default async function Image({ params }: { params: Promise<{ handle: stri
           ) : null}
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 30 }}>
-          <span>Find out yours: npx ai-insights</span>
+          <span>Find out yours: npx ai-insights@latest</span>
           <span style={{ color: "#ff6a1a" }}>ai-insights.app</span>
         </div>
       </div>

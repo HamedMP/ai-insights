@@ -6,7 +6,7 @@ import { ShareCard } from "@/components/site/share-card"
 import { clerkEnabled } from "@/lib/auth-config"
 
 const title = "AI Insights: someone's AI coding, recapped"
-const description = "A recap of AI coding-agent stats, made with AI Insights. Find out yours with npx ai-insights."
+const description = "A recap of AI coding-agent stats, made with AI Insights. Find out yours with npx ai-insights@latest."
 
 export const metadata: Metadata = {
   title,

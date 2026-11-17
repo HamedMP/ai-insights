@@ -11,7 +11,7 @@ export default function AgentReview() {
       <p>The report has two layers, and only the first needs nothing but the command line.</p>
       <ol>
         <li>
-          <strong>Deterministic.</strong> <code>npx ai-insights</code> counts everything: activity, the recap, tokens, cost and findings. No model
+          <strong>Deterministic.</strong> <code>npx ai-insights@latest</code> counts everything: activity, the recap, tokens, cost and findings. No model
           is involved.
         </li>
         <li>
@@ -34,12 +34,12 @@ export default function AgentReview() {
       </p>
       <H3 id="install-from-cli">From the command line</H3>
       <p>
-        <code>npx ai-insights install</code> runs the Claude Code and Codex commands below for whichever of the two is on your machine, after
-        showing them to you. The end of a normal <code>npx ai-insights</code> run offers the same. See the{" "}
+        <code>npx ai-insights@latest install</code> runs the Claude Code and Codex commands below for whichever of the two is on your machine, after
+        showing them to you. The end of a normal <code>npx ai-insights@latest</code> run offers the same. See the{" "}
         <DocLink href="/docs/cli#cmd-install">CLI reference</DocLink>.
       </p>
-      <Code label="Terminal">{`npx ai-insights install --dry-run   # print the commands only
-npx ai-insights install             # run them after you say yes`}</Code>
+      <Code label="Terminal">{`npx ai-insights@latest install --dry-run   # print the commands only
+npx ai-insights@latest install             # run them after you say yes`}</Code>
       <H3 id="install-claude-code">Claude Code</H3>
       <Code label="Claude Code">{`/plugin marketplace add hamedmp/ai-insights
 /plugin install ai-insights@ai-insights`}</Code>

@@ -90,7 +90,7 @@ export function Install() {
           <span className="hidden font-mono text-[11px] text-muted-foreground sm:inline">Node.js 20+</span>
         </div>
         <TabsContent value="cli" className="animate-in fade-in-0 slide-in-from-bottom-1 duration-300 motion-reduce:animate-none">
-          <CommandBlock where="any terminal: the cards and the analysis, no agent needed" lines={[COMMAND, "npx ai-insights doctor"]} />
+          <CommandBlock where="any terminal: the cards and the analysis, no agent needed" lines={[COMMAND, "npx ai-insights@latest doctor"]} />
           <p className="px-2 pt-3 text-sm text-muted-foreground">
             The first writes the report; <code className="font-mono text-foreground">doctor</code> shows which history it found and where.
           </p>

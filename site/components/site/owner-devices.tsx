@@ -189,7 +189,7 @@ export function OwnerDevices({ handle }: { handle: string }) {
         <PhotoSwitch initial={mine.photo} />
       </div>
       <p className="text-[14px] text-muted-foreground">
-        Each computer you publish from keeps its own numbers, and your profile adds them up. To add one, run <code className="font-mono">{COMMAND}@latest</code> there and publish from its report while signed in to this account. Publishing again from a computer replaces only that computer&rsquo;s numbers. Names stay private unless you tick &ldquo;Show the name publicly&rdquo;; otherwise visitors see &ldquo;Device 1&rdquo;, &ldquo;Device 2&rdquo;.
+        Each computer you publish from keeps its own numbers, and your profile adds them up. To add one, run <code className="font-mono">{COMMAND}</code> there and publish from its report while signed in to this account. Publishing again from a computer replaces only that computer&rsquo;s numbers. Names stay private unless you tick &ldquo;Show the name publicly&rdquo;; otherwise visitors see &ldquo;Device 1&rdquo;, &ldquo;Device 2&rdquo;.
       </p>
       {!mine.exactDays && mine.devices.length > 1 && (
         <p className="rounded-xl bg-primary/10 px-4 py-3 text-[14px]">Your active days and streak are shown as &ldquo;at least&rdquo;: not every device sent which days it was active. Publish again from AI Insights 0.5 or newer, with &ldquo;Include which days I was active&rdquo; ticked, for exact figures.</p>

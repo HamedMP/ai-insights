@@ -320,7 +320,7 @@ export function resultScreen(input: ResultInput, style: Style): string {
 
 /** No sessions: what happened, what to try, and where the docs are. The first line is the one the docs quote. */
 export function noHistoryText(filters: string[]): string {
-  const lines = ["No agent sessions found. Run `ai-insights doctor` to see where AI Insights looked."];
+  const lines = ["No agent sessions found. Run `npx ai-insights@latest doctor` to see where AI Insights looked."];
   lines.push("AI Insights reads Claude Code, Codex, Cursor, Pi, OpenCode and Gemini CLI history from their usual folders on this machine.");
   if (filters.length) lines.push(`Your filters (${filters.join(", ")}) may leave nothing: try again without them.`);
   lines.push(`More help: ${TROUBLESHOOTING_URL}`);

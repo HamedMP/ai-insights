@@ -11,7 +11,7 @@ export const SAMPLE = `${BASE}/demo/report.html`
 /** The launch hashtag. Not final: change it here and every mention on the site follows. */
 export const HASHTAG = "#MyAIInsights"
 /** The one command, and the skill to run it from an agent. */
-export const COMMAND = "npx ai-insights"
+export const COMMAND = "npx ai-insights@latest"
 export const SKILL = "/analyze-ai-usage"
 
 /** A file under public/, with the base path the export is served from. */

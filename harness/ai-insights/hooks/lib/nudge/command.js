@@ -28,7 +28,7 @@ export async function runNudge(argv, deps) {
             const saved = await writeNudgeState(home, { ...state, off: toggle === "off" });
             deps.stdout(saved
                 ? toggle === "off"
-                    ? "AI Insights will not remind you about monthly reviews. Turn it back on: ai-insights nudge --on\n"
+                    ? "AI Insights will not remind you about monthly reviews. Turn it back on: npx ai-insights@latest nudge --on\n"
                     : "AI Insights will remind you once a month, at the start of a session, when a review is due.\n"
                 : `Could not save the setting in ${home}.\n`);
             return 0;

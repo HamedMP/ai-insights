@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils"
 const title = "AI Insights: your AI coding, recapped"
 const description =
   "One command turns your local Claude Code, Codex, Cursor, OpenCode, Pi and Gemini CLI history into animated recap cards you can post, and a private analysis of what to change. Nothing leaves your machine."
-const image = { url: "og.png", width: 1200, height: 630, alt: "AI Insights by Matrix OS: recap cards in three styles, made from your local agent history with npx ai-insights." }
+const image = { url: "og.png", width: 1200, height: 630, alt: "AI Insights by Matrix OS: recap cards in three styles, made from your local agent history with npx ai-insights@latest." }
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

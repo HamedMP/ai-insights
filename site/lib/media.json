@@ -215,7 +215,7 @@
       "parallel"
     ]
   ],
-  "caption": "I'm The Morning Orchestrator.\n7 agents running at once · 137 hours with AI agents in 51 days · 921.5M tokens\nMake yours: npx ai-insights or /analyze-ai-usage\nhttps://ai-insights.app/\n#MyAIInsights",
+  "caption": "I'm The Morning Orchestrator.\n7 agents running at once · 137 hours with AI agents in 51 days · 921.5M tokens\nMake yours: npx ai-insights@latest or /analyze-ai-usage\nhttps://ai-insights.app/\n#MyAIInsights",
   "video": {
     "file": "media/sample-1x1.mp4",
     "poster": "media/sample-1x1.webp",
