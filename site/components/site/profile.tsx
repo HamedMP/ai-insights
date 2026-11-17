@@ -45,7 +45,7 @@ export const joinedLabel = (iso: string) => `Joined ${MONTH_YEAR.format(new Date
 export function Avatar({ url, name, handle, className }: { url: string | null; name: string; handle: string; className?: string }) {
   const safe = safeAvatarUrl(url)
   return (
-    <span aria-hidden className={cn("grid shrink-0 place-items-center overflow-hidden bg-[#141210] font-semibold tracking-[-0.04em] text-[#ffe14a]", className)}>
+    <span aria-hidden className={cn("on-dark grid shrink-0 place-items-center overflow-hidden bg-[#141210] font-semibold tracking-[-0.04em] text-[#ffe14a]", className)}>
       {safe ? (
         // eslint-disable-next-line @next/next/no-img-element -- a Clerk-hosted photo; next/image would proxy it through the site
         <img src={safe} alt="" referrerPolicy="no-referrer" loading="lazy" decoding="async" className="size-full object-cover" />
@@ -160,7 +160,7 @@ export function AgentsAndFact({ stats }: { stats: SharedStats }) {
         </div>
       )}
       {stats.fact && (
-        <p className="flex items-center rounded-2xl bg-[#141210] px-5 py-4 text-[17px] leading-snug font-medium text-[#f7f3ea] break-words sm:max-w-[18rem]">
+        <p className="on-dark flex items-center rounded-2xl bg-[#141210] px-5 py-4 text-[17px] leading-snug font-medium text-[#f7f3ea] break-words sm:max-w-[18rem]">
           <span>
             <span className="mb-1 block font-mono text-[10.5px] tracking-wide text-[#ffe14a] uppercase">fun fact</span>
             {stats.fact}
@@ -278,7 +278,7 @@ export function EarnedTitles({ stats }: { stats: SharedStats }) {
         {titles.map((t) => {
           const def = EARNED_TITLES[t.k]
           return (
-            <li key={t.k} className="relative flex flex-col gap-1.5 overflow-hidden rounded-2xl bg-[#3d1bb3] px-5 py-4 text-[#f7f3ea]">
+            <li key={t.k} className="on-dark relative flex flex-col gap-1.5 overflow-hidden rounded-2xl bg-[#3d1bb3] px-5 py-4 text-[#f7f3ea]">
               <div aria-hidden className="pointer-events-none absolute -top-8 -right-8 size-24 rounded-full bg-[#c9b8ff]/25" />
               <p className="relative text-[1.25rem] leading-tight font-semibold tracking-[-0.03em]">{def.title}</p>
               <p className="relative text-[12.5px] leading-snug text-[#f7f3ea]/75">{def.rule(t.v)}</p>

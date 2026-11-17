@@ -140,7 +140,7 @@ h1{font-weight:700;font-size:64px;line-height:.98;letter-spacing:-.045em;margin-
 p{font-size:21px;line-height:1.4;color:#3b3a37;margin-top:22px}.c{position:absolute;left:64px;bottom:58px;font:600 22px GM;background:#17140f;color:#f3f0e8;border-radius:14px;padding:16px 22px}.c b{color:#ff7a2f}
 .cards img{position:absolute;width:310px;height:310px;border-radius:22px;box-shadow:0 30px 60px -28px rgba(40,20,0,.55),0 2px 6px rgba(0,0,0,.12)}</style>
 <div class="t"><div class="k">${rabbitSvg("#c2410c")} AI Insights · by Matrix OS</div><h1>Your AI coding, <em>recapped</em>.</h1><p>Animated cards from your local agent history. Post them. Nothing leaves your machine.</p></div>
-<div class="c"><b>$</b> npx ai-insights</div>
+<div class="c"><b>$</b> npx ai-insights@latest</div>
 <div class="cards"><img src="${trio[1]}" style="left:548px;top:200px;transform:rotate(-7deg)"><img src="${trio[2]}" style="left:878px;top:205px;transform:rotate(7deg)"><img src="${trio[0]}" style="left:712px;top:118px;z-index:2"></div></div>`, 1200, 630, join(work, "og.png"))
   ffmpeg("-i", join(work, "og.png"), "-pix_fmt", "rgb24", join(site, "public/og.png"))
 

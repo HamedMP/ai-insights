@@ -50,7 +50,7 @@ export function YouPanel({ entry, ranks, jump, onPhotoChange }: { entry: YouEntr
       <div className="flex flex-wrap items-center gap-x-1 gap-y-2">
         {best && (
           <details className="group relative">
-            <summary className="inline-flex h-8 cursor-pointer list-none items-center gap-1.5 rounded-md bg-foreground px-3 font-mono text-[11.5px] text-background outline-none hover:bg-foreground/90 focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
+            <summary className="on-dark inline-flex h-8 cursor-pointer list-none items-center gap-1.5 rounded-md bg-foreground px-3 font-mono text-[11.5px] text-background outline-none hover:bg-foreground/90 focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
               Share {best.chip}
               <span aria-hidden className="transition-transform group-open:rotate-180">▾</span>
             </summary>

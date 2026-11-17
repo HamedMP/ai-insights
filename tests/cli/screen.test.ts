@@ -220,7 +220,7 @@ describe("on a terminal: the designed result screen", () => {
 describe("when nothing was found", () => {
   it("says what happened and what to try, on stderr", async () => {
     expect(await run([], deps({ sources: [fakeSource("claude-code", [])] }))).toBe(1);
-    expect(err).toContain("No agent sessions found. Run `ai-insights doctor` to see where AI Insights looked.");
+    expect(err).toContain("No agent sessions found. Run `npx ai-insights@latest doctor` to see where AI Insights looked.");
     expect(err).toContain("https://ai-insights.app/docs/troubleshooting");
     expect(out).toBe("");
   });

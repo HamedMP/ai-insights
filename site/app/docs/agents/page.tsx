@@ -33,7 +33,7 @@ export default function Agents() {
         ]}
       />
       <p>
-        Run <code>npx ai-insights doctor</code> to see which of these it found on your machine, where, how many transcripts and over which dates.
+        Run <code>npx ai-insights@latest doctor</code> to see which of these it found on your machine, where, how many transcripts and over which dates.
       </p>
 
       <H2 id="locations">Where each agent&apos;s history lives</H2>

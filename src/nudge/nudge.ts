@@ -11,7 +11,7 @@ export const NUDGE_FILE = "nudge.json";
 export const REPORT_FILE = join("reports", "report.html");
 
 export const NUDGE_TEXT =
-  "AI Insights: your monthly review is due. Run /analyze-ai-usage, or npx ai-insights in a terminal. (Turn this off: npx ai-insights nudge --off)";
+  "AI Insights: your monthly review is due. Run /analyze-ai-usage, or npx ai-insights@latest in a terminal. (Turn this off: npx ai-insights@latest nudge --off)";
 
 export interface NudgeState {
   /** The person turned the reminder off. */
@@ -62,7 +62,7 @@ async function lastReport(home: string): Promise<Date | null> {
 /**
  * Due once per calendar month: when no report has been written this month and the reminder has not been
  * shown this month. So the first session of a new month asks for the month just ended, a report written this
- * month (by `npx ai-insights` or the skill) quiets it, and it never repeats within the month.
+ * month (by `npx ai-insights@latest` or the skill) quiets it, and it never repeats within the month.
  */
 export function isDue(state: NudgeState, report: Date | null, now: Date): boolean {
   if (state.off) return false;

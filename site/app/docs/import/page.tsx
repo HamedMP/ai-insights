@@ -20,7 +20,7 @@ export default function ImportChatHistory() {
         <li>Click Export data and choose a date range.</li>
         <li>Open the email within 24 hours and download the export. You have to be signed in, and the link may work only once.</li>
         <li>
-          Keep the &ldquo;conversations&rdquo; zip and run <code>ai-insights import claude &lt;path&gt;</code>. The other files are not needed.
+          Keep the &ldquo;conversations&rdquo; zip and run <code>npx ai-insights@latest import claude &lt;path&gt;</code>. The other files are not needed.
         </li>
       </ol>
       <p>
@@ -54,7 +54,7 @@ export default function ImportChatHistory() {
       </ul>
 
       <H2 id="import">Import it</H2>
-      <Code label="Terminal">{`npx ai-insights import claude ~/Downloads/<your-export>.zip`}</Code>
+      <Code label="Terminal">{`npx ai-insights@latest import claude ~/Downloads/<your-export>.zip`}</Code>
       <p>The path can be any of:</p>
       <ul>
         <li>the export <code>.zip</code> as you downloaded it (it is read in place and never unpacked to disk);</li>
@@ -128,8 +128,8 @@ Run \`ai-insights\` to see it in your report.`}</Code>
         Importing a newer export replaces the earlier import whole, including conversations you have since deleted. To see or remove what is
         imported:
       </p>
-      <Code label="Terminal">{`npx ai-insights import --list
-npx ai-insights import --remove claude`}</Code>
+      <Code label="Terminal">{`npx ai-insights@latest import --list
+npx ai-insights@latest import --remove claude`}</Code>
       <p>
         Removing deletes the imported sessions, their cached copies and any labels your agent saved for them. It never touches the export file you
         downloaded.

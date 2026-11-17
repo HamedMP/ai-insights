@@ -145,7 +145,7 @@ describe("ai-insights (no command)", () => {
 
   it("says where to look when no history exists", async () => {
     expect(await run([], deps({ sources: [fakeSource("claude-code", [])] }))).toBe(1);
-    expect(err).toContain("ai-insights doctor");
+    expect(err).toContain("npx ai-insights@latest doctor");
   });
 
   it("reports a failing analysis as a one-line error, not a stack trace", async () => {

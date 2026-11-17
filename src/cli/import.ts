@@ -76,7 +76,7 @@ export async function runImport(argv: string[], deps: ImportDeps): Promise<numbe
       const manifest = await readManifest(deps.home, format.harness);
       if (manifest) lines.push(...describe(format, manifest));
     }
-    deps.stdout(lines.length ? `Imported\n${lines.join("\n")}\n` : "Nothing imported yet. Run `ai-insights import claude <path>`.\n");
+    deps.stdout(lines.length ? `Imported\n${lines.join("\n")}\n` : "Nothing imported yet. Run `npx ai-insights@latest import claude <path>`.\n");
     return 0;
   }
   if (flags.includes("--remove")) {

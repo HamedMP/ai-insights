@@ -70,7 +70,7 @@ export function StatsCard({ stats, headingLevel = 1 }: { stats: SharedStats | nu
   return (
       <article
         aria-label={who ? `${who}'s AI Insights` : "AI Insights"}
-        className={cn("w-full max-w-[34rem] overflow-hidden rounded-[1.6rem] bg-[#17140f] text-[#f3f0e8] shadow-2xl ring-1 ring-black/10 transition-opacity duration-300 dark:ring-white/10", stats === undefined && "opacity-0")}
+        className={cn("on-dark w-full max-w-[34rem] overflow-hidden rounded-[1.6rem] bg-[#17140f] text-[#f3f0e8] shadow-2xl ring-1 ring-black/10 transition-opacity duration-300 dark:ring-white/10", stats === undefined && "opacity-0")}
       >
         <div className="relative flex flex-col gap-6 p-6 sm:p-8">
           <div aria-hidden className="pointer-events-none absolute -top-24 -right-24 size-72 rounded-full bg-[#ff6a1a]/25 blur-3xl" />

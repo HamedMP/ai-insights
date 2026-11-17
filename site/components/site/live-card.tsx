@@ -105,7 +105,7 @@ export function LiveCard({ cards = media.defaults, initialStyle = "pop", classNa
     <div ref={wrap} className={cn("flex flex-col items-center gap-4", className)}>
       <div className={cn("flex w-full items-center justify-center [--box-h:min(88vw,440px)] sm:[--box-h:500px] lg:[--box-h:540px]", boxClassName)} style={{ height: "var(--box-h)" }}>
         <div
-          className="relative overflow-hidden rounded-[18px] bg-[#141210] shadow-[0_2px_4px_rgb(0_0_0/0.08),0_40px_80px_-36px_rgb(60_30_10/0.55)] ring-1 ring-black/5 transition-[width] duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none dark:shadow-[0_40px_90px_-30px_rgb(0_0_0/0.9)] dark:ring-white/10"
+          className="on-dark relative overflow-hidden rounded-[18px] bg-[#141210] shadow-[0_2px_4px_rgb(0_0_0/0.08),0_40px_80px_-36px_rgb(60_30_10/0.55)] ring-1 ring-black/5 transition-[width] duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none dark:shadow-[0_40px_90px_-30px_rgb(0_0_0/0.9)] dark:ring-white/10"
           style={{ aspectRatio: `${r.w} / ${r.h}`, width: `min(100%, calc(var(--box-h) * ${r.w / r.h}))` }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}

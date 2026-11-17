@@ -9,7 +9,7 @@ export default function Cli() {
     <DocShell slug="cli">
       <p>
         The package installs two commands, <code>ai-insights</code> and <code>hindsight</code>, which run the same program. With{" "}
-        <code>npx</code> you do not need to install anything: <code>npx ai-insights &lt;command&gt;</code>.
+        <code>npx</code> you do not need to install anything: <code>npx ai-insights@latest &lt;command&gt;</code>.
       </p>
       <Code label="Usage" copy={false}>{`ai-insights [options]          scan, write the report, print a summary
 ai-insights scan [options]     scan and show what was found
@@ -72,7 +72,7 @@ Parsed 0, reused 12 from cache.`}</Code>
         Writes the report and prints only its path. With <code>--json</code> it writes nothing and prints the whole report as JSON instead: version,
         time zone, range, coverage, activity, usage, findings, facets, narrative, recap, retention, the causes of friction and the ratios.
       </p>
-      <Code label="Terminal">{`npx ai-insights report --json > report.json`}</Code>
+      <Code label="Terminal">{`npx ai-insights@latest report --json > report.json`}</Code>
       <H3 id="cmd-doctor">ai-insights doctor</H3>
       <p>
         Shows the version and Node version, then for each agent: how many transcripts it found and their dates, how long the agent keeps them,
@@ -197,9 +197,9 @@ ai-insights nudge --on     remind me again`}</Code>
           [<code key="v">-v, --version</code>, "Show the version."],
         ]}
       />
-      <Code label="Examples">{`npx ai-insights --since 90d --open
-npx ai-insights scan --harness codex
-npx ai-insights --refresh`}</Code>
+      <Code label="Examples">{`npx ai-insights@latest --since 90d --open
+npx ai-insights@latest scan --harness codex
+npx ai-insights@latest --refresh`}</Code>
 
       <H2 id="environment">Environment variables</H2>
       <Table
@@ -257,7 +257,7 @@ npx ai-insights --refresh`}</Code>
           ],
         ]}
       />
-      <Code label="Output" copy={false}>{`$ npx ai-insights --since 5x
+      <Code label="Output" copy={false}>{`$ npx ai-insights@latest --since 5x
 ai-insights: --since must be a window like 30d, 12w, 6m or 1y, or an ISO date like 2026-01-31
 Run \`ai-insights --help\` for usage.`}</Code>
 

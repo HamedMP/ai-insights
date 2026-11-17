@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils"
  */
 
 const title = "AI Insights leaderboard"
-const description = "Who uses AI coding agents the most: tokens, spend, Claude Code, Codex and streaks, self-reported from AI Insights recaps. Find out yours with npx ai-insights."
+const description = "Who uses AI coding agents the most: tokens, spend, Claude Code, Codex and streaks, self-reported from AI Insights recaps. Find out yours with npx ai-insights@latest."
 
 export const boardMetadata: Metadata = {
   title,

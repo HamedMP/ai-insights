@@ -127,8 +127,8 @@ describe("the public site", () => {
       expect(install, line).toContain(line);
       expect(readme, line).toContain(line);
     }
-    expect(read("site/lib/site.ts")).toContain('COMMAND = "npx ai-insights"');
-    expect(readme).toContain("npx ai-insights");
+    expect(read("site/lib/site.ts")).toContain('COMMAND = "npx ai-insights@latest"');
+    expect(readme).toContain("npx ai-insights@latest");
     const page = read("site/app/page.tsx");
     for (const agent of ["Claude Code", "Codex", "OpenCode", "Pi", "Cursor", "Gemini CLI"]) expect(page, agent).toContain(`name: "${agent}"`);
     expect(page).toMatch(/name: "Cursor"[^}]*tokens: "No"/);
@@ -165,6 +165,6 @@ describe("the public site", () => {
     // The caption shown on the site is the sample's share-safe caption: no project names from the invented history.
     const media = JSON.parse(read("site/lib/media.json"));
     expect(media.caption).not.toMatch(/acme-api|web-app/);
-    expect(media.caption).toContain("npx ai-insights");
+    expect(media.caption).toContain("npx ai-insights@latest");
   });
 });

@@ -60,9 +60,9 @@ export function PublishPreview({ stats, name, handle, avatarUrl }: { stats: Shar
       {(titles.length > 0 || stats.fact) && (
         <div className="flex flex-wrap gap-2">
           {titles.map((t) => (
-            <span key={t.k} className="inline-flex h-7 items-center rounded-full bg-[#3d1bb3] px-3 text-[12.5px] font-semibold text-[#f7f3ea]">{EARNED_TITLES[t.k].title}</span>
+            <span key={t.k} className="on-dark inline-flex h-7 items-center rounded-full bg-[#3d1bb3] px-3 text-[12.5px] font-semibold text-[#f7f3ea]">{EARNED_TITLES[t.k].title}</span>
           ))}
-          {stats.fact && <span className="inline-flex min-h-7 items-center rounded-2xl bg-[#141210] px-3 py-1 text-[12.5px] leading-snug font-medium text-[#f7f3ea] break-words">{stats.fact}</span>}
+          {stats.fact && <span className="on-dark inline-flex min-h-7 items-center rounded-2xl bg-[#141210] px-3 py-1 text-[12.5px] leading-snug font-medium text-[#f7f3ea] break-words">{stats.fact}</span>}
         </div>
       )}
 

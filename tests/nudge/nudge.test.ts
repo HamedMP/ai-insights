@@ -82,7 +82,7 @@ describe("ai-insights nudge", () => {
   });
 
   it("tells the person how to turn it off in the line itself", () => {
-    expect(NUDGE_TEXT).toContain("npx ai-insights nudge --off");
+    expect(NUDGE_TEXT).toContain("npx ai-insights@latest nudge --off");
   });
 });
 

@@ -221,6 +221,6 @@ describe("skills", () => {
   it("the setup skill checks the server and runs doctor", () => {
     const text = read("ai-insights-setup");
     expect(text).toContain("ai_insights_scan");
-    expect(text).toContain("npx -y ai-insights doctor");
+    expect(text).toContain("npx -y ai-insights@latest doctor");
   });
 });

@@ -302,7 +302,7 @@ const CardKit = (() => {
 const SHARE = Object.freeze({
   hashtag: "#MyAIInsights",
   pitch: "Made with AI Insights by Matrix OS",
-  command: "npx ai-insights",
+  command: "npx ai-insights@latest",
   skill: "/analyze-ai-usage",
   site: "ai-insights.app",
   siteUrl: "https://ai-insights.app/",

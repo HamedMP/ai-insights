@@ -23,7 +23,7 @@ export default function GettingStarted() {
       </ul>
 
       <H2 id="first-run">Your first run</H2>
-      <Code label="Terminal">npx ai-insights</Code>
+      <Code label="Terminal">npx ai-insights@latest</Code>
       <p>
         AI Insights draws the Matrix OS rabbit at once, then shows what it is doing on one line (finding your history, reading sessions, analysing, writing
         the report) and ends with a check mark and the time it took. Then it shows what it found and asks whether to open the report. On a
@@ -130,7 +130,7 @@ Next steps
   5. Go deeper: run the analyze-ai-usage skill in your agent to add what went well and what got in the way.`}</Code>
       <p>
         Open the report in any browser. It is one file with everything inside it, so you can also move it or keep a copy. If nothing is found, the
-        command prints <code>No agent sessions found.</code> with what to try and exits with code 1; run <code>npx ai-insights doctor</code> to
+        command prints <code>No agent sessions found.</code> with what to try and exits with code 1; run <code>npx ai-insights@latest doctor</code> to
         see where it looked.
       </p>
 
@@ -182,15 +182,15 @@ Next steps
       </p>
 
       <p>
-        Or let the command line do it: after the report, <code>npx ai-insights</code> offers to install the plugin into Claude Code and Codex, and{" "}
-        <code>npx ai-insights install</code> does the same at any time.
+        Or let the command line do it: after the report, <code>npx ai-insights@latest</code> offers to install the plugin into Claude Code and Codex, and{" "}
+        <code>npx ai-insights@latest install</code> does the same at any time.
       </p>
 
       <H2 id="monthly-reminder">The monthly reminder</H2>
       <p>
         With the plugin installed, a new Claude Code or Codex session can show one line when a review is due:
       </p>
-      <Code label="Shown at session start" copy={false}>{`AI Insights: your monthly review is due. Run /analyze-ai-usage, or npx ai-insights in a terminal. (Turn this off: npx ai-insights nudge --off)`}</Code>
+      <Code label="Shown at session start" copy={false}>{`AI Insights: your monthly review is due. Run /analyze-ai-usage, or npx ai-insights@latest in a terminal. (Turn this off: npx ai-insights@latest nudge --off)`}</Code>
       <ul>
         <li>It is due when no report has been written this calendar month. It shows at most once a month, on the first new session that finds it due.</li>
         <li>
@@ -203,7 +203,7 @@ Next steps
           Resumed, cleared and compacted sessions never show it.
         </li>
         <li>
-          <code>npx ai-insights nudge --off</code> turns it off; <code>--on</code> turns it back on. Uninstalling the plugin removes it.
+          <code>npx ai-insights@latest nudge --off</code> turns it off; <code>--on</code> turns it back on. Uninstalling the plugin removes it.
         </li>
       </ul>
       <p>
