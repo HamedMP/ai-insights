@@ -33,7 +33,7 @@ export function GetIt({ className }: { className?: string }) {
         <TabsTrigger value="agent" className="rounded-full px-3 text-[13px]">In your agent</TabsTrigger>
       </TabsList>
       <TabsContent value="cli" className="animate-in fade-in-0 duration-300 motion-reduce:animate-none">
-        <div data-hero-command="" className="flex items-center gap-3 rounded-2xl border border-foreground/90 bg-foreground py-2 pr-2 pl-4 text-background shadow-[0_14px_34px_-16px_rgb(0_0_0/0.55)] dark:border-white/15 dark:bg-[#1b1b1f] dark:text-foreground">
+        <div data-hero-command="" className="on-dark flex items-center gap-3 rounded-2xl border border-foreground/90 bg-foreground py-2 pr-2 pl-4 text-background shadow-[0_14px_34px_-16px_rgb(0_0_0/0.55)] dark:border-white/15 dark:bg-[#1b1b1f] dark:text-foreground">
           <code className="min-w-0 flex-1 truncate font-mono text-[17px] font-medium sm:text-lg">
             <span aria-hidden className="mr-2.5 select-none text-[#ff7a2f]">$</span>
             {COMMAND}

@@ -42,7 +42,7 @@ function RankMark({ rank }: { rank: number | null }) {
     <span
       className={cn(
         "inline-grid h-6 min-w-6 place-items-center rounded-[5px] px-1 font-mono text-[12px] tabular-nums",
-        rank === 1 ? "bg-foreground font-semibold text-background" : rank <= 3 ? "font-semibold ring-1 ring-foreground/70 ring-inset" : "text-muted-foreground",
+        rank === 1 ? "on-dark bg-foreground font-semibold text-background" : rank <= 3 ? "font-semibold ring-1 ring-foreground/70 ring-inset" : "text-muted-foreground",
       )}
     >
       {rank}

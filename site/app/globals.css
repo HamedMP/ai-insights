@@ -73,6 +73,9 @@
   --cell-3: #df6a2c;
   --cell-4: #c2410c;
   --dot: rgb(23 20 15 / 0.075);
+  /* Selected text: an opaque highlight with its own ink, so it reads the same on every background. */
+  --selection: #f5c39c;
+  --selection-foreground: #17140f;
   --radius: 0.625rem;
 }
 
@@ -105,6 +108,14 @@
   --cell-3: #c8581c;
   --cell-4: #ff7a2f;
   --dot: rgb(255 255 255 / 0.055);
+  --selection: #c2410c;
+  --selection-foreground: #ffffff;
+}
+
+/* Dark blocks on a light page (the hero command, the share section, dark cards): the highlight goes brand orange. */
+.on-dark {
+  --selection: #c2410c;
+  --selection-foreground: #ffffff;
 }
 
 @layer base {
@@ -135,8 +146,12 @@
     min-width: 0;
   }
   ::selection {
-    background: var(--brand-soft);
-    color: var(--foreground);
+    background: var(--selection);
+    color: var(--selection-foreground);
+  }
+  /* Pictures only take a tint, so a selected card stays visible under the highlight. */
+  :is(img, video, svg)::selection {
+    background: rgb(194 65 12 / 0.22);
   }
 }
 

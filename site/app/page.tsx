@@ -157,7 +157,7 @@ export default function Page() {
               </Reveal>
             </div>
             <Reveal variant="rise" className="flex flex-col gap-3">
-              <div className="mx-auto w-full max-w-[34rem] overflow-hidden rounded-[18px] bg-[#141210] shadow-[0_40px_80px_-36px_rgb(60_30_10/0.55)] ring-1 ring-black/5 dark:ring-white/10">
+              <div className="on-dark mx-auto w-full max-w-[34rem] overflow-hidden rounded-[18px] bg-[#141210] shadow-[0_40px_80px_-36px_rgb(60_30_10/0.55)] ring-1 ring-black/5 dark:ring-white/10">
                 <video className="block aspect-square w-full" controls muted playsInline preload="none" poster={asset(media.video.poster)} aria-label="A sample recap video, exported from the sample report">
                   <source src={asset(media.video.file)} type="video/mp4" />
                 </video>
@@ -178,7 +178,7 @@ export default function Page() {
         </section>
 
         {/* ---------- share ---------- */}
-        <section id="share" className="relative overflow-hidden border-t bg-[#0e0d0c] text-white dark:bg-[#17130f]">
+        <section id="share" className="on-dark relative overflow-hidden border-t bg-[#0e0d0c] text-white dark:bg-[#17130f]">
           <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(40rem_24rem_at_90%_0%,rgb(255_122_47/0.16),transparent_70%)]" />
           <div className="relative mx-auto grid max-w-6xl grid-cols-1 gap-12 px-4 py-20 md:px-8 md:py-24 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-16">
             <div className="flex flex-col gap-8">
