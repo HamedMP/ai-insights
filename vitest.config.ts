@@ -1,5 +1,4 @@
-import { fileURLToPath } from "node:url";
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 
-// "@/..." is the site's own import alias (site/tsconfig.json), so site components can be rendered in tests/site.
-export default defineConfig({ resolve: { alias: { "@": fileURLToPath(new URL("./site", import.meta.url)) } }, test: { include: ["tests/**/*.test.ts"], testTimeout: 20_000 } });
+// tests/site-render needs site/'s own dependencies and runs with vitest.site.config.ts (`pnpm test:site`).
+export default defineConfig({ test: { include: ["tests/**/*.test.ts"], exclude: [...configDefaults.exclude, "tests/site-render/**"], testTimeout: 20_000 } });
