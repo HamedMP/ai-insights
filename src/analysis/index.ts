@@ -1,6 +1,8 @@
 import { REPORT_VERSION, type BuildReportInput, type Recap, type RecapHistory, type Report, type Retention, type Session } from "../schema/types.js";
 import { buildActivity } from "./activity.js";
-import { aggregateFacets } from "./facets.js";
+import { buildFrictionCauses } from "./causes.js";
+import { aggregateFacets, facetsBySession } from "./facets.js";
+import { buildWorkRatios } from "./ratios.js";
 import { detectFindings } from "./findings/index.js";
 import { buildRecap } from "./recap/index.js";
 import { historyDaysFrom, withHistoryDays } from "./history.js";
@@ -10,6 +12,8 @@ import { summarizeUsage, uniqueRequests } from "./usage.js";
 export { DETECTORS, detectFindings } from "./findings/index.js";
 export { estimateUsd, PRICING_VERSION } from "./usage.js";
 export { historyDays } from "./history.js";
+export { buildFrictionCauses, MIN_CAUSE_SESSIONS, MIN_JUDGED_SESSIONS } from "./causes.js";
+export { buildWorkRatios } from "./ratios.js";
 export { buildRecap, MAX_RECAP_DAYS, MAX_REPLY_SEC } from "./recap/index.js";
 
 function byStart(a: Session, b: Session): number {
@@ -72,7 +76,9 @@ export function buildReport(input: BuildReportInput): Report {
   const findings = detectFindings({ sessions, requests, usage, activity, coverage, now, clock, ...(input.retention ? { retention: input.retention } : {}) });
   const facets = aggregateFacets(input.facets, sessions);
   const generatedAt = now.toISOString();
-  const recap = buildRecap({ sessions, activity, usage, findings, facets, clock, timeZone, generatedAt });
+  const ratios = sessions.length > 0 ? buildWorkRatios(sessions, activity) : undefined;
+  const frictionCauses = buildFrictionCauses({ sessions, facets: facetsBySession(input.facets, sessions), findings, clock });
+  const recap = buildRecap({ sessions, activity, usage, findings, facets, clock, timeZone, generatedAt, ...(ratios ? { ratios } : {}) });
   return {
     version: REPORT_VERSION,
     generatedAt,
@@ -86,5 +92,7 @@ export function buildReport(input: BuildReportInput): Report {
     narrative: input.narrative ?? null,
     ...(recap ? { recap: input.retention ? withHistory(recap, input.retention, now, clock) : recap } : {}),
     ...(input.retention ? { retention: input.retention } : {}),
+    ...(frictionCauses ? { frictionCauses } : {}),
+    ...(ratios ? { ratios } : {}),
   };
 }

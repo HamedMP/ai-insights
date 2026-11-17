@@ -5,7 +5,7 @@ import { parseMs } from "../time.js";
 import { evidence, harnessesOf, isAgentDriven, MAX_EVIDENCE, minutes, plural, round, type Detector } from "./context.js";
 
 /** The agent worked this long on its own before the person cut in: long enough to have gone far down a wrong path. */
-const SLOW_GAP_MIN = 10;
+export const SLOW_GAP_MIN = 10;
 /** Fewer late corrections than this is ordinary steering. */
 const MIN_SLOW_CORRECTIONS = 3;
 /** Spread over sessions, so one bad session does not define a habit. */
@@ -13,7 +13,7 @@ const MIN_SLOW_SESSIONS = 2;
 /** This many late corrections is a regular cost, not an occasional one. */
 const MEDIUM_SLOW_CORRECTIONS = 6;
 
-interface Correction {
+export interface Correction {
   session: Session;
   prompt: UserPrompt;
   minutesBefore: number;
@@ -53,7 +53,8 @@ function lastAtOrBefore(times: number[], limit: number): number | null {
   return found;
 }
 
-function corrections(session: Session): Correction[] {
+/** Prompts the person sent while the agent was still working on its turn, with how long it had worked alone. */
+export function corrections(session: Session): Correction[] {
   const out: Correction[] = [];
   const activity = agentActivity(session);
   let previous: number | null = parseMs(session.startTime);

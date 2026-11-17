@@ -10,7 +10,9 @@ import {
   type RecapUsage,
   type Session,
   type UsageSummary,
+  type WorkRatios,
 } from "../../schema/types.js";
+import { titlesOf } from "./titles.js";
 import { daysBetween, type Clock } from "../time.js";
 import { buildRhythm, weekdayOf } from "./rhythm.js";
 import { modelLabel } from "./text.js";
@@ -39,7 +41,11 @@ export interface RecapInput {
   clock: Clock;
   timeZone: string;
   generatedAt: string;
+  /** The report's work ratios; persona titles are earned from them. */
+  ratios?: WorkRatios;
 }
+
+export { TITLE_RULES, titlesOf } from "./titles.js";
 
 const SEVERITY_RANK = { high: 0, medium: 1, low: 2, info: 3 } as const;
 
@@ -237,6 +243,8 @@ export function buildRecap(input: RecapInput): Recap | undefined {
       commitShare,
       ...(winRate === undefined ? {} : { winRate }),
     });
+    const earned = input.ratios ? titlesOf(input.ratios) : [];
+    if (earned.length > 0) recap.persona.earned = earned;
   }
   if (bigDay) recap.bigDay = bigDay;
   const lanes = buildLanes(sessions, activity.parallelSessions.maxConcurrent);
