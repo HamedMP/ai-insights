@@ -1,11 +1,13 @@
 import type { Metadata } from "next"
 import { after } from "next/server"
 
+import { TrackOnMount } from "@/components/site/analytics"
 import { Footer } from "@/components/site/footer"
 import { Header } from "@/components/site/header"
 import { RankShare, RemoveEntry } from "@/components/site/rank-share"
 import { formatScore, rankLabel, rankPost } from "@/lib/arena-format"
 import { clerkEnabled } from "@/lib/auth-config"
+import { EVENTS } from "@/lib/analytics-sanitize"
 import { arenaPage, databaseConfigured, entryByUser, ranksFor, type ArenaPage } from "@/lib/db"
 import { ARENAS, isArena, PAGE_SIZE, parsePage, type ArenaId } from "@/lib/leaderboard"
 import { formatPeriod } from "@/lib/share"
@@ -52,6 +54,7 @@ export default async function LeaderboardPage({ searchParams }: { searchParams: 
   return (
     <>
       <Header />
+      <TrackOnMount event={EVENTS.arenaViewed} properties={{ arena, page }} />
       <main id="top" className="relative overflow-hidden">
         <div aria-hidden className="hero-glow pointer-events-none absolute inset-x-0 top-0 h-[40rem]" />
         <div className="relative mx-auto flex max-w-4xl flex-col gap-8 px-4 pt-8 pb-20 md:px-8 md:pt-14">

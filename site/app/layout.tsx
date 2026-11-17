@@ -3,6 +3,7 @@ import { GeistMono } from "geist/font/mono"
 import { GeistSans } from "geist/font/sans"
 
 import "./globals.css"
+import { Analytics } from "@/components/site/analytics"
 import { ThemeProvider } from "@/components/theme-provider"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { SITE_URL } from "@/lib/site"
@@ -38,6 +39,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body>
         <ThemeProvider>
           <TooltipProvider>{children}</TooltipProvider>
+          {process.env.NEXT_PUBLIC_POSTHOG_KEY ? <Analytics /> : null}
         </ThemeProvider>
       </body>
     </html>
