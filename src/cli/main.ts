@@ -1,0 +1,128 @@
+#!/usr/bin/env node
+import { realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import type { ServerDeps } from "../mcp/server.js";
+import { packageVersion } from "../mcp/version.js";
+import type { Harness, Source } from "../schema/types.js";
+import type { BuildReportFn, RenderReportFn } from "../store/pipeline.js";
+import type { RetentionPolicy } from "../store/retention.js";
+import { HELP, parseArgs, UsageError, type Parsed } from "./args.js";
+import { richHeader } from "./header.js";
+import { openWithSystem, readAnswer, type Answer } from "./open.js";
+import { detectStyle, type TerminalInfo } from "./terminal.js";
+
+// This entry imports only what the header and argument parsing need. The scanner, analysis, renderer, zod and
+// the MCP SDK load after the header is on screen (src/cli/commands.ts), so a person sees something at once.
+
+export interface CliDeps {
+  stdout: (text: string) => void;
+  stderr: (text: string) => void;
+  env: NodeJS.ProcessEnv;
+  sources: Source[];
+  buildReport: BuildReportFn;
+  renderReport: RenderReportFn;
+  now: () => Date;
+  timeZone?: string;
+  /** Opens a local file in the default app. Never a URL on the network. Rejects when no opener could start. */
+  openFile: (path: string) => Promise<void>;
+  startMcp: (deps: ServerDeps) => Promise<unknown>;
+  /** How long each harness keeps transcripts. Default: read from this machine's settings files. */
+  retentionPolicies?: () => Promise<Map<Harness, RetentionPolicy>>;
+  /** What stdout (and stdin, stderr) are. Absent means not a terminal: plain text, no escape codes, no questions. */
+  terminal?: TerminalInfo;
+  platform: NodeJS.Platform;
+  /** Milliseconds from any fixed point, for elapsed time and throttling the progress line. */
+  clock: () => number;
+  /** Asks one yes/no question on the terminal. */
+  prompt: (question: string) => Promise<Answer>;
+  /** Runs `handler` on Ctrl-C while work is in progress; returns a function that stops listening. */
+  onInterrupt: (handler: () => void) => () => void;
+  exit: (code: number) => void;
+}
+
+/** The parts that need the heavy modules; filled in by commands.ts when a test has not supplied them. */
+export type HeavyDeps = "sources" | "buildReport" | "renderReport" | "startMcp";
+export type LightDeps = Omit<CliDeps, HeavyDeps> & Partial<Pick<CliDeps, HeavyDeps>>;
+
+function lightDefaults(): LightDeps {
+  return {
+    stdout: (text) => process.stdout.write(text),
+    stderr: (text) => process.stderr.write(text),
+    env: process.env,
+    now: () => new Date(),
+    openFile: (path) => openWithSystem(path),
+    terminal: {
+      isTTY: process.stdout.isTTY === true,
+      ...(process.stdout.columns ? { columns: process.stdout.columns } : {}),
+      stderr: process.stderr.isTTY === true,
+      stdin: process.stdin.isTTY === true,
+    },
+    platform: process.platform,
+    clock: () => performance.now(),
+    prompt: () => readAnswer(process.stdin),
+    onInterrupt: (handler) => {
+      process.on("SIGINT", handler);
+      return () => process.off("SIGINT", handler);
+    },
+    exit: (code) => process.exit(code),
+  };
+}
+
+/** The whole CLI as a function, so tests can drive it. Returns the exit code. */
+export async function run(argv: string[], overrides: Partial<CliDeps> = {}): Promise<number> {
+  const deps: LightDeps = { ...lightDefaults(), ...overrides };
+  let parsed: Parsed;
+  try {
+    parsed = parseArgs(argv, deps.now());
+  } catch (error) {
+    if (error instanceof UsageError) {
+      deps.stderr(`ai-insights: ${error.message}\nRun \`ai-insights --help\` for usage.\n`);
+      return 2;
+    }
+    throw error;
+  }
+  if (parsed.help) {
+    deps.stdout(HELP);
+    return 0;
+  }
+  if (parsed.version) {
+    deps.stdout(`${packageVersion()}\n`);
+    return 0;
+  }
+  if (parsed.json && parsed.command !== "report") {
+    deps.stderr("ai-insights: --json only works with `ai-insights report`\n");
+    return 2;
+  }
+  const style = detectStyle(deps.env, deps.terminal, deps.platform);
+  if (parsed.command === "run" && style.rich) deps.stdout(richHeader(packageVersion(), style));
+  const { execute } = await import("./commands.js");
+  return execute(parsed, deps, style);
+}
+
+function invokedDirectly(): boolean {
+  const entry = process.argv[1];
+  if (!entry) return false;
+  try {
+    return realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
+if (invokedDirectly()) {
+  if (process.argv[2] === "mcp") {
+    // A stray console.log anywhere would corrupt the protocol stream on stdout.
+    console.log = console.error;
+    console.info = console.error;
+    console.debug = console.error;
+  }
+  run(process.argv.slice(2)).then(
+    (code) => {
+      process.exitCode = code;
+    },
+    (error: unknown) => {
+      process.stderr.write(`ai-insights: ${error instanceof Error ? error.message : String(error)}\n`);
+      process.exitCode = 1;
+    },
+  );
+}

@@ -1,153 +1,23 @@
-#!/usr/bin/env node
-import { spawn } from "node:child_process";
-import { realpathSync } from "node:fs";
 import { readdir, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { buildReport as realBuildReport } from "../analysis/index.js";
-import { startStdioServer, type ServerDeps } from "../mcp/server.js";
 import { packageVersion } from "../mcp/version.js";
 import { renderReport as realRenderReport } from "../render/index.js";
-import { HARNESSES, type Coverage, type Harness, type SessionFile, type Source } from "../schema/types.js";
+import { HARNESSES, type AnalysisStep, type Coverage, type Harness, type SessionFile, type Source } from "../schema/types.js";
 import { sources as realSources } from "../sources/index.js";
 import { ensureDir, pathExists, writeFileAtomic } from "../store/fs.js";
-import { buildFromScan, describeHeadline, headline, renderFromScan, type BuildReportFn, type RenderReportFn } from "../store/pipeline.js";
-import { harnessLabel, scan, totalBytes, type ScanOptions } from "../store/scan.js";
+import { buildFromScan, describeHeadline, headline, renderFromScan, type PipelineProgress } from "../store/pipeline.js";
+import { harnessLabel, scan, totalBytes, type ScanOptions, type ScanProgress } from "../store/scan.js";
 import { measureRetention, readRetentionPolicies, type RetentionPolicy } from "../store/retention.js";
-import { parseSince, SINCE_HELP } from "../store/since.js";
 import { Store, resolveHome } from "../store/store.js";
+import type { Parsed } from "./args.js";
+import type { CliDeps, LightDeps } from "./main.js";
+import { OPEN_QUESTION, openMode, type OpenMode } from "./open.js";
+import { ProgressLine } from "./progress.js";
 import { compact, day, failureHint, noHistoryText, plural, resultScreen, retentionLine } from "./screen.js";
-import { detectStyle, type TerminalInfo } from "./terminal.js";
+import type { Style } from "./terminal.js";
 
-export interface CliDeps {
-  stdout: (text: string) => void;
-  stderr: (text: string) => void;
-  env: NodeJS.ProcessEnv;
-  sources: Source[];
-  buildReport: BuildReportFn;
-  renderReport: RenderReportFn;
-  now: () => Date;
-  timeZone?: string;
-  /** Opens a local file in the default app. Never a URL on the network. */
-  openFile: (path: string) => Promise<void>;
-  startMcp: (deps: ServerDeps) => Promise<unknown>;
-  /** How long each harness keeps transcripts. Default: read from this machine's settings files. */
-  retentionPolicies?: () => Promise<Map<Harness, RetentionPolicy>>;
-  /** What stdout is. Absent means not a terminal: plain text, no escape codes. */
-  terminal?: TerminalInfo;
-}
-
-export { retentionLine, summaryLines } from "./screen.js";
-
-class UsageError extends Error {}
-
-const HELP = `ai-insights: look back at how you work with AI coding agents.
-
-Reads your local agent history (Claude Code, Codex, OpenCode, Pi, Cursor, Gemini CLI), writes one HTML report.
-Nothing leaves this machine.
-
-Usage
-  ai-insights [options]          scan, write the report, print a summary
-  ai-insights scan [options]     scan and show what was found
-  ai-insights report [options]   write the report (or print JSON with --json)
-  ai-insights doctor             show which histories were found and where
-  ai-insights mcp                start the MCP server on stdio (for your agent)
-
-Options
-  --since <window>     only history from ${SINCE_HELP}
-  --harness <name>     only one of: ${HARNESSES.join(", ")}
-  --max-sessions <n>   read at most n transcripts, newest first
-  --refresh            re-parse every transcript, ignoring the cache
-  --json               report: print the report as JSON instead of writing HTML
-  --open               open the written report in your browser
-  -h, --help           show this help
-  -v, --version        show the version
-
-Cache and reports live in ~/.ai-insights (set AI_INSIGHTS_HOME to move them;
-an existing ~/.hindsight from before 0.2 keeps being used).
-For the qualitative analysis, run the analyze-ai-usage skill in your agent.
-`;
-
-interface Parsed {
-  command: string;
-  since?: Date;
-  /** The --since value as typed, to repeat it back when it filtered everything out. */
-  sinceText?: string;
-  harness?: Harness;
-  maxSessions?: number;
-  refresh: boolean;
-  json: boolean;
-  open: boolean;
-  help: boolean;
-  version: boolean;
-}
-
-const COMMANDS = new Set(["run", "scan", "report", "doctor", "mcp", "help"]);
-const VALUE_FLAGS = new Set(["--since", "--harness", "--max-sessions"]);
-
-function parseArgs(argv: string[], now: Date): Parsed {
-  const parsed: Parsed = { command: "run", refresh: false, json: false, open: false, help: false, version: false };
-  let commandSeen = false;
-  for (let index = 0; index < argv.length; index += 1) {
-    const raw = argv[index]!;
-    if (!raw.startsWith("-")) {
-      if (commandSeen || !COMMANDS.has(raw)) throw new UsageError(`unknown command "${raw}"`);
-      parsed.command = raw === "help" ? "run" : raw;
-      parsed.help ||= raw === "help";
-      commandSeen = true;
-      continue;
-    }
-    const eq = raw.indexOf("=");
-    const flag = eq > 0 ? raw.slice(0, eq) : raw;
-    let value: string | undefined = eq > 0 ? raw.slice(eq + 1) : undefined;
-    if (VALUE_FLAGS.has(flag) && value === undefined) {
-      value = argv[index + 1];
-      if (value === undefined || value.startsWith("--")) throw new UsageError(`${flag} needs a value`);
-      index += 1;
-    } else if (!VALUE_FLAGS.has(flag) && value !== undefined) {
-      throw new UsageError(`${flag} does not take a value`);
-    }
-    switch (flag) {
-      case "--since": {
-        const since = parseSince(value!, now);
-        if (!since) throw new UsageError(`--since must be ${SINCE_HELP}`);
-        parsed.since = since;
-        parsed.sinceText = value!;
-        break;
-      }
-      case "--harness":
-        if (!(HARNESSES as readonly string[]).includes(value!)) throw new UsageError(`--harness must be one of: ${HARNESSES.join(", ")}`);
-        parsed.harness = value as Harness;
-        break;
-      case "--max-sessions": {
-        const count = Number(value);
-        if (!Number.isInteger(count) || count < 1) throw new UsageError("--max-sessions must be a positive whole number");
-        parsed.maxSessions = count;
-        break;
-      }
-      case "--refresh":
-        parsed.refresh = true;
-        break;
-      case "--json":
-        parsed.json = true;
-        break;
-      case "--open":
-        parsed.open = true;
-        break;
-      case "-h":
-      case "--help":
-        parsed.help = true;
-        break;
-      case "-v":
-      case "--version":
-        parsed.version = true;
-        break;
-      default:
-        throw new UsageError(`unknown option "${flag}"`);
-    }
-  }
-  return parsed;
-}
+// The commands themselves. Loaded by main.ts after the header is drawn, so the imports above cost nothing visible.
 
 function scanOptions(parsed: Parsed): ScanOptions {
   return {
@@ -192,23 +62,113 @@ function coverageLines(coverage: Coverage[]): string[] {
 
 // -- commands -----------------------------------------------------------------
 
-async function commandRun(parsed: Parsed, deps: CliDeps, store: Store): Promise<number> {
-  const result = await scan(scanDeps(deps, store), scanOptions(parsed));
-  if (result.sessions.length === 0) {
-    const filters = [...(parsed.sinceText ? [`--since ${parsed.sinceText}`] : []), ...(parsed.harness ? [`--harness ${parsed.harness}`] : [])];
-    deps.stderr(noHistoryText(filters));
-    return 1;
+function truthy(value: string | undefined): boolean {
+  return value !== undefined && value !== "" && !["0", "false", "no"].includes(value.trim().toLowerCase());
+}
+
+/** The in-place status line: only on a terminal that shows the designed screen, with stderr also a terminal, never in CI. */
+function progressLine(deps: CliDeps, style: Style): ProgressLine | null {
+  if (!style.rich || deps.terminal?.stderr !== true || truthy(deps.env.CI)) return null;
+  return new ProgressLine({ write: deps.stderr, clock: deps.clock, style });
+}
+
+function describeProgress(event: ScanProgress | PipelineProgress, sources: Source[], style: Style): string {
+  const more = style.unicode ? "…" : "...";
+  const dot = style.unicode ? "·" : "-";
+  switch (event.stage) {
+    case "find":
+      return `Finding history${more}${event.found.length ? ` ${event.found.map((entry) => `${harnessLabel(entry.harness, sources)} ${entry.files.toLocaleString("en-US")}`).join(` ${dot} `)}` : ""}`;
+    case "read":
+      return `Reading sessions ${event.done.toLocaleString("en-US")}/${event.total.toLocaleString("en-US")}${event.cached ? ` (${event.cached.toLocaleString("en-US")} from the cache)` : ""}`;
+    case "save":
+      return `Saving the cache${more}`;
+    case "check":
+      return `Checking how long your agents keep history${more}`;
+    case "analyse":
+      return `Analysing ${plural(event.sessions, "session")}${more}${event.step ? ` ${STEP_TEXT[event.step]}` : ""}`;
+    case "write":
+      return `Writing the report${more}`;
   }
-  const outcome = await renderFromScan(pipelineDeps(deps, store), result);
-  if (parsed.open) await deps.openFile(outcome.htmlPath);
-  const style = detectStyle(deps.env, deps.terminal);
+}
+
+const STEP_TEXT: Record<AnalysisStep, string> = { usage: "tokens and cost", activity: "time and activity", findings: "findings", recap: "your recap" };
+
+function seconds(ms: number): string {
+  return ms < 10_000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms / 1000)}s`;
+}
+
+async function commandRun(parsed: Parsed, deps: CliDeps, store: Store, style: Style): Promise<number> {
+  const progress = progressLine(deps, style);
+  let stopListening = () => {};
+  if (progress) {
+    progress.start();
+    stopListening = deps.onInterrupt(() => {
+      progress.stop();
+      deps.exit(130);
+    });
+  }
+  // The last per-agent counts, for the closing line.
+  let found: Array<{ harness: Harness; files: number }> = [];
+  const onProgress = progress
+    ? (event: ScanProgress | PipelineProgress) => {
+        if (event.stage === "find") found = [...event.found].sort((a, b) => b.files - a.files);
+        // A new stage, a finished search or a new analysis step is drawn at once; counts within a stage are throttled.
+        const key = event.stage === "find" ? `find:${event.pending === 0}` : event.stage === "analyse" ? `analyse:${event.step ?? ""}` : event.stage;
+        progress.update(describeProgress(event, deps.sources, style), key);
+      }
+    : undefined;
+  let outcome: Awaited<ReturnType<typeof renderFromScan>>;
+  try {
+    const result = await scan(scanDeps(deps, store), { ...scanOptions(parsed), ...(onProgress ? { onProgress } : {}) });
+    if (result.sessions.length === 0) {
+      progress?.stop();
+      const filters = [...(parsed.sinceText ? [`--since ${parsed.sinceText}`] : []), ...(parsed.harness ? [`--harness ${parsed.harness}`] : [])];
+      deps.stderr(noHistoryText(filters));
+      return 1;
+    }
+    outcome = await renderFromScan({ ...pipelineDeps(deps, store), ...(onProgress ? { onProgress } : {}) }, result);
+    const agents = found.length > 1 ? ` (${found.map((entry) => `${harnessLabel(entry.harness, deps.sources)} ${entry.files.toLocaleString("en-US")}`).join(style.unicode ? " · " : ", ")})` : "";
+    progress?.done(`${plural(result.sessions.length, "session")}${agents} read and analysed in ${seconds(progress.elapsedMs())}`);
+  } finally {
+    // Errors and early returns too: the line is cleared and the cursor comes back before anything else prints.
+    progress?.stop();
+    stopListening();
+  }
+  const mode = openMode({ flag: parsed.open, env: deps.env, stdoutTTY: deps.terminal?.isTTY === true, stdinTTY: deps.terminal?.stdin === true, platform: deps.platform });
   deps.stdout(
     resultScreen(
-      { report: outcome.report, htmlPath: outcome.htmlPath, version: packageVersion(), now: deps.now(), opened: parsed.open, reviewed: outcome.facetCount > 0 || outcome.hasNarrative },
+      { report: outcome.report, htmlPath: outcome.htmlPath, version: packageVersion(), now: deps.now(), open: mode, reviewed: outcome.facetCount > 0 || outcome.hasNarrative },
       style,
     ),
   );
+  return deliver(mode, outcome.htmlPath, deps, style);
+}
+
+/** Opens the report now, after asking, or not at all. A failed opener costs one line, never the run. */
+async function deliver(mode: OpenMode, path: string, deps: CliDeps, style: Style): Promise<number> {
+  if (mode === "manual") return 0;
+  const indent = style.rich ? "  " : "";
+  if (mode === "ask") {
+    deps.stdout(`${indent}${OPEN_QUESTION} `);
+    const answer = await deps.prompt(OPEN_QUESTION);
+    if (answer === "cancel") {
+      deps.stdout("\n");
+      return 130;
+    }
+    deps.stdout(answer === "yes" ? "yes\n" : "no\n");
+    if (answer === "no") return 0;
+  }
+  await openReport(path, deps, indent);
   return 0;
+}
+
+async function openReport(path: string, deps: CliDeps, indent = ""): Promise<void> {
+  try {
+    await deps.openFile(path);
+  } catch (error) {
+    deps.stderr(`${indent}Could not open a browser here; open the report path above yourself.\n`);
+    if (deps.env.AI_INSIGHTS_DEBUG) deps.stderr(`${error instanceof Error ? error.message : String(error)}\n`);
+  }
 }
 
 async function commandScan(parsed: Parsed, deps: CliDeps, store: Store): Promise<number> {
@@ -246,7 +206,7 @@ async function commandReport(parsed: Parsed, deps: CliDeps, store: Store): Promi
   }
   const outcome = await renderFromScan(pipelineDeps(deps, store), result);
   deps.stdout(`${outcome.htmlPath}\n`);
-  if (parsed.open) await deps.openFile(outcome.htmlPath);
+  if (parsed.open === "open") await openReport(outcome.htmlPath, deps);
   return 0;
 }
 
@@ -348,62 +308,20 @@ function pipelineDeps(deps: CliDeps, store: Store) {
   };
 }
 
-function openWithSystem(path: string): Promise<void> {
-  const [command, args] =
-    process.platform === "darwin" ? ["open", [path]] : process.platform === "win32" ? ["cmd", ["/c", "start", "", path]] : ["xdg-open", [path]];
-  return new Promise((resolve) => {
-    try {
-      const child = spawn(command, args as string[], { stdio: "ignore", detached: true });
-      child.on("error", () => resolve());
-      child.unref();
-      resolve();
-    } catch {
-      resolve();
-    }
-  });
-}
-
-export function defaultDeps(): CliDeps {
+/** Fills in the heavy defaults a test did not supply. The MCP SDK loads only for `mcp`. */
+function complete(deps: LightDeps): CliDeps {
   return {
-    stdout: (text) => process.stdout.write(text),
-    stderr: (text) => process.stderr.write(text),
-    env: process.env,
-    sources: realSources,
-    buildReport: realBuildReport,
-    renderReport: realRenderReport,
-    now: () => new Date(),
-    openFile: openWithSystem,
-    startMcp: startStdioServer,
-    terminal: { isTTY: process.stdout.isTTY === true, ...(process.stdout.columns ? { columns: process.stdout.columns } : {}) },
+    ...deps,
+    sources: deps.sources ?? realSources,
+    buildReport: deps.buildReport ?? realBuildReport,
+    renderReport: deps.renderReport ?? realRenderReport,
+    startMcp: deps.startMcp ?? (async (serverDeps) => (await import("../mcp/server.js")).startStdioServer(serverDeps)),
   };
 }
 
-/** The whole CLI as a function, so tests can drive it. Returns the exit code. */
-export async function run(argv: string[], overrides: Partial<CliDeps> = {}): Promise<number> {
-  const deps: CliDeps = { ...defaultDeps(), ...overrides };
-  let parsed: Parsed;
-  try {
-    parsed = parseArgs(argv, deps.now());
-  } catch (error) {
-    if (error instanceof UsageError) {
-      deps.stderr(`ai-insights: ${error.message}\nRun \`ai-insights --help\` for usage.\n`);
-      return 2;
-    }
-    throw error;
-  }
-  if (parsed.help) {
-    deps.stdout(HELP);
-    return 0;
-  }
-  if (parsed.version) {
-    deps.stdout(`${packageVersion()}\n`);
-    return 0;
-  }
-  if (parsed.json && parsed.command !== "report") {
-    deps.stderr("ai-insights: --json only works with `ai-insights report`\n");
-    return 2;
-  }
-
+/** Runs a parsed command. main.ts has handled help, version and usage errors, and drawn the header if there is one. */
+export async function execute(parsed: Parsed, light: LightDeps, style: Style): Promise<number> {
+  const deps = complete(light);
   const store = new Store(resolveHome(deps.env));
   try {
     switch (parsed.command) {
@@ -418,7 +336,7 @@ export async function run(argv: string[], overrides: Partial<CliDeps> = {}): Pro
       case "doctor":
         return await commandDoctor(deps, store);
       default:
-        return await commandRun(parsed, deps, store);
+        return await commandRun(parsed, deps, store, style);
     }
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
@@ -427,32 +345,4 @@ export async function run(argv: string[], overrides: Partial<CliDeps> = {}): Pro
     else deps.stderr(failureHint());
     return 1;
   }
-}
-
-function invokedDirectly(): boolean {
-  const entry = process.argv[1];
-  if (!entry) return false;
-  try {
-    return realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url));
-  } catch {
-    return false;
-  }
-}
-
-if (invokedDirectly()) {
-  if (process.argv[2] === "mcp") {
-    // A stray console.log anywhere would corrupt the protocol stream on stdout.
-    console.log = console.error;
-    console.info = console.error;
-    console.debug = console.error;
-  }
-  run(process.argv.slice(2)).then(
-    (code) => {
-      process.exitCode = code;
-    },
-    (error: unknown) => {
-      process.stderr.write(`ai-insights: ${error instanceof Error ? error.message : String(error)}\n`);
-      process.exitCode = 1;
-    },
-  );
 }

@@ -3,8 +3,13 @@ import { pathToFileURL } from "node:url";
 
 /** What the output stream is, as the CLI sees it. Tests pass this in; the real CLI reads process.stdout. */
 export interface TerminalInfo {
+  /** stdout. */
   isTTY: boolean;
   columns?: number;
+  /** stdin is a terminal a person can answer from. */
+  stdin?: boolean;
+  /** stderr is a terminal, where the progress line goes. */
+  stderr?: boolean;
 }
 
 export interface Style {
