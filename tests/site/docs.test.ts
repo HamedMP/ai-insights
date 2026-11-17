@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { TITLE_RULES } from "../../src/analysis/recap/titles.ts";
+import { noHistoryText } from "../../src/cli/screen.ts";
 import { HARNESSES } from "../../src/schema/types.ts";
 import { mountsClerk } from "../../site/lib/auth-config.ts";
 import { DOCS, docSource, neighbours } from "../../site/lib/docs.ts";
@@ -49,6 +50,10 @@ describe("the reference pages match the code", () => {
     expect(tools.length).toBeGreaterThan(0);
     const listed = DOCS.find((doc) => doc.slug === "mcp")!.sections.map((section) => section.id);
     for (const tool of tools) expect(listed, tool).toContain(tool);
+  });
+
+  it("quotes the message the CLI prints when it finds no history, word for word", () => {
+    expect(page("troubleshooting")).toContain(noHistoryText([]).trimEnd().replaceAll("`", "\\`"));
   });
 
   it("documents every CLI command and option in the help text", () => {
