@@ -17,6 +17,25 @@ export interface ScanOptions {
   concurrency?: number;
   /** Transcript bytes parsed at once, at most; one larger transcript is parsed on its own. */
   parseBudgetBytes?: number;
+  /** Told what the scan is doing, for a progress display. A callback that throws is ignored. */
+  onProgress?: (event: ScanProgress) => void;
+}
+
+/** What a scan is doing, in the order it happens. */
+export type ScanProgress =
+  | { stage: "find"; found: Array<{ harness: Harness; files: number }>; pending: number }
+  | { stage: "read"; done: number; total: number; cached: number }
+  | { stage: "save" }
+  | { stage: "check" };
+
+/** Calls a progress callback without letting it break the work it reports on. */
+export function notify<T>(callback: ((event: T) => void) | undefined, event: T): void {
+  if (!callback) return;
+  try {
+    callback(event);
+  } catch {
+    // A broken display (a closed terminal, a bug in the renderer) must never cost the scan or the report.
+  }
 }
 
 export interface ScanDeps {
@@ -175,11 +194,16 @@ export async function scan(deps: ScanDeps, options: ScanOptions = {}): Promise<S
   const bump = (harness: Harness, by = 1) => issues.set(harness, (issues.get(harness) ?? 0) + by);
 
   const discovered = new Map<Harness, SessionFile[]>();
+  const progress = options.onProgress;
+  const found: Array<{ harness: Harness; files: number }> = [];
+  notify(progress, { stage: "find", found: [], pending: active.length });
   await Promise.all(
     active.map(async (source) => {
       const files = await safeDiscover(source, options.since, maxSessions);
       if (files === null) bump(source.harness);
       discovered.set(source.harness, files ?? []);
+      if (files?.length) found.push({ harness: source.harness, files: files.length });
+      notify(progress, { stage: "find", found: [...found], pending: active.length - discovered.size });
     }),
   );
 
@@ -188,7 +212,20 @@ export async function scan(deps: ScanDeps, options: ScanOptions = {}): Promise<S
   const stats = { discovered: all.length, parsed: 0, cached: 0, failed: 0, skippedEmpty: 0, duplicates: 0, orphaned: 0 };
 
   const budget = new ByteBudget(Math.max(1, options.parseBudgetBytes ?? DEFAULT_PARSE_BUDGET_BYTES));
+  let done = 0;
+  const read = () => {
+    done += 1;
+    notify(progress, { stage: "read", done, total: all.length, cached: stats.cached });
+  };
+  notify(progress, { stage: "read", done: 0, total: all.length, cached: 0 });
   const parsed = await mapLimit(all, concurrency, async (file): Promise<ScannedEntry | null> => {
+    try {
+      return await readOne(file);
+    } finally {
+      read();
+    }
+  });
+  async function readOne(file: SessionFile): Promise<ScannedEntry | null> {
     const source = byHarness.get(file.harness);
     if (!source) return null;
     if (!options.refresh) {
@@ -215,8 +252,9 @@ export async function scan(deps: ScanDeps, options: ScanOptions = {}): Promise<S
       return null;
     }
     return { file, session, fresh: true };
-  });
+  }
 
+  notify(progress, { stage: "save" });
   const entries = parsed.filter((entry): entry is ScannedEntry => entry !== null);
   // History the harness deleted lives on in the cache; without it a long recap would shrink to the harness's retention.
   const known = new Set(all.map((file) => file.path));
@@ -255,6 +293,7 @@ export async function scan(deps: ScanDeps, options: ScanOptions = {}): Promise<S
     .sort((a, b) => Date.parse(b.startTime) - Date.parse(a.startTime));
   const files = new Map([...unique].map(([key, entry]) => [key, entry.file]));
 
+  notify(progress, { stage: "check" });
   const coverage: Coverage[] = [];
   for (const harness of HARNESSES) {
     const source = byHarness.get(harness);
