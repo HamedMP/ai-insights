@@ -11,7 +11,7 @@ const SITE = "https://hamedmp.github.io/ai-insights/";
 describe("npm package", () => {
   it("points people at the site and the issue tracker", () => {
     expect(pkg.homepage).toBe(SITE);
-    expect(pkg.bugs.url).toBe("https://github.com/hamedmp/ai-insights/issues");
+    expect(pkg.bugs.url).toBe("https://github.com/HamedMP/ai-insights/issues");
   });
 
   it("cannot be published without passing every check and a fresh build", () => {
