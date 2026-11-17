@@ -122,10 +122,10 @@ export function Header({ account }: { account?: React.ReactNode } = {}) {
       )}
     >
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 md:px-8">
-        <a href="#top" aria-label="AI Insights by Matrix OS, back to the top" className="-m-1 rounded-md p-1 outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+        <a href="#top" aria-label="AI Insights by Matrix OS, back to the top" className="-m-1 shrink-0 rounded-md p-1 outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
           <Wordmark />
         </a>
-        <nav ref={nav} aria-label="Sections" className="relative hidden h-16 items-center lg:flex">
+        <nav ref={nav} aria-label="Sections" className="relative hidden h-16 items-center xl:flex">
           {LINKS.map((link) => (
             <a
               key={link.id}
@@ -167,12 +167,12 @@ export function Header({ account }: { account?: React.ReactNode } = {}) {
           <Button
             variant="secondary"
             size="lg"
-            className="size-10 rounded-full bg-secondary/70 backdrop-blur max-sm:hidden sm:h-9 sm:w-auto sm:gap-2 sm:px-3.5"
+            className="size-10 rounded-full bg-secondary/70 backdrop-blur max-sm:hidden sm:size-9 2xl:w-auto 2xl:gap-2 2xl:px-3.5"
             nativeButton={false}
             render={<a href={REPO} aria-label="AI Insights on GitHub" />}
           >
             <HugeiconsIcon icon={GithubIcon} strokeWidth={2} />
-            <span className="max-sm:hidden" aria-hidden>
+            <span className="max-2xl:hidden" aria-hidden>
               GitHub
             </span>
           </Button>
@@ -187,13 +187,13 @@ export function Header({ account }: { account?: React.ReactNode } = {}) {
             aria-controls="mobile-menu"
             aria-label={open ? "Close menu" : "Open menu"}
             onClick={() => setOpen((value) => !value)}
-            className="grid size-10 place-items-center rounded-full border bg-secondary/70 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 lg:hidden"
+            className="grid size-10 place-items-center rounded-full border bg-secondary/70 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 xl:hidden"
           >
             <HugeiconsIcon icon={open ? Cancel01Icon : Menu01Icon} strokeWidth={2} className="size-[18px]" />
           </button>
         </div>
       </div>
-      <div ref={panel} id="mobile-menu" hidden={!open} className="border-t lg:hidden">
+      <div ref={panel} id="mobile-menu" hidden={!open} className="border-t xl:hidden">
         <nav aria-label="Sections, menu" className="mx-auto flex max-w-6xl flex-col px-4 pt-1 pb-5 animate-in fade-in-0 slide-in-from-top-2 duration-300 motion-reduce:animate-none">
           {LINKS.map((link, index) => (
             <a

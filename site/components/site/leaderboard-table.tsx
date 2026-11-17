@@ -28,7 +28,8 @@ const sourceOf = (row: BoardRow): MetricSource => ({
 
 const titleOf = (row: BoardRow) => {
   const first = row.stats.titles?.[0]
-  return first ? EARNED_TITLES[first.k]?.title ?? null : null
+  // "The Smooth Operator" reads as "Smooth Operator" in a narrow cell; the profile keeps the full wording.
+  return first ? EARNED_TITLES[first.k]?.title.replace(/^The /, "") ?? null : null
 }
 
 /** Rank as a fixed-width mark. The top three get a filled or outlined square, nothing louder. */
@@ -69,8 +70,8 @@ function Person({ row, me }: { row: BoardRow; me: boolean }) {
           <span className="truncate">@{row.handle}</span>
           {title && (
             <>
-              <span aria-hidden>·</span>
-              <span className="truncate text-ink-soft">{title}</span>
+              <span aria-hidden className="shrink-0">·</span>
+              <span className="min-w-0 shrink-[4] truncate text-ink-soft" title={`Earned title: ${title}`}>{title}</span>
             </>
           )}
         </span>
@@ -86,18 +87,19 @@ function SortHeader({ id, sort }: { id: SortId; sort: SortId }) {
     <th
       scope="col"
       aria-sort={active ? "descending" : undefined}
-      className={cn("h-10 px-3 text-right align-middle font-normal", active && "bg-primary/[0.06]", id === sort ? "min-w-44" : "", HIDE[id])}
+      title={def.label}
+      className={cn("h-10 px-2.5 text-right align-middle text-[10.5px] font-normal", active && "bg-primary/[0.06]", HIDE[id])}
     >
       <a
         href={boardHref(BASE, id)}
         aria-label={active ? `${def.label}, sorted highest first` : `Sort by ${def.label.toLowerCase()}`}
         className={cn(
-          "group/sort inline-flex items-center gap-1 rounded-sm font-mono text-[10.5px] tracking-[0.08em] whitespace-nowrap uppercase outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
+          "group/sort inline-flex items-center gap-0.5 rounded-sm font-mono text-[10.5px] tracking-[0.06em] whitespace-nowrap uppercase outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
           active ? "font-semibold text-primary" : "text-muted-foreground",
         )}
       >
-        {def.label}
         <span aria-hidden className={cn("inline-block w-2.5 text-center", active ? "" : "opacity-0 group-hover/sort:opacity-60 group-focus-visible/sort:opacity-60")}>↓</span>
+        {def.head}
       </a>
     </th>
   )
@@ -116,14 +118,14 @@ export function BoardTable({ rows, sort, top, me }: BoardTableProps) {
   return (
     <table className="w-full border-separate border-spacing-0 text-[13.5px] max-lg:hidden">
       <caption className="sr-only">Leaderboard, sorted by {sortOf(sort).label.toLowerCase()}, highest first. Self-reported.</caption>
-      <thead className="sticky top-16 z-10 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/85">
-        <tr className="[&>th]:border-b [&>th]:border-foreground/15">
-          <th scope="col" className="h-10 w-14 pl-4 text-left align-middle font-mono text-[10.5px] font-normal tracking-[0.08em] text-muted-foreground uppercase">#</th>
-          <th scope="col" className="h-10 px-3 text-left align-middle font-mono text-[10.5px] font-normal tracking-[0.08em] text-muted-foreground uppercase">Person</th>
+      <thead className="sticky top-16 z-10 bg-card">
+        <tr className="[&>th]:border-b [&>th]:border-foreground/15 [&>th]:leading-none">
+          <th scope="col" className="h-10 w-14 pl-4 text-left align-middle font-mono text-[10.5px] font-normal tracking-[0.08em] text-muted-foreground uppercase"><span className="inline-flex items-center">#</span></th>
+          <th scope="col" className="h-10 px-3 text-left align-middle font-mono text-[10.5px] font-normal tracking-[0.08em] text-muted-foreground uppercase"><span className="inline-flex items-center">Person</span></th>
           {SORTS.map((s) => (
             <SortHeader key={s.id} id={s.id} sort={sort} />
           ))}
-          <th scope="col" className="hidden h-10 pr-4 pl-3 text-right align-middle font-mono text-[10.5px] font-normal tracking-[0.08em] whitespace-nowrap text-muted-foreground uppercase 2xl:table-cell">Period</th>
+          <th scope="col" className="hidden h-10 pr-4 pl-3 text-right align-middle font-mono text-[10.5px] font-normal tracking-[0.08em] whitespace-nowrap text-muted-foreground uppercase xl:table-cell"><span className="inline-flex items-center">Period</span></th>
         </tr>
       </thead>
       <tbody>
@@ -142,18 +144,18 @@ export function BoardTable({ rows, sort, top, me }: BoardTableProps) {
               <td className={cn("h-12 pl-4 align-middle", mine && "shadow-[inset_3px_0_0_var(--primary)]")}>
                 <RankMark rank={row.rank} />
               </td>
-              <td className="max-w-0 min-w-56 px-3 align-middle">
+              <td className="w-full max-w-0 min-w-52 px-3 align-middle">
                 <Person row={row} me={mine} />
               </td>
               {SORTS.map((s) => {
                 const value = metricValue(s.id, source)
                 const active = s.id === sort
                 return (
-                  <td key={s.id} className={cn("px-3 text-right align-middle font-mono tabular-nums whitespace-nowrap", active ? "bg-primary/[0.06] font-semibold text-foreground" : "text-ink-soft", value === null && "text-muted-foreground/70", HIDE[s.id])}>
+                  <td key={s.id} className={cn("px-2.5 text-right align-middle font-mono tabular-nums whitespace-nowrap", active ? "bg-primary/[0.06] font-semibold text-foreground" : "text-ink-soft", value === null && "text-muted-foreground/70", HIDE[s.id])}>
                     {active ? (
                       <span className="flex items-center justify-end gap-3">
-                        <Bar percent={barPercent(value, top)} className="w-20 shrink-0" />
-                        <span className="min-w-[4.5ch]">{formatMetric(s.id, value)}</span>
+                        <Bar percent={barPercent(value, top)} className="w-16 shrink-0" />
+                        <span className="min-w-[6ch]">{formatMetric(s.id, value)}</span>
                       </span>
                     ) : (
                       formatMetric(s.id, value)
@@ -161,7 +163,7 @@ export function BoardTable({ rows, sort, top, me }: BoardTableProps) {
                   </td>
                 )
               })}
-              <td className="hidden pr-4 pl-3 text-right align-middle font-mono text-[12px] whitespace-nowrap text-muted-foreground 2xl:table-cell" title={formatPeriod(row.stats.from, row.stats.to)}>
+              <td className="hidden pr-4 pl-3 text-right align-middle font-mono text-[12px] whitespace-nowrap text-muted-foreground xl:table-cell" title={formatPeriod(row.stats.from, row.stats.to)}>
                 {shortPeriod(row.stats.from, row.stats.to)}
               </td>
             </tr>
@@ -210,7 +212,7 @@ export function BoardList({ rows, sort, top, me }: BoardTableProps) {
               <p className="flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-[11px] text-muted-foreground tabular-nums">
                 {SORTS.filter((s) => s.id !== sort).map((s) => {
                   const v = metricValue(s.id, source)
-                  if (v === null) return null
+                  if (v === null || (s.id === "devices" && v <= 1)) return null
                   return (
                     <span key={s.id} className="whitespace-nowrap">
                       <span className="text-ink-soft">{formatMetric(s.id, v)}</span> {LINE_LABEL[s.id]}

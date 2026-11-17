@@ -30,8 +30,9 @@ export function YouPanel({ entry, ranks, jump }: { entry: PublicEntry; ranks: Ra
 
       <ul aria-label="Your ranks" className="flex min-w-0 flex-1 flex-wrap gap-1.5">
         {list.length === 0 && <li className="font-mono text-[11.5px] text-muted-foreground">Not ranked yet</li>}
-        {list.map((s) => (
-          <li key={s.arena}>
+        {list.map((s, i) => (
+          // Phones show the best three; the rest are one sort away.
+          <li key={s.arena} className={i >= 3 ? "max-sm:hidden" : undefined}>
             <a
               href={boardHref(BASE, s.arena)}
               className="inline-flex h-7 items-center rounded-md border bg-background px-2 font-mono text-[11.5px] whitespace-nowrap tabular-nums outline-none hover:border-foreground/30 focus-visible:ring-3 focus-visible:ring-ring/50 data-[best=true]:border-primary/50 data-[best=true]:bg-primary/[0.07] data-[best=true]:text-primary"

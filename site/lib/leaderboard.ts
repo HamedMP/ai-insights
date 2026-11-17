@@ -113,15 +113,15 @@ export const displayNameFor = (stats: SharedStats, handle: string) => cleanText(
  * a person with no Codex use has no Codex rank and sits below everyone who has one.
  */
 export const SORTS = [
-  { id: "tokens", column: "tokens", label: "Tokens", short: "tokens", arena: "tokens" },
-  { id: "spend", column: "usd", label: "Est. spend", short: "spend", arena: "spend" },
-  { id: "claude-code", column: "claude_tokens", label: "Claude Code", short: "Claude Code", arena: "claude-code" },
-  { id: "codex", column: "codex_tokens", label: "Codex", short: "Codex", arena: "codex" },
-  { id: "streak", column: "streak", label: "Streak", short: "streak", arena: "streak" },
-  { id: "active", column: "active_days", label: "Active days", short: "active days", arena: null },
-  { id: "sessions", column: "sessions", label: "Sessions", short: "sessions", arena: null },
-  { id: "devices", column: "device_count", label: "Devices", short: "devices", arena: null },
-] as const satisfies ReadonlyArray<{ id: string; column: string; label: string; short: string; arena: ArenaId | null }>
+  { id: "tokens", head: "Tokens", column: "tokens", label: "Tokens", short: "tokens", arena: "tokens" },
+  { id: "spend", head: "Spend", column: "usd", label: "Est. spend", short: "spend", arena: "spend" },
+  { id: "claude-code", head: "Claude", column: "claude_tokens", label: "Claude Code", short: "Claude Code", arena: "claude-code" },
+  { id: "codex", head: "Codex", column: "codex_tokens", label: "Codex", short: "Codex", arena: "codex" },
+  { id: "streak", head: "Streak", column: "streak", label: "Streak", short: "streak", arena: "streak" },
+  { id: "active", head: "Active", column: "active_days", label: "Active days", short: "active days", arena: null },
+  { id: "sessions", head: "Sessions", column: "sessions", label: "Sessions", short: "sessions", arena: null },
+  { id: "devices", head: "Devices", column: "device_count", label: "Devices", short: "devices", arena: null },
+] as const satisfies ReadonlyArray<{ id: string; head: string; column: string; label: string; short: string; arena: ArenaId | null }>
 
 export type SortId = (typeof SORTS)[number]["id"]
 export const DEFAULT_SORT: SortId = "tokens"
