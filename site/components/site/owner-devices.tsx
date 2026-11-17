@@ -5,7 +5,7 @@ import * as React from "react"
 import { PhotoSwitch } from "@/components/site/photo-switch"
 import { callEntryApi } from "@/components/site/publish-panel"
 import { Button } from "@/components/ui/button"
-import { formatCompact, formatInt, formatPeriod } from "@/lib/share"
+import { formatInt, formatPeriod, tokensText } from "@/lib/share"
 import { BASE, COMMAND } from "@/lib/site"
 
 const API = `${BASE}/api/leaderboard/devices`
@@ -107,7 +107,7 @@ function DeviceRow({ device, onChanged }: { device: Device; onChanged: () => voi
       <p className="flex flex-wrap gap-x-4 gap-y-1 text-[13px] tabular-nums text-muted-foreground">
         <span>{formatPeriod(s.from, s.to)}</span>
         <span><b className="font-semibold text-foreground">{formatInt(s.sessions)}</b> sessions</span>
-        <span><b className="font-semibold text-foreground">{formatCompact(s.tokens)}</b> tokens</span>
+        <span><b className="font-semibold text-foreground">{tokensText(s)}</b> tokens</span>
         {s.usd !== null && <span><b className="font-semibold text-foreground">${formatInt(s.usd)}</b> est.</span>}
         <span><b className="font-semibold text-foreground">{formatInt(s.activeDays)}</b> active days</span>
         <span><b className="font-semibold text-foreground">{formatInt(s.streak)}</b>-day streak</span>

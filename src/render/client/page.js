@@ -353,6 +353,7 @@ function statsLink() {
   return h("div", { class: "slink share", id: "share-stats" },
     h("div", { class: "share-h" }, "Share your stats and cards, join the leaderboard"),
     h("p", { class: "muted small" }, "A link to your card and profile on the AI Insights site. It holds only the lines below, in the link itself: your totals and your recap cards as short lines of numbers, dates, agent names and fixed wording. No project names, prompts, commands or paths. Opening the link uploads nothing; on that page you can choose to sign in and publish exactly these lines to your public profile and the leaderboard."),
+    ACT.chat && ACT.chat.only ? h("p", { class: "small slink-chat" }, "Your history is a chat export only. Chat exports record no tokens or spend, so the site shows both as not measured (the link carries tokens as 0 and no spend), and your entry will not rank in the token, spend or agent arenas.") : null,
     nameIn,
     hasDevice ? h("div", { class: "slink-device" },
       deviceIn,

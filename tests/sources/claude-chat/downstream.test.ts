@@ -5,7 +5,11 @@ import { createContext, Script } from "node:vm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { buildReport } from "../../../src/analysis/index.js";
 import { renderReport } from "../../../src/render/index.js";
-import { recapView } from "../../../src/render/view.js";
+import { buildView, recapView } from "../../../src/render/view.js";
+import { formatMetric, metricValue } from "../../../site/lib/arena-format.ts";
+import { pageSql } from "../../../site/lib/board-sql.ts";
+import { competitionRanks, scoreIn, scoresFor } from "../../../site/lib/leaderboard.ts";
+import { decodeStats, tokensMeasured, tokensText } from "../../../site/lib/share.ts";
 import type { Report, Session } from "../../../src/schema/types.js";
 import { claudeChatSource } from "../../../src/sources/claude-chat/index.js";
 import { conversationToSession } from "../../../src/sources/claude-chat/conversation.js";
@@ -25,6 +29,7 @@ afterEach(() => rmSync(dir, { recursive: true, force: true }));
 const NOW = new Date("2026-08-20T12:00:00Z");
 
 interface ShareLinkApi {
+  url(p: unknown, base: string): string;
   payload(rc: unknown, name?: string, ratios?: unknown, device?: { id: string; name: string; days?: boolean } | null): Record<string, unknown> | null;
   describe(p: unknown): string[];
 }
@@ -97,6 +102,45 @@ describe("imported chats downstream", () => {
     expect(payload.agents).toEqual([]);
     expect(payload.tokens).toBe(0);
     expect(SL.describe(payload).join("\n")).toContain("tokens not measured (chat export only)");
+  });
+
+  it("a chat-only link opens on the site as not measured and ranks in no token, spend or agent arena", async () => {
+    const { report } = await importedSessions();
+    const SL = shareLink();
+    const payload = SL.payload(JSON.parse(JSON.stringify(recapView(report))), "", [], { id: "0123456789abcdef0123456789abcdef", name: "" })!;
+    const stats = decodeStats(SL.url(payload, "https://ai-insights.app/").split("#")[1]!)!;
+    expect(stats).not.toBeNull();
+    expect(stats.sessions).toBe(10);
+    expect(tokensMeasured(stats)).toBe(false);
+    expect(tokensText(stats)).toBe("not measured");
+    expect(stats.usd).toBeNull();
+    const scores = scoresFor(stats);
+    for (const arena of ["tokens", "spend", "claude-code", "codex"] as const) expect(scoreIn(arena, scores), arena).toBeNull();
+    expect(scoreIn("streak", scores)).toBeGreaterThan(0);
+    // The leaderboard table: no "0" in the token column, no rank, listed after everyone who has one.
+    const source = { tokens: stats.tokens, usd: stats.usd, claudeTokens: scores.claudeTokens, codexTokens: scores.codexTokens, streak: stats.streak, activeDays: stats.activeDays, sessions: stats.sessions, deviceCount: 1 };
+    expect(metricValue("tokens", source)).toBeNull();
+    expect(formatMetric("tokens", metricValue("tokens", source))).toBe(formatMetric("spend", null));
+    expect(competitionRanks([5_000, 0])).toEqual([1, null]);
+    expect(pageSql("tokens")).toMatch(/CASE WHEN tokens > 0 THEN rank\(\)/);
+    // Coding history keeps its numbers.
+    expect(tokensText({ sessions: 3, tokens: 1_200_000 })).toBe("1.2M");
+    expect(tokensText({ sessions: 0, tokens: 0 })).toBe("0");
+  });
+
+  it("the report's share box says a chat-only entry is not measured and will not rank", async () => {
+    const { report } = await importedSessions();
+    expect(buildView(report, "UTC").activity.chat?.only).toBe(true);
+    const page = readFileSync(new URL("../../../src/render/client/page.js", import.meta.url), "utf8");
+    expect(page).toMatch(/ACT\.chat && ACT\.chat\.only \? h\("p", \{ class: "small slink-chat" \}, "Your history is a chat export only\. Chat exports record no tokens or spend, so the site shows both as not measured[^"]*will not rank in the token, spend or agent arenas\."\)/);
+  });
+
+  it("no site page renders a token count without the not-measured check", () => {
+    const files = ["site/components/site/share-card.tsx", "site/components/site/profile.tsx", "site/components/site/owner-devices.tsx", "site/app/u/[handle]/opengraph-image.tsx", "site/components/site/publish-panel.tsx"];
+    for (const file of files) {
+      const text = readFileSync(new URL(`../../../${file}`, import.meta.url), "utf8");
+      expect(text, file).not.toMatch(/(?<!tokensMeasured\((?:d\.)?(?:stats|s)\) \? (?:\["tokens", )?)format(?:Compact|Int)\((?:d\.)?(?:stats|s)\.tokens\)/);
+    }
   });
 
   it("chats added to coding history change none of the coding numbers, and stay apart in the per-agent split", () => {

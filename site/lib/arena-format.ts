@@ -97,7 +97,8 @@ export interface MetricSource {
 export function metricValue(sort: SortId, m: MetricSource): number | null {
   const v = sort === "tokens" ? m.tokens : sort === "spend" ? m.usd : sort === "claude-code" ? m.claudeTokens : sort === "codex" ? m.codexTokens : sort === "streak" ? m.streak : sort === "active" ? m.activeDays : sort === "sessions" ? m.sessions : m.deviceCount
   if (v === null || !Number.isFinite(v)) return null
-  if ((sort === "spend" || sort === "claude-code" || sort === "codex") && v <= 0) return null
+  // Zero tokens is no measurement (chat exports record none), shown and ranked like a missing spend.
+  if ((sort === "tokens" || sort === "spend" || sort === "claude-code" || sort === "codex") && v <= 0) return null
   return v
 }
 

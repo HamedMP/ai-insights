@@ -11,7 +11,7 @@ import { EVENTS } from "@/lib/analytics-sanitize"
 import { ShareButtons } from "@/components/site/share-buttons"
 import { profilePost } from "@/lib/arena-format"
 import { referralLink } from "@/lib/referral"
-import { agentName, CARD_TITLES, EARNED_TITLES, formatInt, formatPeriod, RATIOS, ratioText, type SharedStats } from "@/lib/share"
+import { agentName, CARD_TITLES, EARNED_TITLES, formatInt, formatPeriod, RATIOS, ratioText, tokensMeasured, type SharedStats } from "@/lib/share"
 import { BASE, SITE_URL } from "@/lib/site"
 
 const ENTRY_API = `${BASE}/api/leaderboard/entry`
@@ -160,7 +160,7 @@ export function PublishPanel({ stats }: { stats: SharedStats }) {
     ["Profile", `ai-insights.app/u/${checked.ok ? checked.handle : "…"}`],
     ["Period", formatPeriod(stats.from, stats.to)],
     ["Sessions", formatInt(stats.sessions)],
-    ["Tokens", formatInt(stats.tokens)],
+    ["Tokens", tokensMeasured(stats) ? formatInt(stats.tokens) : "not measured (chat export only; not ranked by tokens or spend)"],
     ["Estimated spend", stats.usd === null ? "not shown" : `$${formatInt(stats.usd)}`],
     ["Active days", formatInt(stats.activeDays)],
     ["Longest streak", `${formatInt(stats.streak)} days`],

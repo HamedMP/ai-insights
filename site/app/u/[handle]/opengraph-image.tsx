@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og"
 
 import { profileBadges } from "@/lib/arena-format"
-import { agentName, EARNED_TITLES, formatCompact, formatInt, formatPeriod } from "@/lib/share"
+import { agentName, EARNED_TITLES, formatCompact, formatInt, formatPeriod, tokensMeasured } from "@/lib/share"
 
 import { loadProfile, loadProfileExtras } from "./data"
 
@@ -42,7 +42,7 @@ export default async function Image({ params }: { params: Promise<{ handle: stri
   const avatar = entry && entry !== "error" && entry.avatarUrl ? await avatarDataUrl(entry.avatarUrl) : null
   const stats: Array<[string, string]> = []
   if (s) {
-    stats.push(["tokens", formatCompact(s.tokens)], ["sessions", formatInt(s.sessions)], ["longest streak", `${formatInt(s.streak)} ${s.streak === 1 ? "day" : "days"}`])
+    stats.push(tokensMeasured(s) ? ["tokens", formatCompact(s.tokens)] : ["tokens, not measured", "n/a"], ["sessions", formatInt(s.sessions)], ["longest streak", `${formatInt(s.streak)} ${s.streak === 1 ? "day" : "days"}`])
     if (s.usd !== null) stats.push(["estimated spend", `$${formatInt(s.usd)}`])
   }
   return new ImageResponse(

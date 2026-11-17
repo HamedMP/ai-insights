@@ -1,6 +1,6 @@
 import type { Badge, BadgeTone } from "@/lib/arena-format"
 import { initials, safeAvatarUrl } from "@/lib/avatar"
-import { agentName, CARD_TITLES, EARNED_TITLES, formatCompact, formatInt, formatPeriod, RATIOS, ratioText, type CardKey, type SharedCard, type SharedStats } from "@/lib/share"
+import { agentName, CARD_TITLES, EARNED_TITLES, formatInt, formatPeriod, RATIOS, ratioText, tokensText, type CardKey, type SharedCard, type SharedStats } from "@/lib/share"
 import { boardHref } from "@/lib/leaderboard"
 import { BASE } from "@/lib/site"
 import { cn } from "@/lib/utils"
@@ -120,7 +120,7 @@ export function BadgePill({ badge, big = false }: { badge: Badge; big?: boolean 
 export function StatStrip({ stats, atLeast = false }: { stats: SharedStats; atLeast?: boolean }) {
   const items: Array<[string, string]> = [
     ["sessions", formatInt(stats.sessions)],
-    ["tokens", formatCompact(stats.tokens)],
+    ["tokens", tokensText(stats)],
     [atLeast ? "active days, at least" : "active days", formatInt(stats.activeDays)],
     [atLeast ? "longest streak, at least" : "longest streak", `${formatInt(stats.streak)} ${stats.streak === 1 ? "day" : "days"}`],
   ]
@@ -249,7 +249,7 @@ export function DevicesStrip({ devices }: { devices: Array<{ label: string; stat
             </div>
             <p className="flex flex-wrap gap-x-3 gap-y-0.5 text-[13px] tabular-nums">
               <span><b className="font-semibold">{formatInt(d.stats.sessions)}</b> <span className="text-muted-foreground">sessions</span></span>
-              <span><b className="font-semibold">{formatCompact(d.stats.tokens)}</b> <span className="text-muted-foreground">tokens</span></span>
+              <span><b className="font-semibold">{tokensText(d.stats)}</b> <span className="text-muted-foreground">tokens</span></span>
               <span><b className="font-semibold">{formatInt(d.stats.activeDays)}</b> <span className="text-muted-foreground">active days</span></span>
             </p>
             {d.duplicate && <p className="text-[12px] text-muted-foreground">Same history as another device, counted once.</p>}

@@ -426,6 +426,13 @@ export function formatCompact(n: number): string {
   if (n >= 1e3) return `${(n / 1e3).toFixed(1)}K`
   return formatInt(n)
 }
+/**
+ * Sessions but no tokens: a history of imported chat exports only, which record no tokens (AI Insights 0.6+).
+ * The payload has no "measured" flag, so this is read from the numbers; shown as not measured, never "0 tokens".
+ */
+export const tokensMeasured = (s: { sessions: number; tokens: number }) => s.tokens > 0 || s.sessions <= 0
+/** "1.2M", or "not measured" for chat-only history. */
+export const tokensText = (s: { sessions: number; tokens: number }) => (tokensMeasured(s) ? formatCompact(s.tokens) : "not measured")
 export function formatPeriod(from: string, to: string): string {
   const f = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })
   return `${f(from)} – ${f(to)}`

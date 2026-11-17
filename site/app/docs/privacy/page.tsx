@@ -90,7 +90,7 @@ export default function Privacy() {
         rows={[
           ["Name", "An optional display name you type, up to 40 characters. Without one the card says “Someone”."],
           ["Period", "The first and last day of your history."],
-          ["Totals", "Sessions, tokens, estimated spend, active days and longest streak. Imported chats count as sessions but add no tokens or spend: a link from chats alone says tokens are not measured."],
+          ["Totals", "Sessions, tokens, estimated spend, active days and longest streak. Imported chats count as sessions but add no tokens or spend: from chats alone, the site shows tokens and spend as not measured and the entry does not rank in the token, spend or agent arenas."],
           ["Agents", "Each coding agent's share of your sessions, as a percentage. Imported chats are left out, because the site estimates each agent's tokens from this share."],
           ["Fun fact", "One line built from counts, such as how many agents you ran at once."],
           ["Titles", "Up to three earned title keys, each with the number of the ratio that earned it. The site rebuilds the wording from a fixed table."],
