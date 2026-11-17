@@ -66,7 +66,7 @@ export default function Privacy() {
       </p>
       <p>
         The monthly reminder runs offline inside the plugin and reads only the date of your last report and its own <code>nudge.json</code>. See{" "}
-        <a href="/docs/getting-started#monthly-reminder">The monthly reminder</a>.
+        <DocLink href="/docs/getting-started#monthly-reminder">The monthly reminder</DocLink>.
       </p>
 
       <H2 id="redaction">Redaction</H2>

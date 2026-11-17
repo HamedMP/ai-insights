@@ -207,7 +207,7 @@ Next steps
       </ul>
       <p>
         Why monthly: Claude Code and Gemini CLI delete transcripts after 30 days by default. Each run saves the stats and your prompts from every
-        transcript it reads (see <a href="/docs/agents#what-is-kept">What is kept</a>), so a review a month keeps that history after the
+        transcript it reads (see <DocLink href="/docs/agents#what-is-kept">What is kept</DocLink>), so a review a month keeps that history after the
         transcripts are gone. It does not keep the agent&apos;s replies or anything needed to resume a session.
       </p>
 

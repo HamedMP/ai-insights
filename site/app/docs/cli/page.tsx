@@ -154,7 +154,7 @@ ai-insights uninstall [--harness <name>]... [--yes] [--dry-run]`}</Code>
       <H3 id="cmd-nudge">ai-insights nudge</H3>
       <p>
         Prints one line when a monthly review is due, and nothing otherwise. The plugin runs the same code when a new Claude Code or Codex
-        session starts; see <a href="/docs/getting-started#monthly-reminder">The monthly reminder</a>. It always exits 0.
+        session starts; see <DocLink href="/docs/getting-started#monthly-reminder">The monthly reminder</DocLink>. It always exits 0.
       </p>
       <Code label="Usage" copy={false}>{`ai-insights nudge          the line, if a review is due
 ai-insights nudge --off    never remind me
