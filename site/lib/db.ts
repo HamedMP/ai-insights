@@ -5,9 +5,10 @@ import { Pool } from "pg"
 
 import { ARENA_COLUMN, PAGE_SIZE, rankAndPercentile, type ArenaId } from "@/lib/leaderboard"
 import { safeAvatarUrl } from "@/lib/avatar"
-import { SAVE_ENTRY_SQL, saveEntryParams } from "@/lib/entry-sql"
-import type { EntryRow, SaveOutcome } from "@/lib/publish"
-import { storedCards, storedRatios, storedTitles, type SharedAgent, type SharedStats } from "@/lib/share"
+import { ACCOUNT_COLUMNS, accountStats, devicesOf, publishDevice, removeDevice, renameDevice, type AccountRecord, type Db } from "@/lib/device-sql"
+import { aggregate, deviceLabel, type DeviceRecord } from "@/lib/devices"
+import type { EntryRow, SaveChoices, SaveOutcome } from "@/lib/publish"
+import type { RatioKey, SharedCard, SharedStats } from "@/lib/share"
 
 /**
  * Postgres access for the leaderboard (Neon, through node-postgres with a pool Vercel Fluid compute keeps warm, as
@@ -28,13 +29,31 @@ function db(): Pool {
   return pool
 }
 
-/** Save a publish. The statement and its rules (latest wins, 30-second limit, referrer set once) are in lib/entry-sql.ts. */
-export async function saveEntry(row: EntryRow): Promise<SaveOutcome> {
+/** Run `work` in one transaction on one pooled connection; it commits only when `keep` says so. */
+async function transaction<T>(work: (client: Db) => Promise<T>, keep: (result: T) => boolean): Promise<T> {
+  const client = await db().connect()
   try {
-    const result = await db().query<{ inserted: boolean; referred: boolean }>(SAVE_ENTRY_SQL, saveEntryParams(row))
-    const saved = result.rows[0]
-    if (!saved) return "too_soon"
-    return { result: "saved", credited: saved.inserted && saved.referred ? row.referrer : null }
+    await client.query("BEGIN")
+    const result = await work(client as unknown as Db)
+    await client.query(keep(result) ? "COMMIT" : "ROLLBACK")
+    return result
+  } catch (error) {
+    await client.query("ROLLBACK").catch((rollbackError: unknown) => console.error("leaderboard rollback failed", rollbackError instanceof Error ? rollbackError.name : "unknown"))
+    throw error
+  } finally {
+    client.release()
+  }
+}
+
+/**
+ * Save a publish: the account row (latest wins, 30-second limit, referrer set once; lib/entry-sql.ts) and this
+ * computer's device row, then the account total over all devices, in one transaction (lib/device-sql.ts).
+ */
+export async function saveEntry(row: EntryRow, choices: SaveChoices): Promise<SaveOutcome> {
+  try {
+    const saved = await transaction((client) => publishDevice(client, row, choices), (r) => r.result === "saved")
+    if (saved.result !== "saved") return saved.result
+    return { result: "saved", credited: saved.inserted && saved.referred ? row.referrer : null, duplicate: saved.duplicate, devices: saved.devices }
   } catch (error) {
     // 23505 on the handle index: someone else holds this handle.
     if (error && typeof error === "object" && (error as { code?: string; constraint?: string }).code === "23505" && (error as { constraint?: string }).constraint === "leaderboard_entries_handle_key") return "handle_taken"
@@ -42,74 +61,90 @@ export async function saveEntry(row: EntryRow): Promise<SaveOutcome> {
   }
 }
 
+/** Remove everything: the account row, and with it (ON DELETE CASCADE) every device row. */
 export async function removeEntry(userId: string): Promise<boolean> {
   const result = await db().query("DELETE FROM leaderboard_entries WHERE user_id = $1", [userId])
   return result.rowCount === 1
 }
 
+export const removeOwnDevice = (userId: string, key: string) => transaction((client) => removeDevice(client, userId, key), (r) => r === "ok")
+export const renameOwnDevice = (userId: string, key: string, name: string, namePublic: boolean) => transaction((client) => renameDevice(client, userId, key, name, namePublic), (r) => r === "ok")
+
+/** The signed-in person's handle and devices, for their own devices panel. */
+export async function ownDevices(userId: string): Promise<{ handle: string; devices: DeviceRecord[] } | null> {
+  const result = await db().query<AccountRecord>(`SELECT ${ACCOUNT_COLUMNS} FROM leaderboard_entries WHERE user_id = $1`, [userId])
+  const account = result.rows[0]
+  return account ? { handle: account.handle, devices: await devicesOf(db() as unknown as Db, account) } : null
+}
+
+/** One computer as the public profile shows it: a label (its name only if the owner chose that) and its numbers. */
+export interface PublicDevice {
+  label: string
+  stats: SharedStats
+  updatedAt: string
+  /** It duplicates another device exactly and is not counted. */
+  duplicate: boolean
+}
+
 export interface PublicEntry {
   handle: string
   displayName: string
+  /** The account total: what the leaderboard ranks and the profile leads with. */
   stats: SharedStats
   updatedAt: string
   /** When the entry was first published: the profile's "joined" date. */
   createdAt: string
   /** The Clerk photo the person chose to show, re-checked on read; null shows initials. */
   avatarUrl: string | null
+  /** Computers the total counts. */
+  deviceCount: number
 }
 
-interface EntryRecord {
-  handle: string
-  display_name: string
-  period_from: string
-  period_to: string
-  sessions: string
-  tokens: string
-  usd: string | null
-  active_days: number
-  streak: number
-  agents: SharedAgent[]
-  fact: string
-  payload_version: number
-  cards: unknown
-  avatar_url: string | null
-  titles: unknown
-  ratios: unknown
-  updated_at: Date
-  created_at: Date
+export interface PublicProfile extends PublicEntry {
+  devices: PublicDevice[]
+  /** Active days and streak are exact; false: lower bounds ("at least"). */
+  exactDays: boolean
+  /** The "All devices" cards, each with the label of the computer it came from (null: rebuilt from the total). */
+  highlights: Array<{ card: SharedCard; from: string | null }>
+  /** Ratios shown per computer only, because one of them did not send the count behind it. */
+  perDeviceRatios: RatioKey[]
 }
 
-const COLUMNS = "handle, display_name, to_char(period_from, 'YYYY-MM-DD') AS period_from, to_char(period_to, 'YYYY-MM-DD') AS period_to, sessions, tokens, usd, active_days, streak, agents, fact, payload_version, cards, avatar_url, titles, ratios, updated_at, created_at"
-
-function v2Extras(r: EntryRecord): Pick<SharedStats, "cards" | "titles" | "ratios"> {
-  const ratios = storedRatios(r.ratios)
-  return { cards: storedCards(r.cards), ratios, titles: storedTitles(r.titles, ratios) }
-}
-
-function toEntry(r: EntryRecord): PublicEntry {
-  const agents = Array.isArray(r.agents) ? r.agents.filter((a) => a && typeof a.k === "string" && typeof a.p === "number").slice(0, 8) : []
+function toEntry(r: AccountRecord): PublicEntry {
   return {
     handle: r.handle,
     displayName: r.display_name,
     updatedAt: r.updated_at.toISOString(),
     createdAt: r.created_at.toISOString(),
     avatarUrl: safeAvatarUrl(r.avatar_url),
-    stats: {
-      v: r.payload_version === 2 ? 2 : 1,
-      name: r.display_name, from: r.period_from, to: r.period_to, sessions: Number(r.sessions), tokens: Number(r.tokens), usd: r.usd === null ? null : Number(r.usd), activeDays: r.active_days, streak: r.streak, agents, fact: r.fact,
-      ...(r.payload_version === 2 ? v2Extras(r) : {}),
-    },
+    stats: accountStats(r),
+    deviceCount: Math.max(1, Number(r.device_count) || 1),
   }
 }
 
-export async function entryByHandle(handle: string): Promise<PublicEntry | null> {
-  const result = await db().query<EntryRecord>(`SELECT ${COLUMNS} FROM leaderboard_entries WHERE handle = $1`, [handle])
+/** A public profile: the account, its devices and the total recomputed from them (the same rules as on write). */
+export async function entryByHandle(handle: string): Promise<PublicProfile | null> {
+  const result = await db().query<AccountRecord>(`SELECT ${ACCOUNT_COLUMNS} FROM leaderboard_entries WHERE handle = $1`, [handle])
   const row = result.rows[0]
-  return row ? toEntry(row) : null
+  if (!row) return null
+  const devices = await devicesOf(db() as unknown as Db, row)
+  const total = aggregate(devices)
+  const labels = new Map(devices.map((d, i) => [d.key, deviceLabel(d, i, "public")]))
+  const duplicates = new Set(total.duplicates.map((d) => d.key))
+  const entry = toEntry(row)
+  return {
+    ...entry,
+    stats: { ...total.stats, name: row.display_name },
+    deviceCount: Math.max(1, total.counted),
+    devices: devices.map((d) => ({ label: labels.get(d.key)!, stats: d.stats, updatedAt: d.updatedAt, duplicate: duplicates.has(d.key) })),
+    exactDays: total.exactDays,
+    highlights: total.highlights.map((h) => ({ card: h.card, from: h.from === null ? null : (labels.get(h.from) ?? null) })),
+    perDeviceRatios: total.perDeviceRatios,
+  }
 }
 
 export async function entryByUser(userId: string): Promise<PublicEntry | null> {
-  const result = await db().query<EntryRecord>(`SELECT ${COLUMNS} FROM leaderboard_entries WHERE user_id = $1`, [userId])
+  const result = await db().query<AccountRecord>(`SELECT ${ACCOUNT_COLUMNS} FROM leaderboard_entries WHERE user_id = $1`, [userId])
   const row = result.rows[0]
   return row ? toEntry(row) : null
 }
@@ -124,8 +159,8 @@ export async function arenaPage(arena: ArenaId, page: number): Promise<ArenaPage
   const col = ARENA_COLUMN[arena]
   const offset = (page - 1) * PAGE_SIZE
   const [rows, count] = await Promise.all([
-      db().query<EntryRecord & { score: string; rank: string }>(
-        `SELECT ${COLUMNS}, ${col} AS score, rank() OVER (ORDER BY ${col} DESC) AS rank
+      db().query<AccountRecord & { score: string; rank: string }>(
+        `SELECT ${ACCOUNT_COLUMNS}, ${col} AS score, rank() OVER (ORDER BY ${col} DESC) AS rank
            FROM leaderboard_entries WHERE ${col} > 0
           ORDER BY ${col} DESC, updated_at ASC, handle ASC LIMIT $1 OFFSET $2`,
         [PAGE_SIZE, offset],

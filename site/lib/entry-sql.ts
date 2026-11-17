@@ -8,6 +8,8 @@
  * written only by the INSERT branch, so a republish never sets or changes it. The cards, titles, ratios and the
  * avatar choice are replaced as a whole by every publish.
  * RETURNING: no row means "too soon"; `inserted` is true for a first publish; `referred` says the row has a referrer.
+ * Since devices (migration 005) this runs inside lib/device-sql.ts publishDevice, which then overwrites the number
+ * columns with the total over the person's devices in the same transaction.
  */
 import type { EntryRow } from "./publish.ts"
 
@@ -30,7 +32,8 @@ export function saveEntryParams(row: EntryRow): unknown[] {
   const s = row.stats
   return [
     row.userId, row.handle, row.displayName, s.from, s.to, s.sessions, s.tokens, s.usd, s.activeDays, s.streak, row.claudeTokens, row.codexTokens,
-    JSON.stringify(s.agents), s.fact, s.v, s.cards ? JSON.stringify(s.cards) : null, row.referrer, row.avatarUrl,
+    // The account row holds v1 or v2 shapes only: a v3 payload's device and days live on its device row.
+    JSON.stringify(s.agents), s.fact, s.v === 1 ? 1 : 2, s.cards ? JSON.stringify(s.cards) : null, row.referrer, row.avatarUrl,
     s.titles ? JSON.stringify(s.titles) : null, s.ratios ? JSON.stringify(s.ratios) : null,
   ]
 }
