@@ -4,6 +4,7 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { z } from "zod";
 import { HARNESSES, type Harness, type Narrative, type Report, type Session, type SessionFacet, type SessionFile } from "../schema/types.js";
+import { deviceId } from "./device.js";
 import { ensureDir, mapLimit, readJsonFile, writeFileAtomic } from "./fs.js";
 import { NarrativeInputSchema, NarrativeSchema, SessionFacetSchema, SessionSchema, isSafeId } from "./schemas.js";
 
@@ -112,6 +113,11 @@ export class Store {
 
   static fromEnv(env: NodeJS.ProcessEnv = process.env): Store {
     return new Store(resolveHome(env));
+  }
+
+  /** This installation's random device id (see device.ts), made on first use. */
+  deviceId(): Promise<string> {
+    return deviceId(this.home);
   }
 
   get reportsDir(): string {
