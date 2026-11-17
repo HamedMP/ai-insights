@@ -3,7 +3,9 @@ import { after } from "next/server"
 
 import { TrackOnMount } from "@/components/site/analytics"
 import { Footer } from "@/components/site/footer"
+import { AccountMenu } from "@/components/site/account-menu"
 import { Header } from "@/components/site/header"
+import { Avatar } from "@/components/site/profile"
 import { RankShare, RemoveEntry } from "@/components/site/rank-share"
 import { formatScore, rankLabel, rankPost } from "@/lib/arena-format"
 import { clerkEnabled } from "@/lib/auth-config"
@@ -55,7 +57,7 @@ export default async function LeaderboardPage({ searchParams }: { searchParams: 
 
   return (
     <>
-      <Header />
+      <Header account={<AccountMenu />} />
       <TrackOnMount event={EVENTS.arenaViewed} properties={{ arena, page }} />
       <main id="top" className="relative overflow-hidden">
         <div aria-hidden className="hero-glow pointer-events-none absolute inset-x-0 top-0 h-[40rem]" />
@@ -116,8 +118,9 @@ export default async function LeaderboardPage({ searchParams }: { searchParams: 
             <section aria-label={ARENAS.find((a) => a.id === arena)!.title}>
               <ol className="flex flex-col divide-y rounded-2xl border bg-card">
                 {board.rows.map((row) => (
-                  <li key={row.handle} className="flex items-center gap-4 px-4 py-3">
-                    <span className="w-10 shrink-0 font-mono text-sm text-muted-foreground tabular-nums">#{row.rank}</span>
+                  <li key={row.handle} className="flex items-center gap-3 px-4 py-3 sm:gap-4">
+                    <span className="w-8 shrink-0 font-mono text-sm text-muted-foreground tabular-nums sm:w-10">#{row.rank}</span>
+                    <Avatar url={row.avatarUrl} name={row.displayName} handle={row.handle} className="size-9 rounded-xl text-[14px]" />
                     <a href={`${BASE}/u/${row.handle}`} className="flex min-w-0 flex-1 flex-col underline-offset-4 hover:underline">
                       <span className="truncate font-medium">{row.displayName}</span>
                       <span className="truncate font-mono text-[11px] text-muted-foreground">@{row.handle} · {formatPeriod(row.stats.from, row.stats.to)}</span>

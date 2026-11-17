@@ -4,6 +4,8 @@ export const SITE_URL = "https://ai-insights.app/"
 export const REPO = "https://github.com/hamedmp/ai-insights"
 export const NPM = "https://www.npmjs.com/package/ai-insights"
 export const MATRIX = "https://matrix-os.com"
+/** The Matrix OS app, where a Matrix account lives. */
+export const MATRIX_APP = "https://app.matrix-os.com"
 export const SAMPLE = `${BASE}/demo/report.html`
 
 /** The launch hashtag. Not final: change it here and every mention on the site follows. */

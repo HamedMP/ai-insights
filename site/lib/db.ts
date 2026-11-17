@@ -4,6 +4,7 @@ import { attachDatabasePool } from "@vercel/functions"
 import { Pool } from "pg"
 
 import { ARENA_COLUMN, PAGE_SIZE, rankAndPercentile, type ArenaId } from "@/lib/leaderboard"
+import { safeAvatarUrl } from "@/lib/avatar"
 import { SAVE_ENTRY_SQL, saveEntryParams } from "@/lib/entry-sql"
 import type { EntryRow, SaveOutcome } from "@/lib/publish"
 import { storedCards, type SharedAgent, type SharedStats } from "@/lib/share"
@@ -53,6 +54,8 @@ export interface PublicEntry {
   updatedAt: string
   /** When the entry was first published: the profile's "joined" date. */
   createdAt: string
+  /** The Clerk photo the person chose to show, re-checked on read; null shows initials. */
+  avatarUrl: string | null
 }
 
 interface EntryRecord {
@@ -69,11 +72,12 @@ interface EntryRecord {
   fact: string
   payload_version: number
   cards: unknown
+  avatar_url: string | null
   updated_at: Date
   created_at: Date
 }
 
-const COLUMNS = "handle, display_name, to_char(period_from, 'YYYY-MM-DD') AS period_from, to_char(period_to, 'YYYY-MM-DD') AS period_to, sessions, tokens, usd, active_days, streak, agents, fact, payload_version, cards, updated_at, created_at"
+const COLUMNS = "handle, display_name, to_char(period_from, 'YYYY-MM-DD') AS period_from, to_char(period_to, 'YYYY-MM-DD') AS period_to, sessions, tokens, usd, active_days, streak, agents, fact, payload_version, cards, avatar_url, updated_at, created_at"
 
 function toEntry(r: EntryRecord): PublicEntry {
   const agents = Array.isArray(r.agents) ? r.agents.filter((a) => a && typeof a.k === "string" && typeof a.p === "number").slice(0, 8) : []
@@ -82,6 +86,7 @@ function toEntry(r: EntryRecord): PublicEntry {
     displayName: r.display_name,
     updatedAt: r.updated_at.toISOString(),
     createdAt: r.created_at.toISOString(),
+    avatarUrl: safeAvatarUrl(r.avatar_url),
     stats: {
       v: r.payload_version === 2 ? 2 : 1,
       name: r.display_name, from: r.period_from, to: r.period_to, sessions: Number(r.sessions), tokens: Number(r.tokens), usd: r.usd === null ? null : Number(r.usd), activeDays: r.active_days, streak: r.streak, agents, fact: r.fact,

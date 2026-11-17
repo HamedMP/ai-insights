@@ -2,6 +2,7 @@
 
 import * as React from "react"
 
+import { RemoveEntry } from "@/components/site/rank-share"
 import { BASE, COMMAND } from "@/lib/site"
 
 const API = `${BASE}/api/leaderboard/referrals`
@@ -55,8 +56,15 @@ export function OwnerReferrals({ handle, hasCards }: { handle: string; hasCards:
   if (!mine) return null
   return (
     <section aria-labelledby="referred" className="flex flex-col gap-4 rounded-2xl border-2 border-dashed border-primary/40 bg-card px-5 py-5">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-4">
+        <p className="text-[14px]">
+          <span className="font-semibold">This is your profile.</span>{" "}
+          <span className="text-muted-foreground">To update it, run <code className="font-mono">{COMMAND}@latest</code> and publish from the new report&rsquo;s share link.</span>
+        </p>
+        <RemoveEntry />
+      </div>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="referred" className="text-lg font-semibold">People you referred</h2>
+        <h2 id="referred" className="scroll-mt-24 text-lg font-semibold">People you referred</h2>
         <span className="font-mono text-[11px] text-muted-foreground">only you see this list</span>
       </div>
       {!hasCards && (

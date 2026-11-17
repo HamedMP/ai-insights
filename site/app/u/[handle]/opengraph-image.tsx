@@ -11,6 +11,24 @@ export const contentType = "image/png"
 
 const COLORS = ["#ff6a1a", "#f3f0e8", "#bed77b", "#8ab4ff", "#f7c948", "#d08cff", "#7ce0c3", "#ff9db0"]
 
+/** The photo inlined as a data URL, so a slow or failing image host leaves the card without it instead of breaking it. */
+async function avatarDataUrl(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(4_000), redirect: "error", headers: { Accept: "image/png,image/jpeg" } })
+    const type = res.headers.get("content-type") ?? ""
+    if (!res.ok || !/^image\/(?:png|jpeg)$/.test(type.split(";")[0]!.trim())) return null
+    const bytes = await res.arrayBuffer()
+    if (bytes.byteLength > 2_000_000) return null
+    return `data:${type.split(";")[0]!.trim()};base64,${Buffer.from(bytes).toString("base64")}`
+  } catch (error) {
+    if (error instanceof Error) {
+      console.error("ai-insights: OG avatar skipped", error.name)
+      return null
+    }
+    throw error
+  }
+}
+
 /** The personalized preview for X, LinkedIn, WhatsApp and Instagram link cards. Text only, from validated columns. */
 export default async function Image({ params }: { params: Promise<{ handle: string }> }) {
   const { handle } = await params
@@ -19,6 +37,8 @@ export default async function Image({ params }: { params: Promise<{ handle: stri
   const name = entry && entry !== "error" ? entry.displayName : "Someone"
   const badge = entry && entry !== "error" ? (profileBadges((await loadProfileExtras(entry.handle)).ranks)[0] ?? null) : null
   const cards = s?.cards?.length ?? 0
+  // Already checked against img.clerk.com on write and on read (lib/avatar.ts); the renderer fetches it server-side.
+  const avatar = entry && entry !== "error" && entry.avatarUrl ? await avatarDataUrl(entry.avatarUrl) : null
   const stats: Array<[string, string]> = []
   if (s) {
     stats.push(["tokens", formatCompact(s.tokens)], ["sessions", formatInt(s.sessions)], ["longest streak", `${formatInt(s.streak)} ${s.streak === 1 ? "day" : "days"}`])
@@ -37,6 +57,10 @@ export default async function Image({ params }: { params: Promise<{ handle: stri
               {badge ? <span style={{ display: "flex", padding: "8px 22px", borderRadius: 999, background: badge.tone === "plain" ? "#f3f0e8" : badge.tone === "silver" ? "#e7e5df" : badge.tone === "bronze" ? "#f0a26c" : badge.tone === "gold" ? "#ffe14a" : "#ff7a2f", color: "#17140f" }}>{badge.label}</span> : null}
               {cards ? <span style={{ display: "flex", padding: "8px 22px", borderRadius: 999, border: "2px solid rgba(243,240,232,0.3)", color: "rgba(243,240,232,0.85)" }}>{`${cards} recap cards`}</span> : null}
             </div>
+          ) : null}
+          {avatar ? (
+            // eslint-disable-next-line @next/next/no-img-element -- ImageResponse renders plain img elements
+            <img src={avatar} width={120} height={120} alt="" style={{ width: 120, height: 120, borderRadius: 28, objectFit: "cover" }} />
           ) : null}
           <div style={{ display: "flex", flexWrap: "wrap", fontSize: 76, fontWeight: 700, letterSpacing: -3, lineHeight: 1.05 }}>
             <span>{`${name}’s `}</span>

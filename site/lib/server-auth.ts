@@ -4,6 +4,7 @@ import { auth, clerkClient } from "@clerk/nextjs/server"
 
 import { serverAuthEnabled } from "@/lib/auth-config"
 import { createLimiter } from "@/lib/publish"
+import { avatarFromClerkUser } from "@/lib/avatar"
 import { metadataPatch, referralPatch } from "@/lib/signup-source"
 import { SITE_URL } from "@/lib/site"
 
@@ -57,6 +58,17 @@ export async function recordReferral(userId: string, handle: string): Promise<vo
   } catch (error) {
     // Best effort, like the sign-up source: the database already holds the credit.
     console.error("ai-insights: referral not recorded in Clerk", error instanceof Error ? error.name : "unknown")
+  }
+}
+
+/** The signed-in person's uploaded Clerk photo, read on the server. A Clerk failure means "no photo", never a failed publish. */
+export async function clerkAvatar(userId: string): Promise<string | null> {
+  try {
+    const client = await clerkClient()
+    return avatarFromClerkUser(await client.users.getUser(userId))
+  } catch (error) {
+    console.error("ai-insights: avatar not read from Clerk", error instanceof Error ? error.name : "unknown")
+    return null
   }
 }
 

@@ -67,7 +67,11 @@ function Indicator({ nav, active }: { nav: React.RefObject<HTMLElement | null>; 
   )
 }
 
-export function Header() {
+/**
+ * `account` is the header's account slot: pages that mount Clerk pass <AccountMenu /> (components/site/account-menu.tsx).
+ * Without it (the landing page) the slot is a plain leaderboard link, so this module never imports Clerk.
+ */
+export function Header({ account }: { account?: React.ReactNode } = {}) {
   const [scrolled, setScrolled] = React.useState(false)
   const [open, setOpen] = React.useState(false)
   const active = useActiveSection()
@@ -135,6 +139,11 @@ export function Header() {
           <Indicator nav={nav} active={active} />
         </nav>
         <div className="flex items-center gap-2">
+          {account ?? (
+            <Button variant="outline" size="lg" className="h-10 rounded-full px-4 max-sm:hidden sm:h-9" nativeButton={false} render={<a href={`${BASE}/leaderboard`} />}>
+              Leaderboard
+            </Button>
+          )}
           <Button
             variant="secondary"
             size="lg"
@@ -178,6 +187,9 @@ export function Header() {
               <span className={cn("font-mono text-xs text-muted-foreground", active === link.id && "text-primary")}>{String(index + 1).padStart(2, "0")}</span>
             </a>
           ))}
+          <a href={`${BASE}/leaderboard`} className="flex h-13 items-center justify-between border-b text-lg font-medium tracking-tight outline-none focus-visible:text-primary">
+            Leaderboard
+          </a>
           <a href={REPO} className="flex h-13 items-center justify-between border-b text-lg font-medium tracking-tight outline-none focus-visible:text-primary sm:hidden">
             GitHub
             <HugeiconsIcon icon={GithubIcon} strokeWidth={2} className="size-4 text-muted-foreground" />

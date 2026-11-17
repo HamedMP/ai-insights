@@ -3,6 +3,7 @@
  * rejection path without Clerk, Next or a database. app/api/leaderboard/entry/route.ts wires the real ones in.
  */
 import { checkHandle, displayNameFor, scoresFor, type EntryScores } from "./leaderboard.ts"
+import { safeAvatarUrl } from "./avatar.ts"
 import { referralClaim } from "./referral.ts"
 import { validateStats, type SharedStats } from "./share.ts"
 
@@ -19,6 +20,8 @@ export interface EntryRow extends EntryScores {
    * credits it only when this publish creates the entry and the handle belongs to another published person.
    */
   referrer: string | null
+  /** The person's Clerk photo, only when they chose to show it on this publish; null clears a stored one. */
+  avatarUrl: string | null
 }
 
 export type SaveResult = "saved" | "handle_taken" | "too_soon"
@@ -40,6 +43,8 @@ export interface PublishDeps extends HandlerDeps {
   /** The referral cookie's raw value: an untrusted claim. */
   referrer: string | null
   save: (row: EntryRow) => Promise<SaveOutcome>
+  /** Reads the signed-in person's photo from Clerk on the server. Called only when they chose to show it. */
+  avatarFor?: (userId: string) => Promise<string | null>
   /** Called after a save that credited a referrer, to mirror it into the publisher's Clerk metadata. */
   onCredited?: (userId: string, referrer: string) => void
 }
@@ -128,15 +133,18 @@ export async function handlePublish(deps: PublishDeps): Promise<Reply> {
   if (!input || typeof input !== "object" || Array.isArray(input)) return fail(400, ERRORS.body)
   const raw = input as Record<string, unknown>
   const keys = Object.keys(raw)
-  if (keys.length !== 2 || !keys.includes("handle") || !keys.includes("stats")) return fail(400, ERRORS.body)
+  // {handle, stats} from older pages, or {handle, stats, showAvatar} with a boolean choice.
+  const shape = keys.length === 2 || (keys.length === 3 && typeof raw.showAvatar === "boolean")
+  if (!shape || !keys.includes("handle") || !keys.includes("stats")) return fail(400, ERRORS.body)
 
   const handle = checkHandle(raw.handle)
   if (!handle.ok) return fail(400, handle.problem === "reserved" ? ERRORS.reserved : ERRORS.handle)
   const stats = validateStats(raw.stats)
   if (!stats) return fail(400, ERRORS.body)
 
-  const row: EntryRow = { userId, handle: handle.handle, displayName: displayNameFor(stats, handle.handle), stats, ...scoresFor(stats), referrer: referralClaim(deps.referrer, handle.handle) }
+  const row: EntryRow = { userId, handle: handle.handle, displayName: displayNameFor(stats, handle.handle), stats, ...scoresFor(stats), referrer: referralClaim(deps.referrer, handle.handle), avatarUrl: null }
   try {
+    if (raw.showAvatar === true && deps.avatarFor) row.avatarUrl = safeAvatarUrl(await deps.avatarFor(userId))
     const outcome = await deps.save(row)
     const result = typeof outcome === "string" ? outcome : outcome.result
     if (result === "handle_taken") return fail(409, ERRORS.taken)

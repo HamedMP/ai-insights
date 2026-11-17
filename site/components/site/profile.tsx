@@ -1,4 +1,5 @@
 import type { Badge, BadgeTone } from "@/lib/arena-format"
+import { initials, safeAvatarUrl } from "@/lib/avatar"
 import { agentName, CARD_TITLES, formatCompact, formatInt, formatPeriod, type CardKey, type SharedCard, type SharedStats } from "@/lib/share"
 import { BASE } from "@/lib/site"
 import { cn } from "@/lib/utils"
@@ -36,22 +37,31 @@ const CARD_STYLE: Record<CardKey, { bg: string; fg: string; dark?: boolean }> = 
 const MONTH_YEAR = new Intl.DateTimeFormat("en-US", { month: "short", year: "numeric", timeZone: "UTC" })
 export const joinedLabel = (iso: string) => `Joined ${MONTH_YEAR.format(new Date(iso))}`
 
-/** Initials for the avatar: first letters of up to two words, or the handle's first letter. */
-function initials(name: string, handle: string): string {
-  const words = name.split(/\s+/).filter((w) => /^[\p{L}\p{N}]/u.test(w))
-  const letters = words.slice(0, 2).map((w) => Array.from(w)[0]!.toUpperCase()).join("")
-  return letters || handle.slice(0, 1).toUpperCase()
+/**
+ * The person's chosen Clerk photo (an img.clerk.com URL, checked on write and on read), or their initials. Decorative:
+ * the name beside it says who it is.
+ */
+export function Avatar({ url, name, handle, className }: { url: string | null; name: string; handle: string; className?: string }) {
+  const safe = safeAvatarUrl(url)
+  return (
+    <span aria-hidden className={cn("grid shrink-0 place-items-center overflow-hidden bg-[#141210] font-semibold tracking-[-0.04em] text-[#ffe14a]", className)}>
+      {safe ? (
+        // eslint-disable-next-line @next/next/no-img-element -- a Clerk-hosted photo; next/image would proxy it through the site
+        <img src={safe} alt="" referrerPolicy="no-referrer" loading="lazy" decoding="async" className="size-full object-cover" />
+      ) : (
+        initials(name, handle)
+      )}
+    </span>
+  )
 }
 
-export function ProfileHeader({ name, handle, joined, stats, badge, referrals, share }: { name: string; handle: string; joined: string; stats: SharedStats; badge: Badge | null; referrals: number; share: React.ReactNode }) {
+export function ProfileHeader({ name, handle, avatarUrl, joined, stats, badge, referrals, share }: { name: string; handle: string; avatarUrl: string | null; joined: string; stats: SharedStats; badge: Badge | null; referrals: number; share: React.ReactNode }) {
   return (
     <header className="relative overflow-hidden rounded-[1.6rem] border bg-card shadow-sm">
       <div aria-hidden className="h-24 bg-[linear-gradient(110deg,#ff7a2f_0%,#ff6b57_38%,#c9b8ff_72%,#8ad3ff_100%)] sm:h-28" />
       <div className="flex flex-col gap-5 px-5 pb-6 sm:px-8 sm:pb-8">
         <div className="-mt-12 flex flex-wrap items-end justify-between gap-4 sm:-mt-14">
-          <div aria-hidden className="grid size-24 place-items-center rounded-[1.4rem] border-4 border-card bg-[#141210] text-[2.2rem] font-semibold tracking-[-0.04em] text-[#ffe14a] shadow-md sm:size-28 sm:text-[2.6rem]">
-            {initials(name, handle)}
-          </div>
+          <Avatar url={avatarUrl} name={name} handle={handle} className="size-24 rounded-[1.4rem] border-4 border-card text-[2.2rem] shadow-md sm:size-28 sm:text-[2.6rem]" />
           <div className="max-sm:hidden">{share}</div>
         </div>
         <div className="flex flex-col gap-2">

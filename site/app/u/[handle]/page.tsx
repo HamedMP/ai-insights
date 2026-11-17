@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 
 import { Footer } from "@/components/site/footer"
+import { AccountMenu } from "@/components/site/account-menu"
 import { Header } from "@/components/site/header"
 import { OwnerReferrals } from "@/components/site/owner-referrals"
 import { AgentsAndFact, BadgePill, CardGallery, joinedLabel, ProfileHeader, StatStrip } from "@/components/site/profile"
@@ -46,13 +47,14 @@ export default async function ProfilePage({ params }: Props) {
 
   return (
     <>
-      <Header />
+      <Header account={<AccountMenu />} />
       <main id="top" className="relative overflow-hidden">
         <div aria-hidden className="hero-glow pointer-events-none absolute inset-x-0 top-0 h-[40rem]" />
         <div className="relative mx-auto flex max-w-4xl flex-col gap-6 px-4 pt-6 pb-20 sm:gap-8 md:px-8 md:pt-12">
           <ProfileHeader
             name={entry.displayName}
             handle={entry.handle}
+            avatarUrl={entry.avatarUrl}
             joined={joinedLabel(entry.createdAt)}
             stats={entry.stats}
             badge={badges[0] ?? null}

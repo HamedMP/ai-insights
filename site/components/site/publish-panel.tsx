@@ -57,6 +57,8 @@ export function PublishPanel({ stats }: { stats: SharedStats }) {
   const { user } = useUser()
   const [handle, setHandle] = React.useState("")
   const [touched, setTouched] = React.useState(false)
+  // Off by default: the photo becomes public only when the person ticks the box on this publish.
+  const [showAvatar, setShowAvatar] = React.useState(false)
   const [state, setState] = React.useState<{ kind: "idle" | "busy" } | { kind: "done"; handle: string } | { kind: "removed" } | { kind: "error"; message: string }>({ kind: "idle" })
 
   const suggested = suggestHandle(user?.username ?? user?.firstName ?? "")
@@ -94,7 +96,7 @@ export function PublishPanel({ stats }: { stats: SharedStats }) {
     if (!checked.ok) return
     track(EVENTS.publishClicked)
     setState({ kind: "busy" })
-    const result = await callEntryApi("POST", { handle: checked.handle, stats })
+    const result = await callEntryApi("POST", { handle: checked.handle, stats, showAvatar })
     // Whether a referrer was credited, as a boolean only: never whose.
     if (result.ok) track(EVENTS.publishCompleted, { referred: result.referred === true })
     setState(result.ok ? { kind: "done", handle: result.handle ?? checked.handle } : { kind: "error", message: result.error })
@@ -108,6 +110,7 @@ export function PublishPanel({ stats }: { stats: SharedStats }) {
 
   const rows: Array<[string, string]> = [
     ["Name", shownName],
+    ["Photo", showAvatar ? "your Matrix account photo, if you uploaded one" : "not shown (initials instead)"],
     ["Profile", `ai-insights.app/u/${checked.ok ? checked.handle : "…"}`],
     ["Period", formatPeriod(stats.from, stats.to)],
     ["Sessions", formatInt(stats.sessions)],
@@ -156,6 +159,14 @@ export function PublishPanel({ stats }: { stats: SharedStats }) {
               {checked.ok ? "3 to 30 lowercase letters, digits or hyphens." : checked.problem === "reserved" ? "That handle is reserved. Pick another." : "3 to 30 lowercase letters, digits or single hyphens."}
             </span>
           </label>
+          {user?.hasImage ? (
+            <label className="flex items-center gap-3 rounded-xl border px-3 py-2.5">
+              <input type="checkbox" className="size-4 accent-primary" checked={showAvatar} onChange={(e) => setShowAvatar(e.target.checked)} />
+              {/* eslint-disable-next-line @next/next/no-img-element -- the person's own Clerk photo, shown only to them here */}
+              <img src={user.imageUrl} alt="" referrerPolicy="no-referrer" className="size-8 rounded-lg object-cover" />
+              <span>Show my Matrix account photo on my public profile and the leaderboard</span>
+            </label>
+          ) : null}
           <div className="flex flex-col gap-2">
             <p className="font-medium">This becomes public, exactly as shown:</p>
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 rounded-xl bg-muted/50 px-4 py-3">

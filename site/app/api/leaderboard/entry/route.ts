@@ -3,7 +3,7 @@ import { after, NextResponse, type NextRequest } from "next/server"
 import { databaseConfigured, removeEntry, saveEntry } from "@/lib/db"
 import { handlePublish, handleRemove, type HandlerDeps, type Reply } from "@/lib/publish"
 import { REF_COOKIE } from "@/lib/referral"
-import { allowedOrigins, currentUserId, logError, recordReferral, recordSignupSource, writeLimiter } from "@/lib/server-auth"
+import { allowedOrigins, clerkAvatar, currentUserId, logError, recordReferral, recordSignupSource, writeLimiter } from "@/lib/server-auth"
 
 export const dynamic = "force-dynamic"
 
@@ -30,6 +30,7 @@ export async function POST(request: NextRequest) {
     ...(await deps(request)),
     referrer: request.cookies.get(REF_COOKIE)?.value ?? null,
     save: saveEntry,
+    avatarFor: clerkAvatar,
     onCredited: (userId, handle) => after(() => recordReferral(userId, handle)),
   })
   const res = json(reply)
