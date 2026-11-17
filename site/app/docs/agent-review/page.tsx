@@ -92,7 +92,7 @@ scripts/install.sh --harness cursor     # or: --harness opencode`}</Code>
             <>
               <code>codex plugin marketplace upgrade ai-insights</code>, then start a new session
             </>,
-            "Not documented",
+            "Not documented. Codex's source refreshes Git marketplaces in the background at startup and reinstalls a plugin whose version changed, so new releases may arrive on their own",
           ],
           ["Pi, Cursor, OpenCode", "Run the install again", "No"],
         ]}
