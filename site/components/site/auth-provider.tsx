@@ -8,8 +8,9 @@ import { clerkEnabled, satelliteOptions } from "@/lib/auth-config"
  */
 export function AuthProvider({ children, autoSync = true }: { children: React.ReactNode; autoSync?: boolean }) {
   if (!clerkEnabled) return <>{children}</>
-  // autoSync false: the account menu loaded on demand on a page that does not mount Clerk (components/site/clerk-slot.tsx).
-  // That browser already holds this site's session, so it never needs the redirect through the primary domain.
+  // autoSync false: the account menu loaded on demand on a page that does not mount Clerk (components/site/clerk-slot.tsx),
+  // which already holds this site's session, and the cached leaderboard and profiles, whose sync proxy.ts runs on the
+  // server when needed. clerk-js would otherwise reload the page through the primary domain on every signed-out visit.
   return (
     <ClerkProvider {...satelliteOptions()} {...(autoSync ? {} : { satelliteAutoSync: false })} telemetry={false}>
       {children}

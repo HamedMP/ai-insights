@@ -55,9 +55,10 @@ describe("the public site", () => {
     expect(provider).toContain("if (!clerkEnabled) return");
     expect(provider).toContain("telemetry={false}");
     const mounts = SITE_SOURCES.filter((path) => read(path).includes("<AuthProvider>")).sort();
-    expect(mounts).toEqual(["site/app/account/layout.tsx", "site/app/leaderboard/layout.tsx", "site/app/share/layout.tsx", "site/app/u/layout.tsx"]);
-    // Elsewhere only the on-demand account menu mounts it, without the satellite redirect (lib/session-hint.ts gates it).
-    expect(SITE_SOURCES.filter((path) => /<AuthProvider\b/.test(read(path)) && !read(path).includes("<AuthProvider>"))).toEqual(["site/components/site/clerk-slot.tsx"]);
+    expect(mounts).toEqual(["site/app/account/layout.tsx", "site/app/share/layout.tsx"]);
+    // The cached leaderboard and profiles mount it without the client-side sync (proxy.ts runs it on the server when a
+    // browser needs it), and so does the on-demand account menu elsewhere (lib/session-hint.ts gates it).
+    expect(SITE_SOURCES.filter((path) => /<AuthProvider\b/.test(read(path)) && !read(path).includes("<AuthProvider>")).sort()).toEqual(["site/app/leaderboard/layout.tsx", "site/app/u/layout.tsx", "site/components/site/clerk-slot.tsx"]);
     expect(read("site/components/site/clerk-slot.tsx")).toContain("<AuthProvider autoSync={false}>");
     expect(read("site/app/layout.tsx")).not.toMatch(/clerk/i);
     const proxy = read("site/proxy.ts");
