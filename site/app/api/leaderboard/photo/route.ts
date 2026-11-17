@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 
+import { boardChanged } from "@/lib/board-cache"
 import { databaseConfigured, setOwnAvatar } from "@/lib/db"
 import { handlePhoto } from "@/lib/photo-route"
 import { allowedOrigins, clerkPhoto, currentUserId, logError, writeLimiter } from "@/lib/server-auth"
@@ -22,5 +23,7 @@ export async function POST(request: NextRequest) {
     avatarFor: clerkPhoto,
     setAvatar: setOwnAvatar,
   })
+  // The photo shows on the cached board and profile: expire them so the owner's refresh shows the change.
+  if (reply.status === 200) boardChanged()
   return NextResponse.json(reply.body, { status: reply.status, headers })
 }

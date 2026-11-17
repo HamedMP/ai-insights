@@ -58,7 +58,7 @@ describe("site analytics never sends a share link's fragment", () => {
   });
 
   it("sends only coarse event properties: never payload values, names or handles", () => {
-    const sources = ["components/site/share-card.tsx", "components/site/publish-panel.tsx", "components/site/publish-form.tsx", "components/site/copy-button.tsx", "app/leaderboard/page.tsx"].map((p) => readFileSync(join(SITE, p), "utf8")).join("\n");
+    const sources = ["components/site/share-card.tsx", "components/site/publish-panel.tsx", "components/site/publish-form.tsx", "components/site/copy-button.tsx", "app/leaderboard/board-view.tsx"].map((p) => readFileSync(join(SITE, p), "utf8")).join("\n");
     const calls = [...sources.matchAll(/track\(EVENTS\.\w+(?:, \{([^}]*)\})?\)|event=\{EVENTS\.\w+\} properties=\{\{([^}]*)\}\}/g)].map((m) => (m[1] ?? m[2] ?? "").trim());
     expect(calls.length).toBeGreaterThanOrEqual(5);
     for (const props of calls) expect(props, props).toMatch(/^(?:|valid: readFragment\(\) != null|location: trackAs|signedIn: false|arena, page|referred: result\.referred === true)$/);

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 
+import { boardChanged } from "@/lib/board-cache"
 import { databaseConfigured, ownDevices, removeOwnDevice, renameOwnDevice } from "@/lib/db"
 import { handleDeviceList, handleDeviceRemove, handleDeviceRename } from "@/lib/device-routes"
 import type { HandlerDeps, Reply } from "@/lib/publish"
@@ -9,6 +10,11 @@ export const dynamic = "force-dynamic"
 
 const headers = { "Cache-Control": "private, no-store" }
 const json = (reply: { status: number; body: unknown }) => NextResponse.json(reply.body, { status: reply.status, headers })
+/** A rename or removal changes the public profile and the totals the board ranks: expire the cached pages. */
+const changed = (reply: { status: number; body: unknown }) => {
+  if (reply.status === 200) boardChanged()
+  return json(reply)
+}
 const unavailable = () => json({ status: 503, body: { ok: false, error: "The leaderboard is not available right now." } } satisfies Reply)
 
 async function deps(request: NextRequest): Promise<HandlerDeps> {
@@ -32,11 +38,11 @@ export async function GET() {
 /** Rename one of the caller's computers, and choose whether its name shows on the public profile. */
 export async function PATCH(request: NextRequest) {
   if (!databaseConfigured()) return unavailable()
-  return json(await handleDeviceRename({ ...(await deps(request)), rename: renameOwnDevice }))
+  return changed(await handleDeviceRename({ ...(await deps(request)), rename: renameOwnDevice }))
 }
 
 /** Remove one of the caller's computers: its numbers leave the total. */
 export async function DELETE(request: NextRequest) {
   if (!databaseConfigured()) return unavailable()
-  return json(await handleDeviceRemove({ ...(await deps(request)), device: request.nextUrl.searchParams.get("device"), remove: removeOwnDevice }))
+  return changed(await handleDeviceRemove({ ...(await deps(request)), device: request.nextUrl.searchParams.get("device"), remove: removeOwnDevice }))
 }

@@ -46,3 +46,9 @@ export function track(event: EventName, properties?: Record<string, string | num
   if (!POSTHOG_KEY) return
   void startAnalytics().then((posthog) => posthog?.capture(event, properties))
 }
+
+/** A pageview PostHog does not see on its own (a client navigation that changes only the query string). */
+export function trackPageview() {
+  if (!POSTHOG_KEY) return
+  void startAnalytics().then((posthog) => posthog?.capture("$pageview"))
+}
