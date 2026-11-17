@@ -3,7 +3,7 @@
 import * as React from "react"
 
 import { PhotoSwitch } from "@/components/site/photo-switch"
-import { callEntryApi } from "@/components/site/publish-panel"
+import { callEntryApi } from "@/lib/entry-api"
 import { Button } from "@/components/ui/button"
 import { formatInt, formatPeriod, tokensText } from "@/lib/share"
 import { BASE, COMMAND } from "@/lib/site"

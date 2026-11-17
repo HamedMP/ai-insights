@@ -2,7 +2,7 @@
 
 import * as React from "react"
 
-import { callEntryApi } from "@/components/site/publish-panel"
+import { callEntryApi } from "@/lib/entry-api"
 import { ShareButtons } from "@/components/site/share-buttons"
 import { Button } from "@/components/ui/button"
 

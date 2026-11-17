@@ -138,7 +138,7 @@ describe("imported chats downstream", () => {
   });
 
   it("no site page renders a token count without the not-measured check", () => {
-    const files = ["site/components/site/share-card.tsx", "site/components/site/profile.tsx", "site/components/site/owner-devices.tsx", "site/app/u/[handle]/opengraph-image.tsx", "site/components/site/publish-panel.tsx"];
+    const files = ["site/components/site/share-card.tsx", "site/components/site/profile.tsx", "site/components/site/owner-devices.tsx", "site/app/u/[handle]/opengraph-image.tsx", "site/components/site/publish-panel.tsx", "site/components/site/publish-form.tsx", "site/components/site/publish-preview.tsx", "site/lib/publish-lines.ts"];
     for (const file of files) {
       const text = readFileSync(new URL(`../../../${file}`, import.meta.url), "utf8");
       expect(text, file).not.toMatch(/(?<!tokensMeasured\((?:d\.)?(?:stats|s)\) \? (?:\["tokens", )?)format(?:Compact|Int)\((?:d\.)?(?:stats|s)\.tokens\)/);

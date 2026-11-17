@@ -37,11 +37,28 @@ export function ShareCard({ publish = false }: { publish?: boolean }) {
     return () => window.removeEventListener("hashchange", read)
   }, [])
 
+  return <ShareLayout stats={stats} panel={stats && publish ? <PublishPanel stats={stats} /> : null} />
+}
+
+/**
+ * With a publish panel, the panel comes first so Publish is on screen without scrolling: above the card on phones,
+ * beside it (the card on the left, held in view) from `lg`. Without one, the card stands alone as before.
+ */
+export function ShareLayout({ stats, panel }: { stats: SharedStats | null | undefined; panel: React.ReactNode }) {
+  const note = stats ? "These numbers were in the link itself; this page sends nothing unless you press Publish." : stats === null ? "This link had no stats in it, so here is the short version." : null
   return (
-    <div className="relative mx-auto flex max-w-6xl flex-col items-center gap-10 px-4 pt-8 pb-20 md:px-8 md:pt-14">
-      <StatsCard stats={stats} />
-      {stats && publish ? <PublishPanel stats={stats} /> : null}
-      <FindOutYours note={stats ? "These numbers were in the link itself; this page sends nothing unless you press Publish." : stats === null ? "This link had no stats in it, so here is the short version." : null} />
+    <div className={cn("relative mx-auto flex max-w-6xl flex-col items-center gap-10 px-4 pb-20 md:px-8", panel ? "pt-6 md:pt-10" : "pt-8 md:pt-14")}>
+      {panel ? (
+        <div className="grid w-full max-w-[40rem] gap-6 lg:max-w-none lg:grid-cols-[34rem_minmax(0,1fr)] lg:items-start lg:gap-8">
+          <div className="min-w-0 lg:col-start-2 lg:row-start-1">{panel}</div>
+          <div className="flex justify-center lg:sticky lg:top-16 lg:col-start-1 lg:row-start-1">
+            <StatsCard stats={stats} />
+          </div>
+        </div>
+      ) : (
+        <StatsCard stats={stats} />
+      )}
+      <FindOutYours note={note} />
     </div>
   )
 }
