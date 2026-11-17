@@ -1,6 +1,6 @@
 import type { Finding, Session, UserPrompt } from "../../schema/types.js";
 import { IDLE_GAP_MS } from "../../sources/shared.js";
-import { median } from "../activity.js";
+import { median, sessionShape } from "../activity.js";
 import { parseMs } from "../time.js";
 import { evidence, harnessesOf, isAgentDriven, MAX_EVIDENCE, minutes, plural, round, type Detector } from "./context.js";
 
@@ -55,6 +55,18 @@ function lastAtOrBefore(times: number[], limit: number): number | null {
 
 /** Prompts the person sent while the agent was still working on its turn, with how long it had worked alone. */
 export function corrections(session: Session): Correction[] {
+  // Asked for by the ratios, the causes and this detector: compute once per session.
+  const shape = sessionShape(session);
+  const cached = correctionMemo.get(session);
+  if (cached && cached.shape === shape) return [...cached.found];
+  const found = computeCorrections(session);
+  correctionMemo.set(session, { shape, found });
+  return [...found];
+}
+
+const correctionMemo = new WeakMap<Session, { shape: string; found: Correction[] }>();
+
+function computeCorrections(session: Session): Correction[] {
   const out: Correction[] = [];
   const activity = agentActivity(session);
   let previous: number | null = parseMs(session.startTime);
