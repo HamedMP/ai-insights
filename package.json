@@ -40,10 +40,10 @@
   "homepage": "https://hamedmp.github.io/ai-insights/",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/hamedmp/ai-insights.git"
+    "url": "git+https://github.com/HamedMP/ai-insights.git"
   },
   "bugs": {
-    "url": "https://github.com/hamedmp/ai-insights/issues"
+    "url": "https://github.com/HamedMP/ai-insights/issues"
   },
   "scripts": {
     "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json && node scripts/build-client.mjs",
