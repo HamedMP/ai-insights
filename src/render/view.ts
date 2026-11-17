@@ -253,6 +253,8 @@ export interface PageView {
     languages: KeyCount[];
     maxParallel: number;
     overlapEvents: number;
+    /** Chat-export sessions, shown on their own: no tokens, no shell, files, commits or parallel agents. */
+    chat: { sessions: number; only: boolean; prompts: number; replies: number; toolCalls: number; toolErrors: number; attachments: number; files: number; voiceNotes: number; branches: number } | null;
   };
   timeline: { days: Array<TimelineDayView>; busiest: number; total: number; sessions: number } | null;
   usage: {
@@ -891,6 +893,27 @@ function timelineDay(timeline: Timeline, zone: string, working: number): Timelin
   };
 }
 
+/**
+ * Tool calls and typed messages of the coding agents only: chat exports have their own tools and many prompts, so
+ * counting them in would turn "tool calls for every message" into a number about neither.
+ */
+export function codingToolCalls(a: Report["activity"]): { calls: number; typed: number } {
+  const calls = (a.toolCategories ?? []).reduce((sum, entry) => sum + count(entry.count), 0) - count(a.chat?.toolCalls);
+  const typed = count(a.userMessages) - count(a.chat?.userMessages);
+  return { calls: Math.max(0, calls), typed: Math.max(0, typed) };
+}
+
+/** Failed tool calls of the coding agents; a chat export's failed connector calls (all "other") are left out. */
+function codingFailures(a: Report["activity"]): { total: number; calls: number; categories: KeyCount[] } {
+  const chatErrors = count(a.chat?.toolErrors);
+  const errors = (a.toolErrors ?? []).map((entry) => (entry.key === "other" ? { ...entry, count: Math.max(0, count(entry.count) - chatErrors) } : entry)).filter((entry) => count(entry.count) > 0);
+  return {
+    total: errors.reduce((sum, entry) => sum + count(entry.count), 0),
+    calls: codingToolCalls(a).calls,
+    categories: keyCounts(errors, 9, 30),
+  };
+}
+
 function ledeFor(report: Report, recap: RecapView | null, names: string[]): string {
   const narrative = report.narrative?.headline;
   if (typeof narrative === "string" && narrative.trim()) return clip(narrative.trim(), 900);
@@ -900,9 +923,10 @@ function ledeFor(report: Report, recap: RecapView | null, names: string[]): stri
   const where = names.length > 0 ? ` in ${names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`}` : "";
   const days = recap ? recap.range.days : null;
   const parts = [`${plural(sessions, "session")}${where}${days ? ` over ${plural(days, "day")}` : ""}, on ${plural(count(a.activeDays), "active day")}.`];
-  const calls = (a.toolCategories ?? []).reduce((sum, entry) => sum + count(entry.count), 0);
-  const typed = count(a.userMessages);
+  const { calls, typed } = codingToolCalls(a);
   if (calls > 0 && typed > 0) parts.push(`Your agents made ${formatInt(calls)} tool calls, ${formatInt(calls / typed)} for every message you typed.`);
+  const chats = count(a.chat?.sessions);
+  if (chats > 0) parts.push(chats >= sessions ? "They come from a chat export, so tokens and cost are not measured." : `${formatInt(chats)} of them are chats from an export: tokens and cost are not measured for those.`);
   return parts.join(" ");
 }
 
@@ -1219,8 +1243,8 @@ export function buildView(input: RenderInput, zone: string, extras: RenderExtras
       responseBuckets: keyCounts(a.responseTimeBuckets, 6, 12),
       medianResponseSec: maybe(a.medianResponseTimeSec),
       toolCategories: keyCounts(a.toolCategories, 11, 20),
-      toolCalls: (a.toolCategories ?? []).reduce((sum, entry) => sum + count(entry.count), 0),
-      toolsPerPrompt: count(a.userMessages) > 0 ? (a.toolCategories ?? []).reduce((sum, entry) => sum + count(entry.count), 0) / count(a.userMessages) : null,
+      toolCalls: codingToolCalls(a).calls,
+      toolsPerPrompt: codingToolCalls(a).typed > 0 ? codingToolCalls(a).calls / codingToolCalls(a).typed : null,
       subagentSessions: count(a.features?.sessionsWithSubagents),
       planModeSessions: count(a.features?.sessionsWithPlanMode),
       compactions: count(a.features?.compactions),
@@ -1236,6 +1260,20 @@ export function buildView(input: RenderInput, zone: string, extras: RenderExtras
       languages: keyCounts(a.languages, 8, 40),
       maxParallel: count(a.parallelSessions?.maxConcurrent),
       overlapEvents: count(a.parallelSessions?.overlapEvents),
+      chat: a.chat && count(a.chat.sessions) > 0
+        ? {
+            sessions: count(a.chat.sessions),
+            only: count(a.chat.sessions) >= count(a.sessions),
+            prompts: count(a.chat.userMessages),
+            replies: count(a.chat.assistantMessages),
+            toolCalls: count(a.chat.toolCalls),
+            toolErrors: count(a.chat.toolErrors),
+            attachments: count(a.chat.attachments),
+            files: count(a.chat.files),
+            voiceNotes: count(a.chat.voiceNotes),
+            branches: count(a.chat.branches),
+          }
+        : null,
     },
     timeline,
     usage: {
@@ -1257,11 +1295,7 @@ export function buildView(input: RenderInput, zone: string, extras: RenderExtras
       daily: (report.usage?.daily ?? []).slice(-MAX_DAYS).map((d) => ({ day: d.day, usd: maybe(d.estimatedUsd), tokens: count(d.tokens) })),
       models: usageModels.slice(0, 40).map((m) => ({ model: clip(String(m.model), 60), harness: String(m.harness), requests: count(m.requests), tokens: count(m.tokens), output: count(m.output), usd: maybe(m.estimatedUsd), unpriced: count(m.unpriced) })),
     },
-    failures: {
-      total: (a.toolErrors ?? []).reduce((sum, entry) => sum + count(entry.count), 0),
-      calls: (a.toolCategories ?? []).reduce((sum, entry) => sum + count(entry.count), 0),
-      categories: keyCounts(a.toolErrors, 9, 30),
-    },
+    failures: codingFailures(a),
     findings,
     otherFindings: (report.findings ?? []).filter((finding) => NOT_A_PROBLEM.has(finding.kind)).length,
     actions: { top: actionViews.slice(0, ranked.top.length), rest: actionViews.slice(ranked.top.length) },

@@ -38,6 +38,7 @@ const { rankActions } = await import("../src/render/story.ts");
 const { settingsSnippet } = await import("../src/render/view.ts");
 const { makeSnapshot, compareRuns } = await import("../src/store/snapshots.ts");
 const { measureRetention, readRetentionPolicies } = await import("../src/store/retention.ts");
+const { conversationToSession } = await import("../src/sources/claude-chat/conversation.ts");
 
 const args = process.argv.slice(2);
 const jsonAt = args.indexOf("--json");
@@ -370,6 +371,38 @@ for (let day = CODEX_FROM; day < NOW.getTime() - DAY / 2; day += DAY) {
   }
 }
 
+// A Claude chat export imported with `ai-insights import claude`: conversations go through the real mapper, so
+// they carry what an import keeps (prompts, fixed tool labels, counts) and no tokens. Own random stream, so the
+// coding sessions above stay exactly as they were.
+{
+  const chatRandom = rng(20261117);
+  const chatInt = (min, max) => min + Math.floor(chatRandom() * (max - min + 1));
+  const ASKS = ["Explain the difference between a mutex and a semaphore", "Draft a short note to the team about the release date", "What should I read first to learn about Postgres indexes?", "Summarise the trade-offs of event sourcing in a few bullets", "Help me plan a talk on testing for a meetup", "Can you suggest a name for an internal CLI tool?"];
+  const AFTER = ["Shorter please", "Thanks, and what about the second point?", "Give me an example", "Make it friendlier"];
+  const TOOLS = ["web_search", "artifacts", "web_search", "repl"];
+  for (let index = 0; index < 14; index += 1) {
+    const start = Date.parse(NOW.toISOString()) - chatInt(1, 40) * DAY - chatInt(1, 8) * 3_600_000;
+    const messages = [];
+    let at = start;
+    let parent = null;
+    for (let turn = 0, turns = chatInt(1, 4); turn < turns; turn += 1) {
+      const text = turn === 0 ? ASKS[chatInt(0, ASKS.length - 1)] : AFTER[chatInt(0, AFTER.length - 1)];
+      messages.push({ uuid: `h${index}-${turn}`, sender: "human", text, content: [{ type: "text", text }], created_at: iso(at), attachments: turn === 0 && chatRandom() < 0.3 ? [{}] : [], files: [], parent_message_uuid: parent });
+      const blocks = [{ type: "thinking", start_timestamp: iso(at + 2_000), stop_timestamp: iso(at + chatInt(3_000, 14_000)) }];
+      if (chatRandom() < 0.5) {
+        const name = TOOLS[chatInt(0, TOOLS.length - 1)];
+        blocks.push({ type: "tool_use", name, start_timestamp: iso(at + 15_000) }, { type: "tool_result", name, is_error: false });
+      }
+      blocks.push({ type: "text", start_timestamp: iso(at + 16_000), stop_timestamp: iso(at + 40_000) });
+      messages.push({ uuid: `a${index}-${turn}`, sender: "assistant", content: blocks, created_at: iso(at + 1_000), attachments: [], files: [], parent_message_uuid: `h${index}-${turn}` });
+      parent = `a${index}-${turn}`;
+      at += chatInt(2, 9) * MIN;
+    }
+    const session = conversationToSession({ uuid: `c4a7e0de-0000-4000-8000-${String(index).padStart(12, "0")}`, chat_messages: messages }, { harness: "claude-chat", path: `demo://claude-chat/${index}.json`, mtimeMs: at, sizeBytes: 0 });
+    if (session) sessions.push(session);
+  }
+}
+
 sessions.sort((a, b) => a.startTime.localeCompare(b.startTime));
 
 // ---------------------------------------------------------------------------
@@ -378,7 +411,8 @@ sessions.sort((a, b) => a.startTime.localeCompare(b.startTime));
 
 const GOALS = { api: ["feature", "bug_fix", "refactor"], web: ["feature", "bug_fix", "tests"], infra: ["devops", "debugging"], data: ["data_analysis", "bug_fix"], docs: ["docs", "writing"] };
 const facets = sessions
-  .filter((session) => Date.parse(session.startTime) >= Date.parse("2026-10-20T00:00:00Z"))
+  // Chats are left unjudged here so the coding sessions' facets (and their random draws) stay as they were.
+  .filter((session) => session.harness !== "claude-chat" && Date.parse(session.startTime) >= Date.parse("2026-10-20T00:00:00Z"))
   .map((session) => {
     const key = Object.keys(PROJECTS).find((name) => (session.projectRoot ?? "").endsWith(PROJECTS[name].path.split("/").pop()));
     const outcome = weighted([["fully_achieved", 10], ["mostly_achieved", 7], ["partially_achieved", 3], ["not_achieved", 1]]);
@@ -407,6 +441,7 @@ const COVERAGE = [
   { harness: "pi", label: "Pi", found: true, files: 0, sessions: 0, issues: 0, oldest: null, newest: null },
   { harness: "opencode", label: "OpenCode", found: true, files: 0, sessions: 0, issues: 0, oldest: null, newest: null },
   { harness: "gemini", label: "Gemini CLI", found: true, files: 0, sessions: 0, issues: 0, oldest: null, newest: null },
+  { harness: "claude-chat", label: "Claude chat", found: true, files: 0, sessions: 0, issues: 0, oldest: null, newest: null },
 ].map((entry) => {
   const own = sessions.filter((session) => session.harness === entry.harness);
   if (!own.length) return entry;

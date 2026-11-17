@@ -1,4 +1,4 @@
-import type { Activity, Count, Harness, Session, SessionSpan } from "../schema/types.js";
+import { isChatHarness, type Activity, type ChatActivity, type Count, type Harness, type Session, type SessionSpan } from "../schema/types.js";
 import { IDLE_GAP_MS } from "../sources/shared.js";
 import { continuousDays, daysBetween, parseMs, type Clock } from "./time.js";
 import { isAgentDriven, projectKey } from "./sessions.js";
@@ -352,5 +352,24 @@ export function buildActivity(sessions: Session[], clock: Clock): Activity {
   activity.features.mcpServers = toCounts(mcpServers);
   activity.features.skills = toCounts(skills);
   activity.features.slashCommands = toCounts(slashCommands);
+  const chat = chatActivity(sessions);
+  if (chat) activity.chat = chat;
   return activity;
+}
+
+function chatActivity(sessions: Session[]): ChatActivity | null {
+  const out: ChatActivity = { sessions: 0, userMessages: 0, assistantMessages: 0, toolCalls: 0, toolErrors: 0, attachments: 0, files: 0, voiceNotes: 0, branches: 0 };
+  for (const session of sessions) {
+    if (!isChatHarness(session.harness)) continue;
+    out.sessions += 1;
+    out.userMessages += session.userMessageCount;
+    out.assistantMessages += session.assistantMessageCount;
+    out.toolCalls += session.toolCalls.length;
+    out.toolErrors += session.toolCalls.filter((call) => call.error).length;
+    out.attachments += session.chat?.attachments ?? 0;
+    out.files += session.chat?.files ?? 0;
+    out.voiceNotes += session.chat?.voiceNotes ?? 0;
+    out.branches += session.chat?.branches ?? 0;
+  }
+  return out.sessions > 0 ? out : null;
 }

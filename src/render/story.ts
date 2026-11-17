@@ -124,8 +124,9 @@ export function unpricedModelsText(models: string[], limit = 3): string {
  * on them could not be checked.)
  */
 export function delegationRatio(report: Report): { toolCalls: number; messages: number; perMessage: number } | null {
-  const messages = count(report.activity.userMessages);
-  const toolCalls = (report.activity.toolCategories ?? []).reduce((sum, entry) => sum + count(entry.count), 0);
+  // Coding agents only: a chat export's prompts and tools would make the ratio about neither.
+  const messages = Math.max(0, count(report.activity.userMessages) - count(report.activity.chat?.userMessages));
+  const toolCalls = Math.max(0, (report.activity.toolCategories ?? []).reduce((sum, entry) => sum + count(entry.count), 0) - count(report.activity.chat?.toolCalls));
   return messages > 0 && toolCalls > 0 ? { toolCalls, messages, perMessage: toolCalls / messages } : null;
 }
 

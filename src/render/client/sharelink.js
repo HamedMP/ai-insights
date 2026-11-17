@@ -313,7 +313,7 @@ const ShareLink = (() => {
       p.name ? `Name: ${p.name}` : "No name (the card says “Someone”)",
       ...deviceLines,
       `Period: ${p.from} to ${p.to}`,
-      `${fmt(p.sessions)} sessions, ${short(p.tokens)} tokens${p.usd != null ? `, about $${fmt(p.usd)} estimated spend` : ""}`,
+      `${fmt(p.sessions)} sessions, ${p.tokens > 0 || p.agents.length ? `${short(p.tokens)} tokens` : "tokens not measured (chat export only)"}${p.usd != null ? `, about $${fmt(p.usd)} estimated spend` : ""}`,
       `${fmt(p.activeDays)} active days, longest streak ${fmt(p.streak)} days`,
       agentList ? `Agents: ${agentList}` : null,
       p.fact ? `Fun fact: ${p.fact}` : null,

@@ -123,10 +123,14 @@ export class SessionBuilder {
   private gitPushes = 0;
   private thinking = { blocks: 0, totalMs: 0, longestMs: 0, timed: false };
 
-  constructor(
-    readonly harness: Harness,
-    private readonly options: BuilderOptions = {},
-  ) {}
+  readonly harness: Harness;
+  private readonly options: BuilderOptions;
+
+  // Plain fields, not parameter properties, so the demo script can load this file with Node's type stripping.
+  constructor(harness: Harness, options: BuilderOptions = {}) {
+    this.harness = harness;
+    this.options = options;
+  }
 
   /** Any moment the session was active. */
   noteTime(timestamp: string | null): void {

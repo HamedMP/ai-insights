@@ -86,7 +86,8 @@ export function buildReport(input: BuildReportInput): Report {
   const coding = sessions.filter((session) => !isChatHarness(session.harness));
   const allActivity = buildActivity(sessions, clock);
   const codingActivity = coding.length === sessions.length ? allActivity : buildActivity(coding, clock);
-  const activity = { ...allActivity, parallelSessions: codingActivity.parallelSessions };
+  // Chats left open side by side are not agents working in parallel.
+  const activity = { ...allActivity, parallelSessions: codingActivity.parallelSessions, sessionSpans: codingActivity.sessionSpans ?? [] };
   const coverage = withHistoryDays(input.coverage, sessions, now.getTime(), clock);
   step("findings");
   const findings = detectFindings({ sessions: coding, requests, usage, activity: codingActivity, coverage, now, clock, ...(input.retention ? { retention: input.retention } : {}) });

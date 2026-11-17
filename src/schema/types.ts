@@ -661,6 +661,24 @@ export interface Activity {
     sessionsWithWeb: number;
     compactions: number;
   };
+  /** Chat-export sessions summed (`isChatHarness`). Absent when there are none, and in older reports. */
+  chat?: ChatActivity;
+}
+
+/**
+ * What chat-export sessions add up to, kept apart so a page can show chats for what they are and leave them out
+ * of numbers only coding agents produce (tool calls per prompt, delegation). Counts only.
+ */
+export interface ChatActivity {
+  sessions: number;
+  userMessages: number;
+  assistantMessages: number;
+  toolCalls: number;
+  toolErrors: number;
+  attachments: number;
+  files: number;
+  voiceNotes: number;
+  branches: number;
 }
 
 export interface FacetAggregate {
