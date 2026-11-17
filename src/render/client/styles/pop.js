@@ -751,7 +751,7 @@ if (D.persona && D.persona.earned && D.persona.earned.length) add({ id: "titles"
     const k = kick(T.length === 1 ? "title earned" : `${T.length} titles earned`);
     const tt = h("div", { class: "h1", style: { marginTop: 20 * c.k + "px" } }, "Earned, not given.");
     c.tl.in(k, 100).in(tt, 200, { y: 80 });
-    return { head: head(k, tt), artMin: 0.45, split: 0.36, legend: "from your ratios, by fixed rules", center: false,
+    return { head: head(k, tt), artMin: 0.45, split: 0.36, legend: "from your ratios", center: false,
       art(w, hgt) {
         const rowH = Math.min(300 * c.u, hgt / T.length);
         const items = T.map((t, i) => h("div", { style: { borderTop: `${5 * c.k}px solid var(--ink)`, height: rowH + "px", paddingTop: rowH * 0.12 + "px" } },

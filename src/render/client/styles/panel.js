@@ -1261,7 +1261,7 @@ registerCardStyle({
       const k = lab(T.length === 1 ? "Title earned" : `${T.length} titles earned`);
       const tt = hero(c, "Earned, not given.", 150, 70);
       enter(c, [k, tt], 120, 160);
-      return { head: h("div", {}, k, tt), artMin: 0.48, split: 0.36, legend: "from your ratios, by fixed rules", center: false,
+      return { head: h("div", {}, k, tt), artMin: 0.48, split: 0.36, legend: "from your ratios", center: false,
         art(w, hgt) {
           const u = c.u, svg = box(w, hgt), n = Math.max(1, T.length), rowH = Math.min((c.tall ? 380 : 260) * u, hgt / n);
           T.forEach((t, i) => {

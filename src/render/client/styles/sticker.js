@@ -971,7 +971,7 @@ registerCardStyle({
             K.txtl(t.title, ts, { style: { fontFamily: "var(--display)", fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.04 } }),
             K.txtl(t.rule, ws, { style: { marginTop: ts * 0.22 + "px", color: "var(--ink)", opacity: 0.72, fontWeight: 500 } }));
         } }));
-        return done(K, { head: hd, artMin: 0.45, split: 0.38, legend: "from your ratios, by fixed rules", center: false, art: art(K, items, { start: 600, gap2: 260, gap: 22 }) });
+        return done(K, { head: hd, artMin: 0.45, split: 0.38, legend: "from your ratios", center: false, art: art(K, items, { start: 600, gap2: 260, gap: 22 }) });
       } });
 
     if (D.history) add({ id: "history", title: "History kept", dur: 6000,

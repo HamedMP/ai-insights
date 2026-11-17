@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'sha256-lSyMHDtXWGdb2Lq5gg+dmWhuDzDfQxah25eIG7ch9Js='; img-src data: blob:; font-src data:; media-src blob:; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'sha256-yFtqryWfim47ag3mkPqKVMSd0CBo/hdCmuj/xrJ4qlc='; img-src data: blob:; font-src data:; media-src blob:; base-uri 'none'; form-action 'none'">
 <meta name="color-scheme" content="light">
 <meta name="referrer" content="no-referrer">
 <meta name="generator" content="AI Insights">
@@ -1772,7 +1772,7 @@ if (D.persona && D.persona.earned && D.persona.earned.length) add({ id: "titles"
     const k = kick(T.length === 1 ? "title earned" : `${T.length} titles earned`);
     const tt = h("div", { class: "h1", style: { marginTop: 20 * c.k + "px" } }, "Earned, not given.");
     c.tl.in(k, 100).in(tt, 200, { y: 80 });
-    return { head: head(k, tt), artMin: 0.45, split: 0.36, legend: "from your ratios, by fixed rules", center: false,
+    return { head: head(k, tt), artMin: 0.45, split: 0.36, legend: "from your ratios", center: false,
       art(w, hgt) {
         const rowH = Math.min(300 * c.u, hgt / T.length);
         const items = T.map((t, i) => h("div", { style: { borderTop: `${5 * c.k}px solid var(--ink)`, height: rowH + "px", paddingTop: rowH * 0.12 + "px" } },
@@ -3069,7 +3069,7 @@ registerCardStyle({
       const k = lab(T.length === 1 ? "Title earned" : `${T.length} titles earned`);
       const tt = hero(c, "Earned, not given.", 150, 70);
       enter(c, [k, tt], 120, 160);
-      return { head: h("div", {}, k, tt), artMin: 0.48, split: 0.36, legend: "from your ratios, by fixed rules", center: false,
+      return { head: h("div", {}, k, tt), artMin: 0.48, split: 0.36, legend: "from your ratios", center: false,
         art(w, hgt) {
           const u = c.u, svg = box(w, hgt), n = Math.max(1, T.length), rowH = Math.min((c.tall ? 380 : 260) * u, hgt / n);
           T.forEach((t, i) => {
@@ -4112,7 +4112,7 @@ registerCardStyle({
             K.txtl(t.title, ts, { style: { fontFamily: "var(--display)", fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.04 } }),
             K.txtl(t.rule, ws, { style: { marginTop: ts * 0.22 + "px", color: "var(--ink)", opacity: 0.72, fontWeight: 500 } }));
         } }));
-        return done(K, { head: hd, artMin: 0.45, split: 0.38, legend: "from your ratios, by fixed rules", center: false, art: art(K, items, { start: 600, gap2: 260, gap: 22 }) });
+        return done(K, { head: hd, artMin: 0.45, split: 0.38, legend: "from your ratios", center: false, art: art(K, items, { start: 600, gap2: 260, gap: 22 }) });
       } });
 
     if (D.history) add({ id: "history", title: "History kept", dur: 6000,
