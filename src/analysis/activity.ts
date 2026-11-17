@@ -46,6 +46,23 @@ export function median(values: number[]): number | null {
  * misleading for overlap: a session resumed the next day would "overlap" everything in between.
  */
 export function activeSpans(session: Session): Array<[number, number]> {
+  // Several analyses ask for the same session's spans; parsing every timestamp again was a large share of a big report.
+  const shape = sessionShape(session);
+  const cached = spanMemo.get(session);
+  if (cached && cached.shape === shape) return cached.spans.map(([start, end]) => [start, end]);
+  const spans = computeSpans(session);
+  spanMemo.set(session, { shape, spans });
+  return spans.map(([start, end]) => [start, end]);
+}
+
+/** Changes whenever a session gains or loses events, so a memo never outlives what it was computed from. */
+export function sessionShape(session: Session): string {
+  return `${session.startTime}|${session.endTime}|${session.prompts.length}|${session.toolCalls.length}|${session.requests.length}`;
+}
+
+const spanMemo = new WeakMap<Session, { shape: string; spans: Array<[number, number]> }>();
+
+function computeSpans(session: Session): Array<[number, number]> {
   const times: number[] = [];
   for (const value of [session.startTime, session.endTime]) {
     const ms = parseMs(value);

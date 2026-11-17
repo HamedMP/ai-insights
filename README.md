@@ -51,7 +51,7 @@ Early (0.2). History is read from six agents:
 
 You need Node.js 20 or newer.
 
-**Without an agent:** `npx ai-insights` writes the report (add `--open` to open it). `npx ai-insights doctor` shows which history it found and where.
+**Without an agent:** `npx ai-insights` writes the report and asks whether to open it (`--open` opens it without asking, `--no-open` never asks; it never asks when piped, in CI or over SSH). `npx ai-insights doctor` shows which history it found and where.
 
 **From your agent:** each install adds the same MCP server (`npx -y ai-insights mcp`) and three skills:
 - `analyze-ai-usage` builds the report, with your own agent labelling a sample of sessions and writing a short narrative;

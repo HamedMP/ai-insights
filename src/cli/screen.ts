@@ -1,6 +1,8 @@
 import type { Report, Retention } from "../schema/types.js";
 import { describeHeadline, formatUsd } from "../store/pipeline.js";
 import { harnessLabel } from "../store/scan.js";
+import { MATRIX_URL } from "../render/view.js";
+import { ASCII, UNICODE, type Glyphs } from "./header.js";
 import { fileUrl, pad, painter, visibleWidth, wrapSegments, type Paint, type Segment, type Style } from "./terminal.js";
 
 export const SITE_URL = "https://ai-insights.app/";
@@ -92,8 +94,8 @@ export interface ResultInput {
   htmlPath: string;
   version: string;
   now: Date;
-  /** The report was opened in the browser by --open. */
-  opened: boolean;
+  /** How the report reaches the browser: opened now (--open), a question after the screen, or by hand. */
+  open: "now" | "ask" | "manual";
   /** Facets or a narrative are saved, so the agent review has run. */
   reviewed: boolean;
 }
@@ -112,7 +114,13 @@ function nextSteps(input: ResultInput, rich: boolean): Step[] {
   const code = (text: string): Segment => (rich ? { text, tone: "accent", keep: true } : text);
   const steps: Step[] = [];
   if (rich) {
-    steps.push({ title: "Open", detail: input.opened ? ["opening it in your browser now."] : ["click the report path above, or add ", code("--open"), " next time."] });
+    const open: Segment[] =
+      input.open === "now"
+        ? ["opening it in your browser now."]
+        : input.open === "ask"
+          ? ["press Enter below to open it in your browser, or click the report path above."]
+          : ["click the report path above, or add ", code("--open"), " next time."];
+    steps.push({ title: "Open", detail: open });
     if (input.report.recap) {
       steps.push({ title: "Play", detail: [label("Play your recap"), " in the report, then ", label("Make a video"), " to export it."] });
       steps.push({
@@ -134,7 +142,7 @@ function nextSteps(input: ResultInput, rich: boolean): Step[] {
     if (!input.reviewed) steps.push({ title: "Go deeper", detail: ["run the ", code("analyze-ai-usage"), " skill in your agent."] });
     return steps;
   }
-  steps.push({ title: "Open the report", detail: [input.opened ? "opening it in your browser now." : "open the file above in your browser, or run again with --open."] });
+  steps.push({ title: "Open the report", detail: [input.open === "now" ? "opening it in your browser now." : "open the file above in your browser, or run again with --open."] });
   if (input.report.recap) {
     steps.push({ title: "Play your recap", detail: ["press ", label("Play your recap"), " in the report; ", label("Make a video"), " saves it as a video or images."] });
     steps.push({
@@ -171,63 +179,6 @@ export function plainResult(input: ResultInput): string {
 }
 
 // -- the designed screen ---------------------------------------------------------
-
-interface Glyphs {
-  h: string;
-  v: string;
-  tl: string;
-  tr: string;
-  bl: string;
-  br: string;
-  dot: string;
-  arrow: string;
-  persona: string;
-  finding: string;
-  report: string;
-  notice: string;
-}
-
-const UNICODE: Glyphs = { h: "─", v: "│", tl: "╭", tr: "╮", bl: "╰", br: "╯", dot: "·", arrow: "→", persona: "◆", finding: "▲", report: "▸", notice: "!" };
-const ASCII: Glyphs = { h: "-", v: "|", tl: "+", tr: "+", bl: "+", br: "+", dot: "-", arrow: "->", persona: "*", finding: "!", report: ">", notice: "!" };
-
-// An original mark: a rabbit's head with two tall ears, four rows high. The ASCII one keeps the same outline.
-const RABBIT_UNICODE = [" █▄  ▄█ ", " ██  ██ ", "▄██████▄", "██▄██▄██", " ▀████▀ "];
-const RABBIT_ASCII = [" /|  |\\ ", " ||  || ", ".-'``'-.", "| o  o |", " '-vv-' "];
-
-// Two-row block letters for the wordmark.
-const LETTERS: Record<string, [string, string]> = {
-  A: ["▄▀█", "█▀█"],
-  I: ["█", "█"],
-  N: ["█▄ █", "█ ▀█"],
-  S: ["█▀", "▄█"],
-  G: ["█▀▀", "█▄█"],
-  H: ["█ █", "█▀█"],
-  T: ["▀█▀", " █ "],
-  " ": [" ", " "],
-};
-
-function blockWord(text: string): [string, string] {
-  const top: string[] = [];
-  const bottom: string[] = [];
-  for (const char of text) {
-    const [a, b] = LETTERS[char]!;
-    top.push(a);
-    bottom.push(b);
-  }
-  return [top.join(" "), bottom.join(" ")];
-}
-
-function header(input: ResultInput, style: Style, paint: Paint, glyphs: Glyphs): string[] {
-  const width = style.width;
-  const tagline = `${paint("muted", "by")} ${paint("brand", "Matrix OS", true)} ${paint("muted", `${glyphs.dot} v${input.version}`)}`;
-  const rabbit = style.unicode ? RABBIT_UNICODE : RABBIT_ASCII;
-  const indent = 2 + visibleWidth(rabbit[0]!) + 4;
-  if (indent + visibleWidth(tagline) > width) return [`  ${paint("strong", "AI Insights")}`, `  ${tagline}`];
-  const spaced = style.unicode ? blockWord("AI INSIGHTS") : ["A I   I N S I G H T S"];
-  const name = indent + Math.max(...spaced.map(visibleWidth)) <= width ? spaced : ["AI Insights"];
-  const right = ["", ...name.map((row) => paint("strong", row)), tagline];
-  return rabbit.map((row, index) => `  ${paint("brand", row, true)}    ${right[index] ?? ""}`.trimEnd());
-}
 
 function hoursValue(hours: number): string {
   return hours < 10 ? hours.toFixed(1).replace(/\.0$/u, "") : Math.round(hours).toLocaleString("en-US");
@@ -293,7 +244,8 @@ export function richResult(input: ResultInput, style: Style): string {
   const glyphs = style.unicode ? UNICODE : ASCII;
   // Text stops two columns short of the edge, where the panel's frame ends.
   const width = style.width - 2;
-  const lines: string[] = ["", ...header(input, style, paint, glyphs), "", ...statsPanel(input, style, paint, glyphs), ""];
+  // The header (src/cli/header.ts) is printed before the scan; this is everything after it.
+  const lines: string[] = [...statsPanel(input, style, paint, glyphs), ""];
 
   const persona = personaText(input.report);
   if (persona) {
@@ -340,6 +292,16 @@ export function richResult(input: ResultInput, style: Style): string {
     segments.push("run ", { text: "npx packmem archive", tone: "accent", keep: true }, ".");
     lines.push("", ...wrapSegments(segments, width, style, `  ${paint("warn", glyphs.notice, true)} `, "    "));
   }
+  // The report's own closing link, word for word: nothing here uploads history, so claim no more than it does.
+  lines.push(
+    "",
+    ...wrapSegments(
+      [{ text: "Keep your history with Matrix OS", bold: true }, `  ${glyphs.arrow}  `, { text: MATRIX_URL.replace(/^https:\/\//u, ""), url: MATRIX_URL, tone: "accent", keep: true }],
+      width,
+      style,
+      "  ",
+    ),
+  );
   lines.push("");
   return `${lines.join("\n")}\n`;
 }

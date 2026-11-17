@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { buildReport as realBuildReport } from "../../src/analysis/index.js";
 import { run, type CliDeps } from "../../src/cli/main.js";
+import { RABBIT_ASCII, RABBIT_UNICODE } from "../../src/cli/header.js";
 import { detectStyle, fileUrl, hyperlink, stripAnsi, visibleWidth, wrapSegments } from "../../src/cli/terminal.js";
 import type { BuildReportInput } from "../../src/schema/types.js";
 import type { Recap, Report } from "../../src/schema/types.js";
@@ -165,9 +166,27 @@ describe("on a terminal: the designed result screen", () => {
     for (const line of lines) expect(visibleWidth(line), stripAnsi(line)).toBeLessThanOrEqual(columns);
   });
 
-  it("fits in about 30 lines at 80 columns", async () => {
+  it("fits on one 80x45 screen, mascot included", async () => {
     await run([], deps(tty(80)));
-    expect(out.trimEnd().split("\n").length).toBeLessThanOrEqual(32);
+    expect(out.trimEnd().split("\n").length).toBeLessThanOrEqual(45);
+  });
+
+  it("draws the Matrix OS rabbit mascot in its own green, and the ASCII one where boxes cannot be drawn", async () => {
+    await run([], deps(tty(80)));
+    for (const row of RABBIT_UNICODE) expect(stripAnsi(out)).toContain(row.trim());
+    expect(out).toContain("\u001b[38;5;150m");
+    out = "";
+    await run([], deps(tty(80, { TERM: "linux" })));
+    for (const row of RABBIT_ASCII) expect(stripAnsi(out)).toContain(row.trim());
+  });
+
+  it("points to Matrix OS with the report's own wording and link, and promises nothing more", async () => {
+    await run([], deps(tty(80)));
+    const text = stripAnsi(out);
+    expect(text).toContain("Keep your history with Matrix OS");
+    expect(text).toContain("matrix-os.com");
+    expect(out).toMatch(/\]8;id=[0-9a-f]+;https:\/\/matrix-os\.com/u);
+    expect(text).not.toMatch(/backs? up|sync|upload/iu);
   });
 
   it("falls back to plain ASCII on terminals that cannot draw boxes", async () => {

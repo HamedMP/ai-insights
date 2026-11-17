@@ -26,7 +26,9 @@ describe("npm package", () => {
     expect(pkg.bin.hindsight).toBe(bin);
     const cli = readFileSync(join(ROOT, "src", "cli", "main.ts"), "utf8");
     expect(cli.startsWith("#!/usr/bin/env node\n")).toBe(true);
-    expect(cli).toMatch(/COMMANDS = new Set\(\[[^\]]*"mcp"/);
+    // The entry parses arguments with args.ts before loading anything heavy.
+    expect(cli).toContain('from "./args.js"');
+    expect(readFileSync(join(ROOT, "src", "cli", "args.ts"), "utf8")).toMatch(/COMMANDS = new Set\(\[[^\]]*"mcp"/);
     const mcp = JSON.parse(readFileSync(join(ROOT, "harness", "ai-insights", ".mcp.json"), "utf8")).mcpServers["ai-insights"];
     expect([mcp.command, ...mcp.args]).toEqual(["npx", "-y", pkg.name, "mcp"]);
   });

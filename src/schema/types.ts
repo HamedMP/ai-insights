@@ -1143,4 +1143,8 @@ export interface BuildReportInput {
   now?: Date;
   /** Measured by the scan; passed through to `Report.retention`. */
   retention?: Retention;
+  /** Told as each part of the analysis starts, for a progress display. Never changes the report; a throw is ignored. */
+  onStep?: (step: AnalysisStep) => void;
 }
+
+export type AnalysisStep = "usage" | "activity" | "findings" | "recap";

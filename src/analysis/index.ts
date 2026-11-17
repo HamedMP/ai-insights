@@ -1,4 +1,4 @@
-import { REPORT_VERSION, type BuildReportInput, type Recap, type RecapHistory, type Report, type Retention, type Session } from "../schema/types.js";
+import { REPORT_VERSION, type AnalysisStep, type BuildReportInput, type Recap, type RecapHistory, type Report, type Retention, type Session } from "../schema/types.js";
 import { buildActivity } from "./activity.js";
 import { buildFrictionCauses } from "./causes.js";
 import { aggregateFacets, facetsBySession } from "./facets.js";
@@ -68,16 +68,27 @@ export function buildReport(input: BuildReportInput): Report {
   const now = input.now ?? new Date();
   const timeZone = resolveTimeZone(input.timeZone);
   const clock = makeClock(timeZone);
+  const step = (name: AnalysisStep) => {
+    try {
+      input.onStep?.(name);
+    } catch {
+      // A progress display must never change or break the analysis.
+    }
+  };
   const sessions = uniqueSessions(input.sessions);
+  step("usage");
   const requests = uniqueRequests(sessions);
   const usage = summarizeUsage(requests, clock);
+  step("activity");
   const activity = buildActivity(sessions, clock);
   const coverage = withHistoryDays(input.coverage, sessions, now.getTime(), clock);
+  step("findings");
   const findings = detectFindings({ sessions, requests, usage, activity, coverage, now, clock, ...(input.retention ? { retention: input.retention } : {}) });
   const facets = aggregateFacets(input.facets, sessions);
   const generatedAt = now.toISOString();
   const ratios = sessions.length > 0 ? buildWorkRatios(sessions, activity) : undefined;
   const frictionCauses = buildFrictionCauses({ sessions, facets: facetsBySession(input.facets, sessions), findings, clock });
+  step("recap");
   const recap = buildRecap({ sessions, activity, usage, findings, facets, clock, timeZone, generatedAt, ...(ratios ? { ratios } : {}) });
   return {
     version: REPORT_VERSION,

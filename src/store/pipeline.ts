@@ -1,6 +1,6 @@
 import { pathToFileURL } from "node:url";
-import type { BuildReportInput, RenderExtras, Report, RunSnapshot, Session } from "../schema/types.js";
-import type { ScanResult } from "./scan.js";
+import type { AnalysisStep, BuildReportInput, RenderExtras, Report, RunSnapshot, Session } from "../schema/types.js";
+import { notify, type ScanResult } from "./scan.js";
 import { compareRuns, loadRuns, makeSnapshot, saveSnapshot } from "./snapshots.js";
 import { sessionKey, type SavedReport, type Store } from "./store.js";
 
@@ -14,7 +14,11 @@ export interface PipelineDeps {
   renderReport: RenderReportFn;
   now?: () => Date;
   timeZone?: string;
+  /** Told when the analysis and the report writing start, for a progress display. A callback that throws is ignored. */
+  onProgress?: (event: PipelineProgress) => void;
 }
+
+export type PipelineProgress = { stage: "analyse"; sessions: number; step?: AnalysisStep } | { stage: "write" };
 
 export function localTimeZone(): string {
   try {
@@ -51,10 +55,13 @@ export function countsForFacets(session: Session): boolean {
 
 /** Builds the report from a scan plus whatever facets and narrative the model pass has saved. */
 export async function buildFromScan(deps: PipelineDeps, result: ScanResult): Promise<{ report: Report; facetCount: number; hasNarrative: boolean }> {
+  notify(deps.onProgress, { stage: "analyse", sessions: result.sessions.length });
   const keys = new Set(result.sessions.filter(countsForFacets).map((session) => sessionKey(session.harness, session.id)));
   const facets = await deps.store.listFacets(keys);
   const narrative = await deps.store.readNarrative();
+  const onStep = deps.onProgress ? (step: AnalysisStep) => notify(deps.onProgress, { stage: "analyse", sessions: result.sessions.length, step }) : undefined;
   const report = deps.buildReport({
+    ...(onStep ? { onStep } : {}),
     sessions: result.sessions,
     facets,
     narrative,
@@ -105,6 +112,7 @@ export async function renderFromScan(deps: PipelineDeps, result: ScanResult): Pr
     // An unwritable store loses only the device id: the share link then publishes without one, as before 0.5.
     if (!(error instanceof Error)) throw error;
   }
+  notify(deps.onProgress, { stage: "write" });
   const html = deps.renderReport(built.report, extras);
   const saved = await deps.store.saveReport(html, built.report, now);
   return { ...saved, ...built, runs: extras.runs ?? [], url: pathToFileURL(saved.htmlPath).href };

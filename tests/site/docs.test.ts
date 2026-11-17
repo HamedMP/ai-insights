@@ -57,7 +57,7 @@ describe("the reference pages match the code", () => {
   });
 
   it("documents every CLI command and option in the help text", () => {
-    const help = /const HELP = `([\s\S]*?)`;/.exec(read("src/cli/main.ts"))?.[1] ?? "";
+    const help = /const HELP = `([\s\S]*?)`;/.exec(read("src/cli/args.ts"))?.[1] ?? "";
     expect(help).toContain("Options");
     const source = page("cli");
     for (const flag of new Set(help.match(/--[a-z][a-z-]*/g) ?? [])) expect(source, flag).toContain(flag);
