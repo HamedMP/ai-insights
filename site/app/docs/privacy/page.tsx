@@ -1,0 +1,163 @@
+import { DocShell } from "@/components/docs/doc-shell"
+import { Callout, H2, Table } from "@/components/docs/prose"
+import { docMetadata } from "@/lib/docs-metadata"
+
+export const metadata = docMetadata("privacy")
+
+/** One row per published card: its title and how its two lines are built (src/render/client/sharelink.js). */
+const CARD_ROWS: Array<[string, string]> = [
+  ["Persona", "Your persona title from the fixed set, and your sessions and days."],
+  ["Most agents at once", "The most sessions at once, and the number of subagents."],
+  ["Tokens processed", "Total tokens, and the estimated cost or the number of model requests."],
+  ["Longest streak", "Days in a row, with the start and end dates."],
+  ["Longest session", "Active hours of your longest session, and its agent's name."],
+  ["When they prompt", "Night owl, early bird or a daytime label, and your busiest hour."],
+  ["Manners check", "Counts of please, thank-you and sorry, and your prompt count."],
+  ["Danger zone", "Counts of rm -rf, force pushes and sleep commands."],
+  ["Time with agents", "Clock hours and agent-hours."],
+  ["Top model", "Your top model's public family name and its share of requests. Left out unless the name matches a known public family."],
+  ["Favourite day", "A weekday name and its prompt count."],
+  ["Test runs", "Test runs and the share that passed."],
+  ["Bash hall of fame", "A count of shell commands. Program names are not published."],
+  ["Where things broke", "Failed tool calls and the failure rate."],
+  ["Words typed", "Words typed and the share of prompts that were questions. Your words themselves are not published."],
+  ["Slash commands", "A count of slash commands. Their names are not published."],
+  ["Deep thoughts", "Thinking blocks and the longest one."],
+  ["Rubber stamp", "Actions approved automatically and by hand."],
+  ["History kept", "Days of history kept, and sessions saved from deletion."],
+]
+
+export default function Privacy() {
+  return (
+    <DocShell slug="privacy">
+      <H2 id="local-only">Local only</H2>
+      <ul>
+        <li>
+          <strong>No network calls.</strong> The package reads files and writes files. It has no telemetry, no account and no model API client.
+        </li>
+        <li>
+          <strong>Files only you can read.</strong> Everything it writes goes to <code>~/.ai-insights/</code>, with folders and files readable by you
+          only.
+        </li>
+        <li>
+          <strong>A report that cannot phone home.</strong> The report is one HTML file whose Content-Security-Policy, <code>default-src
+          &apos;none&apos;</code>, stops it loading or sending anything.
+        </li>
+        <li>
+          <strong>Links you click.</strong> The report links to Matrix OS, to the docs for tools it suggests, and to X and LinkedIn when you press a
+          share button. Nothing else in it points off your machine.
+        </li>
+        <li>
+          <strong>Your agent does the judging.</strong> The optional agent review runs in the agent you already use, under your existing account
+          and settings. See <a href="/docs/agent-review#what-the-model-sees">What your agent sees</a>.
+        </li>
+      </ul>
+      <p>
+        Nothing leaves your machine unless you create a share link and open or send it, or publish from the website. Both are described below.
+      </p>
+
+      <H2 id="redaction">Redaction</H2>
+      <p>Before a prompt, a command or an excerpt is stored or shown, AI Insights replaces:</p>
+      <ul>
+        <li>API keys and tokens in common formats (for example OpenAI and Anthropic style keys, GitHub and Slack tokens, AWS access key ids, JWTs);</li>
+        <li>private key blocks;</li>
+        <li>
+          <code>Bearer</code> and <code>Basic</code> credentials;
+        </li>
+        <li>
+          assignments to names containing TOKEN, SECRET, PASSWORD, API_KEY, PRIVATE_KEY or ACCESS_KEY, such as <code>PASSWORD=…</code>;
+        </li>
+        <li>email addresses.</li>
+      </ul>
+      <p>
+        It also shortens home-folder paths to <code>~</code> where it shows them to your agent, so your username does not travel into its context.
+      </p>
+      <Callout title="Redaction is pattern-based" tone="warn">
+        <p>
+          It can miss an unusual secret. The skills tell your agent never to copy a secret into its labels or narrative even when redaction missed
+          it, and the cards never contain prompt text.
+        </p>
+      </Callout>
+
+      <H2 id="share-link-contents">What a share link contains</H2>
+      <p>
+        A share link exists only when you make one in the report, and the report shows every line it carries before you copy it. It travels in the
+        URL fragment (after <code>#</code>), which browsers do not send to the website. It holds no project names, paths, prompts or commands.
+      </p>
+      <Table
+        caption="Share link contents"
+        head={["Field", "What it is"]}
+        rows={[
+          ["Name", "An optional display name you type, up to 40 characters. Without one the card says “Someone”."],
+          ["Period", "The first and last day of your history."],
+          ["Totals", "Sessions, tokens, estimated spend, active days and longest streak."],
+          ["Agents", "Each agent's share of your sessions, as a percentage."],
+          ["Fun fact", "One line built from counts, such as how many agents you ran at once."],
+          ["Titles", "Up to three earned title keys, each with the number of the ratio that earned it. The site rebuilds the wording from a fixed table."],
+          ["Ratios", "The five work ratios as numbers."],
+          ["Cards", "Up to 16 recap cards, each as a fixed card key, a short headline and a caption. See below."],
+        ]}
+      />
+      <p>
+        Each card&apos;s two lines are built from counts, dates, agent names, checked public model-family names and fixed wording. Cards whose
+        report version shows your words, slash command names, program names or tips publish a count instead, or are left out. If the link would be
+        too long, cards are dropped from the end of this list.
+      </p>
+      <Table caption="Card lines in a share link" head={["Card", "What its lines hold"]} rows={CARD_ROWS.map(([card, what]) => [card, what])} />
+
+      <H2 id="published-contents">What publishing makes public</H2>
+      <p>
+        Publishing stores the same validated payload as the share link, nothing more, under a public handle you choose. The publish panel shows
+        every line before you press Publish. Your profile at <code>ai-insights.app/u/&lt;handle&gt;</code> and the leaderboard then show:
+      </p>
+      <ul>
+        <li>your display name and handle, and the date you first published;</li>
+        <li>everything in the table above: period, totals, agents, fun fact, titles, ratios and cards;</li>
+        <li>your ranks and badges, computed from those numbers;</li>
+        <li>how many people you referred (the list of who is shown only to you);</li>
+        <li>
+          your Matrix account photo, only if you ticked that box when you published. The site reads it from your Matrix account on its server and
+          accepts only images hosted by the sign-in provider.
+        </li>
+      </ul>
+      <p>
+        Leaderboard numbers are self-reported and not verified. More about the flow is in{" "}
+        <a href="/docs/sharing#publish">Publish to the leaderboard</a>.
+      </p>
+
+      <H2 id="website-analytics">The website&apos;s analytics</H2>
+      <p>
+        ai-insights.app, and only the website (not the package and not the report), uses first-party PostHog analytics. Events go through
+        ai-insights.app itself to PostHog&apos;s EU hosts.
+      </p>
+      <ul>
+        <li>It records page views, page leaves and a few named clicks: viewing a share card, copying the install command, pressing Publish, completing a publish, and which leaderboard arena was viewed.</li>
+        <li>
+          It never sends a share link&apos;s <code>#fragment</code>, and reduces <code>?ref=&lt;handle&gt;</code> to a bare <code>ref</code>, so
+          analytics learn that a link had a referrer, never whose.
+        </li>
+        <li>It records no sessions, captures no typed text, has autocapture off, and honours Do Not Track.</li>
+      </ul>
+      <p>
+        The sign-in scripts load only on the share, leaderboard and profile pages. The landing page and these docs never
+        load it.
+      </p>
+
+      <H2 id="removing">Removing what you published</H2>
+      <ul>
+        <li>
+          <strong>Remove my entry</strong> in the publish panel on any share page, while signed in, deletes your leaderboard entry and with it your
+          profile.
+        </li>
+        <li>Publishing again without the photo box ticked removes your photo.</li>
+        <li>
+          A share link is not stored anywhere by the site. To stop it working as a profile you published, remove your entry; the link itself
+          keeps the numbers it was made with.
+        </li>
+        <li>
+          On your machine, delete <code>~/.ai-insights/</code> to remove everything AI Insights wrote.
+        </li>
+      </ul>
+    </DocShell>
+  )
+}

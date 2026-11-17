@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { usePathname } from "next/navigation"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Cancel01Icon, GithubIcon, Menu01Icon } from "@hugeicons/core-free-icons"
 
@@ -75,6 +76,7 @@ export function Header({ account }: { account?: React.ReactNode } = {}) {
   const [scrolled, setScrolled] = React.useState(false)
   const [open, setOpen] = React.useState(false)
   const active = useActiveSection()
+  const inDocs = usePathname()?.startsWith("/docs") ?? false
   const nav = React.useRef<HTMLElement>(null)
   const panel = React.useRef<HTMLDivElement>(null)
   const toggle = React.useRef<HTMLButtonElement>(null)
@@ -136,6 +138,16 @@ export function Header({ account }: { account?: React.ReactNode } = {}) {
               {link.label}
             </a>
           ))}
+          <a
+            href={`${BASE}/docs`}
+            aria-current={inDocs ? "page" : undefined}
+            className={cn(
+              "rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
+              inDocs && "text-foreground",
+            )}
+          >
+            Docs
+          </a>
           <Indicator nav={nav} active={active} />
         </nav>
         <div className="flex items-center gap-2">
@@ -187,6 +199,9 @@ export function Header({ account }: { account?: React.ReactNode } = {}) {
               <span className={cn("font-mono text-xs text-muted-foreground", active === link.id && "text-primary")}>{String(index + 1).padStart(2, "0")}</span>
             </a>
           ))}
+          <a href={`${BASE}/docs`} aria-current={inDocs ? "page" : undefined} className="flex h-13 items-center justify-between border-b text-lg font-medium tracking-tight outline-none focus-visible:text-primary">
+            Docs
+          </a>
           <a href={`${BASE}/leaderboard`} className="flex h-13 items-center justify-between border-b text-lg font-medium tracking-tight outline-none focus-visible:text-primary">
             Leaderboard
           </a>
