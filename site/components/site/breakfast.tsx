@@ -49,10 +49,10 @@ function RegisterLink({ placement, onClick, ...rest }: { placement: Placement } 
 const LINK = "font-medium text-foreground underline underline-offset-4 decoration-primary hover:decoration-foreground"
 
 /** On /share under the Publish (or sign-in) button. */
-export function BreakfastNote({ now }: { now?: number }) {
+export function BreakfastNote({ now, className = "" }: { now?: number; className?: string }) {
   if (!useBeforeBreakfast(now)) return null
   return (
-    <div role="note" className="mx-5 mb-4 flex flex-col gap-1.5 rounded-xl border border-primary/30 bg-primary/10 px-3.5 py-2.5 text-[13px] leading-snug sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+    <div role="note" className={`${className} flex flex-col gap-1.5 rounded-xl border border-primary/30 bg-primary/10 px-3.5 py-2.5 text-[13px] leading-snug sm:flex-row sm:items-center sm:justify-between sm:gap-4`}>
       <p>
         <span className="font-medium">Slush AI Breakfast Club · Thu 19 Nov, 8:00–10:00, Helsinki.</span> Publish, then register: we&rsquo;re sending breakfast invites to people on the leaderboard.
       </p>

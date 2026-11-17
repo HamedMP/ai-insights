@@ -63,10 +63,10 @@ describe("where the prompts sit", () => {
 
   it("the share note follows the Publish button (signed in) and the sign-in button (signed out), so neither moves down", () => {
     const signedOut = form.slice(form.indexOf("if (!signedIn) {"), form.indexOf("async function publish"));
-    expect(signedOut.indexOf("<BreakfastNote />")).toBeGreaterThan(signedOut.indexOf("Sign in to publish"));
+    expect(signedOut.indexOf("<BreakfastNote")).toBeGreaterThan(signedOut.indexOf("Sign in to publish"));
     const signedIn = form.slice(form.indexOf("<form onSubmit={publish}"));
-    expect(signedIn.indexOf("<BreakfastNote />")).toBeGreaterThan(signedIn.indexOf("</form>"));
-    expect(signedIn.indexOf("<BreakfastNote />")).toBeLessThan(signedIn.indexOf("<PublishPreview"));
+    expect(signedIn.indexOf("<BreakfastNote")).toBeGreaterThan(signedIn.indexOf("</form>"));
+    expect(signedIn.indexOf("<BreakfastNote")).toBeLessThan(signedIn.indexOf("<PublishPreview"));
   });
 
   it("the next step comes first in the Published state, right under its heading", () => {
