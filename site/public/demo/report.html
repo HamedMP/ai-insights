@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'sha256-OAyaIxPD3ZGo42u31xrnWCThhFncXyekVo3pAyXQHTA='; img-src data: blob:; font-src data:; media-src blob:; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'sha256-5R8o4FQX6uU0ouTwb9/sch9gpfQth7vMDqpqQrXPTZI='; img-src data: blob:; font-src data:; media-src blob:; base-uri 'none'; form-action 'none'">
 <meta name="color-scheme" content="light">
 <meta name="referrer" content="no-referrer">
 <meta name="generator" content="AI Insights">
@@ -681,6 +681,10 @@ dl.defs dd { margin: 0; color: var(--muted); }
   .hbar.cause .t { grid-area: t; }
   .ratio:last-child:nth-child(odd) { grid-column: span 2; }
 }
+.pdf-hint { margin: 4px 0 8px; color: var(--muted); max-width: 720px; }
+.pdf-hint b { color: var(--ink); font-weight: 650; }
+.pdf-hint[hidden], .studio-bar .field[hidden] { display: none; }
+.export-panel .pdf-hint { margin: 0 0 10px; }
 </style>
 </head>
 <body>
@@ -4247,7 +4251,7 @@ registerCardStyle({
 });
 
 ;
-/* export.js: card -> pixels (SVG foreignObject), MP4 via WebCodecs + Mediabunny, PNG zip, caption text. */
+/* export.js: card -> pixels (SVG foreignObject), MP4 via WebCodecs + Mediabunny, PNG zip, PDF (pdf.js), caption text. */
 const Exporter = (() => {
   const FPS = 30;
   const cardCss = () => document.getElementById("card-css").textContent;
@@ -4340,6 +4344,33 @@ const Exporter = (() => {
     return await new Promise((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error("toBlob failed"))), "image/png"));
   }
 
+  /** One card at rest as a JPEG `px` pixels across. The SVG is vector, so drawing it larger stays sharp. */
+  async function jpeg(inst, px, quality = 0.9) {
+    render(inst, inst.dur);
+    const canvas = document.createElement("canvas");
+    canvas.width = px; canvas.height = Math.round((px * inst.H) / inst.W);
+    const ctx = canvas.getContext("2d");
+    ctx.scale(canvas.width / inst.W, canvas.height / inst.H);
+    await rasterize(inst, ctx);
+    const blob = await new Promise((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error("toBlob failed"))), "image/jpeg", quality));
+    return { jpeg: new Uint8Array(await blob.arrayBuffer()), width: canvas.width, height: canvas.height };
+  }
+
+  /**
+   * The selected cards as one PDF, one card per page, for a LinkedIn document post. seq: [{ make: () => inst,
+   * done(inst) }] in page order. Returns a Blob, or null when cancelled. onProgress({ page, pages }).
+   */
+  async function pdf(seq, { px = 1080, quality = 0.9, size = 1080, title = "AI Insights recap", onProgress, signal } = {}) {
+    const pages = [];
+    for (const [i, item] of seq.entries()) {
+      if (signal && signal.aborted) return null;
+      const inst = item.make();
+      try { pages.push(await jpeg(inst, px, quality)); } finally { item.done && item.done(inst); }
+      if (onProgress) onProgress({ page: i + 1, pages: seq.length });
+    }
+    return new Blob([PdfWriter.build(pages, { size, title })], { type: "application/pdf" });
+  }
+
   // ---- minimal store-only ZIP (no compression: PNGs are already compressed)
   const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
   const crc32 = (u8) => { let c = 0xffffffff; for (let i = 0; i < u8.length; i++) c = CRC[(c ^ u8[i]) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
@@ -4371,7 +4402,79 @@ const Exporter = (() => {
     setTimeout(() => URL.revokeObjectURL(url), 60000);
     return url;
   }
-  return { video, png, zip, download, support, FPS };
+  return { video, png, pdf, zip, download, support, FPS };
+})();
+
+;
+/* pdf.js: a minimal PDF writer for the LinkedIn carousel. One page per card, each page one JPEG image (DCTDecode)
+   drawn edge to edge. No fonts, no compression of our own, no network: the report's CSP and no-dependency rule
+   stay intact. Pure byte work, so tests can build and parse files without a browser. */
+const PdfWriter = (() => {
+  "use strict";
+  // LinkedIn's limits for a document post, from its help pages (checked 2026-11):
+  //   https://www.linkedin.com/help/linkedin/answer/a518909  "The file size cannot exceed 100MB and 300 pages."
+  //   https://www.linkedin.com/help/linkedin/answer/a564109  the same 100 MB and 300 pages.
+  // LinkedIn names no recommended page size; it only asks that every page has the same size, which a deck of
+  // square cards always does.
+  const LIMITS = Object.freeze({ pages: 300, bytes: 100 * 1000 * 1000 });
+
+  const latin1 = (text) => {
+    const out = new Uint8Array(text.length);
+    for (let i = 0; i < text.length; i++) out[i] = text.charCodeAt(i) & 0xff;
+    return out;
+  };
+  /** A PDF literal string: printable ASCII only, with the three special characters escaped. */
+  const pdfString = (text) => `(${String(text).replace(/[^\x20-\x7e]/g, "").replace(/[\\()]/g, (c) => "\\" + c)})`;
+
+  /**
+   * pages: [{ jpeg: Uint8Array, width, height }] in page order (pixel size of each JPEG).
+   * opts.size: page edge in points (square pages); opts.title: the document title.
+   * Returns the file as a Uint8Array.
+   */
+  function build(pages, opts = {}) {
+    if (!Array.isArray(pages) || pages.length === 0) throw new Error("a PDF needs at least one page");
+    const size = Math.max(72, Math.round(opts.size || 1080));
+    const chunks = [];
+    const offsets = [];
+    let length = 0;
+    const push = (bytes) => { chunks.push(bytes); length += bytes.length; };
+    const text = (s) => push(latin1(s));
+    const object = (num, body, stream) => {
+      offsets[num] = length;
+      text(`${num} 0 obj\n${body}\n`);
+      if (stream) { text("stream\n"); push(stream); text("\nendstream\n"); }
+      text("endobj\n");
+    };
+
+    // 1 catalog, 2 page tree, 3 info, then three objects per page: page, contents, image.
+    const pageNum = (i) => 4 + i * 3;
+    text("%PDF-1.4\n%âãÏÓ\n");
+    object(1, "<< /Type /Catalog /Pages 2 0 R >>");
+    object(2, `<< /Type /Pages /Kids [${pages.map((_, i) => `${pageNum(i)} 0 R`).join(" ")}] /Count ${pages.length} >>`);
+    object(3, `<< /Title ${pdfString(opts.title || "Recap")} /Producer (AI Insights) >>`);
+    pages.forEach((page, i) => {
+      if (!(page.jpeg instanceof Uint8Array) || !(page.width > 0) || !(page.height > 0)) throw new Error(`page ${i + 1} has no image`);
+      const n = pageNum(i);
+      const draw = latin1(`q ${size} 0 0 ${size} 0 0 cm /Im0 Do Q`);
+      object(n, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${size} ${size}] /Resources << /XObject << /Im0 ${n + 2} 0 R >> /ProcSet [/PDF /ImageC] >> /Contents ${n + 1} 0 R >>`);
+      object(n + 1, `<< /Length ${draw.length} >>`, draw);
+      object(n + 2, `<< /Type /XObject /Subtype /Image /Width ${page.width} /Height ${page.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${page.jpeg.length} >>`, page.jpeg);
+    });
+
+    const count = 4 + pages.length * 3;
+    const xref = length;
+    // Each xref entry is exactly 20 bytes: 10-digit offset, space, 5-digit generation, space, keyword, CR LF.
+    text(`xref\n0 ${count}\n0000000000 65535 f\r\n`);
+    for (let num = 1; num < count; num++) text(`${String(offsets[num]).padStart(10, "0")} 00000 n\r\n`);
+    text(`trailer\n<< /Size ${count} /Root 1 0 R /Info 3 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
+
+    const out = new Uint8Array(length);
+    let at = 0;
+    for (const chunk of chunks) { out.set(chunk, at); at += chunk.length; }
+    return out;
+  }
+
+  return { LIMITS, build };
 })();
 
 ;
@@ -4932,6 +5035,7 @@ const ICON = {
   lock: '<svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>',
   left: '<svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg>',
   right: '<svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>',
+  doc: '<svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg>',
 };
 const esc = (x) => String(x).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 /** Report text: escaped first, then `code` spans. Never put report text into innerHTML any other way. */
@@ -5254,6 +5358,8 @@ const PRESETS = {
   stories: { label: "Instagram Stories", max: 60, min: 3, best: ["9:16"], ok: ["9:16"], note: "3 to 60 s per story, 9:16." },
   tiktok: { label: "TikTok", max: 180, best: ["9:16"], ok: ["9:16", "1:1"], note: "Every creator can post 3 min; some accounts get longer." },
   linkedin: { label: "LinkedIn", max: 900, min: 3, best: ["1:1", "4:5", "16:9"], ok: ["1:1", "4:5", "16:9", "9:16"], note: "3 s to 15 min." },
+  // A LinkedIn document post: each PDF page becomes a slide people swipe through. Limits in pdf.js (PdfWriter.LIMITS).
+  linkedinpdf: { label: "LinkedIn carousel (PDF)", pdf: true, best: ["1:1"], ok: ["1:1"], note: "Each page of the PDF becomes a slide people swipe through, one card per page." },
   shorts: { label: "YouTube Shorts", max: 180, best: ["9:16", "1:1"], ok: ["9:16", "1:1", "4:5"], note: "Up to 3 min, square or vertical only." },
 };
 if (!PRESETS[S.preset]) S.preset = "x";
@@ -5262,7 +5368,12 @@ const ratioSeg = h("div", { class: "seg", role: "radiogroup", "aria-label": "Sha
 const paceSeg = h("div", { class: "seg", role: "radiogroup", "aria-label": "Pace" }, [["full", "Full"], ["quick", "Quick 4 s"]].map(([k, t]) => h("button", { type: "button", role: "radio", "data-pace": k, onclick: () => { S.pace = k; saveStudio(); refreshStudio(); } }, t)));
 const presetSel = h("select", { class: "sel", "aria-label": "Where you will post" }, Object.entries(PRESETS).map(([k, p]) => h("option", { value: k }, p.label)));
 presetSel.value = S.preset;
-presetSel.addEventListener("change", () => { S.preset = presetSel.value; saveStudio(); refreshStudio(); });
+presetSel.addEventListener("change", () => {
+  S.preset = presetSel.value; saveStudio();
+  // A carousel is square: picking it sets the shape instead of only warning about it.
+  if (PRESETS[S.preset].pdf && S.ratio !== "1:1") setRatio("1:1"); else refreshStudio();
+});
+const isPdf = () => !!PRESETS[S.preset].pdf;
 const markBox = h("input", { type: "checkbox", id: "mark-toggle" });
 markBox.checked = S.mark;
 markBox.addEventListener("change", () => { S.mark = markBox.checked; saveStudio(); buildWall(); refreshStudio(); });
@@ -5273,6 +5384,12 @@ const countTxt = h("span", { class: "count" });
 const bVideo = h("button", { class: "btn primary", type: "button" }, h("span", { html: ICON.film }), "Download video");
 const bPngs = h("button", { class: "btn", type: "button" }, h("span", { html: ICON.img }), "Download images");
 const bText = h("button", { class: "btn", type: "button" }, h("span", { html: ICON.copy }), "Copy caption");
+const bPdf = h("button", { class: "btn", type: "button" }, h("span", { html: ICON.doc }), "Download PDF");
+// LinkedIn's own steps for a document post (linkedin.com/help/linkedin/answer/a518909, checked 2026-11).
+const pdfHint = h("p", { class: "pdf-hint small" }, "In LinkedIn: ", h("b", {}, "Start a post"), ", then ", h("b", {}, "More"), " and ", h("b", {}, "Add a document"), ". Choose this PDF, give it a title, press ", h("b", {}, "Done"), ", paste the caption and ", h("b", {}, "Post"), ".");
+const paceField = h("div", { class: "field" }, h("span", {}, "Pace"), paceSeg);
+const lengthLabel = h("span", {}, "Length");
+const studioActions = h("div", { class: "studio-actions" });
 const bPreview = h("button", { class: "btn", type: "button", onclick: () => openTheater(0) }, h("span", { html: ICON.play }), "Preview");
 const bAll = h("button", { class: "btn small", type: "button", onclick: () => { S.sel = new Set(S.order); saveStudio(); refreshStudio(); } }, "Select all");
 const bReset = h("button", { class: "btn small", type: "button", onclick: () => { S.sel = new Set(DEFAULT_SEL); S.order = DEFAULT_ORDER.slice(); saveStudio(); buildWall(); refreshStudio(); } }, "Reset");
@@ -5289,11 +5406,11 @@ if (RC) {
       h("div", { class: "field" }, h("span", {}, "Shape"), ratioSeg),
       STYLES.length > 1 ? h("div", { class: "field" }, h("span", {}, "Style"), stylePicker("Card style")) : null,
       h("label", { class: "field" }, h("span", {}, "Posting to"), presetSel),
-      h("div", { class: "field" }, h("span", {}, "Pace"), paceSeg),
+      paceField,
       h("div", { class: "field" }, h("span", {}, "Mark"), h("label", { class: "toggle", for: "mark-toggle" }, markBox, h("span", {}, "AI Insights mark"))),
-      h("div", { class: "field timebox" }, h("span", {}, "Length"), timeTxt, meter)),
+      h("div", { class: "field timebox" }, lengthLabel, timeTxt, meter)),
     warn,
-    h("div", { class: "studio-actions" }, bVideo, bPngs, bText, bPreview, bAll, bReset, countTxt),
+    studioActions, pdfHint,
     exportPanel, cliBox, wall)));
 }
 /**
@@ -5387,22 +5504,32 @@ function refreshStudio() {
     t.tile.querySelector(".dur").textContent = fmtSec(durOf(id));
     t.left.disabled = S.order[0] === id; t.right.disabled = S.order[S.order.length - 1] === id;
   }
-  const total = ids.reduce((a, id) => a + durOf(id), 0), P = PRESETS[S.preset], lim = P.max * 1000;
-  timeTxt.replaceChildren(h("span", {}, `${fmtSec(total)} · ${ids.length} card${ids.length === 1 ? "" : "s"}`), h("span", { class: "lim" }, `${P.approx ? "about " : ""}${fmtSec(lim)} max on ${P.label}`));
+  const P = PRESETS[S.preset], pdf = !!P.pdf, msgs = [];
+  if (!ids.length) msgs.push(["bad", "Select at least one card."]);
+  // The carousel counts pages against LinkedIn's document limit; everything else counts seconds.
+  const total = pdf ? ids.length : ids.reduce((a, id) => a + durOf(id), 0), lim = pdf ? PdfWriter.LIMITS.pages : P.max * 1000;
+  lengthLabel.textContent = pdf ? "Pages" : "Length";
+  timeTxt.replaceChildren(...(pdf
+    ? [h("span", {}, plural(ids.length, "page")), h("span", { class: "lim" }, `up to ${PdfWriter.LIMITS.pages} pages on LinkedIn`)]
+    : [h("span", {}, `${fmtSec(total)} · ${ids.length} card${ids.length === 1 ? "" : "s"}`), h("span", { class: "lim" }, `${P.approx ? "about " : ""}${fmtSec(lim)} max on ${P.label}`)]));
   meter.firstChild.style.width = Math.min(100, (total / lim) * 100) + "%";
   meter.classList.toggle("over", total > lim);
-  const msgs = [];
-  if (!ids.length) msgs.push(["bad", "Select at least one card."]);
-  if (total > lim) msgs.push(["bad", `${fmtSec(total)} is longer than ${P.label} allows (${P.approx ? "about " : ""}${fmtSec(lim)}). Deselect ${Math.ceil((total - lim) / 6500)} card${total - lim > 6500 ? "s" : ""} or switch to Quick pace.`]);
+  paceField.hidden = pdf;
+  pdfHint.hidden = !pdf;
+  bVideo.classList.toggle("primary", !pdf); bPdf.classList.toggle("primary", pdf);
+  studioActions.replaceChildren(...(pdf ? [bPdf, bVideo, bPngs] : [bVideo, bPngs, bPdf]), bText, bPreview, bAll, bReset, countTxt);
+  if (pdf) { if (total > lim) msgs.push(["bad", `LinkedIn takes up to ${lim} pages in one document; deselect ${total - lim}.`]); }
+  else if (total > lim) msgs.push(["bad", `${fmtSec(total)} is longer than ${P.label} allows (${P.approx ? "about " : ""}${fmtSec(lim)}). Deselect ${Math.ceil((total - lim) / 6500)} card${total - lim > 6500 ? "s" : ""} or switch to Quick pace.`]);
   else if (P.soft && total > P.soft * 1000) msgs.push(["info", `Over ${fmtSec(P.soft * 1000)}: reported to reach fewer non-followers on ${P.label}.`]);
-  if (P.min && total < P.min * 1000 && ids.length) msgs.push(["bad", `${P.label} needs at least ${P.min} s.`]);
-  if (!P.ok.includes(S.ratio)) msgs.push(["bad", `${P.label} does not take ${S.ratio}. Use ${P.best.join(" or ")}.`]);
+  if (!pdf && P.min && total < P.min * 1000 && ids.length) msgs.push(["bad", `${P.label} needs at least ${P.min} s.`]);
+  if (pdf) { if (S.ratio !== "1:1") msgs.push(["info", "The PDF is always square (1:1); the shape here applies to the video and images."]); }
+  else if (!P.ok.includes(S.ratio)) msgs.push(["bad", `${P.label} does not take ${S.ratio}. Use ${P.best.join(" or ")}.`]);
   else if (!P.best.includes(S.ratio)) msgs.push(["info", `${P.label} works best with ${P.best.join(" or ")}.`]);
   const worst = msgs.find((m) => m[0] === "bad") || msgs[0];
   warn.className = "warn" + (worst ? " on" + (worst[0] === "info" ? " info" : "") : "");
   warn.replaceChildren(...(msgs.length ? [h("div", {}, msgs.map((m) => h("div", {}, m[1])), h("div", { class: "small" }, P.note))] : []));
   countTxt.textContent = `${ids.length} of ${S.order.length} selected`;
-  [bVideo, bPngs, bPreview].forEach((b) => (b.disabled = !ids.length));
+  [bVideo, bPngs, bPreview, bPdf].forEach((b) => (b.disabled = !ids.length));
   updateCli();
 }
 
@@ -5481,11 +5608,50 @@ bPngs.addEventListener("click", async () => {
     shareSheet(exportPanel, files, files.length === 1 ? "image" : "images");
   } catch (err) { console.error("image export failed", err); say("Could not export images"); }
 });
+// The carousel: the selected cards at rest, in the studio's order, one square page each. 2160 px pages stay sharp
+// when LinkedIn zooms a slide; the demo deck of 23 cards comes to a few MB, far under the 100 MB limit.
+const PDF_PX = 2160, PDF_NAME = "ai-insights-linkedin.pdf";
+bPdf.addEventListener("click", () => exportPdf());
+async function exportPdf() {
+  if (exporting) return null;
+  const ids = seqIds(); if (!ids.length) return null;
+  const ac = new AbortController();
+  const bar = h("div", { class: "progress" }, h("b")), info = h("div", { class: "mono small" }, "Starting…");
+  exportPanel.classList.add("on");
+  exportPanel.replaceChildren(h("strong", {}, `Making a ${plural(ids.length, "page")} PDF`), bar, h("div", { class: "row-between" }, info, h("button", { class: "btn small", type: "button", onclick: () => ac.abort() }, "Cancel")));
+  exporting = ac; bPdf.disabled = true;
+  // The carousel is square whatever shape the studio shows.
+  const style = S.style, mark = S.mark;
+  try {
+    const blob = await Exporter.pdf(ids.map((id) => ({ make: () => makeInst(id, "1:1", style, mark), done: (inst) => inst.el.remove() })), {
+      px: PDF_PX, signal: ac.signal,
+      onProgress: ({ page, pages }) => { bar.firstChild.style.width = (page / pages) * 100 + "%"; info.textContent = `Page ${page} of ${pages}`; },
+    });
+    if (!blob) { exportPanel.replaceChildren(h("strong", {}, "Cancelled."), h("div", { class: "muted" }, "Nothing was saved.")); return null; }
+    Exporter.download(blob, PDF_NAME);
+    window.__lastPdf = { blob, ids };
+    const tooBig = blob.size > PdfWriter.LIMITS.bytes;
+    const status = h("p", { class: "share-status small", role: "status" });
+    exportPanel.replaceChildren(h("strong", {}, `Saved ${PDF_NAME}`), h("div", { class: "muted mono small" }, `${plural(ids.length, "page")} · ${(blob.size / 1e6).toFixed(1)} MB`),
+      ...(tooBig ? [h("p", { class: "small" }, "This is over LinkedIn's 100 MB document limit. Deselect some cards and make it again.")] : []),
+      h("div", { class: "share" }, h("div", { class: "share-h" }, "Post it on LinkedIn"),
+        h("div", { class: "share-row" },
+          h("button", { class: "btn small primary", type: "button", onclick: () => copy(caption("linkedin"), "Caption copied") }, "Copy caption"),
+          h("button", { class: "btn small", type: "button", onclick: () => { const w = window.open(INTENT.linkedin(caption("linkedin")), "_blank", "noopener,noreferrer"); status.textContent = w ? "LinkedIn opened with your caption. Add the PDF with More, then Add a document." : "Your browser blocked the new tab. Copy the caption instead."; } }, "Open LinkedIn"),
+          h("button", { class: "btn small", type: "button", onclick: () => Exporter.download(blob, PDF_NAME) }, "Download again")),
+        status));
+    return blob;
+  } catch (err) {
+    console.error("PDF export failed", err);
+    exportPanel.replaceChildren(h("strong", {}, "The PDF could not be made in this browser."));
+    return null;
+  } finally { exporting = null; bPdf.disabled = !seqIds().length; }
+}
 /**
  * The caption: built from the recap only, like the cards. Two or three of the most brag-worthy numbers, the
  * persona, how to make your own and the tag, kept under X's 280 characters (X counts any link as 23).
  */
-function caption() {
+function caption(target = isPdf() || S.preset === "linkedin" ? "linkedin" : "x") {
   if (!RC) return "";
   const T = RC.totals;
   const brag = [];
@@ -5497,6 +5663,11 @@ function caption() {
   if (brag.length < 2) brag.push(`${int(T.sessions)} sessions`, `${int(T.prompts)} prompts`);
   const head = RC.persona ? `I'm ${RC.persona.title}.` : `My last ${RC.range.days} days with AI coding agents.`;
   const make = `Make yours: ${SHARE.command} or ${SHARE.skill}`;
+  // LinkedIn posts take up to 3,000 characters (linkedin.com/help/linkedin/answer/a528176): room for a short list.
+  if (target === "linkedin") {
+    const text = [...(RC.persona ? [head, ""] : []), `My last ${RC.range.days} days with AI coding agents, card by card:`, ...brag.slice(0, 4).map((b) => `· ${b}`), "", make, SHARE.siteUrl, "", SHARE.hashtag].join("\n");
+    return text.slice(0, 3000);
+  }
   const xLen = (t) => t.replace(/https?:\/\/\S+/g, "x".repeat(23)).length;
   for (let n = Math.min(3, brag.length); n >= 1; n--) {
     const text = [head, brag.slice(0, n).join(" · "), make, SHARE.siteUrl, SHARE.hashtag].join("\n");
@@ -5505,6 +5676,7 @@ function caption() {
   return [head, make, SHARE.siteUrl, SHARE.hashtag].join("\n");
 }
 bText.addEventListener("click", () => copy(caption(), "Caption copied"));
+
 
 // ---------- sharing: links the person clicks. The page itself still fetches nothing.
 // X's web intent prefills text only; Instagram and TikTok have no web composer; LinkedIn's feed composer takes
@@ -5540,12 +5712,12 @@ function shareSheet(host, files, what) {
     btn("X", async () => {
       const copied = img && (await copyImage(files[0].blob));
       if (!copied) await saveAll();
-      open(INTENT.x(caption()));
+      open(INTENT.x(caption("x")));
       status.textContent = copied ? "The post opened with your caption. Paste the image into it (Ctrl or Cmd + V)." : `The post opened with your caption. Attach the ${what} you just downloaded.`;
     }),
     btn("Instagram", async () => { await saveAll(); copy(caption(), "Caption copied"); status.textContent = `Saved, and the caption is copied. Instagram posts from the app: send the ${what} to your phone, or use Share… on your phone.`; }),
     btn("TikTok / Shorts", async () => { await saveAll(); copy(caption(), "Caption copied"); status.textContent = `Saved, and the caption is copied. Upload the ${what} in TikTok or YouTube (9:16 works best).`; }),
-    btn("LinkedIn", async () => { await saveAll(); open(INTENT.linkedin(caption())); status.textContent = `LinkedIn opened with your caption. Attach the ${what} you just downloaded.`; }),
+    btn("LinkedIn", async () => { await saveAll(); open(INTENT.linkedin(caption("linkedin"))); status.textContent = `LinkedIn opened with your caption. Attach the ${what} you just downloaded.`; }),
     btn("Download", async () => { await saveAll(); status.textContent = "Saved."; }),
     btn("Copy caption", () => copy(caption(), "Caption copied")));
   host.append(h("div", { class: "share" }, h("div", { class: "share-h" }, "Share it"), row, status,
@@ -6063,7 +6235,9 @@ window.recap = {
   seek: (i, ms) => { if (!deckPlayer) return; deckPlayer.setPlaying(false); deckPlayer.mount(i, ms); },
   deck: () => ({ ids: deckIds(), index: deckPlayer ? deckPlayer.i : -1, playing: !!deckPlayer && deckPlayer.playing, hold: !!deckPlayer && deckPlayer.hold, thumbs: thumbInsts.filter((t) => t.inst).length }),
   audit: (style = S.style, ratio = S.ratio) => { const out = {}; for (const id of ALL_IDS.filter((cid) => hasCard(cid, style))) { const inst = makeInst(id, ratio, style); render(inst, inst.dur); const iss = CardKit.audit(inst); if (iss.length) out[id] = iss; inst.el.remove(); } return out; },
-  caption, share: SHARE, intents: (text = caption()) => ({ x: INTENT.x(text), linkedin: INTENT.linkedin(text) }),
+  caption: (target = "x") => caption(target), share: SHARE, preset: (k) => { if (!PRESETS[k]) return; presetSel.value = k; presetSel.dispatchEvent(new Event("change")); },
+  /** The carousel PDF for the current selection, as base64, with the card ids in page order. */
+  pdf: async () => { const blob = await exportPdf(); if (!blob) return null; const u8 = new Uint8Array(await blob.arrayBuffer()); let b = ""; for (let i = 0; i < u8.length; i += 0x8000) b += String.fromCharCode(...u8.subarray(i, i + 0x8000)); return { base64: btoa(b), ids: window.__lastPdf.ids, bytes: u8.length }; }, intents: (text = caption()) => ({ x: INTENT.x(text), linkedin: INTENT.linkedin(text) }),
   support: () => Exporter.support(),
   png: async (id, ms, ratio = S.ratio, style = S.style) => { const inst = makeInst(id, ratio, style); const b = await Exporter.png(inst, ms); inst.el.remove(); const u8 = new Uint8Array(await b.arrayBuffer()); let s2 = ""; for (let i = 0; i < u8.length; i += 0x8000) s2 += String.fromCharCode(...u8.subarray(i, i + 0x8000)); return btoa(s2); },
 };
