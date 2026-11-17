@@ -42,6 +42,13 @@ describe("streaming a large JSON array one element at a time", () => {
     expect(values(await all(text, { size: 1 }))).toEqual([{ id: 'q"\\/\b\f\n\r\té😀�x' }]);
   });
 
+  it("replaces unpaired surrogates and invalid UTF-8 rather than failing", async () => {
+    expect(values(await all('[{"id":"a\\udc00b\\ud800"}]', { size: 1 }))).toEqual([{ id: "a\ufffdb\ufffd" }]);
+    const bytes = Buffer.concat([Buffer.from('[{"id":"x'), Buffer.from([0xed, 0xa0, 0x80, 0xff]), Buffer.from('y"}]')]);
+    const [result] = values(await all(bytes, { size: 2 })) as Array<{ id: string }>;
+    expect(result!.id.startsWith("x") && result!.id.endsWith("y") && result!.id.includes("\ufffd")).toBe(true);
+  });
+
   it("reads the array from an object root, skipping the other keys", async () => {
     const text = JSON.stringify({ meta: { skip: [1, 2, { a: "b" }] }, conversations: [{ id: "a" }, { id: "b" }], after: "x" });
     expect(values(await all(text))).toEqual([{ id: "a" }, { id: "b" }]);

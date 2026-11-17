@@ -25,6 +25,7 @@ export const MARKERS = {
   voiceTitle: "MARK_VOICE_TITLE_7f1",
   citation: "https://mark-citation-7f1.example/page",
   account: "MARK_ACCOUNT_7f1",
+  injected: "MARK_INJECTED_PROMPT_7f1",
 } as const;
 
 export const PROMPT_ONE = "Can you help me plan a week of dinners for two people please";
@@ -151,7 +152,14 @@ export function conversation(uuid = "0b9a2c1e-0000-4000-8000-000000000001", base
       assistant("m2", at(base, 30), "m1"),
       // A regenerated answer: a second child of the same prompt.
       assistant("m2b", at(base, 60), "m1"),
-      human("m3", at(base, 300), "m2b", PROMPT_TWO),
+      // The product may add a block the person did not type; the message's `text` field may carry it too.
+      human("m3", at(base, 300), "m2b", PROMPT_TWO, {
+        text: `${MARKERS.injected}\n${PROMPT_TWO}`,
+        content: [
+          { type: "injected_prompt_block", text: MARKERS.injected },
+          { type: "text", text: PROMPT_TWO, citations: [] },
+        ],
+      }),
       assistant("m4", at(base, 330), "m3"),
       // An attachment-only turn: counted, no words kept.
       human("m5", at(base, 600), "m4", "", { attachments: [{ file_name: MARKERS.attachmentName, extracted_content: MARKERS.attachmentText }] }),

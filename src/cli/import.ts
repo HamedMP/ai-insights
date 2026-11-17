@@ -1,4 +1,4 @@
-import { importClaudeExport, readManifest, removeClaudeImport, type ImportManifest, type ImportOutcome } from "../sources/claude-chat/importer.js";
+import { CLAUDE_EXPORT, importExport, readManifest, removeImport, type ExportFormat, type ImportManifest, type ImportOutcome } from "../sources/claude-chat/importer.js";
 
 /**
  * `ai-insights import`: bring a chat product's data export into AI Insights. Kept in its own module so the main
@@ -27,14 +27,16 @@ export, never Claude's answers, thinking, tool results, attachments or chat titl
 Chat exports record no model or token counts, so tokens and cost are not measured for them.
 `;
 
-const SOURCES = new Set(["claude"]);
+/** One entry per chat product that can be imported. A ChatGPT format slots in here once its export is checked. */
+const FORMATS: Record<string, ExportFormat> = { claude: CLAUDE_EXPORT };
+const formatOf = (word: string | undefined): ExportFormat | undefined => (word && Object.prototype.hasOwnProperty.call(FORMATS, word) ? FORMATS[word] : undefined);
 
 const day = (iso: string | null) => (iso ? iso.slice(0, 10) : "?");
 const n = (value: number) => value.toLocaleString("en-US");
 
-function describe(manifest: ImportManifest): string[] {
+function describe(format: ExportFormat, manifest: ImportManifest): string[] {
   return [
-    `  Claude chat  ${n(manifest.sessions)} ${manifest.sessions === 1 ? "conversation" : "conversations"}, ${day(manifest.from)} to ${day(manifest.to)}`,
+    `  ${format.label}  ${n(manifest.sessions)} ${manifest.sessions === 1 ? "conversation" : "conversations"}, ${day(manifest.from)} to ${day(manifest.to)}`,
     `               ${n(manifest.prompts)} prompts, ${n(manifest.replies)} replies, ${n(manifest.toolCalls)} tool calls`,
     `               imported ${day(manifest.importedAt)}${manifest.issues ? `, ${n(manifest.issues)} unreadable ${manifest.issues === 1 ? "item" : "items"} skipped` : ""}`,
   ];
@@ -69,30 +71,36 @@ export async function runImport(argv: string[], deps: ImportDeps): Promise<numbe
   if (unknown) return usage(`unknown option "${unknown}"`);
   if (flags.includes("--list")) {
     if (words.length > 0 || flags.length > 1) return usage("--list takes nothing else");
-    const manifest = await readManifest(deps.home);
-    deps.stdout(manifest ? `Imported\n${describe(manifest).join("\n")}\n` : "Nothing imported yet. Run `ai-insights import claude <path>`.\n");
+    const lines: string[] = [];
+    for (const format of Object.values(FORMATS)) {
+      const manifest = await readManifest(deps.home, format.harness);
+      if (manifest) lines.push(...describe(format, manifest));
+    }
+    deps.stdout(lines.length ? `Imported\n${lines.join("\n")}\n` : "Nothing imported yet. Run `ai-insights import claude <path>`.\n");
     return 0;
   }
   if (flags.includes("--remove")) {
-    if (words.length !== 1 || !SOURCES.has(words[0]!)) return usage("--remove needs the source: claude");
-    const removed = await removeClaudeImport(deps.home);
-    deps.stdout(removed ? "Removed the Claude chat import and the sessions made from it.\n" : "There was no Claude chat import to remove.\n");
+    const format = words.length === 1 ? formatOf(words[0]) : undefined;
+    if (!format) return usage("--remove needs the source: claude");
+    const removed = await removeImport(deps.home, format.harness);
+    deps.stdout(removed ? `Removed the ${format.label} import and the sessions made from it.\n` : `There was no ${format.label} import to remove.\n`);
     return 0;
   }
   const [source, path, ...rest] = words;
   if (!source) return usage("say what to import: ai-insights import claude <path>");
-  if (!SOURCES.has(source)) return usage(`unknown source "${source}"; only claude can be imported`);
+  const format = formatOf(source);
+  if (!format) return usage(`unknown source "${source}"; only claude can be imported`);
   if (!path) return usage("give the path to the export: ai-insights import claude <path>");
   if (rest.length > 0) return usage("one path at a time");
-  const outcome = await importClaudeExport(path, deps.home, { now: deps.now() });
+  const outcome = await importExport(format, path, deps.home, { now: deps.now() });
   if (!outcome.ok) {
     deps.stderr(`ai-insights import: ${failure(outcome, path)}\n`);
     return 1;
   }
   deps.stdout(
     [
-      "Imported your Claude chat history",
-      ...describe(outcome.manifest),
+      `Imported your ${format.label} history`,
+      ...describe(format, outcome.manifest),
       "",
       "Kept: counts, tool names and your own prompts. Not kept: Claude's answers, thinking, tool results,",
       "attachments and chat titles. Tokens and cost are not in the export, so they stay unmeasured.",

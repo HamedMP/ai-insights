@@ -80,11 +80,11 @@ describe("imported chats downstream", () => {
     expect(report.findings.filter((finding) => !finding.kind.startsWith("history"))).toEqual([]);
     expect(report.ratios).toBeUndefined();
     expect(report.frictionCauses).toBeUndefined();
-    expect(report.activity.chat).toMatchObject({ sessions: 10, userMessages: 30, toolCalls: 80, attachments: 20, files: 10, voiceNotes: 40, branches: 10 });
+    expect(report.activity.chat).toMatchObject({ sessions: 10, userMessages: 30, toolCalls: 60, attachments: 20, files: 10, voiceNotes: 30, branches: 10 });
     expect(report.activity.parallelSessions.maxConcurrent).toBe(0);
     expect(report.activity.sessionSpans).toEqual([]);
     expect(report.recap?.persona?.role).toBe("Conversationalist");
-    expect(report.recap?.thinking?.blocks).toBe(40);
+    expect(report.recap?.thinking?.blocks).toBe(30);
     expect(report.recap?.totals.toolCalls).toBe(0);
     expect(report.recap?.voice.polite.please).toBeGreaterThan(0);
     const numbers = describeHeadline(report);

@@ -461,8 +461,9 @@ export async function* readArrayElements(
   chunks: AsyncIterable<Uint8Array>,
   spec: Spec,
   limits: Partial<JsonLimits> = {},
+  arrayKey = "conversations",
 ): AsyncGenerator<ElementResult> {
-  const parser = new ArrayElementParser(spec, { ...DEFAULT_JSON_LIMITS, ...limits });
+  const parser = new ArrayElementParser(spec, { ...DEFAULT_JSON_LIMITS, ...limits }, arrayKey);
   try {
     for await (const chunk of chunks) {
       for (const result of parser.write(chunk)) yield result;

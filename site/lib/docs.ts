@@ -69,6 +69,7 @@ export const DOCS: DocPage[] = [
     group: "Start",
     sections: [
       { id: "export-claude", title: "Get your Claude export" },
+      { id: "other-products", title: "Other chat products" },
       { id: "import", title: "Import it" },
       { id: "what-is-read", title: "What is read and kept" },
       { id: "not-measured", title: "What chat exports cannot show" },

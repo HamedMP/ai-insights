@@ -3,9 +3,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { claudeChatSource } from "../../../src/sources/claude-chat/index.js";
-import { conversationToSession, CONNECTOR_TOOL } from "../../../src/sources/claude-chat/conversation.js";
+import { chatTool, conversationToSession, MCP_TOOL } from "../../../src/sources/claude-chat/conversation.js";
 import { importClaudeExport, importDir, readManifest, removeClaudeImport } from "../../../src/sources/claude-chat/importer.js";
-import { conversation, exportJson, makeZip, MARKERS, PROMPT_ONE, PROMPT_TWO } from "./fixtures.js";
+import { conversation, exportJson, human, makeZip, MARKERS, PROMPT_ONE, PROMPT_TWO } from "./fixtures.js";
 
 let dir: string;
 let home: string;
@@ -36,15 +36,16 @@ describe("a Claude chat conversation as a session", () => {
     expect(session.harness).toBe("claude-chat");
     expect(session.userMessageCount).toBe(3);
     expect(session.prompts.map((prompt) => prompt.text)).toEqual([PROMPT_ONE, PROMPT_TWO]);
-    expect(session.assistantMessageCount).toBe(4);
+    // The first answer to the opening prompt was regenerated: only the branch the person ended on counts.
+    expect(session.assistantMessageCount).toBe(3);
     expect(session.toolCalls.map((call) => [call.name, call.category, call.error ?? null])).toEqual(
-      Array.from({ length: 4 }, () => [
+      Array.from({ length: 3 }, () => [
         ["web_search", "web", null],
-        [CONNECTOR_TOOL, "mcp", "other"],
+        [MCP_TOOL, "mcp", "other"],
       ]).flat(),
     );
-    expect(session.thinking).toEqual({ blocks: 4, totalMs: 20_000, longestMs: 5_000 });
-    expect(session.chat).toEqual({ attachments: 2, files: 1, voiceNotes: 4, branches: 1 });
+    expect(session.thinking).toEqual({ blocks: 3, totalMs: 15_000, longestMs: 5_000 });
+    expect(session.chat).toEqual({ attachments: 2, files: 1, voiceNotes: 3, branches: 1 });
     expect(session.models).toEqual([]);
     expect(session.requests).toEqual([]);
     expect(session.features.mcpServers).toEqual([]);
@@ -55,6 +56,29 @@ describe("a Claude chat conversation as a session", () => {
 
   it("keeps nothing the assistant, a tool or an attachment wrote", () => {
     expectNoMarkers(JSON.stringify(conversationToSession(conversation(), FILE)));
+  });
+
+  it("counts only the branch the person ended on when a prompt was edited, and the rest as branches", () => {
+    const raw = conversation();
+    const messages = raw.chat_messages as Array<Record<string, unknown>>;
+    // The person edited their second prompt: a sibling of m3 under m2b, with its own answer, sent later.
+    messages.push(human("m3b", "2026-08-03T21:40:00.000Z", "m2b", "Actually make it vegan"), { ...messages[4]!, uuid: "m4b", parent_message_uuid: "m3b", created_at: "2026-08-03T21:41:00.000Z" });
+    const session = conversationToSession(raw, FILE)!;
+    expect(session.prompts.map((prompt) => prompt.text)).toEqual([PROMPT_ONE, "Actually make it vegan"]);
+    expect(session.userMessageCount).toBe(2);
+    expect(session.assistantMessageCount).toBe(2);
+    expect(session.chat?.branches).toBe(2);
+    expect(session.startTime).toBe("2026-08-03T21:15:00.000Z");
+    expect(session.endTime).toBe("2026-08-03T21:41:00.000Z");
+  });
+
+  it("buckets MCP and connector tools under one label and knows Claude's own tools by either name", () => {
+    const block = (name: string, extra: Record<string, unknown> = {}) => ({ type: "tool_use", name, ...extra });
+    expect(chatTool(block("mcp__acme_private__lookup"))).toEqual({ name: MCP_TOOL, category: "mcp" });
+    expect(chatTool(block("web_search", { integration_name: "Someone's server" }))).toEqual({ name: MCP_TOOL, category: "mcp" });
+    expect(chatTool(block("toString"))).toEqual({ name: MCP_TOOL, category: "mcp" });
+    expect(chatTool(block("Bash"))).toEqual({ name: "Bash", category: "shell" });
+    expect(chatTool(block("bash_tool"))).toEqual({ name: "bash_tool", category: "shell" });
   });
 
   it("returns null for a conversation without an id or messages, and tolerates missing fields", () => {
@@ -68,7 +92,8 @@ describe("a Claude chat conversation as a session", () => {
 
   it("redacts secrets in prompts", () => {
     const raw = conversation();
-    (raw.chat_messages as Array<Record<string, unknown>>)[3]!.text = "use sk-ant-abcdefghijklmnopqrstuvwx please";
+    const messages = raw.chat_messages as Array<Record<string, unknown>>;
+    messages[3] = human("m3", String(messages[3]!.created_at), "m2b", "use sk-ant-abcdefghijklmnopqrstuvwx please");
     const session = conversationToSession(raw, FILE)!;
     expect(session.prompts[1]!.text).toBe("use [redacted] please");
   });
@@ -92,7 +117,7 @@ describe("ai-insights import claude", () => {
         path = input === "folder" ? folder : join(folder, "conversations.json");
       }
       const outcome = await importClaudeExport(path, home);
-      expect(outcome, input).toMatchObject({ ok: true, manifest: { conversations: 1, sessions: 1, prompts: 3, replies: 4, toolCalls: 8 } });
+      expect(outcome, input).toMatchObject({ ok: true, manifest: { conversations: 1, sessions: 1, prompts: 3, replies: 3, toolCalls: 6 } });
       const files = await claudeChatSource.discover({ roots: [importDir(home)] });
       expect(files).toHaveLength(1);
       const session = (await claudeChatSource.parse(files[0]!))!;
@@ -109,6 +134,23 @@ describe("ai-insights import claude", () => {
     writeFileSync(join(folder, "memories-000.zip"), makeZip([{ name: "memories/m.json", data: "{}" }]));
     const outcome = await importClaudeExport(folder, home);
     expect(outcome).toMatchObject({ ok: true, manifest: { conversations: 2, sessions: 2 } });
+  });
+
+  it("never opens the account, memory or project zips, and reads the older single-zip layout and a manifest path", async () => {
+    const folder = join(dir, "export");
+    mkdirSync(folder);
+    // Unreadable on purpose: opening any of them would count an issue.
+    for (const name of ["light_metadata-000.zip", "memories-000.zip", "projects-000.zip", "design_chats-000.zip"]) writeFileSync(join(folder, name), "not a zip, and never to be opened by the importer");
+    writeFileSync(join(folder, "conversations-000.zip"), makeZip([{ name: "conversations.json", data: exportJson([conversation("c-000")]) }]));
+    writeFileSync(join(folder, "manifest-2026-08-30.json"), '{"files":[]}');
+    const viaFolder = await importClaudeExport(folder, home);
+    expect(viaFolder).toMatchObject({ ok: true, manifest: { sessions: 1, issues: 0 } });
+    expect(await importClaudeExport(join(folder, "manifest-2026-08-30.json"), home)).toMatchObject({ ok: true, manifest: { sessions: 1, issues: 0 } });
+    const older = join(dir, "older");
+    mkdirSync(older);
+    writeFileSync(join(older, "data-2026-07-01-12-00-00-batch-0000.zip"), makeZip([{ name: "users.json", data: '{"email_address":"MARK_EMAIL_7f1"}' }, { name: "conversations.json", data: exportJson([conversation("c-old")]) }]));
+    expect(await importClaudeExport(older, home)).toMatchObject({ ok: true, manifest: { sessions: 1, issues: 0 } });
+    expect(everything(home)).not.toContain("MARK_EMAIL_7f1");
   });
 
   it("leaves no assistant, thinking, tool, attachment or title text anywhere in the store, nor in excerpts", async () => {

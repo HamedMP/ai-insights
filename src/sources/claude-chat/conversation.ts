@@ -53,8 +53,9 @@ export const CONVERSATION_SPEC: Spec = {
 
 /**
  * Claude's own tools in the chat product, by the name the export records. Anything else (a connector, a
- * desktop extension, a remote MCP server) can carry a name the person or a third party chose, so it is counted
- * under one fixed label and never by its name.
+ * desktop extension, a remote MCP server, `mcp__server__tool`) can carry a name the person or a third party
+ * chose, so it is counted under one fixed label and never by its name. `Bash` is the name reported for exports
+ * from October 2026 on (Claude Code style); the August 2026 export checked here still says `bash_tool`.
  */
 const PRODUCT_TOOLS: Record<string, ToolCategory> = {
   web_search: "web",
@@ -64,6 +65,7 @@ const PRODUCT_TOOLS: Record<string, ToolCategory> = {
   artifacts: "edit",
   repl: "other",
   bash_tool: "shell",
+  Bash: "shell",
   create_file: "edit",
   str_replace: "edit",
   view: "read",
@@ -79,14 +81,38 @@ const PRODUCT_TOOLS: Record<string, ToolCategory> = {
   ask_user_input_v0: "ask_user",
 };
 
-/** The label every tool outside `PRODUCT_TOOLS` is counted under. */
-export const CONNECTOR_TOOL = "connector";
+/** The label every tool outside `PRODUCT_TOOLS` is counted under: an MCP or connector tool, never named. */
+export const MCP_TOOL = "mcp_tool";
 
 export function chatTool(block: Obj): { name: string; category: ToolCategory } {
   const name = str(block.name);
-  const connector = !!(str(block.integration_name) || str(block.mcp_server_url) || block.is_mcp_app === true);
-  const category = connector ? undefined : PRODUCT_TOOLS[name];
-  return category ? { name, category } : { name: CONNECTOR_TOOL, category: "mcp" };
+  const connector = !!(str(block.integration_name) || str(block.mcp_server_url) || block.is_mcp_app === true || name.startsWith("mcp__"));
+  const category = connector || !Object.prototype.hasOwnProperty.call(PRODUCT_TOOLS, name) ? undefined : PRODUCT_TOOLS[name];
+  return category ? { name, category } : { name: MCP_TOOL, category: "mcp" };
+}
+
+/**
+ * The messages on the branch the person ended on. Edits and regenerations are kept as a tree through
+ * `parent_message_uuid` with no pointer to the active reply, so the branch is the path from the newest leaf back
+ * to the root. Null when the links cannot be followed (a message without an id), and every message counts.
+ */
+export function activeBranch(messages: Obj[]): Set<Obj> | null {
+  const byId = new Map<string, Obj>();
+  for (const message of messages) {
+    const id = str(message.uuid);
+    if (!id || byId.has(id)) return null;
+    byId.set(id, message);
+  }
+  const parents = new Set(messages.map((message) => str(message.parent_message_uuid)).filter(Boolean));
+  let leaf: Obj | undefined;
+  for (const message of messages) {
+    if (parents.has(str(message.uuid))) continue;
+    // `messages` is in time order, so the last leaf is the newest; ties keep the later one in the export.
+    leaf = message;
+  }
+  const path = new Set<Obj>();
+  for (let current = leaf; current && !path.has(current); current = byId.get(str(current.parent_message_uuid))) path.add(current);
+  return path.size > 0 ? path : null;
 }
 
 /** Extra replies under one parent: each regenerated answer or edited prompt adds a sibling. */
@@ -105,12 +131,19 @@ function blocksOf(message: Obj): Obj[] {
   return Array.isArray(message.content) ? message.content.map(obj) : [];
 }
 
+/**
+ * What the person typed: the `text` blocks of their message, else its `text` field. Blocks of any other type
+ * (an `injected_prompt_block` the product added, attachment text) are not the person's words and are never read.
+ */
 function humanText(message: Obj): string {
-  if (typeof message.text === "string") return message.text;
-  return blocksOf(message)
-    .filter((block) => block.type === "text")
-    .map((block) => str(block.text))
-    .join("\n\n");
+  const blocks = blocksOf(message);
+  if (blocks.length > 0) {
+    return blocks
+      .filter((block) => block.type === "text")
+      .map((block) => str(block.text))
+      .join("\n\n");
+  }
+  return typeof message.text === "string" ? message.text : "";
 }
 
 function msBetween(start: string | null, stop: string | null): number | null {
@@ -143,8 +176,14 @@ export function conversationToSession(raw: unknown, file: SessionFile, extras: C
   let attachments = 0;
   let files = 0;
   let voiceNotes = 0;
+  const branch = activeBranch(messages);
   for (const message of messages) {
     const timestamp = isoFrom(message.created_at);
+    if (branch && !branch.has(message)) {
+      // A reply or prompt the person later replaced: it took time, but it is counted under branches only.
+      builder.noteTime(timestamp);
+      continue;
+    }
     attachments += Array.isArray(message.attachments) ? message.attachments.length : 0;
     files += Array.isArray(message.files) ? message.files.length : 0;
     if (message.sender === "human") {
