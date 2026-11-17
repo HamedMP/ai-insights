@@ -2,12 +2,12 @@ import "server-only"
 
 import { cache } from "react"
 
-import { databaseConfigured, entryByHandle, ranksForHandle, referralCount, type PublicEntry, type Ranks } from "@/lib/db"
+import { databaseConfigured, entryByHandle, ranksForHandle, referralCount, type PublicProfile, type Ranks } from "@/lib/db"
 import { checkHandle } from "@/lib/leaderboard"
 import { logError } from "@/lib/server-auth"
 
 /** One lookup per request, shared by the page, its metadata and its OG image. Bad handles never reach the database. */
-export const loadProfile = cache(async (raw: string): Promise<PublicEntry | null | "error"> => {
+export const loadProfile = cache(async (raw: string): Promise<PublicProfile | null | "error"> => {
   let decoded: string
   try {
     decoded = decodeURIComponent(raw)

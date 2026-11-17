@@ -67,7 +67,7 @@ export default async function LeaderboardPage({ searchParams }: { searchParams: 
               The <span className="text-primary">leaderboard.</span>
             </h1>
             <p className="max-w-2xl text-muted-foreground">
-              Numbers people published from their own AI Insights recaps. They are self-reported and not verified. Agent arenas estimate each agent&rsquo;s tokens as total tokens times its share of sessions.
+              Numbers people published from their own AI Insights recaps. They are self-reported and not verified. Agent arenas estimate each agent&rsquo;s tokens as total tokens times its share of sessions. A person who publishes from several computers is ranked on their total.
             </p>
           </div>
 
@@ -123,7 +123,10 @@ export default async function LeaderboardPage({ searchParams }: { searchParams: 
                     <Avatar url={row.avatarUrl} name={row.displayName} handle={row.handle} className="size-9 rounded-xl text-[14px]" />
                     <a href={`${BASE}/u/${row.handle}`} className="flex min-w-0 flex-1 flex-col underline-offset-4 hover:underline">
                       <span className="truncate font-medium">{row.displayName}</span>
-                      <span className="truncate font-mono text-[11px] text-muted-foreground">@{row.handle} · {formatPeriod(row.stats.from, row.stats.to)}</span>
+                      <span className="truncate font-mono text-[11px] text-muted-foreground">
+                        @{row.handle} · {formatPeriod(row.stats.from, row.stats.to)}
+                        {row.deviceCount > 1 && <span title="Totals add up this many computers"> · {row.deviceCount} devices</span>}
+                      </span>
                     </a>
                     <span className="shrink-0 text-right font-semibold tabular-nums">{formatScore(arena, row.score)}</span>
                   </li>

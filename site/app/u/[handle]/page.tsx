@@ -5,7 +5,9 @@ import { Footer } from "@/components/site/footer"
 import { AccountMenu } from "@/components/site/account-menu"
 import { Header } from "@/components/site/header"
 import { OwnerReferrals } from "@/components/site/owner-referrals"
-import { AgentsAndFact, BadgePill, CardGallery, EarnedTitles, joinedLabel, ProfileHeader, StatStrip, WorkRatios } from "@/components/site/profile"
+import { DeviceGallery } from "@/components/site/device-gallery"
+import { OwnerDevices } from "@/components/site/owner-devices"
+import { AgentsAndFact, BadgePill, DevicesStrip, EarnedTitles, joinedLabel, ProfileHeader, StatStrip, WorkRatios } from "@/components/site/profile"
 import { FindOutYours } from "@/components/site/share-card"
 import { ShareButtons } from "@/components/site/share-buttons"
 import { profileBadges, profilePost } from "@/lib/arena-format"
@@ -44,6 +46,7 @@ export default async function ProfilePage({ params }: Props) {
   const badges = profileBadges(ranks)
   const shareUrl = referralLink(SITE_URL, entry.handle)
   const hasCards = Boolean(entry.stats.cards && entry.stats.cards.length > 0)
+  const counted = entry.devices.filter((d) => !d.duplicate)
 
   return (
     <>
@@ -60,8 +63,10 @@ export default async function ProfilePage({ params }: Props) {
             badge={badges[0] ?? null}
             referrals={referrals}
             share={<ShareButtons post={profilePost(shareUrl)} url={shareUrl} />}
+            devices={entry.deviceCount}
           />
-          <StatStrip stats={entry.stats} />
+          <StatStrip stats={entry.stats} atLeast={!entry.exactDays} />
+          <DevicesStrip devices={entry.devices} />
           {badges.length > 1 && (
             <section aria-labelledby="ranks" className="flex flex-col gap-3">
               <h2 id="ranks" className="font-mono text-[10.5px] tracking-wide text-muted-foreground uppercase">leaderboard ranks</h2>
@@ -75,10 +80,14 @@ export default async function ProfilePage({ params }: Props) {
           <EarnedTitles stats={entry.stats} />
           <AgentsAndFact stats={entry.stats} />
           <WorkRatios stats={entry.stats} />
+          {entry.perDeviceRatios.length > 0 && counted.length > 1 && (
+            <p className="-mt-3 text-[12.5px] text-muted-foreground">Some ratios are not combined across devices because an older report did not send the counts behind them. Pick a device under Recap cards to see its own.</p>
+          )}
           <OwnerReferrals handle={entry.handle} hasCards={hasCards} />
-          <CardGallery cards={entry.stats.cards} handle={entry.handle} />
+          <OwnerDevices handle={entry.handle} />
+          <DeviceGallery handle={entry.handle} highlights={entry.highlights} devices={counted.map((d) => ({ label: d.label, cards: d.stats.cards, stats: d.stats }))} />
           <p className="font-mono text-[11px] text-muted-foreground">
-            Published by @{entry.handle} from their own AI Insights report. Self-reported, not verified. ·{" "}
+            Published by @{entry.handle} from their own AI Insights {entry.deviceCount > 1 ? `reports on ${entry.deviceCount} devices` : "report"}. Self-reported, not verified.{!entry.exactDays && " Active days and streak are lower bounds: not every device sent which days it was active."} ·{" "}
             <a className="underline-offset-4 hover:underline" href={`${BASE}/leaderboard`}>see the leaderboard</a>
           </p>
           <div className="flex justify-center pt-6">

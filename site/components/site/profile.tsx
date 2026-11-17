@@ -55,7 +55,7 @@ export function Avatar({ url, name, handle, className }: { url: string | null; n
   )
 }
 
-export function ProfileHeader({ name, handle, avatarUrl, joined, stats, badge, referrals, share }: { name: string; handle: string; avatarUrl: string | null; joined: string; stats: SharedStats; badge: Badge | null; referrals: number; share: React.ReactNode }) {
+export function ProfileHeader({ name, handle, avatarUrl, joined, stats, badge, referrals, share, devices = 1 }: { name: string; handle: string; avatarUrl: string | null; joined: string; stats: SharedStats; badge: Badge | null; referrals: number; share: React.ReactNode; devices?: number }) {
   return (
     <header className="relative overflow-hidden rounded-[1.6rem] border bg-card shadow-sm">
       <div aria-hidden className="h-24 bg-[linear-gradient(110deg,#ff7a2f_0%,#ff6b57_38%,#c9b8ff_72%,#8ad3ff_100%)] sm:h-28" />
@@ -72,6 +72,12 @@ export function ProfileHeader({ name, handle, avatarUrl, joined, stats, badge, r
             <span>{joined}</span>
             <span aria-hidden>·</span>
             <span>covers {formatPeriod(stats.from, stats.to)}</span>
+            {devices > 1 && (
+              <>
+                <span aria-hidden>·</span>
+                <a href="#devices" className="underline-offset-4 hover:underline">{devices} devices</a>
+              </>
+            )}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -109,12 +115,13 @@ export function BadgePill({ badge, big = false }: { badge: Badge; big?: boolean 
   )
 }
 
-export function StatStrip({ stats }: { stats: SharedStats }) {
+/** `atLeast`: active days and streak are lower bounds (some computer did not send its active days). */
+export function StatStrip({ stats, atLeast = false }: { stats: SharedStats; atLeast?: boolean }) {
   const items: Array<[string, string]> = [
     ["sessions", formatInt(stats.sessions)],
     ["tokens", formatCompact(stats.tokens)],
-    ["active days", formatInt(stats.activeDays)],
-    ["longest streak", `${formatInt(stats.streak)} ${stats.streak === 1 ? "day" : "days"}`],
+    [atLeast ? "active days, at least" : "active days", formatInt(stats.activeDays)],
+    [atLeast ? "longest streak, at least" : "longest streak", `${formatInt(stats.streak)} ${stats.streak === 1 ? "day" : "days"}`],
   ]
   if (stats.usd !== null) items.push(["estimated spend", `$${formatInt(stats.usd)}`])
   return (
@@ -166,7 +173,7 @@ export function AgentsAndFact({ stats }: { stats: SharedStats }) {
 /** Wide cards: the persona headline is a phrase, not a number, so it gets two columns. */
 const WIDE = new Set<CardKey>(["persona"])
 
-export function RecapCard({ card, span }: { card: SharedCard; span?: string }) {
+export function RecapCard({ card, span, note }: { card: SharedCard; span?: string; note?: string | null }) {
   const style = CARD_STYLE[card.k]
   const long = Array.from(card.b).length > 9
   return (
@@ -179,6 +186,7 @@ export function RecapCard({ card, span }: { card: SharedCard; span?: string }) {
       <div className="relative flex flex-col gap-1.5">
         <p className={cn("leading-[0.95] font-semibold tracking-[-0.045em] break-words tabular-nums", long ? "text-[1.4rem] sm:text-[1.9rem]" : "text-[2.1rem] sm:text-[2.7rem]")}>{card.b}</p>
         {card.c && <p className="text-[12.5px] leading-snug font-medium opacity-75 sm:text-[13.5px]">{card.c}</p>}
+        {note && <p className="mt-1 font-mono text-[10px] tracking-[0.06em] uppercase opacity-55">{note}</p>}
       </div>
     </li>
   )
@@ -193,27 +201,60 @@ function lastSpan(cards: SharedCard[]): string | undefined {
   return cn(phone, desktop) || undefined
 }
 
-export function CardGallery({ cards, handle }: { cards: SharedCard[] | undefined; handle: string }) {
+export function CardGallery({ cards, handle, notes, toolbar, empty }: { cards: SharedCard[] | undefined; handle: string; notes?: Array<string | null>; toolbar?: React.ReactNode; empty?: string }) {
   return (
     <section aria-labelledby="cards" className="flex flex-col gap-4">
-      <div className="flex items-baseline justify-between gap-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
         <h2 id="cards" className="text-[1.5rem] font-semibold tracking-[-0.03em]">Recap cards</h2>
         {cards && cards.length > 0 && <span className="font-mono text-[11px] text-muted-foreground">{cards.length} cards</span>}
       </div>
+      {toolbar}
       {cards && cards.length > 0 ? (
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
           {cards.map((card, i) => (
-            <RecapCard key={card.k} card={card} span={i === cards.length - 1 && !WIDE.has(card.k) ? lastSpan(cards) : undefined} />
+            <RecapCard key={card.k} card={card} note={notes?.[i]} span={i === cards.length - 1 && !WIDE.has(card.k) ? lastSpan(cards) : undefined} />
           ))}
         </ul>
       ) : (
         <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed px-6 py-10 text-center">
           <p className="text-lg font-semibold">No recap cards yet</p>
           <p className="max-w-md text-[14px] text-muted-foreground">
-            @{handle} published from an older report, which carried only the numbers above. Cards appear here when they publish again from AI Insights 0.4 or newer.
+            {empty ?? `@${handle} published from an older report, which carried only the numbers above. Cards appear here when they publish again from AI Insights 0.4 or newer.`}
           </p>
         </div>
       )}
+    </section>
+  )
+}
+
+/** The person's computers, publicly: a label (the name only if they chose to show it) and each one's own numbers. */
+export function DevicesStrip({ devices }: { devices: Array<{ label: string; stats: SharedStats; updatedAt: string; duplicate: boolean }> }) {
+  if (devices.length <= 1) return null
+  return (
+    <section aria-labelledby="devices" className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 id="devices" className="font-mono text-[10.5px] tracking-wide text-muted-foreground uppercase">devices · {devices.length}</h2>
+        <span className="font-mono text-[10.5px] text-muted-foreground">the numbers above add these up</span>
+      </div>
+      <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {devices.map((d, i) => (
+          <li key={`${d.label}-${i}`} className={cn("flex flex-col gap-2 rounded-2xl border bg-card px-4 py-3.5", d.duplicate && "border-dashed opacity-70")}>
+            <div className="flex items-center justify-between gap-2">
+              <span className="flex min-w-0 items-center gap-2">
+                <span aria-hidden className="size-2.5 shrink-0 rounded-full" style={{ background: AGENT_COLORS[i % AGENT_COLORS.length] }} />
+                <span className="truncate font-semibold">{d.label}</span>
+              </span>
+              <span className="shrink-0 font-mono text-[10.5px] text-muted-foreground">{formatPeriod(d.stats.from, d.stats.to)}</span>
+            </div>
+            <p className="flex flex-wrap gap-x-3 gap-y-0.5 text-[13px] tabular-nums">
+              <span><b className="font-semibold">{formatInt(d.stats.sessions)}</b> <span className="text-muted-foreground">sessions</span></span>
+              <span><b className="font-semibold">{formatCompact(d.stats.tokens)}</b> <span className="text-muted-foreground">tokens</span></span>
+              <span><b className="font-semibold">{formatInt(d.stats.activeDays)}</b> <span className="text-muted-foreground">active days</span></span>
+            </p>
+            {d.duplicate && <p className="text-[12px] text-muted-foreground">Same history as another device, counted once.</p>}
+          </li>
+        ))}
+      </ul>
     </section>
   )
 }
