@@ -2,13 +2,13 @@ import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 
 import { Footer } from "@/components/site/footer"
-import { AccountMenu } from "@/components/site/account-menu"
 import { Header } from "@/components/site/header"
+import { NavLink } from "@/components/site/nav-link"
 import { OwnerReferrals } from "@/components/site/owner-referrals"
 import { DeviceGallery } from "@/components/site/device-gallery"
 import { OwnerDevices } from "@/components/site/owner-devices"
 import { AgentsAndFact, BadgePill, DevicesStrip, EarnedTitles, joinedLabel, ProfileHeader, StatStrip, WorkRatios } from "@/components/site/profile"
-import { FindOutYours } from "@/components/site/share-card"
+import { FindOutYours } from "@/components/site/find-out-yours"
 import { ShareButtons } from "@/components/site/share-buttons"
 import { profileBadges, profilePost } from "@/lib/arena-format"
 import { referralLink } from "@/lib/referral"
@@ -16,7 +16,14 @@ import { BASE, SITE_URL } from "@/lib/site"
 
 import { loadProfile, loadProfileExtras } from "./data"
 
-export const dynamic = "force-dynamic"
+// Rendered on a profile's first visit and then served from the cache; a publish or change expires it at once
+// (lib/board-cache.ts). The number is the safety net, kept equal to BOARD_REVALIDATE_SECONDS (Next reads it statically).
+export const revalidate = 3600
+
+/** No profile is built ahead: each one is rendered when it is first opened. */
+export function generateStaticParams(): Array<{ handle: string }> {
+  return []
+}
 
 type Props = { params: Promise<{ handle: string }> }
 
@@ -50,7 +57,7 @@ export default async function ProfilePage({ params }: Props) {
 
   return (
     <>
-      <Header account={<AccountMenu />} />
+      <Header />
       <main id="top" className="relative overflow-hidden">
         <div aria-hidden className="hero-glow pointer-events-none absolute inset-x-0 top-0 h-[40rem]" />
         <div className="relative mx-auto flex max-w-4xl flex-col gap-6 px-4 pt-6 pb-20 sm:gap-8 md:px-8 md:pt-12">
@@ -88,7 +95,7 @@ export default async function ProfilePage({ params }: Props) {
           <DeviceGallery handle={entry.handle} highlights={entry.highlights} devices={counted.map((d) => ({ label: d.label, cards: d.stats.cards, stats: d.stats }))} />
           <p className="font-mono text-[11px] text-muted-foreground">
             Published by @{entry.handle} from their own AI Insights {entry.deviceCount > 1 ? `reports on ${entry.deviceCount} devices` : "report"}. Self-reported, not verified.{!entry.exactDays && " Active days and streak are lower bounds: not every device sent which days it was active."} ·{" "}
-            <a className="underline-offset-4 hover:underline" href={`${BASE}/leaderboard`}>see the leaderboard</a>
+            <NavLink className="underline-offset-4 hover:underline" href={`${BASE}/leaderboard`}>see the leaderboard</NavLink>
           </p>
           <div className="flex justify-center pt-6">
             <FindOutYours note="Your report stays on your machine. Publishing a profile like this one is optional and sends only the lines you see." />

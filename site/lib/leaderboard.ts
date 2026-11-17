@@ -152,6 +152,22 @@ export function boardHref(base: string, sort: SortId, page = 1, hash = ""): stri
   return `${base}/leaderboard${qs ? `?${qs}` : ""}${hash}`
 }
 
+/**
+ * The internal path proxy.ts rewrites a public board URL to. A page that reads the query string is rendered on every
+ * request; one path per sort and page lets each view be rendered once and served from the cache. Visitors keep the
+ * ?sort=&page= URLs, and parameters that do not change the board (?ref=, utm_*) do not split the cache.
+ */
+export function boardViewPath(search: URLSearchParams): string {
+  const sort = parseSort({ sort: search.get("sort") ?? undefined, arena: search.get("arena") ?? undefined })
+  return `/leaderboard/view/${sort}/${parsePage(search.get("page") ?? undefined)}`
+}
+
+/** The view an internal path names, or null for anything boardViewPath never produces. */
+export function boardView(sort: string, page: string): { sort: SortId; page: number } | null {
+  if (!isSort(sort) || !/^[1-9]\d{0,3}$/.test(page) || Number(page) > MAX_PAGE) return null
+  return { sort, page: Number(page) }
+}
+
 /** Pages a board of `rows` people spans, at least one and never past MAX_PAGE. */
 export const pageCount = (rows: number) => Math.min(MAX_PAGE, Math.max(1, Math.ceil(Math.max(0, rows) / PAGE_SIZE)))
 

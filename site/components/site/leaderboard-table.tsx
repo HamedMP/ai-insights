@@ -1,3 +1,4 @@
+import { NavLink } from "@/components/site/nav-link"
 import { Avatar } from "@/components/site/profile"
 import { formatMetric, metricValue, shortPeriod, type MetricSource } from "@/lib/arena-format"
 import type { BoardRow } from "@/lib/db"
@@ -8,8 +9,10 @@ import { cn } from "@/lib/utils"
 
 /**
  * The leaderboard as one dense table (wide screens) and as a two-line list (phones and tablets). Server-rendered:
- * every sort is a plain link, so sorting works without JavaScript and every view has a shareable URL. Every string
- * shown comes from validated database columns and is rendered as React text.
+ * every sort is a link, so sorting works without JavaScript and every view has a shareable URL; with JavaScript the
+ * links navigate without a reload (nav-link.tsx). Every string shown comes from validated database columns and is
+ * rendered as React text. The page is cached for everyone, so the signed-in person's own rows are marked in the
+ * browser (you-strip.tsx sets data-mine); `me` does the same from the server where a caller knows it.
  */
 
 /** Columns that drop out on narrower wide screens, so the table never needs a horizontal scroll. */
@@ -56,15 +59,15 @@ function Bar({ percent, className }: { percent: number; className?: string }) {
   )
 }
 
-function Person({ row, me }: { row: BoardRow; me: boolean }) {
+function Person({ row }: { row: BoardRow }) {
   const title = titleOf(row)
   return (
-    <a href={`${BASE}/u/${row.handle}`} className="group/person flex min-w-0 items-center gap-3 rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+    <NavLink href={`${BASE}/u/${row.handle}`} className="group/person flex min-w-0 items-center gap-3 rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
       <Avatar url={row.avatarUrl} name={row.displayName} handle={row.handle} className="size-8 rounded-[9px] text-[12.5px]" />
       <span className="flex min-w-0 flex-col">
         <span className="flex min-w-0 items-center gap-2">
           <span className="truncate font-medium underline-offset-4 group-hover/person:underline">{row.displayName}</span>
-          {me && <span className="shrink-0 rounded-[4px] bg-primary px-1.5 py-px font-mono text-[9.5px] font-semibold tracking-[0.08em] text-primary-foreground uppercase">you</span>}
+          <span className="hidden shrink-0 rounded-[4px] bg-primary px-1.5 py-px font-mono text-[9.5px] font-semibold tracking-[0.08em] text-primary-foreground uppercase group-data-[mine=true]/mine:inline">you</span>
         </span>
         <span className="flex min-w-0 items-center gap-1.5 font-mono text-[11px] text-muted-foreground">
           <span className="truncate">@{row.handle}</span>
@@ -76,7 +79,7 @@ function Person({ row, me }: { row: BoardRow; me: boolean }) {
           )}
         </span>
       </span>
-    </a>
+    </NavLink>
   )
 }
 
@@ -90,7 +93,7 @@ function SortHeader({ id, sort }: { id: SortId; sort: SortId }) {
       title={def.label}
       className={cn("h-10 px-2.5 text-right align-middle text-[10.5px] font-normal", active && "bg-primary/[0.06]", HIDE[id])}
     >
-      <a
+      <NavLink
         href={boardHref(BASE, id)}
         aria-label={active ? `${def.label}, sorted highest first` : `Sort by ${def.label.toLowerCase()}`}
         className={cn(
@@ -100,7 +103,7 @@ function SortHeader({ id, sort }: { id: SortId; sort: SortId }) {
       >
         <span aria-hidden className={cn("inline-block w-2.5 text-center", active ? "" : "opacity-0 group-hover/sort:opacity-60 group-focus-visible/sort:opacity-60")}>↓</span>
         {def.head}
-      </a>
+      </NavLink>
     </th>
   )
 }
@@ -136,16 +139,14 @@ export function BoardTable({ rows, sort, top, me }: BoardTableProps) {
             <tr
               key={row.handle}
               id={`u-${row.handle}`}
-              className={cn(
-                "group/row scroll-mt-32 transition-colors [&>td]:border-b [&>td]:border-border/80 last:[&>td]:border-b-0",
-                mine ? "bg-primary/[0.07] hover:bg-primary/[0.1]" : "hover:bg-muted/60",
-              )}
+              data-mine={mine ? "true" : undefined}
+              className="group/row group/mine scroll-mt-32 transition-colors hover:bg-muted/60 data-[mine=true]:bg-primary/[0.07] data-[mine=true]:hover:bg-primary/[0.1] [&>td]:border-b [&>td]:border-border/80 last:[&>td]:border-b-0"
             >
-              <td className={cn("h-12 pl-4 align-middle", mine && "shadow-[inset_3px_0_0_var(--primary)]")}>
+              <td className="h-12 pl-4 align-middle group-data-[mine=true]/mine:shadow-[inset_3px_0_0_var(--primary)]">
                 <RankMark rank={row.rank} />
               </td>
               <td className="w-full max-w-0 min-w-52 px-3 align-middle">
-                <Person row={row} me={mine} />
+                <Person row={row} />
               </td>
               {SORTS.map((s) => {
                 const value = metricValue(s.id, source)
@@ -193,14 +194,15 @@ export function BoardList({ rows, sort, top, me }: BoardTableProps) {
           <li
             key={row.handle}
             id={`m-${row.handle}`}
-            className={cn("scroll-mt-24 border-b border-border/80 px-3 py-3 last:border-b-0 sm:px-4", mine && "bg-primary/[0.07] shadow-[inset_3px_0_0_var(--primary)]")}
+            data-mine={mine ? "true" : undefined}
+            className="group/mine scroll-mt-24 border-b border-border/80 px-3 py-3 last:border-b-0 data-[mine=true]:bg-primary/[0.07] data-[mine=true]:shadow-[inset_3px_0_0_var(--primary)] sm:px-4"
           >
             <div className="flex items-center gap-3">
               <span className="w-7 shrink-0 text-center">
                 <RankMark rank={row.rank} />
               </span>
               <span className="min-w-0 flex-1">
-                <Person row={row} me={mine} />
+                <Person row={row} />
               </span>
               <span className="flex shrink-0 flex-col items-end gap-1">
                 <span className={cn("font-mono text-[15px] font-semibold tabular-nums", value === null && "text-muted-foreground")}>{formatMetric(sort, value)}</span>

@@ -3,6 +3,7 @@
 import * as React from "react"
 
 import { RemoveEntry } from "@/components/site/rank-share"
+import { hasSessionHint } from "@/lib/session-hint"
 import { BASE, COMMAND } from "@/lib/site"
 
 const API = `${BASE}/api/leaderboard/referrals`
@@ -38,6 +39,8 @@ function parse(data: unknown, handle: string): Mine | null {
 export function OwnerReferrals({ handle, hasCards }: { handle: string; hasCards: boolean }) {
   const [mine, setMine] = React.useState<Mine | null>(null)
   React.useEffect(() => {
+    // Only a browser that has signed in here can be the owner: everyone else skips the request (lib/session-hint.ts).
+    if (!hasSessionHint(document.cookie)) return
     let live = true
     fetch(API, { credentials: "same-origin", signal: AbortSignal.timeout(10_000), headers: { Accept: "application/json" } })
       .then((res) => (res.ok ? res.json() : null))

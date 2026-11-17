@@ -1,11 +1,14 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { formatMetric, metricValue, shortPeriod, standings, type MetricSource } from "../../site/lib/arena-format.ts";
 import { pageSql, positionSql, SET_AVATAR_SQL, summarySql } from "../../site/lib/board-sql.ts";
 import { handleDeviceList } from "../../site/lib/device-routes.ts";
-import { ARENAS, barPercent, boardHref, competitionRanks, MAX_PAGE, PAGE_SIZE, pageCount, pageOfPosition, parsePage, parseSort, SORTS } from "../../site/lib/leaderboard.ts";
+import { ARENAS, barPercent, boardHref, boardView, boardViewPath, competitionRanks, MAX_PAGE, PAGE_SIZE, pageCount, pageOfPosition, parsePage, parseSort, SORTS } from "../../site/lib/leaderboard.ts";
 import { handlePhoto, MAX_PHOTO_BODY_BYTES, PHOTO_ERRORS, type PhotoDeps } from "../../site/lib/photo-route.ts";
 import { ERRORS } from "../../site/lib/publish.ts";
 
+const SITE = join(import.meta.dirname, "..", "..", "site");
 const ORIGIN = "https://ai-insights.app";
 const stream = (text: string) => new Blob([text]).stream();
 const CLERK_PHOTO = "https://img.clerk.com/eyJ0eXBlIjoicHJveHkifQ";
@@ -46,6 +49,51 @@ describe("sorting the leaderboard table", () => {
       }
       expect(pageSql(s.id)).toMatch(/LIMIT \$1 OFFSET \$2/);
     }
+  });
+});
+
+describe("serving each board view from the cache", () => {
+  const view = (qs: string) => boardViewPath(new URLSearchParams(qs));
+
+  it("maps every public board URL to one cacheable path per sort and page, ignoring unrelated parameters", () => {
+    expect(view("")).toBe("/leaderboard/view/tokens/1");
+    expect(view("sort=codex&page=3")).toBe("/leaderboard/view/codex/3");
+    expect(view("arena=streak")).toBe("/leaderboard/view/streak/1");
+    expect(view("ref=ada&utm_source=x")).toBe("/leaderboard/view/tokens/1");
+    expect(view("sort=bogus&page=-2")).toBe("/leaderboard/view/tokens/1");
+    expect(view("page=99999")).toBe("/leaderboard/view/tokens/1");
+    for (const s of SORTS) expect(view(new URL(boardHref("https://x.test", s.id, 2), "https://x.test").search)).toBe(`/leaderboard/view/${s.id}/2`);
+  });
+
+  it("renders only real views: anything else typed into the internal path is not found", () => {
+    expect(boardView("spend", "2")).toEqual({ sort: "spend", page: 2 });
+    for (const [sort, page] of [["usd", "1"], ["tokens", "0"], ["tokens", "01"], ["tokens", String(MAX_PAGE + 1)], ["tokens", "1e2"], ["tokens", "x"]] as const) expect(boardView(sort, page), `${sort}/${page}`).toBeNull();
+  });
+});
+
+describe("the cached board and profiles", () => {
+  const read = (path: string) => readFileSync(join(SITE, path), "utf8");
+
+  it("are one page for everyone: their server render reads no session, so a cached copy holds no one's own data", () => {
+    for (const path of ["app/leaderboard/board-view.tsx", "app/leaderboard/view/[sort]/[page]/page.tsx", "app/u/[handle]/page.tsx", "app/u/[handle]/data.ts", "lib/board-cache.ts"]) {
+      const text = read(path);
+      expect(text, path).not.toMatch(/currentUserId|from "@clerk\/nextjs\/server"|cookies\(\)|headers\(\)|force-dynamic/);
+    }
+    for (const path of ["app/leaderboard/view/[sort]/[page]/page.tsx", "app/u/[handle]/page.tsx"]) expect(read(path), path).toMatch(/export const revalidate = \d+[\s\S]*generateStaticParams/);
+  });
+
+  it("show a publish, a removal, a device change or the photo switch on the very next load", () => {
+    expect(read("lib/board-cache.ts")).toContain("revalidateTag(BOARD_TAG, { expire: 0 })");
+    expect(read("app/api/leaderboard/entry/route.ts").match(/boardChanged\(/g)?.length).toBe(2);
+    expect(read("app/api/leaderboard/devices/route.ts")).toMatch(/if \(reply\.status === 200\) boardChanged\(\)/);
+    expect(read("app/api/leaderboard/photo/route.ts")).toMatch(/if \(reply\.status === 200\) boardChanged\(\)/);
+  });
+
+  it("keep the signed-in strip in an owner-only, uncached route about the caller alone", () => {
+    const you = read("app/api/leaderboard/you/route.ts");
+    expect(you).toContain('"Cache-Control": "private, no-store"');
+    expect(you).toContain("const userId = await currentUserId()");
+    expect(you).not.toMatch(/searchParams\.get\("(?:user|handle|id)"\)/);
   });
 });
 

@@ -50,14 +50,15 @@ describe("the public site", () => {
 
   it("loads Clerk only where people sign in, only when configured, with telemetry off, and pins every other host out with a CSP", () => {
     const clerkUsers = SITE_SOURCES.filter((path) => /from "@clerk\/nextjs"/.test(read(path))).sort();
-    expect(clerkUsers).toEqual(["site/components/site/account-menu.tsx", "site/components/site/auth-provider.tsx", "site/components/site/publish-panel.tsx", "site/components/site/sign-in-handoff.tsx"]);
+    expect(clerkUsers).toEqual(["site/components/site/account-menu.tsx", "site/components/site/auth-provider.tsx", "site/components/site/publish-panel.tsx", "site/components/site/sign-in-handoff.tsx", "site/components/site/you-strip-signed-in.tsx"]);
     const provider = read("site/components/site/auth-provider.tsx");
     expect(provider).toContain("if (!clerkEnabled) return");
     expect(provider).toContain("telemetry={false}");
     const mounts = SITE_SOURCES.filter((path) => read(path).includes("<AuthProvider>")).sort();
-    expect(mounts).toEqual(["site/app/account/layout.tsx", "site/app/leaderboard/layout.tsx", "site/app/share/layout.tsx", "site/app/u/layout.tsx"]);
-    // Elsewhere only the on-demand account menu mounts it, without the satellite redirect (lib/session-hint.ts gates it).
-    expect(SITE_SOURCES.filter((path) => /<AuthProvider\b/.test(read(path)) && !read(path).includes("<AuthProvider>"))).toEqual(["site/components/site/clerk-slot.tsx"]);
+    expect(mounts).toEqual(["site/app/account/layout.tsx", "site/app/share/layout.tsx"]);
+    // Elsewhere Clerk mounts only on demand, in a browser that has signed in here before (lib/session-hint.ts gates it),
+    // without the client-side satellite redirect: the header's account menu and the leaderboard's "you" strip.
+    expect(SITE_SOURCES.filter((path) => /<AuthProvider\b/.test(read(path)) && !read(path).includes("<AuthProvider>")).sort()).toEqual(["site/components/site/clerk-island-provider.tsx", "site/components/site/clerk-slot.tsx"]);
     expect(read("site/components/site/clerk-slot.tsx")).toContain("<AuthProvider autoSync={false}>");
     expect(read("site/app/layout.tsx")).not.toMatch(/clerk/i);
     const proxy = read("site/proxy.ts");

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { contentSecurityPolicy, mountsClerk, needsAuthSync } from "../../site/lib/auth-config.ts";
+import { AUTH_CHECKED_COOKIE, clerkRun, contentSecurityPolicy, mountsClerk, needsAuthSync } from "../../site/lib/auth-config.ts";
 import { hasSessionHint, returnPath } from "../../site/lib/session-hint.ts";
 import { avatarFromClerkUser, initials, safeAvatarUrl } from "../../site/lib/avatar.ts";
 import { SAVE_ENTRY_SQL } from "../../site/lib/entry-sql.ts";
@@ -37,7 +37,8 @@ describe("where Clerk runs", () => {
     expect(proxy).toContain("mountsClerk(pathname) || (serverAuthEnabled() && hasSessionHint(cookies)) ? cspWithClerk : cspPlain");
     expect(proxy).toContain("const cspPlain = contentSecurityPolicy([], dev)");
     // Pages that do not mount Clerk never run its middleware, so the landing page never takes a sync or handshake redirect.
-    expect(proxy).toContain("if (!clerk || !(mountsClerk(request.nextUrl.pathname)");
+    expect(proxy).toContain('if (!clerk || run === "skip") return withHeaders(request, pass(request), run)');
+    expect(clerkRun({ pathname: "/", search: "", userAgent: CHROME, fetchDest: "document", cookies: "__client_uat=1763000000" })).toBe("skip");
     expect(contentSecurityPolicy([])).not.toMatch(/clerk/);
   });
 
@@ -49,7 +50,14 @@ describe("where Clerk runs", () => {
     expect(slot).toContain('React.lazy(() => import("@/components/site/clerk-slot"))');
     expect(slot).toContain("hasSessionHint(document.cookie)");
     expect(readFileSync(join(SITE, "app/page.tsx"), "utf8")).not.toMatch(/@clerk|AccountMenu|AuthProvider/);
-    expect(readFileSync(join(SITE, "app/u/layout.tsx"), "utf8")).toContain("<AuthProvider>");
+    // The cached board and profiles mount Clerk the same way: per signed-in part, on demand (clerk-island.tsx).
+    for (const path of ["app/leaderboard/layout.tsx", "app/leaderboard/board-view.tsx", "app/u/[handle]/page.tsx", "components/site/you-strip.tsx"]) expect(readFileSync(join(SITE, path), "utf8"), path).not.toMatch(staticClerk);
+    // The share page's card and publish panel import Clerk: a profile must not pull them in for its call to action.
+    expect(readFileSync(join(SITE, "app/u/[handle]/page.tsx"), "utf8")).not.toMatch(/components\/site\/(?:share-card|publish-panel|publish-form)"/);
+    const island = readFileSync(join(SITE, "components/site/clerk-island.tsx"), "utf8");
+    expect(island).not.toMatch(staticClerk);
+    expect(island).toContain('React.lazy(() => import("@/components/site/clerk-island-provider"))');
+    expect(island).toContain("hasSessionHint(document.cookie)");
     const check = readFileSync(join(SITE, "scripts/check-build.mjs"), "utf8");
     expect(check).toContain("only pages that mount Clerk may");
     expect(check).toContain("anonymous HTML names the Clerk host");
@@ -59,7 +67,70 @@ describe("where Clerk runs", () => {
   it("builds the signed-out link with buildSignInUrl, so the satellite sync parameter is kept", () => {
     const menu = readFileSync(join(SITE, "components/site/account-menu.tsx"), "utf8");
     expect(menu).toContain("clerk.buildSignInUrl(");
+    // The cached board and profiles skip the sync for a recently checked signed-out browser, so their Sign in is the
+    // header's default link to /account/sign-in, which always runs it first: someone signed in on Matrix OS since is
+    // recognised instead of being stranded on the primary's sign-in page.
+    for (const path of ["app/leaderboard/board-view.tsx", "app/u/[handle]/page.tsx"]) expect(readFileSync(join(SITE, path), "utf8"), path).toContain("<Header />");
+    expect(readFileSync(join(SITE, "components/site/session-account.tsx"), "utf8")).toContain("/account/sign-in?to=");
     for (const label of ["My profile", "Leaderboard", "People I referred", "Open Matrix OS"]) expect(menu).toContain(label);
+  });
+});
+
+describe("Clerk's round trips on the cached leaderboard and profiles", () => {
+  const visit = (pathname: string, extra: Partial<Parameters<typeof clerkRun>[0]> = {}) =>
+    clerkRun({ pathname, search: "", userAgent: CHROME, fetchDest: "document", cookies: null, ...extra });
+
+  it("syncs a browser's first visit, so someone signed in on Matrix OS is recognised", () => {
+    expect(visit("/leaderboard")).toBe("sync");
+    expect(visit("/u/ada")).toBe("sync");
+  });
+
+  it("keeps the server check for a browser that has signed in here, so owner panels get a fresh session", () => {
+    expect(visit("/u/ada", { cookies: `__client_uat=1763000000; ${AUTH_CHECKED_COOKIE}=1` })).toBe("sync");
+    expect(visit("/leaderboard", { cookies: `__client_uat_Xy12=1763000000; ${AUTH_CHECKED_COOKIE}=1` })).toBe("sync");
+  });
+
+  it("does not send a recently checked signed-out browser through the four-redirect sync again", () => {
+    // Clerk leaves __client_uat=0 after a signed-out sync and would otherwise sync again on every visit.
+    expect(visit("/leaderboard", { cookies: `__client_uat=0; ${AUTH_CHECKED_COOKIE}=1` })).toBe("skip");
+    expect(visit("/u/ada", { cookies: `${AUTH_CHECKED_COOKIE}=1` })).toBe("skip");
+    expect(visit("/u/ada", { cookies: `${AUTH_CHECKED_COOKIE}=0` })).toBe("sync");
+  });
+
+  it("lets a sync or handshake in progress finish, whatever the cookie says", () => {
+    expect(visit("/leaderboard", { search: "?__clerk_synced=false", cookies: `${AUTH_CHECKED_COOKIE}=1` })).toBe("sync");
+    expect(visit("/u/ada", { cookies: `${AUTH_CHECKED_COOKIE}=1; __clerk_handshake=abc` })).toBe("sync");
+    expect(visit("/u/ada", { cookies: `${AUTH_CHECKED_COOKIE}=1; __clerk_handshake_nonce=abc` })).toBe("sync");
+  });
+
+  it("serves crawlers, client navigations, prefetches and OG images from the cache without Clerk", () => {
+    expect(visit("/u/ada", { userAgent: "Twitterbot/1.0" })).toBe("skip");
+    expect(visit("/leaderboard", { fetchDest: "empty" })).toBe("skip");
+    expect(visit("/u/ada/opengraph-image", { fetchDest: "image" })).toBe("skip");
+  });
+
+  it("keeps Clerk on every route handler, /share and /account, and off the landing page and docs", () => {
+    expect(visit("/api/leaderboard/me", { fetchDest: "empty", cookies: `${AUTH_CHECKED_COOKIE}=1` })).toBe("sync");
+    expect(visit("/share", { cookies: `${AUTH_CHECKED_COOKIE}=1` })).toBe("sync");
+    expect(visit("/account/sign-in", { cookies: `${AUTH_CHECKED_COOKIE}=1` })).toBe("sync");
+    expect(visit("/__clerk/v1/client")).toBe("no-sync");
+    expect(visit("/")).toBe("skip");
+    expect(visit("/docs/sharing")).toBe("skip");
+  });
+
+  it("only marks a browser as checked once Clerk's middleware actually answered a page for it", () => {
+    const proxy = readFileSync(join(SITE, "proxy.ts"), "utf8");
+    expect(proxy).toContain('run === "sync" && cachedClerkPage(pathname) && res.status < 300');
+  });
+});
+
+describe("owner-only panels on a cached profile", () => {
+  it("ask their owner-only routes only from a browser that has signed in here, never for every visitor", () => {
+    for (const path of ["components/site/owner-referrals.tsx", "components/site/owner-devices.tsx"]) {
+      const text = readFileSync(join(SITE, path), "utf8");
+      expect(text.indexOf("if (!hasSessionHint(document.cookie)) return"), path).toBeGreaterThan(-1);
+      expect(text.indexOf("if (!hasSessionHint(document.cookie)) return"), path).toBeLessThan(text.indexOf("fetch(API"));
+    }
   });
 });
 

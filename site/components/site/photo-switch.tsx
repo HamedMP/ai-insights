@@ -17,9 +17,9 @@ const KNOWN_ERRORS = new Set([
 /**
  * "Show my photo": the owner's public photo on or off, without republishing. The server reads the photo from the
  * person's Matrix (Clerk) account; this sends only the choice. The page's avatars are server-rendered, so a change
- * refreshes them.
+ * refreshes them (the route expires the cached pages first), and `onChange` lets a browser-rendered strip refetch.
  */
-export function PhotoSwitch({ initial, className }: { initial: boolean; className?: string }) {
+export function PhotoSwitch({ initial, className, onChange }: { initial: boolean; className?: string; onChange?: () => void }) {
   const router = useRouter()
   const [shown, setShown] = React.useState(initial)
   const [busy, setBusy] = React.useState(false)
@@ -39,6 +39,7 @@ export function PhotoSwitch({ initial, className }: { initial: boolean; classNam
       const record = (data ?? {}) as Record<string, unknown>
       if (res.ok && record.ok === true && typeof record.shown === "boolean") {
         setShown(record.shown)
+        onChange?.()
         router.refresh()
       } else {
         setError(typeof record.error === "string" && KNOWN_ERRORS.has(record.error) ? record.error : GENERIC)

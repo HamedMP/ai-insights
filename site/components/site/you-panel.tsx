@@ -1,3 +1,4 @@
+import { NavLink } from "@/components/site/nav-link"
 import { PhotoSwitch } from "@/components/site/photo-switch"
 import { Avatar } from "@/components/site/profile"
 import { ShareButtons } from "@/components/site/share-buttons"
@@ -14,7 +15,9 @@ const link = "inline-flex h-8 items-center rounded-md px-2.5 font-mono text-[11.
  * standing (the link carries ?ref=<handle>), links to their profile and devices, and the photo switch. Removing the
  * entry lives in the profile's owner area.
  */
-export function YouPanel({ entry, ranks, jump }: { entry: PublicEntry; ranks: Ranks; jump: string | null }) {
+export type YouEntry = Pick<PublicEntry, "handle" | "displayName" | "avatarUrl">
+
+export function YouPanel({ entry, ranks, jump, onPhotoChange }: { entry: YouEntry; ranks: Ranks; jump: string | null; onPhotoChange?: () => void }) {
   const list = standings(ranks)
   const best = list[0] ?? null
   const url = referralLink(SITE_URL, entry.handle)
@@ -24,7 +27,7 @@ export function YouPanel({ entry, ranks, jump }: { entry: PublicEntry; ranks: Ra
         <Avatar url={entry.avatarUrl} name={entry.displayName} handle={entry.handle} className="size-9 rounded-[10px] text-[13px]" />
         <h2 id="you" className="flex min-w-0 flex-col leading-tight">
           <span className="font-mono text-[10px] tracking-[0.12em] text-muted-foreground uppercase">You</span>
-          <a href={`${BASE}/u/${entry.handle}`} className="truncate font-medium underline-offset-4 hover:underline">{entry.displayName}</a>
+          <NavLink href={`${BASE}/u/${entry.handle}`} className="truncate font-medium underline-offset-4 hover:underline">{entry.displayName}</NavLink>
         </h2>
       </div>
 
@@ -33,13 +36,13 @@ export function YouPanel({ entry, ranks, jump }: { entry: PublicEntry; ranks: Ra
         {list.map((s, i) => (
           // Phones show the best three; the rest are one sort away.
           <li key={s.arena} className={i >= 3 ? "max-sm:hidden" : undefined}>
-            <a
+            <NavLink
               href={boardHref(BASE, s.arena)}
               className="inline-flex h-7 items-center rounded-md border bg-background px-2 font-mono text-[11.5px] whitespace-nowrap tabular-nums outline-none hover:border-foreground/30 focus-visible:ring-3 focus-visible:ring-ring/50 data-[best=true]:border-primary/50 data-[best=true]:bg-primary/[0.07] data-[best=true]:text-primary"
               data-best={s === best}
             >
               {s.chip}
-            </a>
+            </NavLink>
           </li>
         ))}
       </ul>
@@ -57,10 +60,10 @@ export function YouPanel({ entry, ranks, jump }: { entry: PublicEntry; ranks: Ra
             </div>
           </details>
         )}
-        <a className={link} href={`${BASE}/u/${entry.handle}`}>Profile</a>
-        <a className={link} href={`${BASE}/u/${entry.handle}#my-devices`}>Devices</a>
-        {jump && <a className={`${link} lg:hidden`} href={`${jump}#m-${entry.handle}`}>Jump to me</a>}
-        <PhotoSwitch initial={entry.avatarUrl !== null} className="ml-1.5 border-l pl-3" />
+        <NavLink className={link} href={`${BASE}/u/${entry.handle}`}>Profile</NavLink>
+        <NavLink className={link} href={`${BASE}/u/${entry.handle}#my-devices`}>Devices</NavLink>
+        {jump && <NavLink className={`${link} lg:hidden`} href={`${jump}#m-${entry.handle}`}>Jump to me</NavLink>}
+        <PhotoSwitch initial={entry.avatarUrl !== null} onChange={onPhotoChange} className="ml-1.5 border-l pl-3" />
       </div>
     </section>
   )
