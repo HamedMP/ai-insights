@@ -22,6 +22,7 @@ One self-contained HTML page on your disk, in three parts.
 
 <p align="center"><img src="https://raw.githubusercontent.com/hamedmp/ai-insights/main/assets/recap.gif" alt="The first cards of the sample recap playing" width="400"></p>
 
+- **Cards first:** the report opens on your cards, every one of them, persona first, one large at a time with the whole set beside it. Browsing them never changes what goes into your video.
 - **Three styles:** Pop (the default), Instrument panel and Sticker sheet.
 - **Four shapes:** 1:1, 9:16, 4:5 and 16:9. Each card is laid out again for the shape, so nothing is cropped.
 - **A card studio:** pick and order the cards, choose where you will post (X, Instagram feed, Reels, Stories, TikTok, LinkedIn, YouTube Shorts) and see whether the length fits.
