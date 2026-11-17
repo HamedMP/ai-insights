@@ -4,14 +4,18 @@ import { describe, expect, it } from "vitest";
 import { clientAssets } from "../../src/render/assets.js";
 import { recapView } from "../../src/render/view.js";
 import type { Recap } from "../../src/schema/types.js";
-import { decodeStats, LIMITS, validateStats } from "../../site/lib/share.js";
+import { CARD_KEYS, CARD_TITLES, decodeStats, LIMITS, validateStats } from "../../site/lib/share.js";
 import { makeReport } from "./fixtures.js";
 
 const RECAP = JSON.parse(readFileSync(new URL("./recap-fixture.json", import.meta.url), "utf8")) as Recap;
 const D = recapView({ ...makeReport(), recap: RECAP })!;
 
-interface Payload { v: number; name: string; from: string; to: string; sessions: number; tokens: number; usd: number | null; activeDays: number; streak: number; agents: Array<{ k: string; p: number }>; fact: string }
+interface Card { k: string; b: string; c: string }
+interface Payload { v: number; name: string; from: string; to: string; sessions: number; tokens: number; usd: number | null; activeDays: number; streak: number; agents: Array<{ k: string; p: number }>; fact: string; cards?: Card[] }
 interface ShareLinkApi {
+  LIMITS: Record<string, number>;
+  CARD_KEYS: string[];
+  TITLES: Record<string, string>;
   payload(rc: unknown, name?: string): Payload | null;
   encode(p: unknown): string;
   url(p: unknown, base: string): string;
@@ -20,48 +24,170 @@ interface ShareLinkApi {
 
 /** The report-side encoder, loaded as the page loads it: a classic script in its own global scope. */
 function shareLink(): ShareLinkApi {
-  const context = createContext({ TextEncoder, btoa, Math, Number, String, Array, JSON, Object });
+  const context = createContext({ TextEncoder, btoa, Math, Number, String, Array, JSON, Object, Set, console });
   new Script(readFileSync(new URL("../../src/render/client/sharelink.js", import.meta.url), "utf8")).runInContext(context);
   return new Script("ShareLink").runInContext(context) as ShareLinkApi;
 }
 const SL = shareLink();
 const encodeJson = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
-const good = () => JSON.parse(JSON.stringify(SL.payload(JSON.parse(JSON.stringify(D)), "Ada")!)) as Payload;
+const view = () => JSON.parse(JSON.stringify(D)) as Record<string, any>;
+const good = () => JSON.parse(JSON.stringify(SL.payload(view(), "Ada")!)) as Payload;
+const card = (p: Payload, k: string) => p.cards!.find((c) => c.k === k);
+/** A v1 link exactly as AI Insights 0.3.x reports made it: these exist in people's chats and must keep opening. */
+const V1: Payload = { v: 1, name: "Ada", from: "2026-09-24", to: "2026-11-13", sessions: 161, tokens: 921536169, usd: 595.96, activeDays: 42, streak: 7, agents: [{ k: "claude-code", p: 51 }, { k: "codex", p: 42 }], fact: "Ran 7 agents at once." };
 
 describe("share links: report side to site side", () => {
-  it("a link made in the report opens on the site with the same numbers", () => {
+  it("a v2 link made in the report opens on the site with the same numbers and cards", () => {
     const p = good();
     const link = SL.url(p, "https://ai-insights.app/");
     expect(link.startsWith("https://ai-insights.app/share/#")).toBe(true);
+    expect(p.v).toBe(2);
+    expect(p.cards!.length).toBeGreaterThan(8);
     expect(decodeStats(new URL(link).hash)).toEqual(p);
   });
 
-  it("carries only aggregate numbers and one fun fact, small enough for a URL", () => {
+  it("an old v1 link still opens, unchanged and without cards", () => {
+    expect(decodeStats(encodeJson(V1))).toEqual(V1);
+    expect(decodeStats(encodeJson(V1))!.cards).toBeUndefined();
+  });
+
+  it("carries only aggregate numbers, one fun fact and the cards, small enough for a URL", () => {
     const p = good();
-    expect(Object.keys(p).sort()).toEqual(["activeDays", "agents", "fact", "from", "name", "sessions", "streak", "to", "tokens", "usd", "v"]);
-    expect(p).toMatchObject({ v: 1, name: "Ada", from: "2026-09-24", to: "2026-11-13", sessions: D.totals.sessions, activeDays: 42, streak: 7 });
+    expect(Object.keys(p).sort()).toEqual(["activeDays", "agents", "cards", "fact", "from", "name", "sessions", "streak", "to", "tokens", "usd", "v"]);
+    expect(p).toMatchObject({ v: 2, name: "Ada", from: "2026-09-24", to: "2026-11-13", sessions: D.totals.sessions, activeDays: 42, streak: 7 });
     expect(p.agents[0]).toEqual({ k: "claude-code", p: 51 });
     expect(p.fact.length).toBeGreaterThan(0);
-    // No project names, paths or prompt text from the recap: every string is the name, a date, a key or the fact.
     const strings = JSON.stringify(p).match(/"(?:[^"\\]|\\.)*"/g)!.map((s) => JSON.parse(s) as string);
     for (const s of strings) expect(/[/\\]/.test(s), s).toBe(false);
-    expect(SL.encode(p).length).toBeLessThan(1500);
+    expect(SL.encode(p).length).toBeLessThan(2500);
+  });
+
+  it("uses the same card keys and titles on both sides", () => {
+    expect([...SL.CARD_KEYS]).toEqual(CARD_KEYS);
+    expect({ ...SL.TITLES }).toEqual(CARD_TITLES);
+    expect(SL.LIMITS.cards).toBe(LIMITS.cards);
+    expect(SL.LIMITS.fragment).toBeLessThan(LIMITS.fragment);
   });
 
   it("survives a name with emoji and non-Latin letters", () => {
-    const p = JSON.parse(JSON.stringify(SL.payload(JSON.parse(JSON.stringify(D)), "  Zoë 🚀 李  ")!)) as Payload;
+    const p = JSON.parse(JSON.stringify(SL.payload(view(), "  Zoë 🚀 李  ")!)) as Payload;
     expect(p.name).toBe("Zoë 🚀 李");
     expect(decodeStats(SL.encode(p))).toEqual(p);
   });
 
-  it("tells the person exactly what the link holds before they copy it", () => {
-    const lines = SL.describe(good(), { "claude-code": "Claude Code" });
+  it("stays under the site's fragment limit even with the longest name and every card", () => {
+    const rc = view();
+    rc.shell.rmrf = 9_999_999;
+    rc.shell.forcePush = 9_999_999;
+    rc.history = { days: 99_999, firstDay: "2020-01-01", cachedOnly: 9_999_999 };
+    const p = SL.payload(rc, "👩🏽‍💻".repeat(40))!;
+    expect(SL.encode(p).length).toBeLessThanOrEqual(SL.LIMITS.fragment!);
+    expect(decodeStats(SL.encode(p))).not.toBeNull();
+  });
+
+  it("tells the person exactly what the link holds, every card included, before they copy it", () => {
+    const p = good();
+    const lines = SL.describe(p, { "claude-code": "Claude Code" });
     expect(lines[0]).toBe("Name: Ada");
     expect(lines.join("\n")).toContain("Claude Code 51%");
+    for (const c of p.cards!) expect(lines).toContain(`Card “${CARD_TITLES[c.k as keyof typeof CARD_TITLES]}”: ${c.b}${c.c ? `, ${c.c}` : ""}`);
   });
 
   it("is loaded into the report page", () => {
     expect(clientAssets().script).toContain("const ShareLink = (() =>");
+  });
+});
+
+/**
+ * What each published card may contain. Every headline and caption must match its pattern: numbers, dates, agent and
+ * model-family names and fixed words. This is the list the pull request and README describe; a new card or a new
+ * field needs a row here.
+ */
+const N = String.raw`[0-9][0-9,.]*`;
+const PUBLISHED: Record<string, { b: RegExp; c: RegExp }> = {
+  persona: { b: /^The (Night|Dawn|Golden-Hour|Afternoon|Morning) (Orchestrator|Shipper|Delegator)$/, c: new RegExp(`^${N} sessions? in ${N} days?$`) },
+  parallel: { b: new RegExp(`^${N} at once$`), c: new RegExp(`^sessions (side by side, plus ${N} subagents?|running side by side)$`) },
+  tokens: { b: new RegExp(`^${N}[KMBT]?$`), c: new RegExp(`^tokens(, about \\$${N} at API list prices| in ${N} model requests?)$`) },
+  streak: { b: new RegExp(`^${N} days?$`), c: /^in a row, [A-Z][a-z]{2} \d{1,2} to [A-Z][a-z]{2} \d{1,2}$/ },
+  marathon: { b: new RegExp(`^${N} hrs$`), c: /^of active work in one (Claude Code |Codex |Cursor |Pi |OpenCode |Gemini CLI )?session$/ },
+  clock: { b: /^(Night owl|Early bird|Golden-hour builder|Afternoon engine|Morning mind)$/, c: /^busiest hour \d\d:00$/ },
+  manners: { b: new RegExp(`^${N} pleases?$`), c: new RegExp(`^${N} thank-yous? and ${N} (sorry|sorries) in ${N} prompts?$`) },
+  danger: { b: new RegExp(`^${N} × rm -rf$`), c: new RegExp(`^${N} force push(es)? and ${N} naps?\\. Nothing caught fire\\.$`) },
+  hours: { b: new RegExp(`^${N} hrs$`), c: new RegExp(`^with an agent at work, ${N} agent-hours in all$`) },
+  model: { b: /^(Claude|GPT|O[1-9]|Codex|Gemini|Grok|Deepseek|Qwen|Kimi|Glm|Mistral|Llama)[A-Za-z0-9 .-]*$/, c: new RegExp(`^answered ${N}% of ${N} model requests?$`) },
+  weekday: { b: /^(Mon|Tues|Wednes|Thurs|Fri|Satur|Sun)day$/, c: new RegExp(`^the busiest day, ${N} prompts?$`) },
+  tests: { b: new RegExp(`^${N} runs?$`), c: new RegExp(`^of the tests, ${N}% passed$`) },
+  shell: { b: new RegExp(`^${N}$`), c: /^shell commands run by agents$/ },
+  failures: { b: new RegExp(`^${N}$`), c: new RegExp(`^failed tool calls, ${N}% of ${N}$`) },
+  words: { b: new RegExp(`^${N}[KMBT]?$`), c: new RegExp(`^words in prompts, ${N}% of them questions$`) },
+  slash: { b: new RegExp(`^${N}$`), c: /^slash commands typed$/ },
+  thinking: { b: new RegExp(`^${N}$`), c: new RegExp(`^thinking blocks(, the longest ${N} (s|min))?$`) },
+  approvals: { b: new RegExp(`^${N}$`), c: new RegExp(`^actions approved automatically, ${N} by hand$`) },
+  history: { b: new RegExp(`^${N} days?$`), c: new RegExp(`^of (agent history kept|history kept, ${N} sessions? saved from deletion)$`) },
+};
+
+/** A recap view with planted text in every free-text field the report has: none of it may reach the payload. */
+function lacedView() {
+  const rc = view();
+  const SECRET = "acme-secret-project";
+  rc.voice.words = [{ key: SECRET, count: 99 }];
+  rc.voice.openers = [{ key: `${SECRET} please`, count: 9 }];
+  rc.slash = [{ key: `/${SECRET}`, count: 50 }];
+  rc.slashTotal = 50;
+  rc.shell.programs = [{ key: SECRET, count: 99 }];
+  rc.shell.rmrf = 3;
+  rc.failures.nemesis = [{ key: SECRET, count: 9, runs: 9 }];
+  rc.failures.categories = [{ key: "other", label: SECRET, count: 9 }];
+  rc.connectors = [{ key: SECRET, count: 9 }];
+  rc.skills = [{ key: SECRET, count: 9 }];
+  rc.tips = [{ title: `Stop typing ${SECRET}`, kind: "repeated_instruction", metric: null }];
+  rc.persona = { ...rc.persona, reason: `Because ${SECRET}` };
+  rc.rhythm.verdict = { key: rc.rhythm.verdict.key, label: rc.rhythm.verdict.label };
+  rc.longestSession = { ...rc.longestSession, harness: SECRET };
+  rc.history = { days: 30, firstDay: "2026-10-01", cachedOnly: 2 };
+  return { rc, SECRET };
+}
+
+describe("share links: what each card publishes", () => {
+  it("every card matches its published-field allowlist", () => {
+    const { rc } = lacedView();
+    const p = SL.payload(rc, "")!;
+    expect(p.cards!.length).toBeGreaterThan(10);
+    for (const c of p.cards!) {
+      const rule = PUBLISHED[c.k]!;
+      expect(rule, `no allowlist row for card ${c.k}`).toBeDefined();
+      expect(c.b, `${c.k} headline`).toMatch(rule.b);
+      expect(c.c, `${c.k} caption`).toMatch(rule.c);
+      expect(Object.keys(c).sort()).toEqual(["b", "c", "k"]);
+    }
+    expect(Object.keys(PUBLISHED).sort()).toEqual([...CARD_KEYS].sort());
+  });
+
+  it("never carries words, slash commands, program names, tips or labels from the history", () => {
+    const { rc, SECRET } = lacedView();
+    const json = JSON.stringify(SL.payload(rc, ""));
+    expect(json).not.toContain(SECRET);
+    expect(json.toLowerCase()).not.toContain("acme");
+  });
+
+  it("leaves out a persona or model the analysis did not name from its fixed tables", () => {
+    const rc = view();
+    rc.persona = { ...rc.persona, title: "The acme-secret-project Shipper" };
+    rc.models = [{ key: "Claude Opus 4 Acme Internal", harness: "claude-code", requests: 9, share: 1 }];
+    const p = SL.payload(rc, "")!;
+    expect(card(p, "persona")).toBeUndefined();
+    expect(card(p, "model")).toBeUndefined();
+    rc.models = [{ key: "Claude Opus 4.6", harness: "claude-code", requests: 9, share: 1 }];
+    expect(card(SL.payload(rc, "")!, "model")!.b).toBe("Claude Opus 4.6");
+  });
+
+  it("drops a card whose numbers are missing instead of guessing", () => {
+    const rc = view();
+    rc.streak = { days: 0, start: null, end: null };
+    rc.parallel.max = 1;
+    const p = SL.payload(rc, "")!;
+    expect(card(p, "streak")).toBeUndefined();
+    expect(card(p, "parallel")).toBeUndefined();
   });
 });
 
@@ -75,7 +201,10 @@ describe("share links: hostile fragments", () => {
     expect(decodeStats(Buffer.from([0xff, 0xfe, 0x00]).toString("base64url"))).toBeNull();
     expect(decodeStats(encodeJson([1, 2]))).toBeNull();
     expect(decodeStats(encodeJson(null))).toBeNull();
-    expect(decodeStats(encodeJson({ ...good(), v: 2 }))).toBeNull();
+    expect(decodeStats(encodeJson({ ...good(), v: 3 }))).toBeNull();
+    expect(decodeStats(encodeJson({ ...V1, cards: [] }))).toBeNull();
+    const { cards: _drop, ...noCards } = good();
+    expect(decodeStats(encodeJson(noCards))).toBeNull();
     expect(decodeStats(encodeJson({ ...good(), project: "/home/someone/secret" }))).toBeNull();
     expect(decodeStats(encodeJson({ ...good(), agents: [{ k: "claude-code", p: 50, x: 1 }] }))).toBeNull();
     expect(decodeStats(encodeJson({ ...good(), agents: [{ k: "<img src=x>", p: 50 }] }))).toBeNull();
@@ -84,6 +213,26 @@ describe("share links: hostile fragments", () => {
     expect(decodeStats(encodeJson({ ...good(), from: "2026-12-01", to: "2026-01-01" }))).toBeNull();
     expect(decodeStats(encodeJson({ ...good(), sessions: "12" }))).toBeNull();
     expect(decodeStats(encodeJson({ ...good(), name: { toString: 1 } }))).toBeNull();
+  });
+
+  it("rejects cards that are not exactly the known shape", () => {
+    const base = good();
+    const bad: unknown[] = [
+      "cards",
+      {},
+      Array.from({ length: LIMITS.cards + 1 }, (_, i) => ({ k: CARD_KEYS[i % CARD_KEYS.length], b: "1", c: "" })),
+      [{ k: "streak", b: "1 day", c: "", project: "/home/x" }],
+      [{ k: "streak", b: "1 day" }],
+      [{ k: "projects", b: "acme", c: "" }],
+      [{ k: "__proto__", b: "1", c: "" }],
+      [{ k: "streak", b: "1", c: "" }, { k: "streak", b: "2", c: "" }],
+      [{ k: "streak", b: 7, c: "" }],
+      [{ k: "streak", b: "7", c: null }],
+      [{ k: "streak", b: "   ", c: "" }],
+      [null],
+      [["streak", "7", ""]],
+    ];
+    for (const cards of bad) expect(validateStats({ ...base, cards }), JSON.stringify(cards).slice(0, 80)).toBeNull();
   });
 
   it("does not let __proto__ smuggle keys past the schema", () => {
@@ -97,17 +246,23 @@ describe("share links: hostile fragments", () => {
     expect(validateStats({ ...good(), streak: 50, activeDays: 3 })!.streak).toBe(3);
   });
 
-  it("caps strings and strips control and bidi characters", () => {
-    const out = validateStats({ ...good(), name: "Eve‮\u0000\u0007" + "x".repeat(500), fact: "a\nb​" + "y".repeat(500) })!;
+  it("caps strings and strips control and bidi characters, in cards too", () => {
+    const out = validateStats({ ...good(), name: "Eve‮\u0000\u0007" + "x".repeat(500), fact: "a\nb​" + "y".repeat(500), cards: [{ k: "streak", b: "7‮ days" + "9".repeat(99), c: "in⁦ a row\u0000" + "z".repeat(300) }] })!;
     expect(out.name.startsWith("Evex")).toBe(true);
     expect(Array.from(out.name).length).toBe(LIMITS.name);
     expect(out.fact.startsWith("a by")).toBe(true);
     expect(Array.from(out.fact).length).toBe(LIMITS.fact);
-    expect(/[\u0000-\u001f‮​]/.test(out.name + out.fact)).toBe(false);
+    const c0 = out.cards![0]!;
+    expect(c0.b.startsWith("7 days")).toBe(true);
+    expect(Array.from(c0.b).length).toBe(LIMITS.big);
+    expect(c0.c.startsWith("in a row")).toBe(true);
+    expect(Array.from(c0.c).length).toBe(LIMITS.caption);
+    expect(/[\u0000-\u001f‮​⁦]/.test(out.name + out.fact + c0.b + c0.c)).toBe(false);
   });
 
   it("keeps markup as plain text for the page to render with text nodes", () => {
-    const out = validateStats({ ...good(), name: "<script>alert(1)</script>" })!;
+    const out = validateStats({ ...good(), name: "<script>alert(1)</script>", cards: [{ k: "tokens", b: "<img src=x onerror=alert(1)>", c: "</p><script>" }] })!;
     expect(out.name).toBe("<script>alert(1)</script>");
+    expect(out.cards![0]).toEqual({ k: "tokens", b: "<img src=x onerror=alert(1)>", c: "</p><script>" });
   });
 });

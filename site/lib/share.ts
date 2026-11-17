@@ -1,13 +1,14 @@
 /**
  * Share links: the report puts a small versioned payload in the /share page's URL fragment
  * (src/render/client/sharelink.js builds it). The fragment is untrusted input: anyone can type one. This module
- * decodes it and accepts only the exact v1 shape, with every number clamped and every string capped and cleaned.
- * Pure TypeScript with no imports, so the package tests can prove it agrees with the report-side encoder, and a
- * later signed-in leaderboard can validate the same payload on a server.
+ * decodes it and accepts only the exact v1 or v2 shape, with every number clamped and every string capped and cleaned.
+ * v2 adds the recap cards as data (a fixed key, a headline and a caption); v1 links from older reports keep working.
+ * Pure TypeScript with no imports, so the package tests can prove it agrees with the report-side encoder, and the
+ * signed-in leaderboard validates the same payload on the server.
  */
 
-export const SHARE_VERSION = 1
-export const LIMITS = { name: 40, fact: 120, agents: 8, sessions: 1e7, tokens: 1e13, usd: 1e7, days: 3660, fragment: 4096 } as const
+export const SHARE_VERSION = 2
+export const LIMITS = { name: 40, fact: 120, agents: 8, sessions: 1e7, tokens: 1e13, usd: 1e7, days: 3660, cards: 16, big: 32, caption: 80, fragment: 4096 } as const
 
 export interface SharedAgent {
   /** Harness key, e.g. "claude-code". */
@@ -16,8 +17,42 @@ export interface SharedAgent {
   p: number
 }
 
+/** The card titles, keyed by the only card keys a payload may carry. Same table as sharelink.js TITLES. */
+export const CARD_TITLES = {
+  persona: "Persona",
+  parallel: "Most agents at once",
+  tokens: "Tokens processed",
+  streak: "Longest streak",
+  marathon: "Longest session",
+  clock: "When they prompt",
+  manners: "Manners check",
+  danger: "Danger zone",
+  hours: "Time with agents",
+  model: "Top model",
+  weekday: "Favourite day",
+  tests: "Test runs",
+  shell: "Bash hall of fame",
+  failures: "Where things broke",
+  words: "Words typed",
+  slash: "Slash commands",
+  thinking: "Deep thoughts",
+  approvals: "Rubber stamp",
+  history: "History kept",
+} as const
+export type CardKey = keyof typeof CARD_TITLES
+export const CARD_KEYS = Object.keys(CARD_TITLES) as CardKey[]
+const isCardKey = (value: unknown): value is CardKey => typeof value === "string" && Object.prototype.hasOwnProperty.call(CARD_TITLES, value)
+
+export interface SharedCard {
+  k: CardKey
+  /** The headline: a number with its unit, or a fixed label ("Night owl"). */
+  b: string
+  /** One short line under it, made from numbers and fixed words. May be empty. */
+  c: string
+}
+
 export interface SharedStats {
-  v: 1
+  v: 1 | 2
   name: string
   from: string
   to: string
@@ -28,9 +63,12 @@ export interface SharedStats {
   streak: number
   agents: SharedAgent[]
   fact: string
+  /** v2 only: the recap cards, at most LIMITS.cards, each key at most once. */
+  cards?: SharedCard[]
 }
 
-const KEYS = ["v", "name", "from", "to", "sessions", "tokens", "usd", "activeDays", "streak", "agents", "fact"]
+const KEYS_V1 = ["v", "name", "from", "to", "sessions", "tokens", "usd", "activeDays", "streak", "agents", "fact"]
+const KEYS_V2 = [...KEYS_V1, "cards"]
 const UNSAFE = /[\u0000-\u001f\u007f-\u009f​-‏‪-‮⁠-⁩﻿]/g
 const AGENT_KEY = /^[a-z0-9-]{1,20}$/
 
@@ -51,13 +89,44 @@ function validDay(value: unknown): string | null {
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value ? value : null
 }
 
-/** The strict v1 schema. Anything else (wrong version, extra keys, wrong types) is rejected, not repaired. */
+/** v2 cards: an array of exact {k, b, c} objects with known, unique keys. Anything else rejects the whole payload. */
+function validateCards(input: unknown): SharedCard[] | null {
+  if (!Array.isArray(input) || input.length > LIMITS.cards) return null
+  const seen = new Set<string>()
+  const out: SharedCard[] = []
+  for (const entry of input) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return null
+    const card = entry as Record<string, unknown>
+    const keys = Object.keys(card)
+    if (keys.length !== 3 || !keys.includes("k") || !keys.includes("b") || !keys.includes("c")) return null
+    if (!isCardKey(card.k) || seen.has(card.k) || typeof card.b !== "string" || typeof card.c !== "string") return null
+    seen.add(card.k)
+    const b = cleanText(card.b, LIMITS.big)
+    if (!b) return null
+    out.push({ k: card.k, b, c: cleanText(card.c, LIMITS.caption) })
+  }
+  return out
+}
+
+/** Cards read back from the database: already validated on publish, so anything odd is dropped rather than failing the page. */
+export function storedCards(input: unknown): SharedCard[] {
+  if (!Array.isArray(input)) return []
+  const out: SharedCard[] = []
+  for (const entry of input.slice(0, LIMITS.cards)) {
+    const one = validateCards([entry])
+    if (one && one[0] && !out.some((c) => c.k === one[0]!.k)) out.push(one[0])
+  }
+  return out
+}
+
+/** The strict v1 and v2 schemas. Anything else (wrong version, extra keys, wrong types) is rejected, not repaired. */
 export function validateStats(input: unknown): SharedStats | null {
   if (!input || typeof input !== "object" || Array.isArray(input)) return null
   const raw = input as Record<string, unknown>
+  if (raw.v !== 1 && raw.v !== 2) return null
+  const expected = raw.v === 1 ? KEYS_V1 : KEYS_V2
   const keys = Object.keys(raw)
-  if (keys.length !== KEYS.length || !keys.every((k) => KEYS.includes(k))) return null
-  if (raw.v !== SHARE_VERSION) return null
+  if (keys.length !== expected.length || !keys.every((k) => expected.includes(k))) return null
   if (typeof raw.name !== "string" || typeof raw.fact !== "string") return null
   const from = validDay(raw.from)
   const to = validDay(raw.to)
@@ -82,8 +151,13 @@ export function validateStats(input: unknown): SharedStats | null {
     if (p === null) return null
     agents.push({ k: a.k, p: Math.round(p) })
   }
-  return {
-    v: 1,
+  let cards: SharedCard[] | null = null
+  if (raw.v === 2) {
+    cards = validateCards(raw.cards)
+    if (!cards) return null
+  }
+  const out: SharedStats = {
+    v: raw.v,
     name: cleanText(raw.name, LIMITS.name),
     from,
     to,
@@ -95,9 +169,11 @@ export function validateStats(input: unknown): SharedStats | null {
     agents,
     fact: cleanText(raw.fact, LIMITS.fact),
   }
+  if (cards) out.cards = cards
+  return out
 }
 
-/** Decode a fragment (with or without the leading "#"). Returns null for anything that is not a valid v1 payload. */
+/** Decode a fragment (with or without the leading "#"). Returns null for anything that is not a valid v1 or v2 payload. */
 export function decodeStats(fragment: string): SharedStats | null {
   const data = fragment.replace(/^#/, "")
   if (!data || data.length > LIMITS.fragment || !/^[A-Za-z0-9_-]+$/.test(data)) return null
