@@ -327,18 +327,25 @@ if (RC) {
  */
 function statsLink() {
   const nameIn = h("input", { class: "slink-name", type: "text", maxlength: String(ShareLink.LIMITS.name), placeholder: "Your name (optional)", "aria-label": "Display name for the link", autocomplete: "off", spellcheck: "false" });
+  const hasDevice = typeof VIEW.deviceId === "string";
+  // The device name is remembered in this browser only, so the next report from this machine offers it again.
+  const deviceIn = h("input", { class: "slink-name", type: "text", maxlength: String(ShareLink.LIMITS.deviceName), placeholder: "Name this computer (optional), e.g. Work laptop", "aria-label": "Name for this computer", autocomplete: "off", spellcheck: "false", value: store.get("deviceName", "") || "" });
+  const daysIn = h("input", { type: "checkbox", checked: store.get("shareDays", true) !== false });
   const list = h("ul", { class: "slink-list" });
   const preview = h("code", { class: "slink-url" });
   const status = h("p", { class: "share-status small", role: "status" });
   let link = "";
   const post = () => `My AI coding, recapped: ${link}\nFind out yours: ${SHARE.command}\n${SHARE.hashtag}`;
   const refresh = () => {
-    const p = ShareLink.payload(RC, nameIn.value, VIEW.ratios);
+    const device = hasDevice ? { id: VIEW.deviceId, name: deviceIn.value, days: daysIn.checked } : null;
+    const p = ShareLink.payload(RC, nameIn.value, VIEW.ratios, device);
     link = ShareLink.url(p, SHARE.siteUrl);
     list.replaceChildren(...ShareLink.describe(p, HARNESS_NAMES).map((line) => h("li", {}, line)));
     preview.textContent = link;
   };
   nameIn.addEventListener("input", refresh);
+  deviceIn.addEventListener("input", () => { store.set("deviceName", deviceIn.value); refresh(); });
+  daysIn.addEventListener("change", () => { store.set("shareDays", daysIn.checked); refresh(); });
   const open = (url) => { const w = window.open(url, "_blank", "noopener,noreferrer"); if (!w) status.textContent = "Your browser blocked the new tab. Copy the link instead."; };
   const btn = (label, fn, cls = "btn small") => h("button", { class: cls, type: "button", onclick: fn }, label);
   refresh();
@@ -346,6 +353,10 @@ function statsLink() {
     h("div", { class: "share-h" }, "Share your stats and cards, join the leaderboard"),
     h("p", { class: "muted small" }, "A link to your card and profile on the AI Insights site. It holds only the lines below, in the link itself: your totals and your recap cards as short lines of numbers, dates, agent names and fixed wording. No project names, prompts, commands or paths. Opening the link uploads nothing; on that page you can choose to sign in and publish exactly these lines to your public profile and the leaderboard."),
     nameIn,
+    hasDevice ? h("div", { class: "slink-device" },
+      deviceIn,
+      h("p", { class: "muted small" }, "Use AI Insights on more than one computer? Publish from each with the same account: the site keeps one entry per computer and adds them up. Each computer is told apart by a random id AI Insights made for it, never by its name or hardware. The name you type here is shown on your profile only if you choose that when you publish."),
+      h("label", { class: "slink-check small" }, daysIn, " Include which days I was active (dates only), so the site can combine active days and streaks across computers")) : null,
     h("div", { class: "slink-what" }, h("strong", { class: "small" }, "The link contains exactly these lines:"), list),
     preview,
     h("div", { class: "share-row" },

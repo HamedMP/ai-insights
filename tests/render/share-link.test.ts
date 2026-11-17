@@ -6,19 +6,19 @@ import { recapView } from "../../src/render/view.js";
 import type { Recap } from "../../src/schema/types.js";
 import { TITLE_RULES } from "../../src/analysis/recap/titles.js";
 import { ratioText as reportRatioText } from "../../src/render/view.js";
-import { CARD_KEYS, CARD_TITLES, decodeStats, EARNED_TITLES, LIMITS, RATIO_KEYS, ratioText, validateStats } from "../../site/lib/share.js";
+import { activeDayNumbers, CARD_KEYS, CARD_TITLES, dayString, decodeStats, EARNED_TITLES, LIMITS, longestRun, RATIO_KEYS, ratioText, validateStats } from "../../site/lib/share.js";
 import { makeReport } from "./fixtures.js";
 
 const RECAP = JSON.parse(readFileSync(new URL("./recap-fixture.json", import.meta.url), "utf8")) as Recap;
 const D = recapView({ ...makeReport(), recap: RECAP })!;
 
 interface Card { k: string; b: string; c: string }
-interface Payload { v: number; name: string; from: string; to: string; sessions: number; tokens: number; usd: number | null; activeDays: number; streak: number; agents: Array<{ k: string; p: number }>; fact: string; cards?: Card[]; titles?: Array<{ k: string; v: number }>; ratios?: Array<{ k: string; v: number }> }
+interface Payload { v: number; name: string; from: string; to: string; sessions: number; tokens: number; usd: number | null; activeDays: number; streak: number; agents: Array<{ k: string; p: number }>; fact: string; cards?: Card[]; titles?: Array<{ k: string; v: number }>; ratios?: Array<{ k: string; v: number; n?: number }>; device?: { id: string; name: string }; days?: { from: string; bits: string } | null }
 interface ShareLinkApi {
   LIMITS: Record<string, number>;
   CARD_KEYS: string[];
   TITLES: Record<string, string>;
-  payload(rc: unknown, name?: string, ratios?: unknown): Payload | null;
+  payload(rc: unknown, name?: string, ratios?: unknown, device?: { id: string; name: string; days?: boolean } | null): Payload | null;
   RATIO_KEYS: string[];
   TITLE_RATIO: Record<string, string>;
   encode(p: unknown): string;
@@ -28,7 +28,7 @@ interface ShareLinkApi {
 
 /** The report-side encoder, loaded as the page loads it: a classic script in its own global scope. */
 function shareLink(): ShareLinkApi {
-  const context = createContext({ TextEncoder, btoa, Math, Number, String, Array, JSON, Object, Set, console });
+  const context = createContext({ TextEncoder, btoa, atob, Date, Uint8Array, Math, Number, String, Array, JSON, Object, Set, console });
   new Script(readFileSync(new URL("../../src/render/client/sharelink.js", import.meta.url), "utf8")).runInContext(context);
   return new Script("ShareLink").runInContext(context) as ShareLinkApi;
 }
@@ -37,11 +37,11 @@ const encodeJson = (value: unknown) => Buffer.from(JSON.stringify(value)).toStri
 const view = () => JSON.parse(JSON.stringify(D)) as Record<string, any>;
 /** The report view's ratios (VIEW.ratios) and earned titles, as PR #8's analysis makes them. */
 const RATIO_VIEW = [
-  { key: "correctionsPerSession", value: 0.4, label: "Mid-run corrections", definition: "x", unit: "per_session" },
-  { key: "contextResetShare", value: 0.12, label: "Sessions that hit a context reset", unit: "share" },
-  { key: "toolErrorRate", value: 0.046, label: "Tool-call error rate", unit: "share" },
-  { key: "planFirstShare", value: 0.62, label: "Started with a plan", unit: "share" },
-  { key: "parallelism", value: 2.345678, label: "Sessions running at once", unit: "times" },
+  { key: "correctionsPerSession", value: 0.4, label: "Mid-run corrections", definition: "x", unit: "per_session", numerator: 40, denominator: 100 },
+  { key: "contextResetShare", value: 0.12, label: "Sessions that hit a context reset", unit: "share", numerator: 18, denominator: 150 },
+  { key: "toolErrorRate", value: 0.046, label: "Tool-call error rate", unit: "share", numerator: 46, denominator: 1000 },
+  { key: "planFirstShare", value: 0.62, label: "Started with a plan", unit: "share", numerator: 31, denominator: 50 },
+  { key: "parallelism", value: 2.345678, label: "Sessions running at once", unit: "times", numerator: 234.6, denominator: 100.04 },
 ];
 const withTitles = () => {
   const rc = view();
@@ -250,6 +250,7 @@ describe("share links: hostile fragments", () => {
     expect(decodeStats(encodeJson([1, 2]))).toBeNull();
     expect(decodeStats(encodeJson(null))).toBeNull();
     expect(decodeStats(encodeJson({ ...good(), v: 3 }))).toBeNull();
+    expect(decodeStats(encodeJson({ ...good(), v: 4 }))).toBeNull();
     expect(decodeStats(encodeJson({ ...V1, cards: [] }))).toBeNull();
     const { cards: _drop, ...noCards } = good();
     expect(decodeStats(encodeJson(noCards))).toBeNull();
@@ -332,5 +333,127 @@ describe("share links: hostile fragments", () => {
     const out = validateStats({ ...good(), name: "<script>alert(1)</script>", cards: [{ k: "tokens", b: "<img src=x onerror=alert(1)>", c: "</p><script>" }] })!;
     expect(out.name).toBe("<script>alert(1)</script>");
     expect(out.cards![0]).toEqual({ k: "tokens", b: "<img src=x onerror=alert(1)>", c: "</p><script>" });
+  });
+});
+
+const DEVICE = "0123456789abcdef0123456789abcdef";
+const v3 = (device: { id: string; name: string; days?: boolean } = { id: DEVICE, name: "Work laptop" }) => JSON.parse(JSON.stringify(SL.payload(withTitles(), "Ada", RATIO_VIEW, device)!)) as Payload;
+/** A v2 link exactly as AI Insights 0.4 made it, cards and titles included. */
+const V2_FROM_04 = good();
+
+describe("share links v3: one entry per computer", () => {
+  it("a v3 link carries the random device id, the typed name, ratio counts and active days, and opens on the site unchanged", () => {
+    const p = v3();
+    expect(p.v).toBe(3);
+    expect(p.device).toEqual({ id: DEVICE, name: "Work laptop" });
+    expect(p.ratios!.find((r) => r.k === "toolErrorRate")).toEqual({ k: "toolErrorRate", v: 0.046, n: 1000 });
+    expect(p.ratios!.find((r) => r.k === "parallelism")!.n).toBe(100);
+    expect(Object.keys(p).sort()).toEqual(["activeDays", "agents", "cards", "days", "device", "fact", "from", "name", "ratios", "sessions", "streak", "titles", "to", "tokens", "usd", "v"]);
+    expect(decodeStats(SL.encode(p))).toEqual(p);
+    expect(SL.encode(p).length).toBeLessThanOrEqual(SL.LIMITS.fragment!);
+  });
+
+  it("marks exactly the recap's active days, dates only, and the site reads the same days and streak back", () => {
+    const p = v3();
+    const marked = activeDayNumbers(p.days!)!;
+    const expected = D.daily.filter((d) => d.prompts > 0 || d.minutes > 0).map((d) => d.day);
+    expect(marked.map(dayString)).toEqual(expected);
+    expect(p.days!.from).toBe(expected[0]);
+    expect(longestRun(marked).days).toBe(p.streak);
+    expect(Object.keys(p.days!).sort()).toEqual(["bits", "from"]);
+    expect(p.days!.bits.length).toBeLessThan(20);
+  });
+
+  it("leaves the active days out when the person unticks them", () => {
+    const p = v3({ id: DEVICE, name: "", days: false });
+    expect(p.days).toBeNull();
+    expect(decodeStats(SL.encode(p))!.days).toBeNull();
+    expect(SL.describe(p).join("\n")).toContain("Which days you were active: not included");
+  });
+
+  it("without a device id (an unwritable store) the link is the v2 link 0.4 made", () => {
+    const p = JSON.parse(JSON.stringify(SL.payload(withTitles(), "Ada", RATIO_VIEW, null)!)) as Payload;
+    expect(p.v).toBe(2);
+    expect(p).toEqual(good());
+    expect(p.device).toBeUndefined();
+    expect(p.ratios!.every((r) => r.n === undefined)).toBe(true);
+    expect(SL.payload(withTitles(), "Ada", RATIO_VIEW, { id: "MY-LAPTOP", name: "x" })!.v).toBe(2);
+  });
+
+  it("old v1 and v2 links keep opening on the v3 site", () => {
+    expect(decodeStats(encodeJson(V1))).toEqual(V1);
+    expect(decodeStats(SL.encode(V2_FROM_04))).toEqual(V2_FROM_04);
+    expect(decodeStats(SL.encode(V2_FROM_04))!.device).toBeUndefined();
+  });
+
+  it("tells the person the device name, that the id is random, and which days are included", () => {
+    const lines = SL.describe(v3());
+    const text = lines.join("\n");
+    expect(text).toContain("Device: “Work laptop”, random id 0123456789abcdef0123456789abcdef made by AI Insights, not from this computer's name or hardware");
+    expect(text).toContain("Which days you were active: 42 dates from 2026-09-24 on (dates only, no counts or times)");
+    expect(text).toContain("tool-call error rate 5% of 1,000 tool calls");
+    expect(SL.describe(v3({ id: DEVICE, name: "" })).join("\n")).toContain("Device: no name");
+  });
+
+  it("cleans the device name like the display name: control and bidi characters out, 32 characters at most", () => {
+    const p = v3({ id: DEVICE, name: "Lap‮top\u0000 " + "x".repeat(80) });
+    expect(p.device!.name.startsWith("Laptop x")).toBe(true);
+    expect(Array.from(p.device!.name).length).toBe(32);
+  });
+});
+
+describe("share links v3: hostile device ids, names and days", () => {
+  it("rejects a device id that is not 32 lowercase hex characters, and a device with extra or missing keys", () => {
+    const base = v3();
+    const bad: unknown[] = [
+      { id: "my-laptop.local", name: "" },
+      { id: DEVICE.toUpperCase(), name: "" },
+      { id: DEVICE.slice(1), name: "" },
+      { id: `${DEVICE}0`, name: "" },
+      { id: "00:1a:2b:3c:4d:5e", name: "" },
+      { id: DEVICE, name: "", hostname: "box" },
+      { id: DEVICE },
+      { id: DEVICE, name: 7 },
+      { id: 12345, name: "" },
+      null,
+      "0123456789abcdef0123456789abcdef",
+    ];
+    for (const device of bad) expect(validateStats({ ...base, device }), JSON.stringify(device)).toBeNull();
+    const { device: _d, ...noDevice } = base;
+    expect(validateStats(noDevice)).toBeNull();
+  });
+
+  it("strips control and bidi characters from a hostile device name and caps it", () => {
+    const out = validateStats({ ...v3(), device: { id: DEVICE, name: "<b>‮evil\u0007</b>" + "y".repeat(100) } })!;
+    expect(out.device!.name.startsWith("<b>evil</b>")).toBe(true);
+    expect(Array.from(out.device!.name).length).toBe(LIMITS.deviceName);
+  });
+
+  it("rejects days that disagree with their own totals or are not a bitmap", () => {
+    const base = v3();
+    const bits = (days: number[]) => { const b = new Uint8Array(Math.ceil((Math.max(...days) + 1) / 8)); for (const d of days) b[d >> 3]! |= 1 << (d & 7); return Buffer.from(b).toString("base64url"); };
+    const bad: unknown[] = [
+      { from: "2026-09-24", bits: "not base64!" },
+      { from: "2026-09-24", bits: "" },
+      { from: "2026-09-24", bits: bits([1, 2]) },
+      { from: "2026-11-13", bits: bits([0, 1]) },
+      { from: "2026-09-24", bits: bits(Array.from({ length: 43 }, (_, i) => i * 1)) },
+      { from: "2026-09-24", bits: bits([0, 1, 2, 3, 4, 5, 6, 7]) },
+      { from: "2026-02-30", bits: bits([0]) },
+      { from: "2026-09-24", bits: "A".repeat(700) },
+      { from: "2026-09-24", bits: bits([0]), extra: 1 },
+      { from: "2026-09-24" },
+      "2026-09-24",
+    ];
+    for (const days of bad) expect(validateStats({ ...base, days }), JSON.stringify(days).slice(0, 60)).toBeNull();
+    expect(validateStats({ ...base, days: { from: "2026-09-24", bits: bits([0, 2, 4]) } })!.days).toEqual({ from: "2026-09-24", bits: bits([0, 2, 4]) });
+  });
+
+  it("rejects v3 ratios without their counts, and v2 ratios with them", () => {
+    const base = v3();
+    expect(validateStats({ ...base, ratios: base.ratios!.map(({ k, v }) => ({ k, v })) })).toBeNull();
+    expect(validateStats({ ...good(), ratios: good().ratios!.map((r) => ({ ...r, n: 3 })) })).toBeNull();
+    expect(validateStats({ ...base, ratios: [{ k: "toolErrorRate", v: 0.1, n: "9" }], titles: [] })).toBeNull();
+    expect(validateStats({ ...base, ratios: [{ k: "toolErrorRate", v: 0.1, n: 1e30 }], titles: [] })!.ratios).toEqual([{ k: "toolErrorRate", v: 0.1, n: LIMITS.base }]);
   });
 });

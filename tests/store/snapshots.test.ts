@@ -106,6 +106,17 @@ describe("run snapshots", () => {
 });
 
 describe("rendering with run history", () => {
+  it("hands the renderer this computer's stable device id, so its share link publishes as the same device every time", async () => {
+    const store = new Store(home);
+    const ids: Array<string | undefined> = [];
+    const deps = { store, buildReport, renderReport: (_r: unknown, extras?: { deviceId?: string }) => { ids.push(extras?.deviceId); return "<html></html>"; }, timeZone: "UTC" };
+    const result = await scan({ sources: [fakeSource("claude-code", [makeSession({ id: "s1" })])], store });
+    await renderFromScan(deps, result);
+    await renderFromScan(deps, result);
+    expect(ids[0]).toMatch(/^[0-9a-f]{32}$/);
+    expect(ids[1]).toBe(ids[0]);
+  });
+
   it("saves a snapshot per render and hands the renderer every run, this one last, with a comparison", async () => {
     const store = new Store(home);
     const source = fakeSource("claude-code", [makeSession({ id: "s1" })]);
@@ -132,6 +143,7 @@ describe("rendering with run history", () => {
     const files = await readdir(snapshotsDir(home));
     expect(files.sort()).toEqual(["2026-10-02T09-00-00-000Z.json", "2026-10-03T09-00-00-000Z.json"]);
     const saved = await readFile(join(snapshotsDir(home), files[0]!), "utf8");
+    expect(saved).not.toContain(await store.deviceId());
     expect(saved).not.toContain("add a settings page");
   });
 

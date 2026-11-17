@@ -1127,6 +1127,11 @@ export interface RenderExtras {
   runs?: RunSnapshot[];
   /** The current run against the one before it; absent on a first run. */
   comparison?: RunComparison;
+  /**
+   * This installation's random device id (src/store/device.ts). The share link carries it so the site keeps one
+   * entry per machine; absent when the store could not make one, and the link then publishes as before.
+   */
+  deviceId?: string;
 }
 
 export interface BuildReportInput {
