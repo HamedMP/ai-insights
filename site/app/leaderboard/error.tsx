@@ -1,6 +1,5 @@
 "use client"
 
-import { AccountMenu } from "@/components/site/account-menu"
 import { Footer } from "@/components/site/footer"
 import { Header } from "@/components/site/header"
 import { COMMAND } from "@/lib/site"
@@ -9,7 +8,7 @@ import { COMMAND } from "@/lib/site"
 export default function LeaderboardError({ reset }: { error: Error; reset: () => void }) {
   return (
     <>
-      <Header account={<AccountMenu />} />
+      <Header />
       <main id="top" className="mx-auto flex max-w-6xl flex-col px-4 pt-12 pb-20 md:px-8">
       <section className="flex flex-col items-center gap-3 rounded-xl border border-dashed bg-card/60 px-6 py-14 text-center">
         <h1 className="text-xl font-semibold">The leaderboard is resting.</h1>

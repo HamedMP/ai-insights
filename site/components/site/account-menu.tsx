@@ -2,9 +2,8 @@
 
 import * as React from "react"
 import { UserButton, useAuth, useClerk } from "@clerk/nextjs"
-import { usePathname } from "next/navigation"
 
-import { cachedClerkPage, clerkEnabled } from "@/lib/auth-config"
+import { clerkEnabled } from "@/lib/auth-config"
 import { rememberFragment } from "@/lib/pending-share"
 import { BASE, MATRIX_APP } from "@/lib/site"
 import { cn } from "@/lib/utils"
@@ -49,34 +48,20 @@ function ClerkAccount({ signIn }: { signIn?: React.ReactNode }) {
   const { isLoaded, isSignedIn } = useAuth()
   const clerk = useClerk()
   const handle = useOwnHandle(Boolean(isSignedIn))
-  const pathname = usePathname() || "/"
   const [signInUrl, setSignInUrl] = React.useState<string | null>(null)
 
   React.useEffect(() => {
     if (!isLoaded || isSignedIn) return
-    // The cached leaderboard and profiles skip the satellite sync for a browser checked recently (lib/auth-config.ts
-    // clerkRun), so someone who has since signed in on Matrix OS is not recognised yet, and the primary's sign-in page
-    // would not send them back. /account/sign-in always runs the sync first. The fragment is never put in the query:
-    // rememberFragment keeps it in the tab.
-    if (cachedClerkPage(pathname)) setSignInUrl(`${BASE}/account/sign-in?to=${encodeURIComponent(pathname + window.location.search)}`)
     // buildSignInUrl adds the satellite's return URL and sync parameter, so the primary sends the person back here.
-    else setSignInUrl(clerk.buildSignInUrl({ signInFallbackRedirectUrl: window.location.href }))
-  }, [clerk, isLoaded, isSignedIn, pathname])
+    setSignInUrl(clerk.buildSignInUrl({ signInFallbackRedirectUrl: window.location.href }))
+  }, [clerk, isLoaded, isSignedIn])
 
   if (!isLoaded) return <span aria-hidden className="block size-7 rounded-full bg-muted" />
   if (!isSignedIn) {
     if (signIn) return <>{signIn}</>
     return (
       // Hidden on phones, where the header has room for one button; the publish panel has its own sign-in there.
-      <a
-        className={cn(SIGN_IN_CLASS, "max-sm:hidden")}
-        href={signInUrl ?? `${BASE}/leaderboard`}
-        onClick={(event) => {
-          rememberFragment()
-          // A client navigation between sorts may have changed the query since the link was built.
-          if (cachedClerkPage(window.location.pathname)) event.currentTarget.href = `${BASE}/account/sign-in?to=${encodeURIComponent(window.location.pathname + window.location.search)}`
-        }}
-      >
+      <a className={cn(SIGN_IN_CLASS, "max-sm:hidden")} href={signInUrl ?? `${BASE}/leaderboard`} onClick={() => rememberFragment()}>
         Sign in
       </a>
     )

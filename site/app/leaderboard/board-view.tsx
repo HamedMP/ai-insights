@@ -2,7 +2,6 @@ import type { Metadata } from "next"
 
 import { TrackOnMount } from "@/components/site/analytics"
 import { Footer } from "@/components/site/footer"
-import { AccountMenu } from "@/components/site/account-menu"
 import { Header } from "@/components/site/header"
 import { BoardList, BoardTable } from "@/components/site/leaderboard-table"
 import { NavLink } from "@/components/site/nav-link"
@@ -94,7 +93,7 @@ export async function BoardView({ sort, page }: { sort: SortId; page: number }) 
 
   return (
     <>
-      <Header account={<AccountMenu />} />
+      <Header />
       <TrackOnMount event={EVENTS.arenaViewed} properties={{ arena, page }} />
       <main id="top" className="relative overflow-x-clip">
         <div aria-hidden className="hero-glow pointer-events-none absolute inset-x-0 top-0 h-[28rem] opacity-70" />

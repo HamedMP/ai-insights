@@ -1,3 +1,5 @@
+import { hasSessionHint } from "./session-hint.ts"
+
 /**
  * Sign-in is optional at build and run time: with no Clerk keys the site still builds and serves every public page,
  * and the publish controls stay hidden. With keys it runs as a Clerk satellite of the Matrix OS application, so a
@@ -57,9 +59,11 @@ export function needsAuthSync(pathname: string, userAgent: string | null = null,
  * signed-in pieces (the "you" strip, owner panels, the account menu) load in the browser. So Clerk's middleware has one
  * job there: the satellite sync that recognises someone already signed in on Matrix OS. That sync is four cross-domain
  * redirects, and for a signed-out browser Clerk repeats it on every visit (it leaves `__client_uat=0`, which it reads
- * as "never synced"). This cookie remembers that the browser went through it recently, so later visits come straight
- * from the cache. Someone who signs in on Matrix OS in the meantime is recognised when it expires, or at once through
- * the Sign in link, which goes through /account/sign-in, where the sync always runs.
+ * as "never synced"). This cookie remembers that a signed-out browser went through it recently, so later visits come
+ * straight from the cache. Someone who signs in on Matrix OS in the meantime is recognised when it expires, or at once
+ * through the Sign in link, which goes to /account/sign-in, where the sync always runs. A browser that has signed in
+ * here (lib/session-hint.ts) keeps the check on every page load: it refreshes the short-lived session cookie the owner
+ * panels' and the "you" strip's requests are authorised by.
  */
 export const AUTH_CHECKED_COOKIE = "aii_auth_checked"
 export const AUTH_CHECKED_MAX_AGE = 24 * 60 * 60
@@ -75,8 +79,8 @@ export type ClerkRun = "skip" | "sync" | "no-sync"
 
 /**
  * Whether one request runs Clerk's middleware, with the satellite sync or without it. "skip": not at all (the landing
- * page and the docs; on the cached Clerk pages, a browser checked recently, crawlers, prefetches and client
- * navigations). Route handlers, /share and /account keep the rule needsAuthSync gives them, so `auth()` works there.
+ * page and the docs; on the cached Clerk pages, a signed-out browser checked recently, crawlers, prefetches and
+ * client navigations). Route handlers, /share and /account keep the rule needsAuthSync gives them, so `auth()` works there.
  */
 export function clerkRun(request: { pathname: string; search: string; userAgent: string | null; fetchDest: string | null; cookies: string | null }): ClerkRun {
   const { pathname } = request
@@ -86,8 +90,9 @@ export function clerkRun(request: { pathname: string; search: string; userAgent:
   if (!cachedClerkPage(pathname)) return sync ? "sync" : "no-sync"
   const cookies = request.cookies && request.cookies.length <= 16_384 ? request.cookies : ""
   if (/[?&]__clerk_/.test(request.search) || CLERK_FLOW_COOKIE.test(cookies)) return sync ? "sync" : "no-sync"
-  if (!sync || CHECKED_COOKIE.test(cookies)) return "skip"
-  return "sync"
+  if (!sync) return "skip"
+  if (hasSessionHint(cookies)) return "sync"
+  return CHECKED_COOKIE.test(cookies) ? "skip" : "sync"
 }
 
 /**

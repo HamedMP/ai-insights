@@ -50,7 +50,12 @@ describe("where Clerk runs", () => {
     expect(slot).toContain('React.lazy(() => import("@/components/site/clerk-slot"))');
     expect(slot).toContain("hasSessionHint(document.cookie)");
     expect(readFileSync(join(SITE, "app/page.tsx"), "utf8")).not.toMatch(/@clerk|AccountMenu|AuthProvider/);
-    expect(readFileSync(join(SITE, "app/u/layout.tsx"), "utf8")).toContain("<AuthProvider autoSync={false}>");
+    // The cached board and profiles mount Clerk the same way: per signed-in part, on demand (clerk-island.tsx).
+    for (const path of ["app/leaderboard/layout.tsx", "app/leaderboard/board-view.tsx", "app/u/[handle]/page.tsx", "components/site/you-strip.tsx"]) expect(readFileSync(join(SITE, path), "utf8"), path).not.toMatch(staticClerk);
+    const island = readFileSync(join(SITE, "components/site/clerk-island.tsx"), "utf8");
+    expect(island).not.toMatch(staticClerk);
+    expect(island).toContain('React.lazy(() => import("@/components/site/clerk-island-provider"))');
+    expect(island).toContain("hasSessionHint(document.cookie)");
     const check = readFileSync(join(SITE, "scripts/check-build.mjs"), "utf8");
     expect(check).toContain("only pages that mount Clerk may");
     expect(check).toContain("anonymous HTML names the Clerk host");
@@ -60,10 +65,11 @@ describe("where Clerk runs", () => {
   it("builds the signed-out link with buildSignInUrl, so the satellite sync parameter is kept", () => {
     const menu = readFileSync(join(SITE, "components/site/account-menu.tsx"), "utf8");
     expect(menu).toContain("clerk.buildSignInUrl(");
-    // On the cached board and profiles the sync may have been skipped, so Sign in goes through /account/sign-in,
-    // which always runs it first: someone signed in on Matrix OS since is recognised instead of stranded there.
-    expect(menu).toMatch(/if \(cachedClerkPage\(pathname\)\) setSignInUrl\(`\$\{BASE\}\/account\/sign-in\?to=/);
-    expect(menu).not.toMatch(/to=\$\{encodeURIComponent\([^)]*hash/);
+    // The cached board and profiles skip the sync for a recently checked signed-out browser, so their Sign in is the
+    // header's default link to /account/sign-in, which always runs it first: someone signed in on Matrix OS since is
+    // recognised instead of being stranded on the primary's sign-in page.
+    for (const path of ["app/leaderboard/board-view.tsx", "app/u/[handle]/page.tsx"]) expect(readFileSync(join(SITE, path), "utf8"), path).toContain("<Header />");
+    expect(readFileSync(join(SITE, "components/site/session-account.tsx"), "utf8")).toContain("/account/sign-in?to=");
     for (const label of ["My profile", "Leaderboard", "People I referred", "Open Matrix OS"]) expect(menu).toContain(label);
   });
 });
@@ -75,6 +81,11 @@ describe("Clerk's round trips on the cached leaderboard and profiles", () => {
   it("syncs a browser's first visit, so someone signed in on Matrix OS is recognised", () => {
     expect(visit("/leaderboard")).toBe("sync");
     expect(visit("/u/ada")).toBe("sync");
+  });
+
+  it("keeps the server check for a browser that has signed in here, so owner panels get a fresh session", () => {
+    expect(visit("/u/ada", { cookies: `__client_uat=1763000000; ${AUTH_CHECKED_COOKIE}=1` })).toBe("sync");
+    expect(visit("/leaderboard", { cookies: `__client_uat_Xy12=1763000000; ${AUTH_CHECKED_COOKIE}=1` })).toBe("sync");
   });
 
   it("does not send a recently checked signed-out browser through the four-redirect sync again", () => {

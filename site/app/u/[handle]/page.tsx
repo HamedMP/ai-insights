@@ -2,7 +2,6 @@ import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 
 import { Footer } from "@/components/site/footer"
-import { AccountMenu } from "@/components/site/account-menu"
 import { Header } from "@/components/site/header"
 import { NavLink } from "@/components/site/nav-link"
 import { OwnerReferrals } from "@/components/site/owner-referrals"
@@ -58,7 +57,7 @@ export default async function ProfilePage({ params }: Props) {
 
   return (
     <>
-      <Header account={<AccountMenu />} />
+      <Header />
       <main id="top" className="relative overflow-hidden">
         <div aria-hidden className="hero-glow pointer-events-none absolute inset-x-0 top-0 h-[40rem]" />
         <div className="relative mx-auto flex max-w-4xl flex-col gap-6 px-4 pt-6 pb-20 sm:gap-8 md:px-8 md:pt-12">
