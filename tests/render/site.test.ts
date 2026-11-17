@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 // The website is its own Next app in site/. These checks read its sources and committed files;
-// they do not build it. The Pages build runs site/scripts/check-export.mjs on the real export.
+// they do not build it. The site build runs site/scripts/check-build.mjs on the real build output.
 const ROOT = join(import.meta.dirname, "..", "..");
 const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
 
@@ -26,10 +26,10 @@ function pageData(html: string): { hero: { sessions: number }; actions: Record<"
 }
 
 describe("the public site", () => {
-  it("is a static export served from the domain root (base path set by the host), kept out of the package build and tests", () => {
+  it("is a server deployment at the domain root (route handlers need one), kept out of the package build and tests", () => {
     const config = read("site/next.config.ts");
-    expect(config).toContain('output: "export"');
-    expect(config).toContain("process.env.PAGES_BASE_PATH");
+    expect(config).not.toContain('output: "export"');
+    expect(config).not.toContain("basePath");
     const root = JSON.parse(read("package.json"));
     expect(root.files.some((entry: string) => entry.startsWith("site"))).toBe(false);
     expect(JSON.parse(read("tsconfig.json")).include).toEqual(["src", "tests"]);
@@ -44,15 +44,51 @@ describe("the public site", () => {
       const text = read(path);
       expect(text, path).not.toMatch(/next\/font\/google|fetch\(\s*["'`]https?:|<script[^>]+src=["'`]https?:|@import\s+url\(\s*["']?https?:|url\(\s*["']?https?:/);
     }
-    expect(read("site/package.json")).toContain("scripts/check-export.mjs");
+    expect(JSON.parse(read("site/package.json")).scripts.build).toMatch(/&& node scripts\/check-build\.mjs$/);
   });
 
-  it("deploys the export from site/out with the /ai-insights base path", () => {
+  it("loads Clerk only where people sign in, only when configured, with telemetry off, and pins every other host out with a CSP", () => {
+    const clerkUsers = SITE_SOURCES.filter((path) => /from "@clerk\/nextjs"/.test(read(path))).sort();
+    expect(clerkUsers).toEqual(["site/components/site/auth-provider.tsx", "site/components/site/publish-panel.tsx"]);
+    const provider = read("site/components/site/auth-provider.tsx");
+    expect(provider).toContain("if (!clerkEnabled) return");
+    expect(provider).toContain("telemetry={false}");
+    const mounts = SITE_SOURCES.filter((path) => read(path).includes("<AuthProvider>")).sort();
+    expect(mounts).toEqual(["site/app/leaderboard/layout.tsx", "site/app/share/layout.tsx"]);
+    expect(read("site/app/layout.tsx")).not.toMatch(/clerk/i);
+    const proxy = read("site/proxy.ts");
+    expect(proxy).toContain("Content-Security-Policy");
+    expect(proxy).toMatch(/serverAuthEnabled\(\) \? clerkMiddleware/);
+  });
+
+  it("keeps secrets and the database URL out of the repository", () => {
+    expect(read("site/.gitignore")).toMatch(/^\.env\*$/m);
+    expect(read(".gitignore")).toMatch(/^\.env\*$/m);
+    for (const path of [...SITE_SOURCES, "site/neon.ts", "site/scripts/migrate.mjs"]) expect(read(path), path).not.toMatch(/postgres(?:ql)?:\/\/[^\s"'`]*@|sk_(?:live|test)_[A-Za-z0-9]{10,}|pk_live_[A-Za-z0-9]{10,}/);
+  });
+
+  it("turns the old GitHub Pages address into a redirect that keeps 0.3.0 share links (and their #fragment) working", () => {
     const workflow = read(".github/workflows/pages.yml");
-    expect(workflow).toContain("working-directory: site");
-    expect(workflow).toContain("PAGES_BASE_PATH: /ai-insights");
-    expect(workflow).toContain("path: site/out");
+    expect(workflow).toContain("path: site/pages-redirect");
+    expect(workflow).toContain("check-build.mjs --redirect");
     expect(workflow).toContain("actions/deploy-pages");
+    expect(workflow).not.toContain("pnpm build");
+    const script = read("site/pages-redirect/redirect.js");
+    expect(script).toContain('location.replace("https://ai-insights.app" + path + location.search + location.hash)');
+    for (const page of ["index.html", "share/index.html", "404.html"]) expect(read(`site/pages-redirect/${page}`), page).toContain('<script src="/ai-insights/redirect.js"></script>');
+  });
+
+  it("forwards each old address to the same path on ai-insights.app", () => {
+    const run = (pathname: string, hash = "", search = "") => {
+      let target = "";
+      const location = { pathname, hash, search, replace: (url: string) => (target = url) };
+      new Function("location", read("site/pages-redirect/redirect.js"))(location);
+      return target;
+    };
+    expect(run("/ai-insights/share/", "#eyJ2IjoxfQ")).toBe("https://ai-insights.app/share/#eyJ2IjoxfQ");
+    expect(run("/ai-insights/", "", "?a=1")).toBe("https://ai-insights.app/?a=1");
+    expect(run("/ai-insights")).toBe("https://ai-insights.app/");
+    expect(run("/ai-insights-other/x")).toBe("https://ai-insights.app/ai-insights-other/x");
   });
 
   it("keeps the README's pictures and the site's media in place", () => {

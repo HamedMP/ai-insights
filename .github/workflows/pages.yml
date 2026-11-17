@@ -1,10 +1,13 @@
 name: Pages
 
+# The site lives at https://ai-insights.app/ (Vercel). GitHub Pages only serves a redirect so links to
+# hamedmp.github.io/ai-insights/..., including 0.3.0 share links whose stats are in the #fragment, keep working.
 on:
   push:
     branches: [main]
     paths:
-      - "site/**"
+      - "site/pages-redirect/**"
+      - "site/scripts/check-build.mjs"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -18,35 +21,21 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: site
     steps:
       - uses: actions/checkout@v4
-
-      # The pnpm version comes from packageManager in the root package.json.
-      - uses: pnpm/action-setup@v4
 
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
-          cache-dependency-path: site/pnpm-lock.yaml
 
-      - run: pnpm install --frozen-lockfile
-
-      - run: pnpm typecheck
-
-      # Static export under /ai-insights; the build fails if the export would load anything from another host.
-      - run: pnpm build
-        env:
-          PAGES_BASE_PATH: /ai-insights
+      # Fails if the redirect pages would load anything from another host.
+      - run: node site/scripts/check-build.mjs --redirect
 
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: site/out
+          path: site/pages-redirect
 
   deploy:
     needs: build
