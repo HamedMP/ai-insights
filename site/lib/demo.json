@@ -178,7 +178,7 @@
     },
     {
       "day": "2026-10-05",
-      "sessions": 3
+      "sessions": 4
     },
     {
       "day": "2026-10-06",
@@ -186,11 +186,11 @@
     },
     {
       "day": "2026-10-07",
-      "sessions": 2
+      "sessions": 3
     },
     {
       "day": "2026-10-08",
-      "sessions": 3
+      "sessions": 4
     },
     {
       "day": "2026-10-09",
@@ -202,11 +202,11 @@
     },
     {
       "day": "2026-10-11",
-      "sessions": 1
+      "sessions": 2
     },
     {
       "day": "2026-10-12",
-      "sessions": 1
+      "sessions": 2
     },
     {
       "day": "2026-10-13",
@@ -234,7 +234,7 @@
     },
     {
       "day": "2026-10-19",
-      "sessions": 5
+      "sessions": 6
     },
     {
       "day": "2026-10-20",
@@ -262,7 +262,7 @@
     },
     {
       "day": "2026-10-26",
-      "sessions": 5
+      "sessions": 7
     },
     {
       "day": "2026-10-27",
@@ -270,7 +270,7 @@
     },
     {
       "day": "2026-10-28",
-      "sessions": 5
+      "sessions": 6
     },
     {
       "day": "2026-10-29",
@@ -294,7 +294,7 @@
     },
     {
       "day": "2026-11-03",
-      "sessions": 6
+      "sessions": 7
     },
     {
       "day": "2026-11-04",
@@ -314,7 +314,7 @@
     },
     {
       "day": "2026-11-08",
-      "sessions": 0
+      "sessions": 2
     },
     {
       "day": "2026-11-09",
@@ -326,11 +326,11 @@
     },
     {
       "day": "2026-11-11",
-      "sessions": 18
+      "sessions": 19
     },
     {
       "day": "2026-11-12",
-      "sessions": 5
+      "sessions": 6
     },
     {
       "day": "2026-11-13",
@@ -338,9 +338,9 @@
     }
   ],
   "numbers": {
-    "sessions": 161,
-    "hoursWithAi": 137,
-    "agentHours": 174,
+    "sessions": 175,
+    "hoursWithAi": 139,
+    "agentHours": 176,
     "mostAtOnce": 7,
     "usd": 596,
     "tokensM": 922,
