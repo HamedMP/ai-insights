@@ -320,53 +320,23 @@ if (RC) {
     warn,
     h("div", { class: "studio-actions" }, bVideo, bPngs, bText, bPreview, bAll, bReset, countTxt),
     exportPanel, statsLink(), cliBox, wall)));
+  // The studio bar stays stuck over the share box, so "Join the leaderboard" lands below it, not under it.
+  const bar = root.querySelector("#studio .studio-bar");
+  if (bar && typeof ResizeObserver === "function") new ResizeObserver(() => document.documentElement.style.setProperty("--studio-bar-h", `${bar.offsetHeight}px`)).observe(bar);
 }
 /**
- * "Share your stats": a link to the site's /share page with aggregate numbers in its fragment. The person sees
- * every line the link carries before copying it; nothing is sent, the name is not stored, and fragments never
- * reach a server.
+ * "Join the leaderboard": a link to the site's /share page with aggregate numbers in its fragment, built by
+ * sharebox.js. The person sees every line the link carries before copying it; nothing is sent, the name is not
+ * stored, and fragments never reach a server.
  */
 function statsLink() {
-  const nameIn = h("input", { class: "slink-name", type: "text", maxlength: String(ShareLink.LIMITS.name), placeholder: "Your name (optional)", "aria-label": "Display name for the link", autocomplete: "off", spellcheck: "false" });
-  const hasDevice = typeof VIEW.deviceId === "string";
-  // The device name is remembered in this browser only, so the next report from this machine offers it again.
-  const deviceIn = h("input", { class: "slink-name", type: "text", maxlength: String(ShareLink.LIMITS.deviceName), placeholder: "Name this computer (optional), e.g. Work laptop", "aria-label": "Name for this computer", autocomplete: "off", spellcheck: "false", value: store.get("deviceName", "") || "" });
-  const daysIn = h("input", { type: "checkbox", checked: store.get("shareDays", true) !== false });
-  const list = h("ul", { class: "slink-list" });
-  const preview = h("code", { class: "slink-url" });
-  const status = h("p", { class: "share-status small", role: "status" });
-  let link = "";
-  const post = () => `My AI coding, recapped: ${link}\nFind out yours: ${SHARE.command}\n${SHARE.hashtag}`;
-  const refresh = () => {
-    const device = hasDevice ? { id: VIEW.deviceId, name: deviceIn.value, days: daysIn.checked } : null;
-    const p = ShareLink.payload(RC, nameIn.value, VIEW.ratios, device);
-    link = ShareLink.url(p, SHARE.siteUrl);
-    list.replaceChildren(...ShareLink.describe(p, HARNESS_NAMES).map((line) => h("li", {}, line)));
-    preview.textContent = link;
-  };
-  nameIn.addEventListener("input", refresh);
-  deviceIn.addEventListener("input", () => { store.set("deviceName", deviceIn.value); refresh(); });
-  daysIn.addEventListener("change", () => { store.set("shareDays", daysIn.checked); refresh(); });
-  const open = (url) => { const w = window.open(url, "_blank", "noopener,noreferrer"); if (!w) status.textContent = "Your browser blocked the new tab. Copy the link instead."; };
-  const btn = (label, fn, cls = "btn small") => h("button", { class: cls, type: "button", onclick: fn }, label);
-  refresh();
-  return h("div", { class: "slink share", id: "share-stats" },
-    h("div", { class: "share-h" }, "Share your stats and cards, join the leaderboard"),
-    h("p", { class: "muted small" }, "A link to your card and profile on the AI Insights site. It holds only the lines below, in the link itself: your totals and your recap cards as short lines of numbers, dates, agent names and fixed wording. No project names, prompts, commands or paths. Opening the link uploads nothing; on that page you can choose to sign in and publish exactly these lines to your public profile and the leaderboard."),
-    ACT.chat && ACT.chat.only ? h("p", { class: "small slink-chat" }, "Your history is a chat export only. Chat exports record no tokens or spend, so the site shows both as not measured (the link carries tokens as 0 and no spend), and your entry will not rank in the token, spend or agent arenas.") : null,
-    nameIn,
-    hasDevice ? h("div", { class: "slink-device" },
-      deviceIn,
-      h("p", { class: "muted small" }, "Use AI Insights on more than one computer? Publish from each with the same account: the site keeps one entry per computer and adds them up. Each computer is told apart by a random id AI Insights made for it, never by its name or hardware. The name you type here is shown on your profile only if you choose that when you publish."),
-      h("label", { class: "slink-check small" }, daysIn, " Include which days I was active (dates only), so the site can combine active days and streaks across computers")) : null,
-    h("div", { class: "slink-what" }, h("strong", { class: "small" }, "The link contains exactly these lines:"), list),
-    preview,
-    h("div", { class: "share-row" },
-      btn("Publish to the leaderboard", () => open(link), "btn small primary"),
-      btn("Copy link", () => copy(link, "Link copied")),
-      btn("X", () => open(INTENT.x(post()))),
-      btn("LinkedIn", () => open(INTENT.linkedin(post())))),
-    status);
+  return ShareBox.build({
+    rc: RC, ratios: VIEW.ratios, deviceId: VIEW.deviceId, chatOnly: !!(ACT.chat && ACT.chat.only),
+    // INTENT is declared further down this file, after the studio is built, so it is read only when clicked.
+    names: HARNESS_NAMES, site: SHARE, intent: { x: (t) => INTENT.x(t), linkedin: (t) => INTENT.linkedin(t) }, store, copy,
+    // "noopener" makes window.open return null even when the tab opened, so cut the opener by hand instead.
+    open: (url) => { const w = window.open(url, "_blank"); if (w) w.opener = null; return !!w; },
+  });
 }
 function setRatio(r) { if (!CardKit.RATIOS[r]) return; S.ratio = r; saveStudio(); buildWall(); refreshStudio(); heroPlayer.reload(); }
 let tiles = new Map();
