@@ -171,7 +171,8 @@ export default function Sharing() {
       <p>
         Sign-in on ai-insights.app uses your Matrix OS account: the site runs as a satellite of the Matrix OS sign-in, so you sign in on the
         Matrix OS sign-in page and are sent back. If you are already signed in to Matrix OS in the same browser, the site recognises you. Sign-in loads
-        only on the share, leaderboard and profile pages; the landing page and these docs never load it.
+        on the share, leaderboard, profile and sign-in pages. On the landing page and these docs it loads only in a browser that has signed in
+        here before, to show your account menu; a visitor who has not signed in loads nothing from the sign-in provider there.
       </p>
       <p>Once you are signed in, the account menu in the header has:</p>
       <ul>

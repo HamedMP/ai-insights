@@ -108,7 +108,6 @@ export default async function LeaderboardPage({ searchParams }: { searchParams: 
         <div aria-hidden className="hero-glow pointer-events-none absolute inset-x-0 top-0 h-[28rem] opacity-70" />
         <div className="relative mx-auto flex max-w-6xl flex-col gap-5 px-4 pt-8 pb-20 md:px-8 md:pt-12">
           <div className="flex flex-col gap-3">
-            <p className="font-mono text-[11px] tracking-[0.14em] text-muted-foreground uppercase">AI Insights · Leaderboard</p>
             <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
               <h1 className="text-[2.2rem] leading-[1] font-semibold tracking-[-0.04em] sm:text-[2.75rem]">
                 Who codes with AI <span className="text-primary">the most.</span>

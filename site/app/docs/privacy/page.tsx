@@ -158,8 +158,9 @@ export default function Privacy() {
         <li>It records no sessions, captures no typed text, has autocapture off, and honours Do Not Track.</li>
       </ul>
       <p>
-        The sign-in scripts load only on the share, leaderboard and profile pages. The landing page and these docs never
-        load it.
+        The sign-in scripts load on the share, leaderboard, profile and sign-in pages. On the landing page and these docs they load
+        only in a browser that has signed in here before, to show your account menu; anyone else loads nothing from the sign-in
+        provider there.
       </p>
 
       <H2 id="removing">Removing what you published</H2>

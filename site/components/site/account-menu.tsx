@@ -3,10 +3,10 @@
 import * as React from "react"
 import { UserButton, useAuth, useClerk } from "@clerk/nextjs"
 
-import { Button } from "@/components/ui/button"
 import { clerkEnabled } from "@/lib/auth-config"
 import { rememberFragment } from "@/lib/pending-share"
 import { BASE, MATRIX_APP } from "@/lib/site"
+import { cn } from "@/lib/utils"
 
 const HANDLE = /^[a-z0-9](?:[a-z0-9-]{1,28}[a-z0-9])$/
 
@@ -41,7 +41,10 @@ function useOwnHandle(enabled: boolean): string | null | undefined {
 }
 
 /** Signed in: Clerk's avatar menu with the site's own links. Signed out: a small "Sign in" link that keeps the satellite sync. */
-function ClerkAccount() {
+/** The header's quiet text link style, shared with the landing page's signed-out slot (session-account.tsx). */
+export const SIGN_IN_CLASS = "inline-flex h-8 items-center rounded-md px-2 font-mono text-[11.5px] tracking-[0.08em] text-ink-soft uppercase outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+
+function ClerkAccount({ signIn }: { signIn?: React.ReactNode }) {
   const { isLoaded, isSignedIn } = useAuth()
   const clerk = useClerk()
   const handle = useOwnHandle(Boolean(isSignedIn))
@@ -53,18 +56,19 @@ function ClerkAccount() {
     setSignInUrl(clerk.buildSignInUrl({ signInFallbackRedirectUrl: window.location.href }))
   }, [clerk, isLoaded, isSignedIn])
 
-  if (!isLoaded) return <span aria-hidden className="size-9" />
+  if (!isLoaded) return <span aria-hidden className="block size-7 rounded-full bg-muted" />
   if (!isSignedIn) {
+    if (signIn) return <>{signIn}</>
     return (
       // Hidden on phones, where the header has room for one button; the publish panel has its own sign-in there.
-      <Button variant="outline" size="lg" className="h-10 rounded-full px-4 max-sm:hidden sm:h-9" nativeButton={false} render={<a href={signInUrl ?? `${BASE}/leaderboard`} onClick={() => rememberFragment()} />}>
+      <a className={cn(SIGN_IN_CLASS, "max-sm:hidden")} href={signInUrl ?? `${BASE}/leaderboard`} onClick={() => rememberFragment()}>
         Sign in
-      </Button>
+      </a>
     )
   }
   const profile = handle ? `${BASE}/u/${handle}` : `${BASE}/#get`
   return (
-    <UserButton appearance={{ elements: { avatarBox: "size-9" } }}>
+    <UserButton appearance={{ elements: { avatarBox: "size-7" } }}>
       <UserButton.MenuItems>
         <UserButton.Link label={handle ? "My profile" : "My profile: how to publish"} labelIcon={<Dot />} href={profile} />
         <UserButton.Link label="Leaderboard" labelIcon={<Dot />} href={`${BASE}/leaderboard`} />
@@ -78,16 +82,11 @@ function ClerkAccount() {
 }
 
 /**
- * The header's account slot on pages that mount Clerk (/share, /leaderboard, /u). Without Clerk configured it falls back
- * to the leaderboard link the landing page uses, so it never calls a Clerk hook outside a ClerkProvider.
+ * The header's account slot where Clerk is mounted: the pages that mount it, and the on-demand slot other pages load for
+ * a browser that has signed in here before (clerk-slot.tsx, which passes its own `signIn` link). Without Clerk
+ * configured there is nothing to show, so it never calls a Clerk hook outside a ClerkProvider.
  */
-export function AccountMenu() {
-  if (!clerkEnabled) {
-    return (
-      <Button variant="outline" size="lg" className="h-10 rounded-full px-4 max-sm:hidden sm:h-9" nativeButton={false} render={<a href={`${BASE}/leaderboard`} />}>
-        Leaderboard
-      </Button>
-    )
-  }
-  return <ClerkAccount />
+export function AccountMenu({ signIn }: { signIn?: React.ReactNode } = {}) {
+  if (!clerkEnabled) return null
+  return <ClerkAccount signIn={signIn} />
 }

@@ -3,14 +3,15 @@
 import * as React from "react"
 import { usePathname } from "next/navigation"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { Cancel01Icon, GithubIcon, Menu01Icon } from "@hugeicons/core-free-icons"
+import { ArrowDown01Icon, Cancel01Icon, GithubIcon, Menu01Icon } from "@hugeicons/core-free-icons"
 
-import { Wordmark } from "@/components/site/rabbit"
-import { Button } from "@/components/ui/button"
+import { Rabbit } from "@/components/site/rabbit"
+import { SessionAccount } from "@/components/site/session-account"
 import { BASE, REPO } from "@/lib/site"
 import { cn } from "@/lib/utils"
 
-const LINKS = [
+/** The landing page's sections, grouped under "Tour": one top-level link instead of six. */
+const SECTIONS = [
   { id: "cards", label: "Cards" },
   { id: "video", label: "Video" },
   { id: "privacy", label: "Privacy" },
@@ -19,205 +20,135 @@ const LINKS = [
   { id: "faq", label: "FAQ" },
 ]
 
-/** The section crossing the middle band of the viewport, or null above the first one. */
-function useActiveSection() {
-  const [active, setActive] = React.useState<string | null>(null)
-  React.useEffect(() => {
-    if (typeof IntersectionObserver === "undefined") return
-    const visible = new Set<string>()
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) visible.add(entry.target.id)
-          else visible.delete(entry.target.id)
-        }
-        setActive(LINKS.find((link) => visible.has(link.id))?.id ?? null)
-      },
-      { rootMargin: "-40% 0px -55% 0px" },
-    )
-    for (const link of LINKS) {
-      const section = document.getElementById(link.id)
-      if (section) observer.observe(section)
-    }
-    return () => observer.disconnect()
-  }, [])
-  return active
-}
+const LINK = "relative inline-flex h-12 items-center px-2.5 font-mono text-[11.5px] tracking-[0.1em] uppercase text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
+/** The current page: ink text and a primary rule sitting on the header's hairline. */
+const CURRENT = "text-foreground after:absolute after:inset-x-2.5 after:-bottom-px after:h-0.5 after:bg-primary"
 
-/** A bar under the active link that slides between links; it moves with transform only. */
-function Indicator({ nav, active }: { nav: React.RefObject<HTMLElement | null>; active: string | null }) {
-  const [box, setBox] = React.useState<{ x: number; w: number } | null>(null)
-  React.useLayoutEffect(() => {
-    const measure = () => {
-      const link = active ? nav.current?.querySelector<HTMLElement>(`[data-link="${active}"]`) : null
-      setBox(link ? { x: link.offsetLeft + 12, w: link.offsetWidth - 24 } : null)
+/**
+ * Close the header's <details> menus on Escape, on a click outside them, and after a link inside is followed, and keep
+ * at most one open. They open and close without this (plain <details>), so the menus work without JavaScript.
+ */
+function useDetailsMenus(root: React.RefObject<HTMLElement | null>) {
+  React.useEffect(() => {
+    const el = root.current
+    if (!el) return
+    const menus = () => Array.from(el.querySelectorAll<HTMLDetailsElement>("details[data-menu]"))
+    const closeAll = (except?: Element) => {
+      for (const d of menus()) if (d !== except && d.open) d.open = false
     }
-    measure()
-    window.addEventListener("resize", measure)
-    return () => window.removeEventListener("resize", measure)
-  }, [active, nav])
-  return (
-    <span
-      aria-hidden
-      className={cn(
-        "pointer-events-none absolute bottom-[13px] left-0 h-0.5 w-[100px] origin-left rounded-full bg-primary transition-[transform,opacity] duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none",
-        !box && "opacity-0",
-      )}
-      style={{ transform: box ? `translateX(${box.x}px) scaleX(${box.w / 100})` : "translateX(12px) scaleX(0.2)" }}
-    />
-  )
+    const onToggle = (event: Event) => {
+      const d = event.target as HTMLDetailsElement
+      if (d.open) closeAll(d)
+    }
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return
+      const open = menus().find((d) => d.open)
+      if (!open) return
+      open.open = false
+      open.querySelector<HTMLElement>("summary")?.focus()
+    }
+    const onPointer = (event: PointerEvent) => {
+      if (!menus().some((d) => d.open && d.contains(event.target as Node))) closeAll()
+    }
+    const onClick = (event: MouseEvent) => {
+      if ((event.target as Element).closest?.("details[data-menu] a")) closeAll()
+    }
+    el.addEventListener("toggle", onToggle, true)
+    el.addEventListener("click", onClick)
+    window.addEventListener("keydown", onKey)
+    window.addEventListener("pointerdown", onPointer)
+    return () => {
+      el.removeEventListener("toggle", onToggle, true)
+      el.removeEventListener("click", onClick)
+      window.removeEventListener("keydown", onKey)
+      window.removeEventListener("pointerdown", onPointer)
+    }
+  }, [root])
 }
 
 /**
- * `account` is the header's account slot: pages that mount Clerk pass <AccountMenu /> (components/site/account-menu.tsx).
- * Without it (the landing page) the slot is a plain leaderboard link, so this module never imports Clerk.
+ * One slim header on every page: the mark and name, Tour (the landing page's sections), Leaderboard and Docs, then the
+ * account slot, GitHub and the one primary action.
+ *
+ * `account` is the slot on pages that mount Clerk (<AccountMenu />). Everywhere else it is <SessionAccount />, which
+ * imports no Clerk code: a quiet "Sign in" link, or the account menu loaded on demand for a browser that has signed in
+ * here before.
  */
 export function Header({ account }: { account?: React.ReactNode } = {}) {
-  const [scrolled, setScrolled] = React.useState(false)
-  const [open, setOpen] = React.useState(false)
-  const active = useActiveSection()
   const pathname = usePathname() ?? ""
   const inDocs = pathname.startsWith("/docs")
   const inLeaderboard = pathname.startsWith("/leaderboard")
-  const nav = React.useRef<HTMLElement>(null)
-  const panel = React.useRef<HTMLDivElement>(null)
-  const toggle = React.useRef<HTMLButtonElement>(null)
-
-  React.useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 8)
-    onScroll()
-    window.addEventListener("scroll", onScroll, { passive: true })
-    return () => window.removeEventListener("scroll", onScroll)
-  }, [])
-
-  React.useEffect(() => {
-    if (!open) return
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return
-      setOpen(false)
-      toggle.current?.focus()
-    }
-    const onPointer = (event: PointerEvent) => {
-      const target = event.target as Node
-      if (!panel.current?.contains(target) && !toggle.current?.contains(target)) setOpen(false)
-    }
-    const onResize = () => {
-      if (window.innerWidth >= 1024) setOpen(false)
-    }
-    window.addEventListener("keydown", onKey)
-    window.addEventListener("pointerdown", onPointer)
-    window.addEventListener("resize", onResize)
-    return () => {
-      window.removeEventListener("keydown", onKey)
-      window.removeEventListener("pointerdown", onPointer)
-      window.removeEventListener("resize", onResize)
-    }
-  }, [open])
+  const root = React.useRef<HTMLElement>(null)
+  useDetailsMenus(root)
 
   return (
-    <header
-      className={cn(
-        "sticky top-0 z-40 border-b border-transparent transition-[background-color,border-color] duration-300",
-        (scrolled || open) && "border-border bg-background/80 backdrop-blur-md backdrop-saturate-150",
-      )}
-    >
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 md:px-8">
-        <a href="#top" aria-label="AI Insights by Matrix OS, back to the top" className="-m-1 shrink-0 rounded-md p-1 outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
-          <Wordmark />
+    <header ref={root} className="sticky top-0 z-40 border-b bg-background/90 backdrop-blur-md backdrop-saturate-150">
+      <div className="mx-auto flex h-12 max-w-6xl items-center gap-3 px-4 md:gap-5 md:px-8">
+        <a href={`${BASE}/`} aria-label="AI Insights by Matrix OS, home" className="-ml-1 flex shrink-0 items-center gap-2 rounded-md px-1 py-1 outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+          <Rabbit className="h-[18px] text-primary" />
+          <span className="font-mono text-[13px] font-semibold tracking-[0.12em] uppercase">AI Insights</span>
+          <span aria-hidden className="font-mono text-[10.5px] tracking-[0.1em] text-muted-foreground uppercase max-lg:hidden">by Matrix OS</span>
         </a>
-        <nav ref={nav} aria-label="Sections" className="relative hidden h-16 items-center xl:flex">
-          {LINKS.map((link) => (
-            <a
-              key={link.id}
-              data-link={link.id}
-              href={`${BASE}/#${link.id}`}
-              aria-current={active === link.id ? "location" : undefined}
-              className={cn(
-                "rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
-                active === link.id && "text-foreground",
-              )}
-            >
-              {link.label}
-            </a>
-          ))}
-          <a
-            href={`${BASE}/leaderboard`}
-            aria-current={inLeaderboard ? "page" : undefined}
-            className={cn(
-              "rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
-              inLeaderboard && "text-foreground",
-            )}
-          >
+
+        <nav aria-label="Site" className="flex items-center max-md:hidden">
+          <details data-menu className="group relative">
+            <summary className={cn(LINK, "cursor-pointer list-none gap-1 [&::-webkit-details-marker]:hidden")}>
+              Tour
+              <HugeiconsIcon icon={ArrowDown01Icon} strokeWidth={2} className="size-3.5 transition-transform group-open:rotate-180" />
+            </summary>
+            <ul aria-label="Sections of the home page" className="absolute top-[calc(100%-4px)] left-0 z-50 flex w-52 flex-col rounded-lg border bg-popover p-1 shadow-lg">
+              {SECTIONS.map((s, i) => (
+                <li key={s.id}>
+                  <a href={`${BASE}/#${s.id}`} className="flex h-9 items-center justify-between rounded-md px-3 text-[14px] outline-none hover:bg-muted focus-visible:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50">
+                    {s.label}
+                    <span className="font-mono text-[10.5px] text-muted-foreground">{String(i + 1).padStart(2, "0")}</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </details>
+          <a href={`${BASE}/leaderboard`} aria-current={inLeaderboard ? "page" : undefined} className={cn(LINK, inLeaderboard && CURRENT)}>
             Leaderboard
           </a>
-          <a
-            href={`${BASE}/docs`}
-            aria-current={inDocs ? "page" : undefined}
-            className={cn(
-              "rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
-              inDocs && "text-foreground",
-            )}
-          >
+          <a href={`${BASE}/docs`} aria-current={inDocs ? "page" : undefined} className={cn(LINK, inDocs && CURRENT)}>
             Docs
           </a>
-          <Indicator nav={nav} active={active} />
         </nav>
-        <div className="flex items-center gap-2">
-          {account}
-          <Button
-            variant="secondary"
-            size="lg"
-            className="size-10 rounded-full bg-secondary/70 backdrop-blur max-sm:hidden sm:size-9 2xl:w-auto 2xl:gap-2 2xl:px-3.5"
-            nativeButton={false}
-            render={<a href={REPO} aria-label="AI Insights on GitHub" />}
-          >
-            <HugeiconsIcon icon={GithubIcon} strokeWidth={2} />
-            <span className="max-2xl:hidden" aria-hidden>
-              GitHub
-            </span>
-          </Button>
-          <Button size="lg" className="h-10 rounded-full px-4 sm:h-9" nativeButton={false} render={<a href={`${BASE}/#get`} />}>
+
+        <div className="ml-auto flex items-center gap-1 sm:gap-1.5">
+          {account ?? <SessionAccount />}
+          <a href={REPO} aria-label="AI Insights on GitHub" className="grid size-8 place-items-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 max-sm:hidden">
+            <HugeiconsIcon icon={GithubIcon} strokeWidth={2} className="size-[17px]" />
+          </a>
+          <a href={`${BASE}/#get`} className="ml-1 inline-flex h-8 items-center rounded-md bg-primary px-3 font-mono text-[11.5px] font-semibold tracking-[0.08em] text-primary-foreground uppercase outline-none hover:bg-primary/90 focus-visible:ring-3 focus-visible:ring-ring/50">
             Get yours
-          </Button>
-          <button
-            ref={toggle}
-            type="button"
-            data-menu-button=""
-            aria-expanded={open}
-            aria-controls="mobile-menu"
-            aria-label={open ? "Close menu" : "Open menu"}
-            onClick={() => setOpen((value) => !value)}
-            className="grid size-10 place-items-center rounded-full border bg-secondary/70 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 xl:hidden"
-          >
-            <HugeiconsIcon icon={open ? Cancel01Icon : Menu01Icon} strokeWidth={2} className="size-[18px]" />
-          </button>
+          </a>
+          <details data-menu className="group md:hidden">
+            <summary aria-label="Menu" className="grid size-8 cursor-pointer list-none place-items-center rounded-md border bg-card outline-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
+              <HugeiconsIcon icon={Menu01Icon} strokeWidth={2} className="size-4 group-open:hidden" />
+              <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} className="hidden size-4 group-open:block" />
+            </summary>
+            <nav aria-label="Site, menu" className="absolute inset-x-0 top-full border-b bg-background px-4 pt-1 pb-5 shadow-sm">
+              <p className="pt-3 pb-1 font-mono text-[10.5px] tracking-[0.12em] text-muted-foreground uppercase">Tour</p>
+              {SECTIONS.map((s, i) => (
+                <a key={s.id} href={`${BASE}/#${s.id}`} className="flex h-11 items-center justify-between border-b text-[17px] font-medium tracking-tight outline-none focus-visible:text-primary">
+                  {s.label}
+                  <span className="font-mono text-xs text-muted-foreground">{String(i + 1).padStart(2, "0")}</span>
+                </a>
+              ))}
+              <a href={`${BASE}/leaderboard`} aria-current={inLeaderboard ? "page" : undefined} className="flex h-11 items-center border-b text-[17px] font-medium tracking-tight outline-none focus-visible:text-primary aria-[current=page]:text-primary">
+                Leaderboard
+              </a>
+              <a href={`${BASE}/docs`} aria-current={inDocs ? "page" : undefined} className="flex h-11 items-center border-b text-[17px] font-medium tracking-tight outline-none focus-visible:text-primary aria-[current=page]:text-primary">
+                Docs
+              </a>
+              <a href={REPO} className="flex h-11 items-center justify-between border-b text-[17px] font-medium tracking-tight outline-none focus-visible:text-primary">
+                GitHub
+                <HugeiconsIcon icon={GithubIcon} strokeWidth={2} className="size-4 text-muted-foreground" />
+              </a>
+            </nav>
+          </details>
         </div>
-      </div>
-      <div ref={panel} id="mobile-menu" hidden={!open} className="border-t xl:hidden">
-        <nav aria-label="Sections, menu" className="mx-auto flex max-w-6xl flex-col px-4 pt-1 pb-5 animate-in fade-in-0 slide-in-from-top-2 duration-300 motion-reduce:animate-none">
-          {LINKS.map((link, index) => (
-            <a
-              key={link.id}
-              href={`${BASE}/#${link.id}`}
-              onClick={() => setOpen(false)}
-              aria-current={active === link.id ? "location" : undefined}
-              className="flex h-13 items-center justify-between border-b text-lg font-medium tracking-tight outline-none focus-visible:text-primary"
-            >
-              {link.label}
-              <span className={cn("font-mono text-xs text-muted-foreground", active === link.id && "text-primary")}>{String(index + 1).padStart(2, "0")}</span>
-            </a>
-          ))}
-          <a href={`${BASE}/docs`} aria-current={inDocs ? "page" : undefined} className="flex h-13 items-center justify-between border-b text-lg font-medium tracking-tight outline-none focus-visible:text-primary">
-            Docs
-          </a>
-          <a href={`${BASE}/leaderboard`} className="flex h-13 items-center justify-between border-b text-lg font-medium tracking-tight outline-none focus-visible:text-primary">
-            Leaderboard
-          </a>
-          <a href={REPO} className="flex h-13 items-center justify-between border-b text-lg font-medium tracking-tight outline-none focus-visible:text-primary sm:hidden">
-            GitHub
-            <HugeiconsIcon icon={GithubIcon} strokeWidth={2} className="size-4 text-muted-foreground" />
-          </a>
-        </nav>
       </div>
     </header>
   )

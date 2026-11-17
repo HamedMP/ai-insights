@@ -118,7 +118,7 @@ export function BoardTable({ rows, sort, top, me }: BoardTableProps) {
   return (
     <table className="w-full border-separate border-spacing-0 text-[13.5px] max-lg:hidden">
       <caption className="sr-only">Leaderboard, sorted by {sortOf(sort).label.toLowerCase()}, highest first. Self-reported.</caption>
-      <thead className="sticky top-16 z-10 bg-card">
+      <thead className="sticky top-12 z-10 bg-card">
         <tr className="[&>th]:border-b [&>th]:border-foreground/15 [&>th]:leading-none">
           <th scope="col" className="h-10 w-14 pl-4 text-left align-middle font-mono text-[10.5px] font-normal tracking-[0.08em] text-muted-foreground uppercase"><span className="inline-flex items-center">#</span></th>
           <th scope="col" className="h-10 px-3 text-left align-middle font-mono text-[10.5px] font-normal tracking-[0.08em] text-muted-foreground uppercase"><span className="inline-flex items-center">Person</span></th>

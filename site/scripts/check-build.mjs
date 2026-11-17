@@ -3,8 +3,10 @@
 // exception: when Clerk is configured, pages that mount Clerk (/share, /leaderboard, /u/..., the same rule as
 // lib/auth-config.ts mountsClerk) may load clerk-js and @clerk/ui (script + preload link) under /npm/@clerk/ from the
 // Clerk Frontend API host(s) for this app (decoded from the publishable key, plus clerk.<satellite domain>).
-// Every other prebuilt page (the landing page above all) must not load Clerk at all: neither from a Clerk host nor in
-// any of its own /_next/static script chunks.
+// Every other prebuilt page (the landing page and the docs) is what an anonymous visitor gets, and its HTML must reference
+// no Clerk host and no Clerk code: no Clerk host anywhere in the HTML, and none of the /_next/static script chunks the
+// HTML loads may contain Clerk code. Clerk code may exist only in a chunk the HTML does not load: the account menu that
+// components/site/session-account.tsx imports on demand, in a browser that has signed in here before.
 //
 //   node scripts/check-build.mjs             checks the Next build (.next/server/app HTML, .next/static CSS and JS)
 //   node scripts/check-build.mjs --redirect  checks the GitHub Pages redirect site in pages-redirect/
@@ -44,8 +46,8 @@ function walk(dir) {
   }
 }
 
-/** Prebuilt HTML for a page that mounts Clerk: .next/server/app/share.html, leaderboard..., u/... */
-const mountsClerk = (rel) => /^\.next\/server\/app\/(?:share|leaderboard|u)(?:\.html$|\/)/.test(rel)
+/** Prebuilt HTML for a page that mounts Clerk: .next/server/app/share.html, leaderboard..., u/..., account/... */
+const mountsClerk = (rel) => /^\.next\/server\/app\/(?:share|leaderboard|u|account)(?:\.html$|\/)/.test(rel)
 const CLERK_CODE = /@clerk\/|clerk-js|__clerk_/
 
 function allowed(tag, url, rel) {
@@ -72,6 +74,8 @@ function check(path) {
       if (REMOTE.test(url) && !allowed(tag, url, rel)) problems.push(`${rel}: <${tag}> loads ${url}`)
     }
     if (!redirect && !mountsClerk(rel)) {
+      for (const host of allowedScriptHosts) if (text.toLowerCase().includes(host)) problems.push(`${rel}: anonymous HTML names the Clerk host ${host}`)
+      if (CLERK_CODE.test(text)) problems.push(`${rel}: anonymous HTML carries Clerk code`)
       for (const match of text.matchAll(/<script\b[^>]*\ssrc="(\/_next\/static\/[^"?#]+\.js)"/gi)) {
         const chunk = join(site, ".next", match[1].replace(/^\/_next\//, ""))
         if (existsSync(chunk) && CLERK_CODE.test(readFileSync(chunk, "utf8"))) problems.push(`${rel}: loads Clerk code in ${match[1]}; only pages that mount Clerk may`)
