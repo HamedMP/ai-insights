@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'sha256-7zsCgvwX2VWSNLDZrGxlIGNX/MhedwefRgo+wDJmNeE='; img-src data: blob:; font-src data:; media-src blob:; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'sha256-OAyaIxPD3ZGo42u31xrnWCThhFncXyekVo3pAyXQHTA='; img-src data: blob:; font-src data:; media-src blob:; base-uri 'none'; form-action 'none'">
 <meta name="color-scheme" content="light">
 <meta name="referrer" content="no-referrer">
 <meta name="generator" content="AI Insights">
@@ -258,6 +258,32 @@ button { font: inherit; color: inherit; }
 .delta.good { background: var(--good-soft); color: var(--good); }
 .delta.bad { background: var(--bad-soft); color: var(--bad); }
 
+/* ===== card deck: the hero. Every card, one large at a time, with the whole set beside it ===== */
+.deck { padding: 26px 0 44px; }
+.deck .wrap { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "stage head" "stage index" "stage acts"; grid-template-rows: auto auto 1fr; column-gap: 48px; align-items: start; }
+.deck-head { grid-area: head; padding-top: 14px; }
+.deck-stage { grid-area: stage; }
+.deck-index { grid-area: index; margin-top: 26px; }
+.deck-actions { grid-area: acts; margin-top: 26px; }
+.deck h1 { font: 800 clamp(32px, 3.3vw, 46px)/1 var(--display); letter-spacing: -0.045em; margin: 14px 0 12px; }
+.deck h1 em { white-space: nowrap; font-style: normal; background: var(--hl); padding: 0 0.12em; border-radius: 0.12em; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.deck-totals { margin: 0; font: 600 13px/1.5 var(--mono); letter-spacing: 0.02em; color: var(--muted); }
+.deck-index-h { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; font: 600 12px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; }
+.deck-thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--th, 56px), 1fr)); gap: 8px; }
+.deck-th { position: relative; aspect-ratio: 1; padding: 0; border: 0; border-radius: 9px; overflow: hidden; background: var(--surface-2); cursor: pointer; box-shadow: 0 0 0 1px var(--line); transition: transform 120ms, box-shadow 120ms; }
+.deck-th .card { position: absolute; left: 0; top: 0; transform-origin: 0 0; pointer-events: none; }
+.deck-th:hover { transform: translateY(-2px); box-shadow: 0 0 0 1.5px var(--ink); }
+.deck-th[aria-current="true"] { box-shadow: 0 0 0 2.5px var(--bg), 0 0 0 5px var(--ink); }
+.deck-th-n { position: absolute; left: 4px; bottom: 4px; z-index: 1; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 99px; display: grid; place-items: center; font: 700 10px/1 var(--mono); background: var(--ink); color: var(--bg); opacity: 0; transition: opacity 120ms; }
+.deck-th:hover .deck-th-n, .deck-th:focus-visible .deck-th-n, .deck-th[aria-current="true"] .deck-th-n { opacity: 1; }
+.deck-actions .cta { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.deck-actions .btn.big { padding: 16px 26px; }
+.deck-actions .note { background: none; padding: 0; margin: 14px 0 0; max-width: 520px; color: var(--muted); font-size: 13.5px; }
+.overview .lede { font-size: clamp(18px, 1.8vw, 22px); line-height: 1.5; max-width: 820px; margin: 14px 0 0; color: color-mix(in srgb, var(--ink) 86%, transparent); }
+.overview .lede code, .hero .lede code { font-size: 0.85em; }
+.publish { padding-top: 40px; }
+.publish .share.slink { margin-top: 0; }
+
 /* ===== player ===== */
 .player { position: relative; flex: none; }
 .player .vp { position: relative; overflow: hidden; border-radius: 18px; box-shadow: 0 30px 70px -28px rgba(20, 18, 16, 0.5), 0 0 0 1.5px var(--ink); background: var(--surface-2); touch-action: manipulation; cursor: pointer; }
@@ -437,9 +463,18 @@ footer.foot { padding: 46px 0 60px; border-top: 1px solid var(--line); color: va
 .toast.on { opacity: 1; }
 
 /* ===== responsive ===== */
+/* Six sections and three styles do not fit one bar below ~1360px: the styles not in use show their swatch only. */
+@media (max-width: 1360px) {
+  .topbar .seg.style button[aria-checked="false"] span.lbl { display: none; }
+}
 @media (max-width: 1020px) {
   .hero .wrap { grid-template-columns: 1fr; }
-  .hero .player-slot { justify-self: center; }
+  .deck .wrap { grid-template-columns: minmax(0, 1fr); grid-template-areas: "head" "stage" "index" "acts"; grid-template-rows: none; }
+  .deck-head { padding-top: 0; margin-bottom: 18px; }
+  .deck-stage { justify-self: center; max-width: 100%; }
+  .deck-index { margin-top: 18px; }
+  .deck-thumbs { display: flex; overflow-x: auto; scroll-snap-type: x proximity; padding: 6px 6px 8px; margin: 0 -6px; scrollbar-width: thin; }
+  .deck-th { flex: none; width: var(--th, 56px); scroll-snap-align: center; }
   .g3 { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 720px) {
@@ -448,6 +483,11 @@ footer.foot { padding: 46px 0 60px; border-top: 1px solid var(--line); color: va
   .topbar .wrap { gap: 10px; }
   .brand small { display: none; }
   .hero { padding: 26px 0 40px; }
+  .deck { padding: 18px 0 32px; }
+  .deck h1 { font-size: 28px; margin: 10px 0 8px; }
+  .deck-totals { font-size: 12px; }
+  .deck-actions .cta { flex-direction: column; align-items: stretch; }
+  .deck-actions .btn { justify-content: center; }
   .hero .wrap { gap: 30px; }
   .stats { grid-template-columns: 1fr 1fr; }
   .stat:nth-child(3) { padding-left: 0; border-left: 0; }
@@ -530,7 +570,7 @@ html.capture #root { position: relative; width: 100vw; height: 100vh; overflow: 
 .share-h { font: 600 11.5px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
 .share-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .share-status { margin: 10px 0 0; min-height: 1.4em; }
-.share.slink { margin-top: 18px; border: 1.5px solid var(--ink); border-radius: 18px; background: var(--surface); padding: 18px 20px 16px; scroll-margin-top: calc(var(--studio-bar-h, 0px) + 12px); }
+.share.slink { margin-top: 18px; border: 1.5px solid var(--ink); border-radius: 18px; background: var(--surface); padding: 18px 20px 16px; scroll-margin-top: 12px; }
 .slink .share-h { margin-bottom: 8px; }
 .slink-title { margin: 0; font: 800 clamp(20px, 2.4vw, 24px)/1.15 var(--display); letter-spacing: -0.02em; }
 .slink-lede { margin: 6px 0 0; max-width: 92ch; }
@@ -4794,7 +4834,33 @@ const ShareBox = (() => {
 })();
 
 ;
-/* page.js: the report page. Hero + story player, card studio, the private analysis, what to change, over time.
+/* deck.js: which cards the deck at the top of the report shows, in what order, and how a position is read out.
+   The deck is for reading: it shows every card the report has and never touches the studio's selection, which
+   only decides what goes into the video. Kept apart from page.js so the order can be tested without a browser. */
+const HeroDeck = (() => {
+  "use strict";
+  // Lead with what people brag or argue about, persona first; close with the summary and the maker's card.
+  const LEAD = Object.freeze(["persona", "parallel", "danger", "manners", "words", "clock"]);
+  const CLOSE = Object.freeze(["summary", "outro"]);
+
+  /** Every id in `ids` exactly once: the lead cards first, the rest in the order given, the closing cards last. */
+  function order(ids) {
+    const list = ids.filter((id, i) => typeof id === "string" && ids.indexOf(id) === i);
+    const has = (id) => list.includes(id);
+    return [...LEAD.filter(has), ...list.filter((id) => !LEAD.includes(id) && !CLOSE.includes(id)), ...CLOSE.filter(has)];
+  }
+
+  /** "Card 3 of 16": what the deck shows and screen readers hear for the card in view. */
+  function position(i, n) {
+    return `Card ${i + 1} of ${n}`;
+  }
+
+  return { LEAD, CLOSE, order, position };
+})();
+
+;
+/* page.js: the report page. The card deck (every card, the main way to read the report), the overview, publishing,
+   the card studio, the private analysis, what to change, over time.
    Reads one JSON block (#report-data), built by src/render/view.ts. Cards and exports read only VIEW.recap. */
 (() => {
 "use strict";
@@ -4811,10 +4877,10 @@ const STYLES = RC ? CardStyles.list().filter((st) => st.ok) : [];
 const styleOk = (id) => STYLES.some((st) => st.id === id);
 const avail = (id) => !!RC && RC.avail[id] !== false && (CARD_IDS.includes(id) || RC.avail[id] === true);
 const ALL_IDS = [...CARD_IDS, ...OPTIONAL_CARD_IDS].filter(avail);
-// Lead with what people brag or argue about, close with the summary and the maker's card; about 54 s, so it fits
-// Stories, Reels and X without a warning. Cost stays off by default: people can add it.
-const DEFAULT_SEL = ["persona", "parallel", "danger", "manners", "words", "clock", "summary", "outro"].filter(avail);
-const DEFAULT_ORDER = [...DEFAULT_SEL.slice(0, -2), ...[...CARD_IDS, ...OPTIONAL_CARD_IDS].filter((id) => !DEFAULT_SEL.includes(id) && id !== "summary" && id !== "outro"), "summary", "outro"].filter(avail);
+// The video starts as the deck's lead and close: about 54 s, so it fits Stories, Reels and X without a warning.
+// Cost stays off by default: people can add it.
+const DEFAULT_SEL = [...HeroDeck.LEAD, ...HeroDeck.CLOSE].filter(avail);
+const DEFAULT_ORDER = HeroDeck.order(ALL_IDS);
 const S = {
   style: styleOk(params.get("style")) ? params.get("style") : styleOk(store.get("style", "pop")) ? store.get("style", "pop") : "pop",
   ratio: CardKit.RATIOS[params.get("ratio")] ? params.get("ratio") : CardKit.RATIOS[store.get("ratio", "1:1")] ? store.get("ratio", "1:1") : "1:1",
@@ -4898,23 +4964,33 @@ const ext = (url, label, cls = "btn small") => h("a", { class: cls, href: url, t
 class Player {
   constructor(o) {
     this.o = o; this.i = 0; this.t = 0; this.playing = false; this.inst = null;
+    // hold: after the person moves by hand, a card plays its own animation and stays, instead of moving on.
+    this.hold = false;
     this.root = h("div", { class: "player" });
     this.segs = h("div", { class: "segs", "aria-hidden": "true" });
     this.vp = h("div", { class: "vp", tabindex: "0", role: "group", "aria-roledescription": "story", "aria-label": "Recap story. Space to pause, arrow keys to move between cards." });
     this.ttl = h("span", { class: "ttl", "aria-live": "polite" });
     const ib = (icon, label, fn) => { const b = h("button", { class: "ibtn", type: "button", "aria-label": label, title: label, html: ICON[icon] }); b.addEventListener("click", (e) => { e.stopPropagation(); fn(); }); return b; };
     this.bPlay = ib("play", "Play", () => this.toggle());
-    this.root.append(this.segs, this.vp, h("div", { class: "pbar" }, ib("prev", "Previous card", () => this.prev()), this.bPlay, ib("next", "Next card", () => this.next()), this.ttl, o.extraBtn || null));
-    this.vp.addEventListener("click", (e) => { const r = this.vp.getBoundingClientRect(); (e.clientX - r.left) < r.width * 0.3 ? this.prev() : this.next(); });
+    if (o.label) this.vp.setAttribute("aria-label", o.label);
+    this.root.append(this.segs, this.vp, h("div", { class: "pbar" }, ib("prev", "Previous card", () => this.by(-1)), this.bPlay, ib("next", "Next card", () => this.by(1)), this.ttl, o.extraBtn || null));
+    this.vp.addEventListener("click", (e) => { const r = this.vp.getBoundingClientRect(); this.by((e.clientX - r.left) < r.width * 0.3 ? -1 : 1); });
     this.vp.addEventListener("keydown", (e) => this.key(e));
     let sx = null;
     this.vp.addEventListener("touchstart", (e) => { sx = e.touches[0].clientX; }, { passive: true });
-    this.vp.addEventListener("touchend", (e) => { if (sx == null) return; const dx = e.changedTouches[0].clientX - sx; sx = null; if (Math.abs(dx) > 50) { e.preventDefault(); dx < 0 ? this.next() : this.prev(); } });
+    this.vp.addEventListener("touchend", (e) => { if (sx == null) return; const dx = e.changedTouches[0].clientX - sx; sx = null; if (Math.abs(dx) > 50) { e.preventDefault(); this.by(dx < 0 ? 1 : -1); } });
   }
   key(e) {
-    if (e.key === "ArrowRight") { e.preventDefault(); this.next(); }
-    else if (e.key === "ArrowLeft") { e.preventDefault(); this.prev(); }
+    if (e.key === "ArrowRight") { e.preventDefault(); this.by(1); }
+    else if (e.key === "ArrowLeft") { e.preventDefault(); this.by(-1); }
     else if (e.key === " " || e.key === "k") { e.preventDefault(); this.toggle(); }
+  }
+  /** A move the person made: in a holding player it stops the auto-advance and plays just the card it lands on. */
+  by(dir) { this.byHand(() => (dir < 0 ? this.prev() : this.next())); }
+  go(i) { this.byHand(() => this.mount(i)); }
+  byHand(fn) {
+    if (this.o.holdOnNav) { this.hold = true; if (!reduced) this.setPlaying(true); }
+    fn();
   }
   ids() { return this.o.ids(); }
   reload(keep = false) {
@@ -4937,10 +5013,11 @@ class Player {
     this.inst = makeInst(ids[this.i], this.o.ratio());
     this.vp.replaceChildren(this.inst.el);
     this.size();
-    this.ttl.textContent = `${String(this.i + 1).padStart(2, "0")} / ${ids.length} · ${this.inst.title}`;
+    this.ttl.textContent = this.o.position ? `${this.o.position(this.i, ids.length)} · ${this.inst.title}` : `${String(this.i + 1).padStart(2, "0")} / ${ids.length} · ${this.inst.title}`;
     [...this.segs.children].forEach((sg, j) => { sg.firstChild.style.transform = `scaleX(${j < this.i ? 1 : 0})`; });
     // With reduced motion a card is shown at rest (its last frame) unless the person presses play.
     this.t = reduced && !this.playing ? this.inst.dur : t; this.draw();
+    if (this.o.onMount) this.o.onMount(this.i, ids[this.i]);
   }
   draw() {
     if (!this.inst) return;
@@ -4952,11 +5029,12 @@ class Player {
   tick(dt) {
     if (!this.playing || !this.inst) return;
     this.t += Math.min(64, dt);
-    if (this.t >= this.durNow()) { if (this.i < this.ids().length - 1) this.mount(this.i + 1); else { this.t = this.inst.dur; this.draw(); this.setPlaying(false); if (this.onEnd) this.onEnd(); } }
+    if (this.t >= this.durNow() && this.hold) { this.t = this.inst.dur; this.draw(); this.setPlaying(false); }
+    else if (this.t >= this.durNow()) { if (this.i < this.ids().length - 1) this.mount(this.i + 1); else { this.t = this.inst.dur; this.draw(); this.setPlaying(false); if (this.onEnd) this.onEnd(); } }
     else this.draw();
   }
-  setPlaying(p) { this.playing = p; this.bPlay.innerHTML = p ? ICON.pause : ICON.play; this.bPlay.setAttribute("aria-label", p ? "Pause" : "Play"); }
-  toggle() { if (!this.inst) return; if (!this.playing && this.i === this.ids().length - 1 && this.t >= this.inst.dur) this.mount(0); this.setPlaying(!this.playing); }
+  setPlaying(p) { this.playing = p; this.bPlay.innerHTML = p ? ICON.pause : ICON.play; this.bPlay.setAttribute("aria-label", p ? "Pause" : "Play"); if (this.o.onPlay) this.o.onPlay(p); }
+  toggle() { if (!this.inst) return; if (!this.playing) this.hold = false; if (!this.playing && this.i === this.ids().length - 1 && this.t >= this.inst.dur) this.mount(0); this.setPlaying(!this.playing); }
   next() { if (this.i < this.ids().length - 1) this.mount(this.i + 1); else if (this.onEnd) this.onEnd(); }
   prev() { this.mount(this.t < 600 ? this.i - 1 : this.i); }
 }
@@ -4966,7 +5044,10 @@ function loop(now) { const dt = lastNow == null ? 16 : now - lastNow; lastNow = 
 
 // ================================================================== layout skeleton
 const root = document.getElementById("root");
-const NAV = [["recap", "Recap"], ...(RC ? [["studio", "Studio"]] : []), ["analysis", "Analysis"], ["change", "What to change"], ["time", "Over time"]];
+/** The deck's cards follow the picked style (optional cards come and go with it), never the studio's selection. */
+const deckIds = () => HeroDeck.order(ALL_IDS.filter((id) => hasCard(id)));
+const DECK = !!RC && deckIds().length > 0;
+const NAV = [["recap", "Recap"], ...(RC ? [["publish", "Publish"], ["studio", "Studio"]] : []), ["analysis", "Analysis"], ["change", "What to change"], ["time", "Over time"]];
 function stylePicker(label) {
   if (STYLES.length < 2) return null;
   return h("div", { class: "seg style", role: "radiogroup", "aria-label": label },
@@ -5012,31 +5093,127 @@ const heroKeys = [HERO.wallHours != null ? "wallHours" : "agentHours", "sessions
 const heroVal = { wallHours: HERO.wallHours, agentHours: HERO.agentHours, sessions: HERO.sessions, prompts: HERO.prompts, usd: HERO.usd };
 const heroStats = h("div", { class: "stats" + (heroKeys.length === 3 ? " three" : "") }, heroKeys.map((k) => h("div", { class: "stat" },
   h("div", { class: "sv" }, fmtM(k, heroVal[k])), h("div", { class: "sl" }, METRICS[k].label), prevRun ? delta(k, heroVal[k], prevRun.metrics[k]) : null)));
-const heroPlayerSlot = h("div", { class: "player-slot" });
 const hours0 = HERO.wallHours != null ? HERO.wallHours : HERO.agentHours;
-const h1 = h("h1", {}, `${int(hours0)} ${HERO.wallHours != null ? "hours with agents" : "agent-hours"}.`,
-  HERO.maxParallel >= 2 ? [h("br"), h("em", {}, `${HERO.maxParallel} at once`), " at the peak."] : HERO.activeDays ? [h("br"), h("em", {}, plural(HERO.activeDays, "busy day")), "."] : null);
-const hero = h("section", { class: "hero" + (RC ? "" : " solo"), id: "recap" }, h("div", { class: "wrap" },
-  h("div", {},
-    h("div", { class: "eyebrow" }, h("span", { class: "dot" }), `Your AI coding report${rangeTxt ? ` · ${rangeTxt}` : ""}`),
-    h1,
+const headline = () => [`${int(hours0)} ${HERO.wallHours != null ? "hours with agents" : "agent-hours"}.`,
+  HERO.maxParallel >= 2 ? [" ", h("em", {}, `${HERO.maxParallel} at once`), " at the peak."] : HERO.activeDays ? [" ", h("em", {}, plural(HERO.activeDays, "busy day")), "."] : null];
+const eyebrowTxt = `Your AI coding report${rangeTxt ? ` · ${rangeTxt}` : ""}`;
+
+// ================================================================== CARD DECK (the hero)
+// Every card the report has, persona first, one at a time and large: the main way to read the report. Browsing
+// here never changes which cards the studio puts in the video, and nothing here reaches the share link.
+const DECK_RATIO = "1:1";
+const deckPlayer = DECK ? new Player({
+  ids: deckIds, ratio: () => DECK_RATIO, holdOnNav: true, position: HeroDeck.position,
+  label: "Your recap cards. Arrow keys move between cards, Space pauses.",
+  box: () => {
+    if (innerWidth < 1020) { const w = Math.min(innerWidth - 32, 560); return { w, h: Math.max(240, Math.min(w, innerHeight - 250)) }; }
+    const wrapW = Math.min(innerWidth, 1240) - 56;
+    return { w: Math.max(320, Math.min(640, wrapW - 420 - 48)), h: Math.max(320, innerHeight - 180) };
+  },
+  extraBtn: (() => { const b = h("button", { class: "ibtn", type: "button", "aria-label": "Full screen", title: "Full screen", html: ICON.full }); b.addEventListener("click", () => openTheater(deckPlayer.i, DECK_SRC)); return b; })(),
+  onMount: (i) => markThumb(i),
+  onPlay: (p) => deckPlayer && deckPlayer.ttl.setAttribute("aria-live", p && !deckPlayer.hold ? "off" : "polite"),
+}) : null;
+const DECK_SRC = { ids: deckIds, ratio: () => DECK_RATIO };
+const thumbs = h("div", { class: "deck-thumbs", role: "group", "aria-label": "All cards" });
+let thumbInsts = [];
+function buildThumbs() {
+  if (!DECK) return;
+  for (const t of thumbInsts) if (t.inst) t.inst.el.remove();
+  const ids = deckIds();
+  thumbs.style.setProperty("--th", (ids.length <= 6 ? 92 : ids.length <= 12 ? 72 : 56) + "px");
+  thumbInsts = ids.map((id, i) => {
+    const btn = h("button", { class: "deck-th", type: "button", "aria-label": `${HeroDeck.position(i, ids.length)}: ${specOf(id).title}`, title: specOf(id).title, onclick: () => deckPlayer.go(i) }, h("span", { class: "deck-th-n", "aria-hidden": "true" }, String(i + 1)));
+    return { id, btn, inst: null };
+  });
+  thumbs.replaceChildren(...thumbInsts.map((t) => t.btn));
+  markThumb(deckPlayer.i);
+  return fillThumbs();
+}
+// Thumbnails draw a few per frame after the first card is on screen, so the deck never waits for all of them.
+let fillGen = 0;
+function fillThumbs() {
+  const gen = ++fillGen;
+  return new Promise((done) => {
+    const step = () => {
+      if (gen !== fillGen) return done();
+      const t0 = performance.now();
+      for (const t of thumbInsts) {
+        if (t.inst) continue;
+        t.inst = makeInst(t.id, DECK_RATIO);
+        render(t.inst, t.inst.dur);
+        t.btn.prepend(t.inst.el);
+        sizeThumb(t);
+        if (performance.now() - t0 > 10) return requestAnimationFrame(step);
+      }
+      done();
+    };
+    requestAnimationFrame(step);
+  });
+}
+function sizeThumb(t) { if (t.inst) t.inst.el.style.transform = `scale(${t.btn.clientWidth / t.inst.W})`; }
+function markThumb(i) {
+  thumbInsts.forEach((t, j) => { if (j === i) t.btn.setAttribute("aria-current", "true"); else t.btn.removeAttribute("aria-current"); });
+  const cur = thumbInsts[i];
+  // Keep the card in view inside a scrolling strip (phones) without scrolling the page.
+  if (cur && thumbs.scrollWidth > thumbs.clientWidth + 2) thumbs.scrollTo({ left: Math.max(0, cur.btn.offsetLeft - (thumbs.clientWidth - cur.btn.offsetWidth) / 2), behavior: reduced ? "auto" : "smooth" });
+}
+if (DECK) {
+  const n = deckIds().length;
+  const totals = [`${int(HERO.sessions)} sessions`, `${int(HERO.prompts)} prompts`, ...(HERO.usd != null ? [`${usd(HERO.usd)} at API list prices`] : [])];
+  const deck = h("section", { class: "deck", id: "recap", "aria-label": "Your recap cards" }, h("div", { class: "wrap" },
+    h("div", { class: "deck-head" },
+      h("div", { class: "eyebrow" }, h("span", { class: "dot" }), eyebrowTxt),
+      h("h1", {}, headline()),
+      h("p", { class: "deck-totals" }, totals.join(" · "))),
+    h("div", { class: "deck-stage" }, deckPlayer.root),
+    h("div", { class: "deck-index" }, h("div", { class: "deck-index-h" }, h("span", {}, n === 1 ? "Your card" : `All ${n} cards`), h("span", { class: "muted" }, "Pick one to jump")), thumbs),
+    h("div", { class: "deck-actions" },
+      h("div", { class: "cta" },
+        h("a", { class: "btn primary big", href: "#share-stats" }, "Publish to the leaderboard"),
+        h("a", { class: "btn", href: "#studio" }, h("span", { html: ICON.film }), "Download video or images")),
+      h("p", { class: "note small" }, "Publishing shows you exactly what the link holds first. The studio picks which cards go into the video; browsing here does not change it."))));
+  // Arrow keys move the deck only while focus is inside it (the card itself handles its own keys).
+  deck.addEventListener("keydown", (e) => {
+    if (e.target === deckPlayer.vp || e.altKey || e.ctrlKey || e.metaKey) return;
+    if (e.key === "ArrowRight" || e.key === "ArrowLeft") { e.preventDefault(); deckPlayer.by(e.key === "ArrowRight" ? 1 : -1); const t = thumbInsts[deckPlayer.i]; if (t && thumbs.contains(e.target)) t.btn.focus(); }
+    else if ((e.key === "Home" || e.key === "End") && thumbs.contains(e.target)) { e.preventDefault(); const i = e.key === "Home" ? 0 : deckIds().length - 1; deckPlayer.go(i); thumbInsts[i].btn.focus(); }
+  });
+  root.append(deck);
+  if (window.ResizeObserver) new ResizeObserver(() => thumbInsts.forEach(sizeThumb)).observe(thumbs);
+  // Off screen, the deck stops advancing (and drawing); it carries on where it was when it comes back.
+  if (window.IntersectionObserver) {
+    let parked = false;
+    new IntersectionObserver(([e]) => {
+      if (!e.isIntersecting && deckPlayer.playing && !deckPlayer.hold) { parked = true; deckPlayer.setPlaying(false); }
+      else if (e.isIntersecting && parked) { parked = false; if (!deckPlayer.playing) deckPlayer.setPlaying(true); }
+    }, { threshold: 0.15 }).observe(deck);
+  }
+}
+
+// ================================================================== OVERVIEW (the report's first words and totals)
+const hero = DECK
+  ? h("section", { class: "block overview", id: "overview" }, h("div", { class: "wrap" },
+    h("div", { class: "eyebrow" }, h("span", { class: "dot" }), "In short"),
     h("p", { class: "lede", html: md(HERO.lede) }),
-    RC ? h("div", { class: "cta" }, h("button", { class: "btn primary big", type: "button", onclick: () => openTheater(0) }, h("span", { class: "pl", html: ICON.play }), "Play your recap"), h("a", { class: "btn", href: "#studio" }, h("span", { html: ICON.film }), "Make a video"), h("a", { class: "btn", href: "#share-stats" }, "Join the leaderboard")) : null,
     heroStats,
-    VIEW.notes.recap ? h("p", { class: "note" }, VIEW.notes.recap) : null),
-  RC ? heroPlayerSlot : null));
+    VIEW.notes.recap ? h("p", { class: "note" }, VIEW.notes.recap) : null))
+  : h("section", { class: "hero solo", id: "recap" }, h("div", { class: "wrap" },
+    h("div", {},
+      h("div", { class: "eyebrow" }, h("span", { class: "dot" }), eyebrowTxt),
+      h("h1", {}, headline()),
+      h("p", { class: "lede", html: md(HERO.lede) }),
+      heroStats,
+      VIEW.notes.recap ? h("p", { class: "note" }, VIEW.notes.recap) : null)));
 root.append(hero);
-const heroPlayer = new Player({
-  ids: seqIds, ratio: () => S.ratio, dur: durOf,
-  box: () => { const narrow = innerWidth < 1020; const maxW = narrow ? Math.min(innerWidth - 32, 560) : 520; const maxH = narrow ? innerHeight * 0.72 : Math.min(innerHeight - 140, 680); return { w: maxW, h: maxH }; },
-  extraBtn: (() => { const b = h("button", { class: "ibtn", type: "button", "aria-label": "Full screen", title: "Full screen", html: ICON.full }); b.addEventListener("click", () => openTheater(heroPlayer.i)); return b; })(),
-});
-heroPlayerSlot.append(heroPlayer.root);
-if (RC) players.add(heroPlayer);
+if (DECK) players.add(deckPlayer);
 
 const theater = h("div", { class: "theater", role: "dialog", "aria-modal": "true", "aria-label": "Recap" });
 const thShare = h("div", { class: "th-share" });
-const thPlayer = new Player({ ids: seqIds, ratio: () => S.ratio, dur: durOf, box: () => ({ w: innerWidth - 40, h: innerHeight - 110 - (thShare.childElementCount ? thShare.offsetHeight + 12 : 0) }) });
+// The theater plays either the studio's selection (Preview) or the whole deck (its full-screen button).
+const STUDIO_SRC = { ids: () => seqIds(), ratio: () => S.ratio };
+let thSrc = STUDIO_SRC;
+const thPlayer = new Player({ ids: () => thSrc.ids(), ratio: () => thSrc.ratio(), dur: (id) => (thSrc === STUDIO_SRC ? durOf(id) : specOf(id).dur), box: () => ({ w: innerWidth - 40, h: innerHeight - 110 - (thShare.childElementCount ? thShare.offsetHeight + 12 : 0) }) });
 const thClose = h("button", { class: "ibtn close", type: "button", "aria-label": "Close", html: ICON.close, onclick: () => closeTheater() });
 theater.append(thClose, thPlayer.root, thShare);
 let thShared = false;
@@ -5044,17 +5221,18 @@ thPlayer.onEnd = async () => {
   if (thShared) return;
   thShared = true;
   const inst = thPlayer.inst;
-  const card = await Exporter.png(makeInst(seqIds()[thPlayer.i]));
+  const card = await Exporter.png(makeInst(thPlayer.ids()[thPlayer.i], thSrc.ratio()));
   if (!theater.classList.contains("on") || !inst) { thShared = false; return; }
   thShare.append(h("div", { class: "row-between" }, h("strong", {}, "Like it? Share it."), h("button", { class: "btn small", type: "button", onclick: () => { closeTheater(); document.getElementById("studio").scrollIntoView(); bVideo.focus(); } }, "Make the video")));
-  shareSheet(thShare, [{ name: `ai-insights-${seqIds()[thPlayer.i]}-${S.ratio.replace(":", "x")}.png`, blob: card }], "image");
+  shareSheet(thShare, [{ name: `ai-insights-${thPlayer.ids()[thPlayer.i]}-${thSrc.ratio().replace(":", "x")}.png`, blob: card }], "image");
   thPlayer.size();
 };
 let theaterReturn = null;
-function openTheater(i) {
-  if (!seqIds().length) { say("Select at least one card"); return; }
+function openTheater(i, src = STUDIO_SRC) {
+  thSrc = src;
+  if (!thSrc.ids().length) { say("Select at least one card"); return; }
   theaterReturn = document.activeElement;
-  heroPlayer.setPlaying(false);
+  if (deckPlayer) deckPlayer.setPlaying(false);
   theater.classList.add("on"); document.body.style.overflow = "hidden";
   thShare.replaceChildren(); thShared = false; thPlayer.size();
   thPlayer.reload(); thPlayer.mount(i); thPlayer.setPlaying(!reduced); players.add(thPlayer);
@@ -5102,6 +5280,7 @@ const exportPanel = h("div", { class: "export-panel", "aria-live": "polite" });
 const cliBox = h("div", { class: "cli" });
 if (RC) {
   const hidden = CARD_IDS.filter((id) => !avail(id));
+  root.append(h("section", { class: "block publish", id: "publish" }, h("div", { class: "wrap" }, statsLink())));
   root.append(h("section", { class: "block", id: "studio" }, h("div", { class: "wrap" },
     h("div", { class: "sh" }, h("div", {}, h("div", { class: "eyebrow" }, h("span", { class: "dot" }), "Card studio"), h("h2", {}, "Pick the cards, pick the shape."),
       h("p", {}, "Every card is laid out again for each shape, so nothing is cropped. Cards hold counts only: no prompts, names or project names.", hidden.length ? ` ${plural(hidden.length, "card")} ${hidden.length === 1 ? "is" : "are"} left out because this history has no data for ${hidden.length === 1 ? "it" : "them"}.` : "")),
@@ -5115,10 +5294,7 @@ if (RC) {
       h("div", { class: "field timebox" }, h("span", {}, "Length"), timeTxt, meter)),
     warn,
     h("div", { class: "studio-actions" }, bVideo, bPngs, bText, bPreview, bAll, bReset, countTxt),
-    exportPanel, statsLink(), cliBox, wall)));
-  // The studio bar stays stuck over the share box, so "Join the leaderboard" lands below it, not under it.
-  const bar = root.querySelector("#studio .studio-bar");
-  if (bar && typeof ResizeObserver === "function") new ResizeObserver(() => document.documentElement.style.setProperty("--studio-bar-h", `${bar.offsetHeight}px`)).observe(bar);
+    exportPanel, cliBox, wall)));
 }
 /**
  * "Join the leaderboard": a link to the site's /share page with aggregate numbers in its fragment, built by
@@ -5134,7 +5310,7 @@ function statsLink() {
     open: (url) => { const w = window.open(url, "_blank"); if (w) w.opener = null; return !!w; },
   });
 }
-function setRatio(r) { if (!CardKit.RATIOS[r]) return; S.ratio = r; saveStudio(); buildWall(); refreshStudio(); heroPlayer.reload(); }
+function setRatio(r) { if (!CardKit.RATIOS[r]) return; S.ratio = r; saveStudio(); buildWall(); refreshStudio(); }
 let tiles = new Map();
 const MV = (dir) => h("button", { class: "mv", type: "button", "aria-label": dir < 0 ? "Move earlier" : "Move later", title: dir < 0 ? "Move earlier" : "Move later", html: dir < 0 ? ICON.left : ICON.right });
 function buildWall() {
@@ -5227,7 +5403,6 @@ function refreshStudio() {
   warn.replaceChildren(...(msgs.length ? [h("div", {}, msgs.map((m) => h("div", {}, m[1])), h("div", { class: "small" }, P.note))] : []));
   countTxt.textContent = `${ids.length} of ${S.order.length} selected`;
   [bVideo, bPngs, bPreview].forEach((b) => (b.disabled = !ids.length));
-  if (heroPlayer.root.isConnected) heroPlayer.reload(true);
   updateCli();
 }
 
@@ -5836,9 +6011,17 @@ if (window.IntersectionObserver) {
 
 function switchStyle(id) {
   if (!styleOk(id) || id === S.style) { refreshStudio(); return Promise.resolve(); }
-  return fontsReady(id).then(() => { S.style = id; saveStudio(); buildWall(); refreshStudio(); heroPlayer.reload(true); });
+  return fontsReady(id).then(() => { S.style = id; saveStudio(); buildWall(); refreshStudio(); restyleDeck(); });
 }
-window.addEventListener("resize", () => { heroPlayer.size(); thPlayer.size(); });
+window.addEventListener("resize", () => { if (deckPlayer) deckPlayer.size(); thPlayer.size(); });
+/** A new style can add or drop optional cards: stay on the same card when it is still there. */
+function restyleDeck() {
+  if (!deckPlayer) return;
+  const keep = deckPlayer.inst ? deckIds().indexOf(deckPlayer.inst.id) : -1;
+  deckPlayer.reload(true);
+  if (keep >= 0 && keep !== deckPlayer.i) deckPlayer.mount(keep, deckPlayer.t);
+  buildThumbs();
+}
 
 function spanTxt(a, b) {
   const f = new Intl.DateTimeFormat("en-GB", { timeZone: TZ, month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
@@ -5848,10 +6031,15 @@ function spanTxt(a, b) {
 // ---------- boot
 fontsReady(S.style).then(async () => {
   if (RC) {
-    buildWall(); refreshStudio();
-    heroPlayer.reload();
-    if (!reduced) heroPlayer.setPlaying(true); else if (heroPlayer.inst) { heroPlayer.t = heroPlayer.inst.dur; heroPlayer.draw(); }
+    // The deck's first card goes on screen first; its thumbnails and the studio's wall follow once it has painted.
+    if (deckPlayer) {
+      deckPlayer.reload();
+      if (!reduced) deckPlayer.setPlaying(true); else if (deckPlayer.inst) { deckPlayer.t = deckPlayer.inst.dur; deckPlayer.draw(); }
+    }
     requestAnimationFrame(loop);
+    await new Promise((done) => requestAnimationFrame(() => setTimeout(done, 0)));
+    await buildThumbs();
+    buildWall(); refreshStudio();
     const sup = await Exporter.support();
     if (!sup.ok) { bVideo.title = sup.why; showCli(sup.why + " Run this instead:"); }
   }
@@ -5872,7 +6060,8 @@ window.recap = {
   move, placeNear, durOf,
   /** The card's markup at time t: the same input always gives the same string. */
   frame: (id, t, ratio = S.ratio, style = S.style) => { const inst = makeInst(id, ratio, style); render(inst, t); const out = inst.el.outerHTML; inst.el.remove(); return out; },
-  seek: (i, ms) => { heroPlayer.setPlaying(false); heroPlayer.mount(i, ms); },
+  seek: (i, ms) => { if (!deckPlayer) return; deckPlayer.setPlaying(false); deckPlayer.mount(i, ms); },
+  deck: () => ({ ids: deckIds(), index: deckPlayer ? deckPlayer.i : -1, playing: !!deckPlayer && deckPlayer.playing, hold: !!deckPlayer && deckPlayer.hold, thumbs: thumbInsts.filter((t) => t.inst).length }),
   audit: (style = S.style, ratio = S.ratio) => { const out = {}; for (const id of ALL_IDS.filter((cid) => hasCard(cid, style))) { const inst = makeInst(id, ratio, style); render(inst, inst.dur); const iss = CardKit.audit(inst); if (iss.length) out[id] = iss; inst.el.remove(); } return out; },
   caption, share: SHARE, intents: (text = caption()) => ({ x: INTENT.x(text), linkedin: INTENT.linkedin(text) }),
   support: () => Exporter.support(),
