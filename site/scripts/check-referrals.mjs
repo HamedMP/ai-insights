@@ -1,7 +1,7 @@
 // Runs the production publish statement (lib/entry-sql.ts) against the real database, inside one transaction that is
 // always rolled back, with synthetic users only. It proves the rules that live in SQL: a referrer is credited on the
 // first publish only, never changed by a republish, never an unknown handle; cards and the photo are stored and replaced.
-// Run with: node --env-file-if-exists=.env.local scripts/check-referrals.mjs (needs migrations 002 and 003 applied).
+// Run with: node --env-file-if-exists=.env.local scripts/check-referrals.mjs (needs migrations 002 to 004 applied).
 import assert from "node:assert/strict"
 import { randomBytes } from "node:crypto"
 import pg from "pg"
@@ -16,13 +16,13 @@ if (!url) {
 const tag = randomBytes(3).toString("hex")
 const id = (n) => `zz_synthetic_${tag}_${n}`
 const handle = (n) => `zz-test-${tag}-${n}`
-const stats = (over = {}) => ({ v: 2, name: "", from: "2026-01-01", to: "2026-01-31", sessions: 3, tokens: 1000, usd: null, activeDays: 2, streak: 1, agents: [{ k: "codex", p: 100 }], fact: "", cards: [{ k: "streak", b: "1 day", c: "in a row, Jan 2 to Jan 2" }], ...over })
+const stats = (over = {}) => ({ v: 2, name: "", from: "2026-01-01", to: "2026-01-31", sessions: 3, tokens: 1000, usd: null, activeDays: 2, streak: 1, agents: [{ k: "codex", p: 100 }], fact: "", cards: [{ k: "streak", b: "1 day", c: "in a row, Jan 2 to Jan 2" }], titles: [{ k: "conductor", v: 2.5 }], ratios: [{ k: "parallelism", v: 2.5 }], ...over })
 const row = (n, referrer, over) => ({ userId: id(n), handle: handle(n), displayName: `Synthetic ${n}`, stats: stats(over), tokens: 1000, usd: null, claudeTokens: 0, codexTokens: 1000, streak: 1, referrer, avatarUrl: null })
 
 const client = new pg.Client({ connectionString: url })
 await client.connect()
 const save = async (r) => (await client.query(SAVE_ENTRY_SQL, saveEntryParams(r))).rows[0] ?? null
-const entry = async (n) => (await client.query("SELECT referred_by, referred_at, payload_version, cards, avatar_url FROM leaderboard_entries WHERE user_id = $1", [id(n)])).rows[0]
+const entry = async (n) => (await client.query("SELECT referred_by, referred_at, payload_version, cards, avatar_url, titles, ratios FROM leaderboard_entries WHERE user_id = $1", [id(n)])).rows[0]
 // Republishing within 30 seconds is refused by design; move the clock back for the synthetic row only.
 const age = (n) => client.query("UPDATE leaderboard_entries SET updated_at = now() - interval '1 minute' WHERE user_id = $1", [id(n)])
 let failed = false
@@ -49,11 +49,14 @@ try {
 
   assert.equal((await entry("b")).payload_version, 2)
   assert.deepEqual((await entry("b")).cards, [{ k: "streak", b: "1 day", c: "in a row, Jan 2 to Jan 2" }])
+  assert.deepEqual((await entry("b")).titles, [{ k: "conductor", v: 2.5 }], "titles are stored")
+  assert.deepEqual((await entry("b")).ratios, [{ k: "parallelism", v: 2.5 }], "ratios are stored")
   await age("b")
-  const { cards: _cards, ...v1 } = stats({ v: 1 })
+  const { cards: _cards, titles: _titles, ratios: _ratios, ...v1 } = stats({ v: 1 })
   await save({ ...row("b", null), stats: v1 })
   assert.equal((await entry("b")).cards, null, "a v1 republish replaces the cards with none")
   assert.equal((await entry("b")).payload_version, 1)
+  assert.equal((await entry("b")).titles, null, "a v1 republish clears the titles")
 
   await age("b")
   await save({ ...row("b", null), avatarUrl: "https://img.clerk.com/synthetic" })

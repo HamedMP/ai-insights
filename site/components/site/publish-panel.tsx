@@ -11,7 +11,7 @@ import { EVENTS } from "@/lib/analytics-sanitize"
 import { ShareButtons } from "@/components/site/share-buttons"
 import { profilePost } from "@/lib/arena-format"
 import { referralLink } from "@/lib/referral"
-import { agentName, CARD_TITLES, formatInt, formatPeriod, type SharedStats } from "@/lib/share"
+import { agentName, CARD_TITLES, EARNED_TITLES, formatInt, formatPeriod, RATIOS, ratioText, type SharedStats } from "@/lib/share"
 import { BASE, SITE_URL } from "@/lib/site"
 
 const ENTRY_API = `${BASE}/api/leaderboard/entry`
@@ -120,6 +120,8 @@ export function PublishPanel({ stats }: { stats: SharedStats }) {
     ["Longest streak", `${formatInt(stats.streak)} days`],
     ["Agents", stats.agents.length ? stats.agents.map((a) => `${agentName(a.k)} ${a.p}%`).join(", ") : "none"],
     ["Fun fact", stats.fact || "none"],
+    ...(stats.titles ?? []).map((t): [string, string] => [`Title: ${EARNED_TITLES[t.k].title}`, EARNED_TITLES[t.k].rule(t.v)]),
+    ...(stats.ratios?.length ? [["Ratios", stats.ratios.map((r) => `${RATIOS[r.k].label} ${ratioText(r.k, r.v)}`).join(", ")] as [string, string]] : []),
     ...(stats.cards ?? []).map((c): [string, string] => [`Card: ${CARD_TITLES[c.k]}`, c.c ? `${c.b}, ${c.c}` : c.b]),
   ]
 

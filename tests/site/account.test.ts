@@ -8,7 +8,7 @@ import { ERRORS, handlePublish, type EntryRow, type PublishDeps } from "../../si
 import type { SharedStats } from "../../site/lib/share.ts";
 
 const SITE = join(import.meta.dirname, "..", "..", "site");
-const STATS: SharedStats = { v: 2, name: "Test Person", from: "2026-01-01", to: "2026-02-01", sessions: 40, tokens: 1_000_000, usd: null, activeDays: 20, streak: 6, agents: [{ k: "codex", p: 100 }], fact: "", cards: [] };
+const STATS: SharedStats = { v: 2, name: "Test Person", from: "2026-01-01", to: "2026-02-01", sessions: 40, tokens: 1_000_000, usd: null, activeDays: 20, streak: 6, agents: [{ k: "codex", p: 100 }], fact: "", cards: [], titles: [], ratios: [] };
 const PHOTO = "https://img.clerk.com/eyJ0eXBlIjoicHJveHkifQ";
 const CHROME = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36";
 

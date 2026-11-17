@@ -9,7 +9,7 @@ import { storedCards, type SharedStats } from "../../site/lib/share.ts";
 import { referralPatch } from "../../site/lib/signup-source.ts";
 
 const SITE = join(import.meta.dirname, "..", "..", "site");
-const STATS: SharedStats = { v: 2, name: "Test Person", from: "2026-01-01", to: "2026-02-01", sessions: 40, tokens: 1_000_000, usd: 12.5, activeDays: 20, streak: 6, agents: [{ k: "codex", p: 100 }], fact: "", cards: [{ k: "streak", b: "6 days", c: "in a row, Jan 3 to Jan 8" }] };
+const STATS: SharedStats = { v: 2, name: "Test Person", from: "2026-01-01", to: "2026-02-01", sessions: 40, tokens: 1_000_000, usd: 12.5, activeDays: 20, streak: 6, agents: [{ k: "codex", p: 100 }], fact: "", cards: [{ k: "streak", b: "6 days", c: "in a row, Jan 3 to Jan 8" }], titles: [], ratios: [] };
 const arrive = (over: Partial<Parameters<typeof referralToStore>[0]>) => referralToStore({ pathname: "/", ref: null, existing: null, fetchSite: "cross-site", ...over });
 
 describe("referral arrival: who gets remembered", () => {

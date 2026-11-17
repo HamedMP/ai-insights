@@ -8,7 +8,7 @@
  */
 
 export const SHARE_VERSION = 2
-export const LIMITS = { name: 40, fact: 120, agents: 8, sessions: 1e7, tokens: 1e13, usd: 1e7, days: 3660, cards: 16, big: 32, caption: 80, fragment: 4096 } as const
+export const LIMITS = { name: 40, fact: 120, agents: 8, sessions: 1e7, tokens: 1e13, usd: 1e7, days: 3660, cards: 16, big: 32, caption: 80, titles: 3, ratio: 1000, fragment: 4096 } as const
 
 export interface SharedAgent {
   /** Harness key, e.g. "claude-code". */
@@ -51,6 +51,63 @@ export interface SharedCard {
   c: string
 }
 
+/**
+ * The five work ratios (src/analysis/ratios.ts). Labels and number formats are fixed here; only the value travels.
+ * Shares are 0..1; corrections are per session; parallelism is a multiple.
+ */
+export const RATIOS = {
+  correctionsPerSession: { label: "Mid-run corrections", unit: "per_session" },
+  contextResetShare: { label: "Sessions with a context reset", unit: "share" },
+  toolErrorRate: { label: "Tool-call error rate", unit: "share" },
+  planFirstShare: { label: "Started with a plan", unit: "share" },
+  parallelism: { label: "Sessions at once", unit: "times" },
+} as const
+export type RatioKey = keyof typeof RATIOS
+export const RATIO_KEYS = Object.keys(RATIOS) as RatioKey[]
+const isRatioKey = (value: unknown): value is RatioKey => typeof value === "string" && Object.prototype.hasOwnProperty.call(RATIOS, value)
+
+/** Same format as the report's ratio tiles (src/render/view.ts ratioText). */
+export function ratioText(key: RatioKey, value: number): string {
+  const unit = RATIOS[key].unit
+  if (unit === "share") return `${value > 0 && value < 0.01 ? "<1" : Math.round(value * 100)}%`
+  if (unit === "times") return `${value.toFixed(1)}×`
+  return value.toFixed(2)
+}
+
+const pctText = (v: number) => `${Math.round(v * 100)}%`
+const twoText = (v: number) => (Math.round(v * 100) / 100).toFixed(2)
+const oneText = (v: number) => (Math.round(v * 10) / 10).toFixed(1)
+
+/**
+ * Earned titles: the same fixed wording and rules as src/analysis/recap/titles.ts TITLE_RULES (a test keeps them
+ * equal). A payload carries only the key and the ratio's value; the title and the rule sentence are made here, and
+ * a title whose value does not meet its own rule is rejected.
+ */
+export const EARNED_TITLES = {
+  clear_briefer: { title: "The Clear Briefer", ratio: "correctionsPerSession", earns: (v: number) => v <= 0.1, rule: (v: number) => `${twoText(v)} mid-run corrections per session (0.10 or fewer earns it)` },
+  hands_on_pilot: { title: "The Hands-On Pilot", ratio: "correctionsPerSession", earns: (v: number) => v >= 1, rule: (v: number) => `${twoText(v)} mid-run corrections per session (1 or more earns it)` },
+  architect: { title: "The Architect", ratio: "planFirstShare", earns: (v: number) => v >= 0.5, rule: (v: number) => `${pctText(v)} of sessions that edited files started with a plan (half or more earns it)` },
+  improviser: { title: "The Improviser", ratio: "planFirstShare", earns: (v: number) => v <= 0.1, rule: (v: number) => `${pctText(v)} of sessions that edited files started with a plan (10% or fewer earns it)` },
+  conductor: { title: "The Conductor", ratio: "parallelism", earns: (v: number) => v >= 2, rule: (v: number) => `${oneText(v)} sessions running at once on average (2 or more earns it)` },
+  deep_focuser: { title: "The Deep Focuser", ratio: "parallelism", earns: (v: number) => v <= 1.1, rule: (v: number) => `${oneText(v)} sessions running at once on average (1.1 or fewer earns it)` },
+  context_keeper: { title: "The Context Keeper", ratio: "contextResetShare", earns: (v: number) => v <= 0.05, rule: (v: number) => `${pctText(v)} of sessions hit a context reset (5% or fewer earns it)` },
+  deep_diver: { title: "The Deep Diver", ratio: "contextResetShare", earns: (v: number) => v >= 0.3, rule: (v: number) => `${pctText(v)} of sessions hit a context reset (30% or more earns it)` },
+  smooth_operator: { title: "The Smooth Operator", ratio: "toolErrorRate", earns: (v: number) => v <= 0.03, rule: (v: number) => `${pctText(v)} of tool calls failed (3% or fewer earns it)` },
+  stress_tester: { title: "The Stress Tester", ratio: "toolErrorRate", earns: (v: number) => v >= 0.15, rule: (v: number) => `${pctText(v)} of tool calls failed (15% or more earns it)` },
+} as const satisfies Record<string, { title: string; ratio: RatioKey; earns: (v: number) => boolean; rule: (v: number) => string }>
+export type TitleKey = keyof typeof EARNED_TITLES
+const isTitleKey = (value: unknown): value is TitleKey => typeof value === "string" && Object.prototype.hasOwnProperty.call(EARNED_TITLES, value)
+
+export interface SharedRatio {
+  k: RatioKey
+  v: number
+}
+export interface SharedTitle {
+  k: TitleKey
+  /** The value of the title's ratio that earned it. */
+  v: number
+}
+
 export interface SharedStats {
   v: 1 | 2
   name: string
@@ -65,10 +122,14 @@ export interface SharedStats {
   fact: string
   /** v2 only: the recap cards, at most LIMITS.cards, each key at most once. */
   cards?: SharedCard[]
+  /** v2 only: titles earned from the ratios, at most LIMITS.titles. */
+  titles?: SharedTitle[]
+  /** v2 only: the work ratios that had a value. */
+  ratios?: SharedRatio[]
 }
 
 const KEYS_V1 = ["v", "name", "from", "to", "sessions", "tokens", "usd", "activeDays", "streak", "agents", "fact"]
-const KEYS_V2 = [...KEYS_V1, "cards"]
+const KEYS_V2 = [...KEYS_V1, "cards", "titles", "ratios"]
 const UNSAFE = /[\u0000-\u001f\u007f-\u009f​-‏‪-‮⁠-⁩﻿]/g
 const AGENT_KEY = /^[a-z0-9-]{1,20}$/
 
@@ -106,6 +167,61 @@ function validateCards(input: unknown): SharedCard[] | null {
     out.push({ k: card.k, b, c: cleanText(card.c, LIMITS.caption) })
   }
   return out
+}
+
+/** Clamp a ratio into its range: shares are 0..1, the others 0..LIMITS.ratio. Four decimals are plenty. */
+function ratioValue(key: RatioKey, value: unknown): number | null {
+  const max = RATIOS[key].unit === "share" ? 1 : LIMITS.ratio
+  const v = clampNum(value, max)
+  return v === null ? null : Math.round(v * 1e4) / 1e4
+}
+
+function exactPair(entry: unknown): Record<string, unknown> | null {
+  if (!entry || typeof entry !== "object" || Array.isArray(entry)) return null
+  const keys = Object.keys(entry)
+  return keys.length === 2 && keys.includes("k") && keys.includes("v") ? (entry as Record<string, unknown>) : null
+}
+
+/** v2 ratios: exact {k, v} pairs, known unique keys, numbers clamped into range. */
+function validateRatios(input: unknown): SharedRatio[] | null {
+  if (!Array.isArray(input) || input.length > RATIO_KEYS.length) return null
+  const out: SharedRatio[] = []
+  for (const entry of input) {
+    const pair = exactPair(entry)
+    if (!pair || !isRatioKey(pair.k) || out.some((r) => r.k === pair.k)) return null
+    const v = ratioValue(pair.k, pair.v)
+    if (v === null) return null
+    out.push({ k: pair.k, v })
+  }
+  return out
+}
+
+/**
+ * v2 titles: known unique keys, at most one per ratio, each value equal to that ratio's published value and meeting
+ * the title's own rule. A title is never shown without the number that earned it.
+ */
+function validateTitles(input: unknown, ratios: SharedRatio[]): SharedTitle[] | null {
+  if (!Array.isArray(input) || input.length > LIMITS.titles) return null
+  const out: SharedTitle[] = []
+  for (const entry of input) {
+    const pair = exactPair(entry)
+    if (!pair || !isTitleKey(pair.k) || out.some((t) => t.k === pair.k)) return null
+    const def = EARNED_TITLES[pair.k]
+    if (out.some((t) => EARNED_TITLES[t.k].ratio === def.ratio)) return null
+    const v = ratioValue(def.ratio, pair.v)
+    const published = ratios.find((r) => r.k === def.ratio)
+    if (v === null || !published || published.v !== v || !def.earns(v)) return null
+    out.push({ k: pair.k, v })
+  }
+  return out
+}
+
+/** Titles and ratios read back from the database: re-validated, and dropped rather than failing the page. */
+export function storedRatios(input: unknown): SharedRatio[] {
+  return Array.isArray(input) ? (validateRatios(input.slice(0, RATIO_KEYS.length)) ?? []) : []
+}
+export function storedTitles(input: unknown, ratios: SharedRatio[]): SharedTitle[] {
+  return Array.isArray(input) ? (validateTitles(input.slice(0, LIMITS.titles), ratios) ?? []) : []
 }
 
 /** Cards read back from the database: already validated on publish, so anything odd is dropped rather than failing the page. */
@@ -152,9 +268,13 @@ export function validateStats(input: unknown): SharedStats | null {
     agents.push({ k: a.k, p: Math.round(p) })
   }
   let cards: SharedCard[] | null = null
+  let ratios: SharedRatio[] | null = null
+  let titles: SharedTitle[] | null = null
   if (raw.v === 2) {
     cards = validateCards(raw.cards)
-    if (!cards) return null
+    ratios = validateRatios(raw.ratios)
+    titles = ratios && validateTitles(raw.titles, ratios)
+    if (!cards || !ratios || !titles) return null
   }
   const out: SharedStats = {
     v: raw.v,
@@ -169,7 +289,11 @@ export function validateStats(input: unknown): SharedStats | null {
     agents,
     fact: cleanText(raw.fact, LIMITS.fact),
   }
-  if (cards) out.cards = cards
+  if (cards && titles && ratios) {
+    out.cards = cards
+    out.titles = titles
+    out.ratios = ratios
+  }
   return out
 }
 

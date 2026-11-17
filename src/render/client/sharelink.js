@@ -7,7 +7,7 @@
 const ShareLink = (() => {
   "use strict";
   const V = 2;
-  const LIMITS = Object.freeze({ name: 40, fact: 120, agents: 8, sessions: 1e7, tokens: 1e13, usd: 1e7, days: 3660, cards: 16, big: 32, caption: 80, fragment: 3800 });
+  const LIMITS = Object.freeze({ name: 40, fact: 120, agents: 8, sessions: 1e7, tokens: 1e13, usd: 1e7, days: 3660, cards: 16, big: 32, caption: 80, titles: 3, ratio: 1000, fragment: 3800 });
   // Control characters and bidi overrides: a name must not reorder or hide the text around it on the card.
   const UNSAFE = /[\u0000-\u001f\u007f-\u009f​-‏‪-‮⁠-⁩﻿]/g;
   const clean = (value, max) => Array.from(String(value == null ? "" : value).replace(/\s+/g, " ").replace(UNSAFE, "").trim()).slice(0, max).join("");
@@ -149,6 +149,41 @@ const ShareLink = (() => {
   };
   const CARD_KEYS = Object.freeze(Object.keys(BUILD));
 
+  /** The five work ratios (src/analysis/ratios.ts), in the report's order. Only the numbers travel. */
+  const RATIO_KEYS = Object.freeze(["correctionsPerSession", "contextResetShare", "toolErrorRate", "planFirstShare", "parallelism"]);
+  /** Earned title keys and the ratio each comes from (src/analysis/recap/titles.ts). The site rebuilds the wording. */
+  const TITLE_RATIO = Object.freeze({
+    clear_briefer: "correctionsPerSession", hands_on_pilot: "correctionsPerSession", architect: "planFirstShare", improviser: "planFirstShare",
+    conductor: "parallelism", deep_focuser: "parallelism", context_keeper: "contextResetShare", deep_diver: "contextResetShare",
+    smooth_operator: "toolErrorRate", stress_tester: "toolErrorRate",
+  });
+  const r4 = (n) => Math.round(n * 1e4) / 1e4;
+
+  /** The ratios with a value, as {k, v}. `ratios` is the report view's list (VIEW.ratios); absent in older reports. */
+  function ratioData(ratios) {
+    const list = Array.isArray(ratios) ? ratios : [];
+    const out = [];
+    for (const k of RATIO_KEYS) {
+      const r = list.find((x) => x && x.key === k);
+      if (r && typeof r.value === "number" && Number.isFinite(r.value)) out.push({ k, v: r4(num(r.value, LIMITS.ratio)) });
+    }
+    return out;
+  }
+
+  /** The earned titles as {k, v}: a known title key and the number of the ratio that earned it. Nothing else. */
+  function titleData(rc, ratios) {
+    const earned = rc && rc.persona && Array.isArray(rc.persona.earned) ? rc.persona.earned : [];
+    const values = Object.fromEntries(ratioData(ratios).map((r) => [r.k, r.v]));
+    const out = [];
+    for (const t of earned) {
+      const ratio = t && TITLE_RATIO[t.key];
+      if (!ratio || values[ratio] === undefined || out.some((x) => x.k === t.key)) continue;
+      out.push({ k: t.key, v: values[ratio] });
+      if (out.length >= LIMITS.titles) break;
+    }
+    return out;
+  }
+
   /** The cards the recap can honestly show, as data. A card whose builder cannot read its numbers is left out. */
   function cards(rc) {
     const out = [];
@@ -176,7 +211,7 @@ const ShareLink = (() => {
   }
 
   /** The payload: aggregate numbers, one fun fact and the cards as data. Nothing else from the history goes in. */
-  function payload(rc, name) {
+  function payload(rc, name, ratios) {
     if (!rc) return null;
     const T = rc.totals || {}, U = rc.usage || {}, range = rc.range || {};
     const harnesses = Array.isArray(T.harnesses) ? T.harnesses : [];
@@ -199,6 +234,8 @@ const ShareLink = (() => {
       agents,
       fact: clean(funFact(rc), LIMITS.fact),
       cards: cards(rc),
+      titles: titleData(rc, ratios),
+      ratios: ratioData(ratios),
     };
     // Keep the link comfortably short for chat apps and under the site's limit: drop the last cards until it fits.
     while (out.cards.length && encode(out).length > LIMITS.fragment) out.cards.pop();
@@ -214,10 +251,16 @@ const ShareLink = (() => {
 
   const url = (p, base) => `${base.replace(/\/?$/, "/")}share/#${encode(p)}`;
 
+  const TITLE_NAMES = Object.freeze({ clear_briefer: "The Clear Briefer", hands_on_pilot: "The Hands-On Pilot", architect: "The Architect", improviser: "The Improviser", conductor: "The Conductor", deep_focuser: "The Deep Focuser", context_keeper: "The Context Keeper", deep_diver: "The Deep Diver", smooth_operator: "The Smooth Operator", stress_tester: "The Stress Tester" });
+  const RATIO_NAMES = Object.freeze({ correctionsPerSession: "mid-run corrections per session", contextResetShare: "sessions with a context reset", toolErrorRate: "tool-call error rate", planFirstShare: "started with a plan", parallelism: "sessions at once" });
+  const ratioText = (k, v) => (k === "parallelism" ? `${v.toFixed(1)}×` : k === "correctionsPerSession" ? v.toFixed(2) : `${v > 0 && v < 0.01 ? "<1" : Math.round(v * 100)}%`);
+
   /** What the link carries, in plain words, shown before the person copies it. Every card is listed in full. */
   function describe(p, names = {}) {
     const agentList = p.agents.map((a) => `${names[a.k] || a.k} ${a.p}%`).join(", ");
     const cardLines = (p.cards || []).map((c) => `Card “${TITLES[c.k] || c.k}”: ${c.b}${c.c ? `, ${c.c}` : ""}`);
+    const titleLine = (p.titles || []).length ? `Earned titles: ${p.titles.map((t) => `${TITLE_NAMES[t.k] || t.k} (${RATIO_NAMES[TITLE_RATIO[t.k]]} ${ratioText(TITLE_RATIO[t.k], t.v)})`).join(", ")}` : null;
+    const ratioLine = (p.ratios || []).length ? `Ratios: ${p.ratios.map((r) => `${RATIO_NAMES[r.k] || r.k} ${ratioText(r.k, r.v)}`).join(", ")}` : null;
     return [
       p.name ? `Name: ${p.name}` : "No name (the card says “Someone”)",
       `Period: ${p.from} to ${p.to}`,
@@ -225,9 +268,11 @@ const ShareLink = (() => {
       `${fmt(p.activeDays)} active days, longest streak ${fmt(p.streak)} days`,
       agentList ? `Agents: ${agentList}` : null,
       p.fact ? `Fun fact: ${p.fact}` : null,
+      titleLine,
+      ratioLine,
       ...cardLines,
     ].filter(Boolean);
   }
 
-  return { V, LIMITS, CARD_KEYS, TITLES, payload, cards, encode, url, describe, funFact, clean };
+  return { V, LIMITS, CARD_KEYS, TITLES, RATIO_KEYS, TITLE_RATIO, payload, cards, encode, url, describe, funFact, clean };
 })();

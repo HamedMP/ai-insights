@@ -1,6 +1,6 @@
 import type { Badge, BadgeTone } from "@/lib/arena-format"
 import { initials, safeAvatarUrl } from "@/lib/avatar"
-import { agentName, CARD_TITLES, formatCompact, formatInt, formatPeriod, type CardKey, type SharedCard, type SharedStats } from "@/lib/share"
+import { agentName, CARD_TITLES, EARNED_TITLES, formatCompact, formatInt, formatPeriod, RATIOS, ratioText, type CardKey, type SharedCard, type SharedStats } from "@/lib/share"
 import { BASE } from "@/lib/site"
 import { cn } from "@/lib/utils"
 
@@ -214,6 +214,51 @@ export function CardGallery({ cards, handle }: { cards: SharedCard[] | undefined
           </p>
         </div>
       )}
+    </section>
+  )
+}
+
+/** Titles earned from the work ratios: fixed wording, each with the rule and number that earned it. */
+export function EarnedTitles({ stats }: { stats: SharedStats }) {
+  const titles = stats.titles ?? []
+  if (!titles.length) return null
+  return (
+    <section aria-labelledby="titles" className="flex flex-col gap-3">
+      <h2 id="titles" className="font-mono text-[10.5px] tracking-wide text-muted-foreground uppercase">earned titles</h2>
+      <ul className={cn("grid gap-3", titles.length > 1 && "sm:grid-cols-2", titles.length > 2 && "lg:grid-cols-3")}>
+        {titles.map((t) => {
+          const def = EARNED_TITLES[t.k]
+          return (
+            <li key={t.k} className="relative flex flex-col gap-1.5 overflow-hidden rounded-2xl bg-[#3d1bb3] px-5 py-4 text-[#f7f3ea]">
+              <div aria-hidden className="pointer-events-none absolute -top-8 -right-8 size-24 rounded-full bg-[#c9b8ff]/25" />
+              <p className="relative text-[1.25rem] leading-tight font-semibold tracking-[-0.03em]">{def.title}</p>
+              <p className="relative text-[12.5px] leading-snug text-[#f7f3ea]/75">{def.rule(t.v)}</p>
+            </li>
+          )
+        })}
+      </ul>
+    </section>
+  )
+}
+
+/** The five work ratios: habits, not volume. Labels and formats are fixed; only the values were published. */
+export function WorkRatios({ stats }: { stats: SharedStats }) {
+  const ratios = stats.ratios ?? []
+  if (!ratios.length) return null
+  return (
+    <section aria-labelledby="ratios" className="flex flex-col gap-3">
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 id="ratios" className="font-mono text-[10.5px] tracking-wide text-muted-foreground uppercase">how they work</h2>
+        <span className="font-mono text-[10.5px] text-muted-foreground">ratios of counts, not volume</span>
+      </div>
+      <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border bg-border sm:grid-cols-5">
+        {ratios.map((r, i) => (
+          <div key={r.k} className={cn("flex flex-col gap-1 bg-card px-4 py-3.5", ratios.length % 2 === 1 && i === ratios.length - 1 && "max-sm:col-span-2")}>
+            <dt className="order-2 text-[12px] leading-snug text-muted-foreground">{RATIOS[r.k].label}</dt>
+            <dd className="order-1 text-[1.35rem] leading-none font-semibold tracking-[-0.03em] tabular-nums">{ratioText(r.k, r.v)}</dd>
+          </div>
+        ))}
+      </dl>
     </section>
   )
 }

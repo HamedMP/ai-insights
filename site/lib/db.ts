@@ -7,7 +7,7 @@ import { ARENA_COLUMN, PAGE_SIZE, rankAndPercentile, type ArenaId } from "@/lib/
 import { safeAvatarUrl } from "@/lib/avatar"
 import { SAVE_ENTRY_SQL, saveEntryParams } from "@/lib/entry-sql"
 import type { EntryRow, SaveOutcome } from "@/lib/publish"
-import { storedCards, type SharedAgent, type SharedStats } from "@/lib/share"
+import { storedCards, storedRatios, storedTitles, type SharedAgent, type SharedStats } from "@/lib/share"
 
 /**
  * Postgres access for the leaderboard (Neon, through node-postgres with a pool Vercel Fluid compute keeps warm, as
@@ -73,11 +73,18 @@ interface EntryRecord {
   payload_version: number
   cards: unknown
   avatar_url: string | null
+  titles: unknown
+  ratios: unknown
   updated_at: Date
   created_at: Date
 }
 
-const COLUMNS = "handle, display_name, to_char(period_from, 'YYYY-MM-DD') AS period_from, to_char(period_to, 'YYYY-MM-DD') AS period_to, sessions, tokens, usd, active_days, streak, agents, fact, payload_version, cards, avatar_url, updated_at, created_at"
+const COLUMNS = "handle, display_name, to_char(period_from, 'YYYY-MM-DD') AS period_from, to_char(period_to, 'YYYY-MM-DD') AS period_to, sessions, tokens, usd, active_days, streak, agents, fact, payload_version, cards, avatar_url, titles, ratios, updated_at, created_at"
+
+function v2Extras(r: EntryRecord): Pick<SharedStats, "cards" | "titles" | "ratios"> {
+  const ratios = storedRatios(r.ratios)
+  return { cards: storedCards(r.cards), ratios, titles: storedTitles(r.titles, ratios) }
+}
 
 function toEntry(r: EntryRecord): PublicEntry {
   const agents = Array.isArray(r.agents) ? r.agents.filter((a) => a && typeof a.k === "string" && typeof a.p === "number").slice(0, 8) : []
@@ -90,7 +97,7 @@ function toEntry(r: EntryRecord): PublicEntry {
     stats: {
       v: r.payload_version === 2 ? 2 : 1,
       name: r.display_name, from: r.period_from, to: r.period_to, sessions: Number(r.sessions), tokens: Number(r.tokens), usd: r.usd === null ? null : Number(r.usd), activeDays: r.active_days, streak: r.streak, agents, fact: r.fact,
-      ...(r.payload_version === 2 ? { cards: storedCards(r.cards) } : {}),
+      ...(r.payload_version === 2 ? v2Extras(r) : {}),
     },
   }
 }

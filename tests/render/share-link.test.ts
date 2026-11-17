@@ -4,19 +4,23 @@ import { describe, expect, it } from "vitest";
 import { clientAssets } from "../../src/render/assets.js";
 import { recapView } from "../../src/render/view.js";
 import type { Recap } from "../../src/schema/types.js";
-import { CARD_KEYS, CARD_TITLES, decodeStats, LIMITS, validateStats } from "../../site/lib/share.js";
+import { TITLE_RULES } from "../../src/analysis/recap/titles.js";
+import { ratioText as reportRatioText } from "../../src/render/view.js";
+import { CARD_KEYS, CARD_TITLES, decodeStats, EARNED_TITLES, LIMITS, RATIO_KEYS, ratioText, validateStats } from "../../site/lib/share.js";
 import { makeReport } from "./fixtures.js";
 
 const RECAP = JSON.parse(readFileSync(new URL("./recap-fixture.json", import.meta.url), "utf8")) as Recap;
 const D = recapView({ ...makeReport(), recap: RECAP })!;
 
 interface Card { k: string; b: string; c: string }
-interface Payload { v: number; name: string; from: string; to: string; sessions: number; tokens: number; usd: number | null; activeDays: number; streak: number; agents: Array<{ k: string; p: number }>; fact: string; cards?: Card[] }
+interface Payload { v: number; name: string; from: string; to: string; sessions: number; tokens: number; usd: number | null; activeDays: number; streak: number; agents: Array<{ k: string; p: number }>; fact: string; cards?: Card[]; titles?: Array<{ k: string; v: number }>; ratios?: Array<{ k: string; v: number }> }
 interface ShareLinkApi {
   LIMITS: Record<string, number>;
   CARD_KEYS: string[];
   TITLES: Record<string, string>;
-  payload(rc: unknown, name?: string): Payload | null;
+  payload(rc: unknown, name?: string, ratios?: unknown): Payload | null;
+  RATIO_KEYS: string[];
+  TITLE_RATIO: Record<string, string>;
   encode(p: unknown): string;
   url(p: unknown, base: string): string;
   describe(p: Payload, names?: Record<string, string>): string[];
@@ -31,7 +35,23 @@ function shareLink(): ShareLinkApi {
 const SL = shareLink();
 const encodeJson = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
 const view = () => JSON.parse(JSON.stringify(D)) as Record<string, any>;
-const good = () => JSON.parse(JSON.stringify(SL.payload(view(), "Ada")!)) as Payload;
+/** The report view's ratios (VIEW.ratios) and earned titles, as PR #8's analysis makes them. */
+const RATIO_VIEW = [
+  { key: "correctionsPerSession", value: 0.4, label: "Mid-run corrections", definition: "x", unit: "per_session" },
+  { key: "contextResetShare", value: 0.12, label: "Sessions that hit a context reset", unit: "share" },
+  { key: "toolErrorRate", value: 0.046, label: "Tool-call error rate", unit: "share" },
+  { key: "planFirstShare", value: 0.62, label: "Started with a plan", unit: "share" },
+  { key: "parallelism", value: 2.345678, label: "Sessions running at once", unit: "times" },
+];
+const withTitles = () => {
+  const rc = view();
+  rc.persona.earned = [
+    { key: "architect", title: "The Architect", rule: "62% of sessions that edited files started with a plan (half or more earns it)" },
+    { key: "conductor", title: "The Conductor", rule: "2.3 sessions running at once on average (2 or more earns it)" },
+  ];
+  return rc;
+};
+const good = () => JSON.parse(JSON.stringify(SL.payload(withTitles(), "Ada", RATIO_VIEW)!)) as Payload;
 const card = (p: Payload, k: string) => p.cards!.find((c) => c.k === k);
 /** A v1 link exactly as AI Insights 0.3.x reports made it: these exist in people's chats and must keep opening. */
 const V1: Payload = { v: 1, name: "Ada", from: "2026-09-24", to: "2026-11-13", sessions: 161, tokens: 921536169, usd: 595.96, activeDays: 42, streak: 7, agents: [{ k: "claude-code", p: 51 }, { k: "codex", p: 42 }], fact: "Ran 7 agents at once." };
@@ -53,7 +73,9 @@ describe("share links: report side to site side", () => {
 
   it("carries only aggregate numbers, one fun fact and the cards, small enough for a URL", () => {
     const p = good();
-    expect(Object.keys(p).sort()).toEqual(["activeDays", "agents", "cards", "fact", "from", "name", "sessions", "streak", "to", "tokens", "usd", "v"]);
+    expect(Object.keys(p).sort()).toEqual(["activeDays", "agents", "cards", "fact", "from", "name", "ratios", "sessions", "streak", "titles", "to", "tokens", "usd", "v"]);
+    expect(p.titles).toEqual([{ k: "architect", v: 0.62 }, { k: "conductor", v: 2.3457 }]);
+    expect(p.ratios!.map((r) => r.k)).toEqual(RATIO_KEYS);
     expect(p).toMatchObject({ v: 2, name: "Ada", from: "2026-09-24", to: "2026-11-13", sessions: D.totals.sessions, activeDays: 42, streak: 7 });
     expect(p.agents[0]).toEqual({ k: "claude-code", p: 51 });
     expect(p.fact.length).toBeGreaterThan(0);
@@ -67,6 +89,32 @@ describe("share links: report side to site side", () => {
     expect({ ...SL.TITLES }).toEqual(CARD_TITLES);
     expect(SL.LIMITS.cards).toBe(LIMITS.cards);
     expect(SL.LIMITS.fragment).toBeLessThan(LIMITS.fragment);
+  });
+
+  it("publishes earned titles and ratios as keys and numbers only, and works for reports without them", () => {
+    for (const t of good().titles!) expect(Object.keys(t).sort()).toEqual(["k", "v"]);
+    const old = SL.payload(view(), "Ada")!;
+    expect(old.titles).toEqual([]);
+    expect(old.ratios).toEqual([]);
+    expect(decodeStats(SL.encode(old))).toEqual(JSON.parse(JSON.stringify(old)));
+    const rc = withTitles();
+    rc.persona.earned = [{ key: "made_up", title: "The acme-secret-project", rule: "x" }];
+    expect(JSON.stringify(SL.payload(rc, "", RATIO_VIEW))).not.toContain("acme");
+  });
+
+  it("rebuilds every title and rule on the site exactly as the report's analysis writes them", () => {
+    expect(Object.keys(EARNED_TITLES).sort()).toEqual(TITLE_RULES.map((r) => r.key).sort());
+    expect(Object.keys(SL.TITLE_RATIO).sort()).toEqual(TITLE_RULES.map((r) => r.key).sort());
+    for (const rule of TITLE_RULES) {
+      const site = EARNED_TITLES[rule.key as keyof typeof EARNED_TITLES];
+      expect([site.title, site.ratio, SL.TITLE_RATIO[rule.key]]).toEqual([rule.title, rule.ratio, rule.ratio]);
+      for (const v of [0, 0.03, 0.05, 0.1, 0.3, 0.5, 0.62, 1, 1.1, 2, 2.35, 7]) {
+        expect(site.earns(v), `${rule.key} ${v}`).toBe(rule.earns(v));
+        expect(site.rule(v)).toBe(rule.rule(v));
+      }
+    }
+    const units: Record<string, string> = { correctionsPerSession: "per_session", contextResetShare: "share", toolErrorRate: "share", planFirstShare: "share", parallelism: "times" };
+    for (const k of RATIO_KEYS) for (const v of [0, 0.004, 0.12, 0.5, 1, 2.3457]) expect(ratioText(k, v)).toBe(reportRatioText(v, units[k]!));
   });
 
   it("survives a name with emoji and non-Latin letters", () => {
@@ -205,6 +253,8 @@ describe("share links: hostile fragments", () => {
     expect(decodeStats(encodeJson({ ...V1, cards: [] }))).toBeNull();
     const { cards: _drop, ...noCards } = good();
     expect(decodeStats(encodeJson(noCards))).toBeNull();
+    const { titles: _t, ...noTitles } = good();
+    expect(decodeStats(encodeJson(noTitles))).toBeNull();
     expect(decodeStats(encodeJson({ ...good(), project: "/home/someone/secret" }))).toBeNull();
     expect(decodeStats(encodeJson({ ...good(), agents: [{ k: "claude-code", p: 50, x: 1 }] }))).toBeNull();
     expect(decodeStats(encodeJson({ ...good(), agents: [{ k: "<img src=x>", p: 50 }] }))).toBeNull();
@@ -233,6 +283,24 @@ describe("share links: hostile fragments", () => {
       [["streak", "7", ""]],
     ];
     for (const cards of bad) expect(validateStats({ ...base, cards }), JSON.stringify(cards).slice(0, 80)).toBeNull();
+  });
+
+  it("rejects titles that their own published ratio does not earn, and ratios that are not exact pairs", () => {
+    const base = good();
+    const bad: Array<Partial<Payload>> = [
+      { titles: [{ k: "architect", v: 0.2 }], ratios: [{ k: "planFirstShare", v: 0.2 }] },
+      { titles: [{ k: "architect", v: 0.9 }] },
+      { titles: [{ k: "architect", v: 0.62 }, { k: "improviser", v: 0.62 }] },
+      { titles: [{ k: "the_boss", v: 1 }] },
+      { titles: [{ k: "architect", v: 0.62, rule: "I am the best" } as never] },
+      { titles: [{ k: "architect", v: 0.62 }], ratios: [] },
+      { ratios: [{ k: "planFirstShare", v: 0.62 }, { k: "planFirstShare", v: 0.62 }] },
+      { ratios: [{ k: "linesOfCode", v: 1 }] },
+      { ratios: [{ k: "parallelism", v: "2" } as never] },
+    ];
+    for (const over of bad) expect(validateStats({ ...base, ...over }), JSON.stringify(over)).toBeNull();
+    const clamped = validateStats({ ...base, titles: [], ratios: [{ k: "toolErrorRate", v: 7 }, { k: "parallelism", v: 1e9 }] })!;
+    expect(clamped.ratios).toEqual([{ k: "toolErrorRate", v: 1 }, { k: "parallelism", v: LIMITS.ratio }]);
   });
 
   it("does not let __proto__ smuggle keys past the schema", () => {

@@ -5,7 +5,7 @@ import { Footer } from "@/components/site/footer"
 import { AccountMenu } from "@/components/site/account-menu"
 import { Header } from "@/components/site/header"
 import { OwnerReferrals } from "@/components/site/owner-referrals"
-import { AgentsAndFact, BadgePill, CardGallery, joinedLabel, ProfileHeader, StatStrip } from "@/components/site/profile"
+import { AgentsAndFact, BadgePill, CardGallery, EarnedTitles, joinedLabel, ProfileHeader, StatStrip, WorkRatios } from "@/components/site/profile"
 import { FindOutYours } from "@/components/site/share-card"
 import { ShareButtons } from "@/components/site/share-buttons"
 import { profileBadges, profilePost } from "@/lib/arena-format"
@@ -72,7 +72,9 @@ export default async function ProfilePage({ params }: Props) {
               </div>
             </section>
           )}
+          <EarnedTitles stats={entry.stats} />
           <AgentsAndFact stats={entry.stats} />
+          <WorkRatios stats={entry.stats} />
           <OwnerReferrals handle={entry.handle} hasCards={hasCards} />
           <CardGallery cards={entry.stats.cards} handle={entry.handle} />
           <p className="font-mono text-[11px] text-muted-foreground">

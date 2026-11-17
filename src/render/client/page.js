@@ -333,7 +333,7 @@ function statsLink() {
   let link = "";
   const post = () => `My AI coding, recapped: ${link}\nFind out yours: ${SHARE.command}\n${SHARE.hashtag}`;
   const refresh = () => {
-    const p = ShareLink.payload(RC, nameIn.value);
+    const p = ShareLink.payload(RC, nameIn.value, VIEW.ratios);
     link = ShareLink.url(p, SHARE.siteUrl);
     list.replaceChildren(...ShareLink.describe(p, HARNESS_NAMES).map((line) => h("li", {}, line)));
     preview.textContent = link;
