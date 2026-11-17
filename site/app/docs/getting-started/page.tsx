@@ -36,38 +36,38 @@ export default function GettingStarted() {
          ▝▀▀▌▝▄▄
              ▐██▙     ▄▀█ █   █ █▄ █ █▀ █ █▀▀ █ █ ▀█▀ █▀
          ▝▀▀▀▀▝       █▀█ █   █ █ ▀█ ▄█ █ █▄█ █▀█  █  ▄█
-      ▀▀▀▀▀ ▀▝▀▘      by Matrix OS · v0.6.0
+      ▀▀▀▀▀ ▀▝▀▘      by Matrix OS · v0.7.1
     ▝▀▀▀▀▘▀ ▀▀▀▘
     ▀▀▀▀▀▘▀▘ ▀▀
   ▀▀ ▀▘▝▀▀▘▝▘ ▀
 
-  ✓ 58 sessions (Claude Code 46 · Codex 12) read and analysed in 0.2s
+  ✓ 58 sessions (Claude Code 46 · Codex 12) read and analysed in 0.1s
 
-  ╭─ 2026-10-22 → 2026-11-16 ────────────────────────────────────────────────╮
-  │ 58             26             26             1.2B           $245+        │
+  ╭─ 2026-10-23 → 2026-11-16 ────────────────────────────────────────────────╮
+  │ 58             23             28             151.1M         $69.71+      │
   │ sessions       active days    active hours   tokens         est. cost    │
   │                                                                          │
-  │ Claude Code, Codex · 29 agent-hours in parallel · 80% of requests        │
+  │ Claude Code, Codex · 31 agent-hours in parallel · 22% of requests        │
   │ unpriced                                                                 │
   ╰──────────────────────────────────────────────────────────────────────────╯
 
   ◆ The Night Delegator
     also The Clear Briefer · The Context Keeper · The Stress Tester
-  ▲ Top finding  You keep telling the agent: "run the tests and fix what
-    fails"
+  ▲ Top finding  \`pnpm e2e\` keeps failing
   ▸ Report  ~/.ai-insights/reports/report.html
 
   What to do next ────────────────────────────────────────────────────────────
   1  Open       press Enter below to open it in your browser, or click the
                 report path above.
-  2  Play       Play your recap in the report, then Make a video to export it.
-  3  Publish    Join the leaderboard, then Publish to the leaderboard; sign in
-                on ai-insights.app and press Publish. Your profile:
-                ai-insights.app/u/<handle>
-  4  Share      post your cards or profile with ${HASHTAG}.
+  2  Cards      the report opens on your cards; Download video or images saves
+                them.
+  3  Publish    Publish to the leaderboard next to your cards, then again in
+                the box; sign in on ai-insights.app and press Publish.
+  4  Share      post your cards or ai-insights.app/u/<handle> with
+                ${HASHTAG}.
   5  Go deeper  run the analyze-ai-usage skill in your agent.
 
-  ! 5 Claude Code sessions can be deleted within 7 days (from 2026-11-21).
+  ! 5 Claude Code sessions can be deleted within 7 days (from 2026-11-22).
     Keep them: add "cleanupPeriodDays": 365 to ~/.claude/settings.json or run
     npx packmem archive.
 
@@ -114,19 +114,19 @@ export default function GettingStarted() {
         when <code>NO_COLOR</code> is set. When the output is piped or redirected (a script, CI), it prints stable plain text with no escape codes
         instead:
       </p>
-      <Code label="Piped output, same history" copy={false}>{`58 sessions across Claude Code and Codex, 2026-10-22 to 2026-11-16.
-26 active hours (29 agent-hours across parallel sessions) on 26 days; 1.2B tokens, about $245 for the requests we can price; 80% unpriced.
-Top finding: You keep telling the agent: "run the tests and fix what fails"
+      <Code label="Piped output, same history" copy={false}>{`58 sessions across Claude Code and Codex, 2026-10-23 to 2026-11-16.
+28 active hours (31 agent-hours across parallel sessions) on 23 days; 151.1M tokens, about $69.71 for the requests we can price; 22% unpriced.
+Top finding: \`pnpm e2e\` keeps failing
 Persona: The Night Delegator (also The Clear Briefer, The Context Keeper and The Stress Tester)
 
 Report: ~/.ai-insights/reports/report.html
-5 Claude Code sessions can be deleted within 7 days (from 2026-11-21). AI Insights keeps their stats; to keep the transcripts, add "cleanupPeriodDays": 365 to ~/.claude/settings.json or archive them with \`npx packmem archive\`.
+5 Claude Code sessions can be deleted within 7 days (from 2026-11-22). AI Insights keeps their stats; to keep the transcripts, add "cleanupPeriodDays": 365 to ~/.claude/settings.json or archive them with \`npx packmem archive\`.
 
 Next steps
   1. Open the report: open the file above in your browser, or run again with --open.
-  2. Play your recap: press "Play your recap" in the report; "Make a video" saves it as a video or images.
-  3. Publish to the leaderboard: in the report press "Join the leaderboard", then "Publish to the leaderboard"; sign in on https://ai-insights.app/ and press "Publish". Your profile: https://ai-insights.app/u/<handle>
-  4. Share it: use the X or LinkedIn buttons in the report, or post your cards with ${HASHTAG}.
+  2. Your cards: the report opens on them; "Download video or images" saves them.
+  3. Publish to the leaderboard: press "Publish to the leaderboard" next to your cards, then again in the box; sign in on https://ai-insights.app/ and press "Publish".
+  4. Share it: use the X or LinkedIn buttons in the report, or post your cards or https://ai-insights.app/u/<handle> with ${HASHTAG}.
   5. Go deeper: run the analyze-ai-usage skill in your agent to add what went well and what got in the way.`}</Code>
       <p>
         Open the report in any browser. It is one file with everything inside it, so you can also move it or keep a copy. If nothing is found, the
