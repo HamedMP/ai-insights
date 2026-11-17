@@ -198,8 +198,9 @@ Next steps
           AI Insights folder (<code>reports/report.html</code> for its date, and <code>nudge.json</code>, where it records the month it last showed).
         </li>
         <li>
-          Codex runs plugin hooks only after you review and trust them, so there it starts once you have approved it. Resumed, cleared and
-          compacted sessions never show it.
+          Codex runs plugin hooks only after you review and trust them (in <code>/hooks</code>), so there it starts once you have approved
+          it, and again after an update changes it. Codex documents plugin hooks for its desktop app; in the Codex CLI it is untested.
+          Resumed, cleared and compacted sessions never show it.
         </li>
         <li>
           <code>npx ai-insights nudge --off</code> turns it off; <code>--on</code> turns it back on. Uninstalling the plugin removes it.
