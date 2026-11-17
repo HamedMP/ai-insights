@@ -1,6 +1,7 @@
 import type { Report, Retention } from "../schema/types.js";
 import { describeHeadline, formatUsd } from "../store/pipeline.js";
 import { harnessLabel } from "../store/scan.js";
+import { MATRIX_URL } from "../render/view.js";
 import { ASCII, UNICODE, type Glyphs } from "./header.js";
 import { fileUrl, pad, painter, visibleWidth, wrapSegments, type Paint, type Segment, type Style } from "./terminal.js";
 
@@ -291,6 +292,16 @@ export function richResult(input: ResultInput, style: Style): string {
     segments.push("run ", { text: "npx packmem archive", tone: "accent", keep: true }, ".");
     lines.push("", ...wrapSegments(segments, width, style, `  ${paint("warn", glyphs.notice, true)} `, "    "));
   }
+  // The report's own closing link, word for word: nothing here uploads history, so claim no more than it does.
+  lines.push(
+    "",
+    ...wrapSegments(
+      [{ text: "Keep your history with Matrix OS", bold: true }, `  ${glyphs.arrow}  `, { text: MATRIX_URL.replace(/^https:\/\//u, ""), url: MATRIX_URL, tone: "accent", keep: true }],
+      width,
+      style,
+      "  ",
+    ),
+  );
   lines.push("");
   return `${lines.join("\n")}\n`;
 }

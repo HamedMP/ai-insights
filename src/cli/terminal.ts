@@ -167,11 +167,13 @@ export function chunk(text: string, width: number): string[] {
 
 // -- colour -------------------------------------------------------------------
 
-export type Tone = "brand" | "accent" | "muted" | "warn" | "strong" | "plain";
+export type Tone = "brand" | "accent" | "mascot" | "muted" | "warn" | "strong" | "plain";
 
 const SHADES: Record<Exclude<Tone, "strong" | "plain">, { dark: [number, number, number]; light: [number, number, number]; c256: number; c16: number }> = {
   // The site's orange and a terminal green; darker shades on light backgrounds keep the contrast.
   brand: { dark: [255, 122, 47], light: [194, 65, 12], c256: 208, c16: 33 },
+  // The mascot's own green (#BED77B); a dark olive on light backgrounds, where the original washes out.
+  mascot: { dark: [190, 215, 123], light: [95, 122, 31], c256: 150, c16: 92 },
   accent: { dark: [74, 222, 128], light: [21, 128, 61], c256: 78, c16: 32 },
   muted: { dark: [140, 140, 150], light: [100, 100, 110], c256: 245, c16: 90 },
   warn: { dark: [250, 204, 21], light: [161, 98, 7], c256: 220, c16: 33 },
