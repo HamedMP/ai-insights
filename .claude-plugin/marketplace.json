@@ -11,7 +11,7 @@
       "name": "ai-insights",
       "source": "./harness/ai-insights",
       "description": "Look back at how you work with AI coding agents. Local insights and actionable tips from your Claude Code and Codex history.",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "category": "productivity"
     }
   ]
