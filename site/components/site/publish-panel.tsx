@@ -8,8 +8,11 @@ import { checkHandle, displayNameFor, suggestHandle } from "@/lib/leaderboard"
 import { rememberFragment } from "@/lib/pending-share"
 import { track } from "@/lib/analytics"
 import { EVENTS } from "@/lib/analytics-sanitize"
-import { agentName, formatInt, formatPeriod, type SharedStats } from "@/lib/share"
-import { BASE } from "@/lib/site"
+import { ShareButtons } from "@/components/site/share-buttons"
+import { profilePost } from "@/lib/arena-format"
+import { referralLink } from "@/lib/referral"
+import { agentName, CARD_TITLES, EARNED_TITLES, formatInt, formatPeriod, RATIOS, ratioText, type SharedStats } from "@/lib/share"
+import { BASE, SITE_URL } from "@/lib/site"
 
 const ENTRY_API = `${BASE}/api/leaderboard/entry`
 
@@ -25,7 +28,7 @@ const KNOWN_ERRORS = new Set([
 ])
 const GENERIC = "Something went wrong. Try again later."
 
-export async function callEntryApi(method: "POST" | "DELETE", body?: unknown): Promise<{ ok: true; handle?: string } | { ok: false; error: string }> {
+export async function callEntryApi(method: "POST" | "DELETE", body?: unknown): Promise<{ ok: true; handle?: string; referred?: boolean } | { ok: false; error: string }> {
   try {
     const res = await fetch(ENTRY_API, {
       method,
@@ -39,7 +42,7 @@ export async function callEntryApi(method: "POST" | "DELETE", body?: unknown): P
       throw error
     })
     const record = data && typeof data === "object" ? (data as Record<string, unknown>) : {}
-    if (res.ok && record.ok === true) return { ok: true, handle: typeof record.handle === "string" ? record.handle : undefined }
+    if (res.ok && record.ok === true) return { ok: true, handle: typeof record.handle === "string" ? record.handle : undefined, referred: record.referred === true }
     const error = typeof record.error === "string" && KNOWN_ERRORS.has(record.error) ? record.error : GENERIC
     return { ok: false, error }
   } catch (error) {
@@ -54,6 +57,8 @@ export function PublishPanel({ stats }: { stats: SharedStats }) {
   const { user } = useUser()
   const [handle, setHandle] = React.useState("")
   const [touched, setTouched] = React.useState(false)
+  // Off by default: the photo becomes public only when the person ticks the box on this publish.
+  const [showAvatar, setShowAvatar] = React.useState(false)
   const [state, setState] = React.useState<{ kind: "idle" | "busy" } | { kind: "done"; handle: string } | { kind: "removed" } | { kind: "error"; message: string }>({ kind: "idle" })
 
   const suggested = suggestHandle(user?.username ?? user?.firstName ?? "")
@@ -91,8 +96,9 @@ export function PublishPanel({ stats }: { stats: SharedStats }) {
     if (!checked.ok) return
     track(EVENTS.publishClicked)
     setState({ kind: "busy" })
-    const result = await callEntryApi("POST", { handle: checked.handle, stats })
-    if (result.ok) track(EVENTS.publishCompleted)
+    const result = await callEntryApi("POST", { handle: checked.handle, stats, showAvatar })
+    // Whether a referrer was credited, as a boolean only: never whose.
+    if (result.ok) track(EVENTS.publishCompleted, { referred: result.referred === true })
     setState(result.ok ? { kind: "done", handle: result.handle ?? checked.handle } : { kind: "error", message: result.error })
   }
 
@@ -104,6 +110,7 @@ export function PublishPanel({ stats }: { stats: SharedStats }) {
 
   const rows: Array<[string, string]> = [
     ["Name", shownName],
+    ["Photo", showAvatar ? "your Matrix account photo, if you uploaded one" : "not shown (initials instead)"],
     ["Profile", `ai-insights.app/u/${checked.ok ? checked.handle : "…"}`],
     ["Period", formatPeriod(stats.from, stats.to)],
     ["Sessions", formatInt(stats.sessions)],
@@ -113,6 +120,9 @@ export function PublishPanel({ stats }: { stats: SharedStats }) {
     ["Longest streak", `${formatInt(stats.streak)} days`],
     ["Agents", stats.agents.length ? stats.agents.map((a) => `${agentName(a.k)} ${a.p}%`).join(", ") : "none"],
     ["Fun fact", stats.fact || "none"],
+    ...(stats.titles ?? []).map((t): [string, string] => [`Title: ${EARNED_TITLES[t.k].title}`, EARNED_TITLES[t.k].rule(t.v)]),
+    ...(stats.ratios?.length ? [["Ratios", stats.ratios.map((r) => `${RATIOS[r.k].label} ${ratioText(r.k, r.v)}`).join(", ")] as [string, string]] : []),
+    ...(stats.cards ?? []).map((c): [string, string] => [`Card: ${CARD_TITLES[c.k]}`, c.c ? `${c.b}, ${c.c}` : c.b]),
   ]
 
   return (
@@ -120,7 +130,8 @@ export function PublishPanel({ stats }: { stats: SharedStats }) {
       <h2 id="publish" className="text-lg font-semibold">Publish to the leaderboard</h2>
       {state.kind === "done" ? (
         <div className="flex flex-col gap-3 text-sm">
-          <p>Published. Your profile is public now.</p>
+          <p>Published. Your profile is public now. Share it: anyone who publishes after arriving through your link counts as referred by you.</p>
+          <ShareButtons post={profilePost(referralLink(SITE_URL, state.handle))} url={referralLink(SITE_URL, state.handle)} />
           <div className="flex flex-wrap gap-2">
             <Button nativeButton={false} render={<a href={`${BASE}/u/${state.handle}`} />}>View your profile</Button>
             <Button variant="outline" nativeButton={false} render={<a href={`${BASE}/leaderboard`} />}>See the leaderboard</Button>
@@ -150,6 +161,14 @@ export function PublishPanel({ stats }: { stats: SharedStats }) {
               {checked.ok ? "3 to 30 lowercase letters, digits or hyphens." : checked.problem === "reserved" ? "That handle is reserved. Pick another." : "3 to 30 lowercase letters, digits or single hyphens."}
             </span>
           </label>
+          {user?.hasImage ? (
+            <label className="flex items-center gap-3 rounded-xl border px-3 py-2.5">
+              <input type="checkbox" className="size-4 accent-primary" checked={showAvatar} onChange={(e) => setShowAvatar(e.target.checked)} />
+              {/* eslint-disable-next-line @next/next/no-img-element -- the person's own Clerk photo, shown only to them here */}
+              <img src={user.imageUrl} alt="" referrerPolicy="no-referrer" className="size-8 rounded-lg object-cover" />
+              <span>Show my Matrix account photo on my public profile and the leaderboard</span>
+            </label>
+          ) : null}
           <div className="flex flex-col gap-2">
             <p className="font-medium">This becomes public, exactly as shown:</p>
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 rounded-xl bg-muted/50 px-4 py-3">
@@ -160,7 +179,7 @@ export function PublishPanel({ stats }: { stats: SharedStats }) {
                 </React.Fragment>
               ))}
             </dl>
-            <p className="text-muted-foreground">Nothing else is sent: no projects, prompts or history. The numbers are self-reported from your own report and are not verified. The latest publish replaces the previous one, and you can remove it any time.</p>
+            <p className="text-muted-foreground">{stats.cards ? null : "This link is from an older report, so your profile will show these numbers without recap cards. Run the command again for a link with cards. "}Nothing else is sent: no projects, prompts or history. The numbers are self-reported from your own report and are not verified. The latest publish replaces the previous one, and you can remove it any time.</p>
           </div>
           {state.kind === "error" && <p role="alert" className="text-destructive">{state.message}</p>}
           <div className="flex flex-wrap gap-2">

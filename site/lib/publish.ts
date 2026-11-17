@@ -3,9 +3,11 @@
  * rejection path without Clerk, Next or a database. app/api/leaderboard/entry/route.ts wires the real ones in.
  */
 import { checkHandle, displayNameFor, scoresFor, type EntryScores } from "./leaderboard.ts"
+import { safeAvatarUrl } from "./avatar.ts"
+import { referralClaim } from "./referral.ts"
 import { validateStats, type SharedStats } from "./share.ts"
 
-/** A publish body is a handle plus one v1 payload: far under 4 KB. Anything bigger is refused unread. */
+/** A publish body is a handle plus one v1 or v2 payload: under 4 KB. Anything bigger is refused unread. */
 export const MAX_BODY_BYTES = 8 * 1024
 
 export interface EntryRow extends EntryScores {
@@ -13,9 +15,18 @@ export interface EntryRow extends EntryScores {
   handle: string
   displayName: string
   stats: SharedStats
+  /**
+   * The handle that referred this person, already checked to be a valid handle other than their own. The save
+   * credits it only when this publish creates the entry and the handle belongs to another published person.
+   */
+  referrer: string | null
+  /** The person's Clerk photo, only when they chose to show it on this publish; null clears a stored one. */
+  avatarUrl: string | null
 }
 
 export type SaveResult = "saved" | "handle_taken" | "too_soon"
+/** `credited` is the referrer handle the save actually recorded, if any (first publish only). */
+export type SaveOutcome = SaveResult | { result: "saved"; credited: string | null }
 
 export interface HandlerDeps {
   userId: string | null
@@ -29,7 +40,13 @@ export interface HandlerDeps {
 }
 
 export interface PublishDeps extends HandlerDeps {
-  save: (row: EntryRow) => Promise<SaveResult>
+  /** The referral cookie's raw value: an untrusted claim. */
+  referrer: string | null
+  save: (row: EntryRow) => Promise<SaveOutcome>
+  /** Reads the signed-in person's photo from Clerk on the server. Called only when they chose to show it. */
+  avatarFor?: (userId: string) => Promise<string | null>
+  /** Called after a save that credited a referrer, to mirror it into the publisher's Clerk metadata. */
+  onCredited?: (userId: string, referrer: string) => void
 }
 
 export interface RemoveDeps extends HandlerDeps {
@@ -38,7 +55,7 @@ export interface RemoveDeps extends HandlerDeps {
 
 export interface Reply {
   status: number
-  body: { ok: true; handle?: string; removed?: boolean } | { ok: false; error: string }
+  body: { ok: true; handle?: string; removed?: boolean; referred?: true } | { ok: false; error: string }
 }
 
 /** Messages a client may see. Fixed strings only: no driver, Clerk or validation detail ever reaches the response. */
@@ -116,19 +133,25 @@ export async function handlePublish(deps: PublishDeps): Promise<Reply> {
   if (!input || typeof input !== "object" || Array.isArray(input)) return fail(400, ERRORS.body)
   const raw = input as Record<string, unknown>
   const keys = Object.keys(raw)
-  if (keys.length !== 2 || !keys.includes("handle") || !keys.includes("stats")) return fail(400, ERRORS.body)
+  // {handle, stats} from older pages, or {handle, stats, showAvatar} with a boolean choice.
+  const shape = keys.length === 2 || (keys.length === 3 && typeof raw.showAvatar === "boolean")
+  if (!shape || !keys.includes("handle") || !keys.includes("stats")) return fail(400, ERRORS.body)
 
   const handle = checkHandle(raw.handle)
   if (!handle.ok) return fail(400, handle.problem === "reserved" ? ERRORS.reserved : ERRORS.handle)
   const stats = validateStats(raw.stats)
   if (!stats) return fail(400, ERRORS.body)
 
-  const row: EntryRow = { userId, handle: handle.handle, displayName: displayNameFor(stats, handle.handle), stats, ...scoresFor(stats) }
+  const row: EntryRow = { userId, handle: handle.handle, displayName: displayNameFor(stats, handle.handle), stats, ...scoresFor(stats), referrer: referralClaim(deps.referrer, handle.handle), avatarUrl: null }
   try {
-    const result = await deps.save(row)
+    if (raw.showAvatar === true && deps.avatarFor) row.avatarUrl = safeAvatarUrl(await deps.avatarFor(userId))
+    const outcome = await deps.save(row)
+    const result = typeof outcome === "string" ? outcome : outcome.result
     if (result === "handle_taken") return fail(409, ERRORS.taken)
     if (result === "too_soon") return fail(429, ERRORS.rate)
-    return { status: 200, body: { ok: true, handle: row.handle } }
+    const credited = typeof outcome === "string" ? null : outcome.credited
+    if (credited) deps.onCredited?.(userId, credited)
+    return { status: 200, body: credited ? { ok: true, handle: row.handle, referred: true } : { ok: true, handle: row.handle } }
   } catch (error) {
     deps.log("leaderboard publish failed", error)
     return fail(500, ERRORS.server)

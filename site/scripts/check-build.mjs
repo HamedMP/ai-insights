@@ -1,8 +1,10 @@
 // Fails the build when a page would load anything from another host.
 // Links people click (<a href="https://...">) are fine; scripts, styles, fonts, images and frames are not, with one
-// exception: when Clerk is configured, pages with sign-in may load clerk-js and @clerk/ui (script + preload link)
-// under /npm/@clerk/ from the Clerk Frontend API host(s) for
-// this app (decoded from the publishable key, plus clerk.<satellite domain>). Nothing else.
+// exception: when Clerk is configured, pages that mount Clerk (/share, /leaderboard, /u/..., the same rule as
+// lib/auth-config.ts mountsClerk) may load clerk-js and @clerk/ui (script + preload link) under /npm/@clerk/ from the
+// Clerk Frontend API host(s) for this app (decoded from the publishable key, plus clerk.<satellite domain>).
+// Every other prebuilt page (the landing page above all) must not load Clerk at all: neither from a Clerk host nor in
+// any of its own /_next/static script chunks.
 //
 //   node scripts/check-build.mjs             checks the Next build (.next/server/app HTML, .next/static CSS and JS)
 //   node scripts/check-build.mjs --redirect  checks the GitHub Pages redirect site in pages-redirect/
@@ -42,7 +44,12 @@ function walk(dir) {
   }
 }
 
-function allowed(tag, url) {
+/** Prebuilt HTML for a page that mounts Clerk: .next/server/app/share.html, leaderboard..., u/... */
+const mountsClerk = (rel) => /^\.next\/server\/app\/(?:share|leaderboard|u)(?:\.html$|\/)/.test(rel)
+const CLERK_CODE = /@clerk\/|clerk-js|__clerk_/
+
+function allowed(tag, url, rel) {
+  if (!mountsClerk(rel)) return false
   if (!["script", "link"].includes(tag.toLowerCase())) return false
   try {
     const u = new URL(url.startsWith("//") ? `https:${url}` : url)
@@ -62,7 +69,13 @@ function check(path) {
     for (const match of text.matchAll(/<(script|link|img|source|iframe|video|audio|embed|object)\b[^>]*?\s(?:src|href|srcset|poster|data)="([^"]*)"/gi)) {
       const [, tag, url] = match
       if (tag.toLowerCase() === "link" && /rel="(?:canonical|alternate)"/.test(match[0])) continue
-      if (REMOTE.test(url) && !allowed(tag, url)) problems.push(`${rel}: <${tag}> loads ${url}`)
+      if (REMOTE.test(url) && !allowed(tag, url, rel)) problems.push(`${rel}: <${tag}> loads ${url}`)
+    }
+    if (!redirect && !mountsClerk(rel)) {
+      for (const match of text.matchAll(/<script\b[^>]*\ssrc="(\/_next\/static\/[^"?#]+\.js)"/gi)) {
+        const chunk = join(site, ".next", match[1].replace(/^\/_next\//, ""))
+        if (existsSync(chunk) && CLERK_CODE.test(readFileSync(chunk, "utf8"))) problems.push(`${rel}: loads Clerk code in ${match[1]}; only pages that mount Clerk may`)
+      }
     }
     for (const match of text.matchAll(/url\(\s*["']?((?:https?:)?\/\/[^"')]+)/gi)) problems.push(`${rel}: CSS loads ${match[1]}`)
   }

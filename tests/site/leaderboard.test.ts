@@ -20,6 +20,7 @@ function publishDeps(over: Partial<PublishDeps> = {}): PublishDeps & { saved: En
     body: stream(JSON.stringify({ handle: "test-person", stats: STATS })),
     allow: () => true,
     log: () => undefined,
+    referrer: null,
     save: async (row) => {
       saved.push(row);
       return "saved";

@@ -4,8 +4,10 @@ import { attachDatabasePool } from "@vercel/functions"
 import { Pool } from "pg"
 
 import { ARENA_COLUMN, PAGE_SIZE, rankAndPercentile, type ArenaId } from "@/lib/leaderboard"
-import type { EntryRow, SaveResult } from "@/lib/publish"
-import type { SharedAgent, SharedStats } from "@/lib/share"
+import { safeAvatarUrl } from "@/lib/avatar"
+import { SAVE_ENTRY_SQL, saveEntryParams } from "@/lib/entry-sql"
+import type { EntryRow, SaveOutcome } from "@/lib/publish"
+import { storedCards, storedRatios, storedTitles, type SharedAgent, type SharedStats } from "@/lib/share"
 
 /**
  * Postgres access for the leaderboard (Neon, through node-postgres with a pool Vercel Fluid compute keeps warm, as
@@ -26,27 +28,13 @@ function db(): Pool {
   return pool
 }
 
-/**
- * Latest publish wins. A second publish from the same person within 30 seconds is refused inside the same statement
- * (the WHERE on DO UPDATE), so the limit holds across server instances without a read-then-write race.
- */
-export async function saveEntry(row: EntryRow): Promise<SaveResult> {
-  const s = row.stats
+/** Save a publish. The statement and its rules (latest wins, 30-second limit, referrer set once) are in lib/entry-sql.ts. */
+export async function saveEntry(row: EntryRow): Promise<SaveOutcome> {
   try {
-    const result = await db().query(
-      `INSERT INTO leaderboard_entries AS e
-         (user_id, handle, display_name, period_from, period_to, sessions, tokens, usd, active_days, streak, claude_tokens, codex_tokens, agents, fact)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14)
-       ON CONFLICT (user_id) DO UPDATE SET
-         handle = EXCLUDED.handle, display_name = EXCLUDED.display_name, period_from = EXCLUDED.period_from,
-         period_to = EXCLUDED.period_to, sessions = EXCLUDED.sessions, tokens = EXCLUDED.tokens, usd = EXCLUDED.usd,
-         active_days = EXCLUDED.active_days, streak = EXCLUDED.streak, claude_tokens = EXCLUDED.claude_tokens,
-         codex_tokens = EXCLUDED.codex_tokens, agents = EXCLUDED.agents, fact = EXCLUDED.fact, updated_at = now()
-       WHERE e.updated_at < now() - interval '30 seconds'
-       RETURNING user_id`,
-      [row.userId, row.handle, row.displayName, s.from, s.to, s.sessions, s.tokens, s.usd, s.activeDays, s.streak, row.claudeTokens, row.codexTokens, JSON.stringify(s.agents), s.fact],
-    )
-    return result.rowCount === 1 ? "saved" : "too_soon"
+    const result = await db().query<{ inserted: boolean; referred: boolean }>(SAVE_ENTRY_SQL, saveEntryParams(row))
+    const saved = result.rows[0]
+    if (!saved) return "too_soon"
+    return { result: "saved", credited: saved.inserted && saved.referred ? row.referrer : null }
   } catch (error) {
     // 23505 on the handle index: someone else holds this handle.
     if (error && typeof error === "object" && (error as { code?: string; constraint?: string }).code === "23505" && (error as { constraint?: string }).constraint === "leaderboard_entries_handle_key") return "handle_taken"
@@ -64,6 +52,10 @@ export interface PublicEntry {
   displayName: string
   stats: SharedStats
   updatedAt: string
+  /** When the entry was first published: the profile's "joined" date. */
+  createdAt: string
+  /** The Clerk photo the person chose to show, re-checked on read; null shows initials. */
+  avatarUrl: string | null
 }
 
 interface EntryRecord {
@@ -78,10 +70,21 @@ interface EntryRecord {
   streak: number
   agents: SharedAgent[]
   fact: string
+  payload_version: number
+  cards: unknown
+  avatar_url: string | null
+  titles: unknown
+  ratios: unknown
   updated_at: Date
+  created_at: Date
 }
 
-const COLUMNS = "handle, display_name, to_char(period_from, 'YYYY-MM-DD') AS period_from, to_char(period_to, 'YYYY-MM-DD') AS period_to, sessions, tokens, usd, active_days, streak, agents, fact, updated_at"
+const COLUMNS = "handle, display_name, to_char(period_from, 'YYYY-MM-DD') AS period_from, to_char(period_to, 'YYYY-MM-DD') AS period_to, sessions, tokens, usd, active_days, streak, agents, fact, payload_version, cards, avatar_url, titles, ratios, updated_at, created_at"
+
+function v2Extras(r: EntryRecord): Pick<SharedStats, "cards" | "titles" | "ratios"> {
+  const ratios = storedRatios(r.ratios)
+  return { cards: storedCards(r.cards), ratios, titles: storedTitles(r.titles, ratios) }
+}
 
 function toEntry(r: EntryRecord): PublicEntry {
   const agents = Array.isArray(r.agents) ? r.agents.filter((a) => a && typeof a.k === "string" && typeof a.p === "number").slice(0, 8) : []
@@ -89,7 +92,13 @@ function toEntry(r: EntryRecord): PublicEntry {
     handle: r.handle,
     displayName: r.display_name,
     updatedAt: r.updated_at.toISOString(),
-    stats: { v: 1, name: r.display_name, from: r.period_from, to: r.period_to, sessions: Number(r.sessions), tokens: Number(r.tokens), usd: r.usd === null ? null : Number(r.usd), activeDays: r.active_days, streak: r.streak, agents, fact: r.fact },
+    createdAt: r.created_at.toISOString(),
+    avatarUrl: safeAvatarUrl(r.avatar_url),
+    stats: {
+      v: r.payload_version === 2 ? 2 : 1,
+      name: r.display_name, from: r.period_from, to: r.period_to, sessions: Number(r.sessions), tokens: Number(r.tokens), usd: r.usd === null ? null : Number(r.usd), activeDays: r.active_days, streak: r.streak, agents, fact: r.fact,
+      ...(r.payload_version === 2 ? v2Extras(r) : {}),
+    },
   }
 }
 
@@ -126,16 +135,23 @@ export async function arenaPage(arena: ArenaId, page: number): Promise<ArenaPage
   return { rows: rows.rows.map((r) => ({ ...toEntry(r), rank: Number(r.rank), score: Number(r.score) })), total: Number(count.rows[0]?.n ?? 0) }
 }
 
-/** A person's rank and "top X%" in every arena they score in. */
-export async function ranksFor(userId: string): Promise<Partial<Record<ArenaId, { rank: number; total: number; topPercent: number }>>> {
-  const out: Partial<Record<ArenaId, { rank: number; total: number; topPercent: number }>> = {}
+export type Ranks = Partial<Record<ArenaId, { rank: number; total: number; topPercent: number }>>
+
+/** A person's rank and "top X%" in every arena they score in, by their user id (their own view). */
+export const ranksFor = (userId: string) => ranksWhere("user_id", userId)
+/** The same, by public handle, for a profile page. */
+export const ranksForHandle = (handle: string) => ranksWhere("handle", handle)
+
+async function ranksWhere(column: "user_id" | "handle", value: string): Promise<Ranks> {
+  const out: Ranks = {}
   const parts = (Object.keys(ARENA_COLUMN) as ArenaId[]).map((arena) => {
     const col = ARENA_COLUMN[arena]
     return `(SELECT count(*) FROM leaderboard_entries o WHERE o.${col} > me.${col}) AS "${arena}_higher",
             (SELECT count(*) FROM leaderboard_entries o WHERE o.${col} > 0) AS "${arena}_total",
             (me.${col} > 0) AS "${arena}_ranked"`
   })
-  const result = await db().query<Record<string, string | boolean>>(`SELECT ${parts.join(", ")} FROM leaderboard_entries me WHERE me.user_id = $1`, [userId])
+  // `column` is one of two fixed names chosen by the callers above, never input.
+  const result = await db().query<Record<string, string | boolean>>(`SELECT ${parts.join(", ")} FROM leaderboard_entries me WHERE me.${column} = $1`, [value])
   const row = result.rows[0]
   if (!row) return out
   for (const arena of Object.keys(ARENA_COLUMN) as ArenaId[]) {
@@ -144,4 +160,36 @@ export async function ranksFor(userId: string): Promise<Partial<Record<ArenaId, 
     if (r) out[arena] = r
   }
   return out
+}
+
+export interface Referral {
+  handle: string
+  displayName: string
+  referredAt: string
+}
+
+export const MAX_REFERRALS_LISTED = 100
+
+/** The signed-in person's own referrals, newest first: their handle, how many, and the latest MAX_REFERRALS_LISTED. */
+export async function referralsFor(userId: string): Promise<{ handle: string; count: number; referrals: Referral[] } | null> {
+  const me = await db().query<{ handle: string; n: string }>(
+    "SELECT handle, (SELECT count(*) FROM leaderboard_entries o WHERE o.referred_by = me.user_id) AS n FROM leaderboard_entries me WHERE me.user_id = $1",
+    [userId],
+  )
+  const row = me.rows[0]
+  if (!row) return null
+  const list = await db().query<{ handle: string; display_name: string; referred_at: Date }>(
+    "SELECT handle, display_name, referred_at FROM leaderboard_entries WHERE referred_by = $1 ORDER BY referred_at DESC, handle ASC LIMIT $2",
+    [userId, MAX_REFERRALS_LISTED],
+  )
+  return { handle: row.handle, count: Number(row.n), referrals: list.rows.map((r) => ({ handle: r.handle, displayName: r.display_name, referredAt: r.referred_at.toISOString() })) }
+}
+
+/** How many published people a handle brought in: the only referral figure visitors see. */
+export async function referralCount(handle: string): Promise<number> {
+  const result = await db().query<{ n: string }>(
+    "SELECT count(*) AS n FROM leaderboard_entries o JOIN leaderboard_entries me ON o.referred_by = me.user_id WHERE me.handle = $1",
+    [handle],
+  )
+  return Number(result.rows[0]?.n ?? 0)
 }

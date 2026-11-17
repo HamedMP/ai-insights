@@ -4,7 +4,8 @@ import { auth, clerkClient } from "@clerk/nextjs/server"
 
 import { serverAuthEnabled } from "@/lib/auth-config"
 import { createLimiter } from "@/lib/publish"
-import { metadataPatch } from "@/lib/signup-source"
+import { avatarFromClerkUser } from "@/lib/avatar"
+import { metadataPatch, referralPatch } from "@/lib/signup-source"
 import { SITE_URL } from "@/lib/site"
 
 /** The signed-in Clerk user id, or null when signed out or when sign-in is not configured. */
@@ -24,6 +25,8 @@ export function allowedOrigins(): string[] {
 }
 
 export const writeLimiter = createLimiter({ limit: 6, windowMs: 60_000, maxKeys: 10_000 })
+/** Reads of a person's own data (their referrals): more generous than writes, still bounded per person. */
+export const readLimiter = createLimiter({ limit: 30, windowMs: 60_000, maxKeys: 10_000 })
 
 const recorded = new Set<string>()
 const MAX_RECORDED = 10_000
@@ -42,6 +45,30 @@ export async function recordSignupSource(userId: string): Promise<void> {
   } catch (error) {
     // Best effort: a Clerk outage must not block reading or publishing. Logged without the error body.
     console.error("ai-insights: signup source not recorded", error instanceof Error ? error.name : "unknown")
+  }
+}
+
+/** After a publish credited a referrer: mirror it into the publisher's Clerk public metadata, once, never replaced. */
+export async function recordReferral(userId: string, handle: string): Promise<void> {
+  try {
+    const client = await clerkClient()
+    const user = await client.users.getUser(userId)
+    const patch = referralPatch(user.publicMetadata as Record<string, unknown>, handle)
+    if (patch) await client.users.updateUserMetadata(userId, { publicMetadata: patch })
+  } catch (error) {
+    // Best effort, like the sign-up source: the database already holds the credit.
+    console.error("ai-insights: referral not recorded in Clerk", error instanceof Error ? error.name : "unknown")
+  }
+}
+
+/** The signed-in person's uploaded Clerk photo, read on the server. A Clerk failure means "no photo", never a failed publish. */
+export async function clerkAvatar(userId: string): Promise<string | null> {
+  try {
+    const client = await clerkClient()
+    return avatarFromClerkUser(await client.users.getUser(userId))
+  } catch (error) {
+    console.error("ai-insights: avatar not read from Clerk", error instanceof Error ? error.name : "unknown")
+    return null
   }
 }
 

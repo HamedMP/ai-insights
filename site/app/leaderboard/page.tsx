@@ -3,13 +3,16 @@ import { after } from "next/server"
 
 import { TrackOnMount } from "@/components/site/analytics"
 import { Footer } from "@/components/site/footer"
+import { AccountMenu } from "@/components/site/account-menu"
 import { Header } from "@/components/site/header"
+import { Avatar } from "@/components/site/profile"
 import { RankShare, RemoveEntry } from "@/components/site/rank-share"
 import { formatScore, rankLabel, rankPost } from "@/lib/arena-format"
 import { clerkEnabled } from "@/lib/auth-config"
 import { EVENTS } from "@/lib/analytics-sanitize"
 import { arenaPage, databaseConfigured, entryByUser, ranksFor, type ArenaPage } from "@/lib/db"
 import { ARENAS, isArena, PAGE_SIZE, parsePage, type ArenaId } from "@/lib/leaderboard"
+import { referralLink } from "@/lib/referral"
 import { formatPeriod } from "@/lib/share"
 import { BASE, COMMAND, SITE_URL } from "@/lib/site"
 import { currentUserId, logError, recordSignupSource } from "@/lib/server-auth"
@@ -28,7 +31,8 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image", title, description, images: ["og.png"] },
 }
 
-const profileUrl = (handle: string) => new URL(`u/${handle}`, SITE_URL).toString()
+/** Share targets for a published person credit them: `?ref=<handle>` (lib/referral.ts). */
+const profileUrl = (handle: string) => referralLink(SITE_URL, handle)
 
 export default async function LeaderboardPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const params = await searchParams
@@ -53,7 +57,7 @@ export default async function LeaderboardPage({ searchParams }: { searchParams: 
 
   return (
     <>
-      <Header />
+      <Header account={<AccountMenu />} />
       <TrackOnMount event={EVENTS.arenaViewed} properties={{ arena, page }} />
       <main id="top" className="relative overflow-hidden">
         <div aria-hidden className="hero-glow pointer-events-none absolute inset-x-0 top-0 h-[40rem]" />
@@ -114,8 +118,9 @@ export default async function LeaderboardPage({ searchParams }: { searchParams: 
             <section aria-label={ARENAS.find((a) => a.id === arena)!.title}>
               <ol className="flex flex-col divide-y rounded-2xl border bg-card">
                 {board.rows.map((row) => (
-                  <li key={row.handle} className="flex items-center gap-4 px-4 py-3">
-                    <span className="w-10 shrink-0 font-mono text-sm text-muted-foreground tabular-nums">#{row.rank}</span>
+                  <li key={row.handle} className="flex items-center gap-3 px-4 py-3 sm:gap-4">
+                    <span className="w-8 shrink-0 font-mono text-sm text-muted-foreground tabular-nums sm:w-10">#{row.rank}</span>
+                    <Avatar url={row.avatarUrl} name={row.displayName} handle={row.handle} className="size-9 rounded-xl text-[14px]" />
                     <a href={`${BASE}/u/${row.handle}`} className="flex min-w-0 flex-1 flex-col underline-offset-4 hover:underline">
                       <span className="truncate font-medium">{row.displayName}</span>
                       <span className="truncate font-mono text-[11px] text-muted-foreground">@{row.handle} · {formatPeriod(row.stats.from, row.stats.to)}</span>

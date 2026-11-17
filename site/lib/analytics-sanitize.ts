@@ -1,5 +1,6 @@
 /**
- * Analytics must never carry a URL fragment: /share#... holds a person's name and numbers. This runs as PostHog's
+ * Analytics must never carry a URL fragment: /share#... holds a person's name and numbers. Nor a referrer's handle:
+ * `?ref=<handle>` is reduced to a bare `ref` flag. This runs as PostHog's
  * before_send hook on every event and removes the "#..." part from every URL-like string it can find, at any depth
  * the event has ($current_url, $referrer, $pathname, $initial_*, $session_entry_*, $set, $set_once, ...).
  * Pure, with no imports, so the package tests cover it directly.
@@ -8,11 +9,18 @@
 const URLISH = /^(?:[a-z][a-z0-9+.-]*:|\/)/i
 const MAX_DEPTH = 4
 
-/** "https://x/share/#abc" -> "https://x/share/"; "/share#abc" -> "/share"; leaves other text alone. */
+/** A `ref=<handle>` query parameter: who referred the visitor. Analytics may know that there was one, never whose. */
+const REF_PARAM = /([?&])ref=[^&#]*(&?)/gi
+
+/**
+ * "https://x/share/#abc" -> "https://x/share/"; "/share#abc" -> "/share"; "/u/ada?ref=ada" -> "/u/ada?ref";
+ * leaves other text alone.
+ */
 export function stripFragment(value: string): string {
   if (!URLISH.test(value)) return value
   const at = value.indexOf("#")
-  return at === -1 ? value : value.slice(0, at)
+  const base = at === -1 ? value : value.slice(0, at)
+  return base.replace(REF_PARAM, (_m, lead: string, tail: string) => `${lead}ref${tail}`)
 }
 
 function clean(value: unknown, depth: number): unknown {

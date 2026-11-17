@@ -333,7 +333,7 @@ function statsLink() {
   let link = "";
   const post = () => `My AI coding, recapped: ${link}\nFind out yours: ${SHARE.command}\n${SHARE.hashtag}`;
   const refresh = () => {
-    const p = ShareLink.payload(RC, nameIn.value);
+    const p = ShareLink.payload(RC, nameIn.value, VIEW.ratios);
     link = ShareLink.url(p, SHARE.siteUrl);
     list.replaceChildren(...ShareLink.describe(p, HARNESS_NAMES).map((line) => h("li", {}, line)));
     preview.textContent = link;
@@ -343,10 +343,10 @@ function statsLink() {
   const btn = (label, fn, cls = "btn small") => h("button", { class: cls, type: "button", onclick: fn }, label);
   refresh();
   return h("div", { class: "slink share", id: "share-stats" },
-    h("div", { class: "share-h" }, "Share your stats and join the leaderboard"),
-    h("p", { class: "muted small" }, "A link to a card on the AI Insights site with these numbers. It holds only the lines below, in the link itself: no project names, prompts or paths. Opening the link uploads nothing; on that page you can choose to sign in and publish these numbers to the public leaderboard."),
+    h("div", { class: "share-h" }, "Share your stats and cards, join the leaderboard"),
+    h("p", { class: "muted small" }, "A link to your card and profile on the AI Insights site. It holds only the lines below, in the link itself: your totals and your recap cards as short lines of numbers, dates, agent names and fixed wording. No project names, prompts, commands or paths. Opening the link uploads nothing; on that page you can choose to sign in and publish exactly these lines to your public profile and the leaderboard."),
     nameIn,
-    h("div", { class: "slink-what" }, h("strong", { class: "small" }, "The link contains exactly:"), list),
+    h("div", { class: "slink-what" }, h("strong", { class: "small" }, "The link contains exactly these lines:"), list),
     preview,
     h("div", { class: "share-row" },
       btn("Publish to the leaderboard", () => open(link), "btn small primary"),

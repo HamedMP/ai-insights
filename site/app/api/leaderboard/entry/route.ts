@@ -2,7 +2,8 @@ import { after, NextResponse, type NextRequest } from "next/server"
 
 import { databaseConfigured, removeEntry, saveEntry } from "@/lib/db"
 import { handlePublish, handleRemove, type HandlerDeps, type Reply } from "@/lib/publish"
-import { allowedOrigins, currentUserId, logError, recordSignupSource, writeLimiter } from "@/lib/server-auth"
+import { REF_COOKIE } from "@/lib/referral"
+import { allowedOrigins, clerkAvatar, currentUserId, logError, recordReferral, recordSignupSource, writeLimiter } from "@/lib/server-auth"
 
 export const dynamic = "force-dynamic"
 
@@ -25,7 +26,17 @@ async function deps(request: NextRequest): Promise<HandlerDeps> {
 
 export async function POST(request: NextRequest) {
   if (!databaseConfigured()) return unavailable()
-  return json(await handlePublish({ ...(await deps(request)), save: saveEntry }))
+  const reply = await handlePublish({
+    ...(await deps(request)),
+    referrer: request.cookies.get(REF_COOKIE)?.value ?? null,
+    save: saveEntry,
+    avatarFor: clerkAvatar,
+    onCredited: (userId, handle) => after(() => recordReferral(userId, handle)),
+  })
+  const res = json(reply)
+  // Published: a person has one referrer at most, set on their first publish, so the claim has done its job.
+  if (reply.status === 200) res.cookies.delete(REF_COOKIE)
+  return res
 }
 
 export async function DELETE(request: NextRequest) {

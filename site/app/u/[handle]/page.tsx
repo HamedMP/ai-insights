@@ -2,11 +2,17 @@ import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 
 import { Footer } from "@/components/site/footer"
+import { AccountMenu } from "@/components/site/account-menu"
 import { Header } from "@/components/site/header"
-import { FindOutYours, StatsCard } from "@/components/site/share-card"
+import { OwnerReferrals } from "@/components/site/owner-referrals"
+import { AgentsAndFact, BadgePill, CardGallery, EarnedTitles, joinedLabel, ProfileHeader, StatStrip, WorkRatios } from "@/components/site/profile"
+import { FindOutYours } from "@/components/site/share-card"
+import { ShareButtons } from "@/components/site/share-buttons"
+import { profileBadges, profilePost } from "@/lib/arena-format"
+import { referralLink } from "@/lib/referral"
 import { BASE, SITE_URL } from "@/lib/site"
 
-import { loadProfile } from "./data"
+import { loadProfile, loadProfileExtras } from "./data"
 
 export const dynamic = "force-dynamic"
 
@@ -28,23 +34,56 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 }
 
-/** A published entry, rendered from the database as text with the same card as /share. */
+/** A published entry, rendered from the database as text: who, how they rank, their numbers and their recap cards. */
 export default async function ProfilePage({ params }: Props) {
   const { handle } = await params
   const entry = await loadProfile(handle)
   if (entry === "error") throw new Error("profile unavailable")
   if (!entry) notFound()
+  const { ranks, referrals } = await loadProfileExtras(entry.handle)
+  const badges = profileBadges(ranks)
+  const shareUrl = referralLink(SITE_URL, entry.handle)
+  const hasCards = Boolean(entry.stats.cards && entry.stats.cards.length > 0)
+
   return (
     <>
-      <Header />
+      <Header account={<AccountMenu />} />
       <main id="top" className="relative overflow-hidden">
         <div aria-hidden className="hero-glow pointer-events-none absolute inset-x-0 top-0 h-[40rem]" />
-        <div className="relative mx-auto flex max-w-6xl flex-col items-center gap-10 px-4 pt-8 pb-20 md:px-8 md:pt-14">
-          <StatsCard stats={entry.stats} />
-          <p className="-mt-6 font-mono text-[11px] text-muted-foreground">
-            @{entry.handle} · self-reported · <a className="underline-offset-4 hover:underline" href={`${BASE}/leaderboard`}>see the leaderboard</a>
+        <div className="relative mx-auto flex max-w-4xl flex-col gap-6 px-4 pt-6 pb-20 sm:gap-8 md:px-8 md:pt-12">
+          <ProfileHeader
+            name={entry.displayName}
+            handle={entry.handle}
+            avatarUrl={entry.avatarUrl}
+            joined={joinedLabel(entry.createdAt)}
+            stats={entry.stats}
+            badge={badges[0] ?? null}
+            referrals={referrals}
+            share={<ShareButtons post={profilePost(shareUrl)} url={shareUrl} />}
+          />
+          <StatStrip stats={entry.stats} />
+          {badges.length > 1 && (
+            <section aria-labelledby="ranks" className="flex flex-col gap-3">
+              <h2 id="ranks" className="font-mono text-[10.5px] tracking-wide text-muted-foreground uppercase">leaderboard ranks</h2>
+              <div className="flex flex-wrap gap-2">
+                {badges.map((b) => (
+                  <BadgePill key={b.arena} badge={b} />
+                ))}
+              </div>
+            </section>
+          )}
+          <EarnedTitles stats={entry.stats} />
+          <AgentsAndFact stats={entry.stats} />
+          <WorkRatios stats={entry.stats} />
+          <OwnerReferrals handle={entry.handle} hasCards={hasCards} />
+          <CardGallery cards={entry.stats.cards} handle={entry.handle} />
+          <p className="font-mono text-[11px] text-muted-foreground">
+            Published by @{entry.handle} from their own AI Insights report. Self-reported, not verified. ·{" "}
+            <a className="underline-offset-4 hover:underline" href={`${BASE}/leaderboard`}>see the leaderboard</a>
           </p>
-          <FindOutYours note="Published by its owner from their own AI Insights report. The numbers are self-reported." />
+          <div className="flex justify-center pt-6">
+            <FindOutYours note="Your report stays on your machine. Publishing a profile like this one is optional and sends only the lines you see." />
+          </div>
         </div>
       </main>
       <Footer />

@@ -30,8 +30,26 @@ export const serverAuthEnabled = () => clerkEnabled && Boolean(process.env.CLERK
  */
 export const satelliteOptions = () => (isSatellite ? { isSatellite: true as const, domain: clerkDomain, signInUrl, signUpUrl, satelliteAutoSync: true as const } : {})
 
-/** Pages that have sign-in. Only these pay for the sync round trip; the landing page and profiles stay direct. */
-export const needsAuthSync = (pathname: string) => /^\/(?:share|leaderboard|api)(?:\/|$)/.test(pathname)
+/**
+ * Pages that mount Clerk (sign-in, the account menu, owner views). Only these get Clerk hosts in their CSP and may run
+ * the satellite sync; the landing page stays free of Clerk code and of the round trip.
+ */
+export const mountsClerk = (pathname: string) => /^\/(?:share|leaderboard|u|api)(?:\/|$)/.test(pathname)
+
+/** Link-preview crawlers and fetch tools: they must get the page itself, not a redirect to the primary domain. */
+const CRAWLER = /bot|crawl|spider|slurp|facebookexternalhit|embedly|preview|whatsapp|telegram|discord|slack|linkedin|skype|vkshare|pinterest|quora|outbrain|redditbot|curl|wget|python-requests|go-http-client|node-fetch|headless/i
+
+/**
+ * Whether this request may take the satellite sync round trip: a Clerk page, opened as a document by a browser. OG
+ * images, API fetches (Clerk only syncs documents anyway) and crawlers fetching a shared profile are served directly.
+ */
+export function needsAuthSync(pathname: string, userAgent: string | null = null, fetchDest: string | null = null): boolean {
+  if (!mountsClerk(pathname)) return false
+  if (/\/opengraph-image(?:\/|$)/.test(pathname)) return false
+  if (userAgent !== null && (userAgent === "" || CRAWLER.test(userAgent))) return false
+  if (fetchDest !== null && fetchDest !== "document") return /^\/api(?:\/|$)/.test(pathname)
+  return true
+}
 
 /**
  * The Clerk Frontend API host(s) the browser loads clerk-js from and talks to. A publishable key is
@@ -60,6 +78,7 @@ export function clerkHosts(key = clerkPublishableKey, satelliteDomain = isSatell
  */
 export function contentSecurityPolicy(hosts: string[], dev = false): string {
   const clerk = hosts.map((h) => `https://${h}`)
+  // img.clerk.com serves Clerk's own avatars (the account menu, and profile photos people chose to show).
   const directives: Record<string, string[]> = {
     "default-src": ["'self'"],
     "script-src": ["'self'", "'unsafe-inline'", ...(dev ? ["'unsafe-eval'"] : []), ...clerk],
