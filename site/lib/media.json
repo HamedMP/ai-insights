@@ -93,6 +93,22 @@
     {
       "id": "outro",
       "dur": 3500
+    },
+    {
+      "id": "thinking",
+      "dur": 6000
+    },
+    {
+      "id": "approvals",
+      "dur": 6000
+    },
+    {
+      "id": "history",
+      "dur": 6000
+    },
+    {
+      "id": "titles",
+      "dur": 6500
     }
   ],
   "titles": {
@@ -115,7 +131,11 @@
       "persona": "Persona",
       "tips": "Try next",
       "summary": "Summary",
-      "outro": "Made with"
+      "outro": "Made with",
+      "thinking": "Deep thoughts",
+      "approvals": "Rubber stamp",
+      "history": "History kept",
+      "titles": "Titles earned"
     },
     "panel": {
       "intro": "Intro",
@@ -136,7 +156,11 @@
       "persona": "Persona",
       "tips": "Try next",
       "summary": "Summary",
-      "outro": "Made with"
+      "outro": "Made with",
+      "thinking": "Deep thoughts",
+      "approvals": "Rubber stamp",
+      "history": "History kept",
+      "titles": "Titles earned"
     },
     "sticker": {
       "intro": "Intro",
@@ -157,7 +181,11 @@
       "persona": "Persona",
       "tips": "Try next",
       "summary": "Summary",
-      "outro": "Made with"
+      "outro": "Made with",
+      "thinking": "Deep thoughts",
+      "approvals": "Rubber stamp",
+      "history": "History kept",
+      "titles": "Titles earned"
     }
   },
   "defaults": [
@@ -215,7 +243,7 @@
       "parallel"
     ]
   ],
-  "caption": "I'm The Morning Orchestrator.\n7 agents running at once · 137 hours with AI agents in 51 days · 921.5M tokens\nMake yours: npx ai-insights@latest or /analyze-ai-usage\nhttps://ai-insights.app/\n#MyAIInsights",
+  "caption": "I'm The Morning Orchestrator.\n7 agents running at once · 139 hours with AI agents in 51 days · 921.5M tokens\nMake yours: npx ai-insights@latest or /analyze-ai-usage\nhttps://ai-insights.app/\n#MyAIInsights",
   "video": {
     "file": "media/sample-1x1.mp4",
     "poster": "media/sample-1x1.webp",
@@ -229,6 +257,6 @@
       "outro"
     ],
     "seconds": 47,
-    "exportMb": 5.8
+    "exportMb": 5.9
   }
 }

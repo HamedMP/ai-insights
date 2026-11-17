@@ -88,7 +88,9 @@ try {
     await shotPage.goto(pathToFileURL(join(site, "public/demo/report.html")).href)
     await shotPage.waitForFunction(() => window.recap && window.recap.ready(), null, { timeout: 60_000 })
     await shotPage.evaluate(() => { window.recap.setStyle("pop"); window.recap.setRatio("1:1") })
-    await shotPage.addStyleTag({ content: ".topbar{display:none!important}" })
+    // The site's pictures never show a time-limited event banner, whatever the clock says when they are made.
+    // The studio's sticky bar is pinned in flow, or a full-page capture draws it over the cards.
+    await shotPage.addStyleTag({ content: ".topbar,#event-banner{display:none!important}.studio-bar{position:static!important}" })
     for (const [name, selector, maxH] of parts) {
       const el = shotPage.locator(selector).first()
       await el.scrollIntoViewIfNeeded()
