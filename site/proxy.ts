@@ -1,6 +1,7 @@
 import { clerkMiddleware } from "@clerk/nextjs/server"
 import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server"
 
+import { BREAKFAST_COUNTRY_COOKIE, BREAKFAST_COUNTRY_MAX_AGE, countryCookieFor } from "@/lib/breakfast"
 import { AUTH_CHECKED_COOKIE, AUTH_CHECKED_MAX_AGE, cachedClerkPage, clerkHosts, clerkRun, contentSecurityPolicy, mountsClerk, satelliteOptions, serverAuthEnabled, type ClerkRun } from "@/lib/auth-config"
 import { boardViewPath } from "@/lib/leaderboard"
 import { REF_COOKIE, REF_MAX_AGE_SECONDS, referralToStore } from "@/lib/referral"
@@ -26,6 +27,8 @@ function withHeaders(request: NextRequest, response: Response | NextResponse | u
     fetchSite: request.headers.get("sec-fetch-site"),
   })
   if (ref) res.cookies.set(REF_COOKIE, ref, { maxAge: REF_MAX_AGE_SECONDS, httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/" })
+  // Temporary (lib/breakfast.ts): a landing-page visit from Finland gets a flag cookie; the cached page itself does not change.
+  if (countryCookieFor({ pathname, country: request.headers.get("x-vercel-ip-country"), fetchDest: request.headers.get("sec-fetch-dest"), existing: request.cookies.get(BREAKFAST_COUNTRY_COOKIE)?.value, now: Date.now() })) res.cookies.set(BREAKFAST_COUNTRY_COOKIE, "1", { maxAge: BREAKFAST_COUNTRY_MAX_AGE, httpOnly: false, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/" })
   res.headers.set("Content-Security-Policy", cspFor(pathname, request.headers.get("cookie")))
   res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin")
   res.headers.set("X-Content-Type-Options", "nosniff")

@@ -12,6 +12,8 @@ const MODULE = "../../site/components/site/breakfast.tsx";
 type Prompt = (props: { now?: number }) => unknown;
 const { BREAKFAST_UNTIL, BreakfastNote, BreakfastNextStep, BreakfastStrip } = (await import(/* @vite-ignore */ MODULE)) as { BREAKFAST_UNTIL: number; BreakfastNote: Prompt; BreakfastNextStep: Prompt; BreakfastStrip: Prompt };
 
+type Landing = (props: { now?: number; cookies?: string; search?: string }) => unknown;
+const { BreakfastLanding } = (await import(/* @vite-ignore */ MODULE)) as { BreakfastLanding: Landing };
 const SITE = new URL("../../site/", import.meta.url);
 const source = (path: string) => readFileSync(new URL(path, SITE), "utf8");
 const BEFORE = Date.UTC(2026, 10, 17, 12, 0, 0);
@@ -87,7 +89,40 @@ describe("analytics", () => {
     const code = source("components/site/breakfast.tsx");
     const calls = [...code.matchAll(/track\(([^)]*)\)/g)].map((m) => m[1]!.trim());
     expect(calls).toEqual(["EVENTS.breakfastRegisterClicked, { placement }"]);
-    expect([...code.matchAll(/placement="([a-z_]+)"/g)].map((m) => m[1]).sort()).toEqual(["leaderboard", "share_after_publish", "share_before"]);
+    expect([...code.matchAll(/placement="([a-z_]+)"/g)].map((m) => m[1]).sort()).toEqual(["landing", "leaderboard", "share_after_publish", "share_before"]);
     expect(source("lib/analytics-sanitize.ts")).toContain('breakfastRegisterClicked: "breakfast_register_clicked"');
+  });
+});
+
+describe("the landing-page section for visitors in Finland", () => {
+  const landing = (props: { now?: number; cookies?: string; search?: string }) => renderToStaticMarkup(React.createElement(BreakfastLanding, props));
+
+  it("renders nothing on the server, so the cached landing page is the same HTML whatever the visitor's country", () => {
+    expect(landing({})).toBe("");
+  });
+
+  it("shows with the Finland flag before the breakfast, and is gone from the moment it starts", () => {
+    expect(landing({ now: BEFORE, cookies: "aii_fi=1" })).toContain(LUMA);
+    expect(landing({ now: BEFORE, search: "?breakfast=1" })).toContain(LUMA);
+    expect(landing({ now: BREAKFAST_UNTIL, cookies: "aii_fi=1" })).toBe("");
+    expect(landing({ now: BEFORE, cookies: "" })).toBe("");
+  });
+
+  it("says who it is for, what it is, and what to do, with the install command to copy", () => {
+    const html = landing({ now: BEFORE, cookies: "aii_fi=1" });
+    const t = text(html);
+    for (const line of ["In Helsinki for Slush?", "Slush AI Breakfast Club · Thu 19 Nov, 8:00–10:00", "Matrix OS is hosting a breakfast on AI insights, real usage and upskilling. Run your report, publish to the leaderboard and register: we’re sending invites to people on the leaderboard.", "Register for the breakfast", "npx ai-insights@latest"]) expect(t).toContain(line);
+    expect(t).not.toMatch(/guarantee|verified|—/i);
+    expect(html).toContain('aria-label="Copy: npx ai-insights@latest"');
+  });
+
+  it("sits under the hero, so the hero and its command stay where they are", () => {
+    const page = source("app/page.tsx");
+    expect(page.indexOf("<BreakfastLanding />")).toBeGreaterThan(page.indexOf("<GetIt />"));
+    expect(page.indexOf("<BreakfastLanding />")).toBeLessThan(page.indexOf('<section id="cards"'));
+  });
+
+  it("counts a Luma click with placement landing only", () => {
+    expect(source("components/site/breakfast.tsx")).toContain('placement="landing"');
   });
 });
