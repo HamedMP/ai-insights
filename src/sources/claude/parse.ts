@@ -1,6 +1,6 @@
 import { readdir } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
-import type { ApprovalStats, ModelRequest, Session, SessionFile, ThinkingStats, ToolCall, UserPrompt } from "../../schema/types.js";
+import type { ApprovalStats, ModelRequest, Session, SessionFile, ThinkingStats, ToolCall, ToolErrorCategory, UserPrompt } from "../../schema/types.js";
 import { activeMinutes, languageForPath, truncate } from "../shared.js";
 import {
   EDIT_TOOLS,
@@ -21,6 +21,7 @@ import {
   toolCategory,
   type PromptKind,
 } from "./classify.js";
+import { readSubagentLog } from "./subagent-log.js";
 import { DEFAULT_LIMITS, readJsonl, scanJsonl, type JsonlLimits, type JsonlPosition } from "./jsonl.js";
 
 export const CAPS = {
@@ -234,6 +235,200 @@ export function addRequest(log: RequestLog, record: Obj, m: Obj, time: string | 
   return 0;
 }
 
+/** What one tool call adds to a session, from its `tool_use` block alone: the same in the main file and a subagent's. */
+export interface ToolUseFacts {
+  id: string;
+  name: string;
+  call: Omit<ToolCall, "timestamp">;
+  effect: PendingEffect;
+  /** A skill to list under features (`Skill` calls), or null. */
+  skill: string | null;
+  /** A slash command to list under features (`SlashCommand` calls), or null. */
+  slashCommand: string | null;
+}
+
+export function toolUseFacts(block: Obj): ToolUseFacts {
+  const id = str(block.id);
+  const name = truncate(str(block.name) || "unknown", CAPS.nameChars);
+  const category = toolCategory(name);
+  const input = obj(block.input);
+  const call: Omit<ToolCall, "timestamp"> = { name, category };
+  const effect: PendingEffect = { added: 0, removed: 0, modifiedPath: null, commits: 0, pushes: 0 };
+  let skill: string | null = null;
+  let slashCommand: string | null = null;
+
+  if (category === "shell") {
+    const command = str(input.command);
+    if (command) {
+      call.command = scrub(command, CAPS.commandChars);
+      for (const sub of gitSubcommands(command)) {
+        if (sub === "commit") effect.commits += 1;
+        else if (sub === "push") effect.pushes += 1;
+      }
+    }
+  }
+  const filePath = str(input.file_path) || str(input.notebook_path);
+  if (filePath && (category === "read" || category === "edit")) call.filePath = truncate(filePath, CAPS.pathChars);
+
+  const server = mcpServer(name);
+  if (server) call.mcpServer = truncate(server, CAPS.nameChars);
+  if (name === "Skill") {
+    const value = str(input.skill) || str(input.command);
+    if (value) {
+      call.skill = truncate(value, CAPS.nameChars);
+      skill = value;
+    }
+  } else if (name === "SlashCommand") {
+    const command = str(input.command).trim().split(/\s+/)[0] ?? "";
+    if (command) {
+      call.skill = truncate(command, CAPS.nameChars);
+      slashCommand = command.startsWith("/") ? command : `/${command}`;
+    }
+  }
+
+  if (EDIT_TOOLS.has(name)) {
+    if (filePath) effect.modifiedPath = truncate(filePath, CAPS.pathChars);
+    if (name === "Edit") {
+      const delta = lineDelta(str(input.old_string), str(input.new_string));
+      effect.added = delta.added;
+      effect.removed = delta.removed;
+    } else if (name === "MultiEdit" && Array.isArray(input.edits)) {
+      for (const edit of input.edits.slice(0, 1000)) {
+        const e = obj(edit);
+        const delta = lineDelta(str(e.old_string), str(e.new_string));
+        effect.added += delta.added;
+        effect.removed += delta.removed;
+      }
+    } else if (name === "Write") {
+      effect.added = lineCount(str(input.content));
+    } else if (name === "NotebookEdit") {
+      if (input.edit_mode !== "delete") effect.added = lineCount(str(input.new_source));
+    }
+  }
+  return { id, name, call, effect, skill, slashCommand };
+}
+
+/** What one tool result can change, from the block and its `toolUseResult` alone. */
+export interface ToolResultFacts {
+  toolUseId: string;
+  /** For a failed call: the error category for a shell call and for any other tool (the call decides which). */
+  error: { shell: ToolErrorCategory; other: ToolErrorCategory } | null;
+  /** An overwrite's real diff, from the file it replaced. */
+  overwrite: { added: number; removed: number } | null;
+  git: { commits: number; pushes: number } | null;
+}
+
+export function toolResultFacts(block: Obj, toolUseResult: unknown): ToolResultFacts {
+  const result = obj(toolUseResult);
+  const toolUseId = str(block.tool_use_id);
+  if (block.is_error === true) {
+    const text = toolResultText(block.content);
+    return { toolUseId, error: { shell: errorCategory(text, "shell"), other: errorCategory(text, "other") }, overwrite: null, git: null };
+  }
+  const overwrite = result.type === "update" && typeof result.originalFile === "string" ? lineDelta(result.originalFile, typeof result.content === "string" ? result.content : "") : null;
+  const git = obj(result.gitOperation);
+  return { toolUseId, error: null, overwrite, git: git.commit || git.push ? { commits: git.commit ? 1 : 0, pushes: git.push ? 1 : 0 } : null };
+}
+
+export interface PermissionFacts {
+  verdict: string;
+  source: string;
+}
+
+export function permissionFacts(value: unknown): PermissionFacts | null {
+  if (!value) return null;
+  const decision = obj(value);
+  return { verdict: str(decision.decision), source: str(decision.source) };
+}
+
+export function thinkingMs(value: unknown): number | null {
+  return typeof value === "number" ? value : null;
+}
+
+/** The envelope fields every line can set on a session (first folder, branch and id; last permission mode). */
+interface Envelope {
+  sessionId: string;
+  cwd: string;
+  gitBranch: string;
+  permissionMode: string;
+}
+
+/**
+ * Everything a subagent line can change in a session, and nothing it cannot: no prompts, no tool output, no assistant
+ * text, and commands only as stored in the session (scrubbed). Plain JSON, so a parse can save and replay it.
+ */
+export type SubagentEvent =
+  | { kind: "system"; envelope: Envelope }
+  | { kind: "user"; envelope: Envelope; time: string | null; uuid: string; message: boolean; results: ToolResultFacts[]; permission: PermissionFacts | null }
+  | {
+      kind: "assistant";
+      envelope: Envelope;
+      time: string | null;
+      uuid: string;
+      message: boolean;
+      model: string;
+      synthetic: boolean;
+      /** What `addRequest` reads, when the reply carries usage. */
+      request: { requestId: string; message: Obj } | null;
+      /** The reply had a content list (thinking and tool calls are read from it). */
+      content: boolean;
+      thinking: boolean;
+      thinkingMs: number | null;
+      tools: ToolUseFacts[];
+    };
+
+const USAGE_KEYS = ["input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens", "speed", "cache_creation"] as const;
+
+function envelopeOf(record: Obj): Envelope {
+  return { sessionId: str(record.sessionId), cwd: str(record.cwd), gitBranch: str(record.gitBranch), permissionMode: str(record.permissionMode) };
+}
+
+/** A subagent line as a SubagentEvent, or null when it changes nothing (attachments, mode lines, unknown types). */
+export function subagentEvent(record: Obj): SubagentEvent | null {
+  const type = record.type;
+  if (type === "system") return { kind: "system", envelope: envelopeOf(record) };
+  if (type !== "user" && type !== "assistant") return null;
+  const envelope = envelopeOf(record);
+  const time = isoTime(record.timestamp);
+  const uuid = str(record.uuid);
+  const raw = record.message;
+  const message = Boolean(raw) && typeof raw === "object";
+  const m = obj(raw);
+  if (type === "user") {
+    const results: ToolResultFacts[] = [];
+    if (message && Array.isArray(m.content)) {
+      for (const block of m.content) {
+        const b = obj(block);
+        if (b.type === "tool_result") results.push(toolResultFacts(b, record.toolUseResult));
+      }
+    }
+    return { kind: "user", envelope, time, uuid, message, results, permission: permissionFacts(record.permissionDecision) };
+  }
+  const model = str(m.model);
+  const synthetic = model === "<synthetic>";
+  let request: { requestId: string; message: Obj } | null = null;
+  if (m.usage) {
+    const u = m.usage;
+    const usage = u && typeof u === "object" && !Array.isArray(u) ? pickKeys(u as Obj, USAGE_KEYS) : u;
+    if (usage && typeof usage === "object" && !Array.isArray(usage)) {
+      const cache = (usage as Obj).cache_creation;
+      if (cache && typeof cache === "object" && !Array.isArray(cache)) (usage as Obj).cache_creation = pickKeys(cache as Obj, ["ephemeral_5m_input_tokens", "ephemeral_1h_input_tokens"]);
+    }
+    request = { requestId: str(record.requestId), message: { id: str(m.id), model, usage, ...(m.stop_reason === null ? { stop_reason: null } : {}) } };
+  }
+  const content = message && Array.isArray(m.content);
+  const blocks = content ? (m.content as unknown[]) : [];
+  const thinking = blocks.some((block) => obj(block).type === "thinking" || obj(block).type === "redacted_thinking");
+  const tools = blocks.map(obj).filter((b) => b.type === "tool_use").map(toolUseFacts);
+  return { kind: "assistant", envelope, time, uuid, message, model, synthetic, request, content, thinking, thinkingMs: thinkingMs(record.thinkingDurationMs), tools };
+}
+
+function pickKeys(from: Obj, keys: readonly string[]): Obj {
+  const out: Obj = {};
+  for (const key of keys) if (key in from) out[key] = from[key];
+  return out;
+}
+
 interface PendingEffect {
   added: number;
   removed: number;
@@ -335,8 +530,8 @@ class SessionBuilder {
   }
 
   /** False when this record was already counted; records without a uuid always count. */
-  private firstSight(record: Obj, kind: string): boolean {
-    const id = str(record.uuid);
+  private firstSight(uuid: string, kind: string): boolean {
+    const id = uuid;
     if (!id) return true;
     const key = `${kind}:${id}`;
     if (this.counted.has(key)) return false;
@@ -346,27 +541,58 @@ class SessionBuilder {
 
   private noteThinking(record: Obj, content: unknown[]): void {
     if (!content.some((block) => obj(block).type === "thinking" || obj(block).type === "redacted_thinking")) return;
-    if (!this.firstSight(record, "thinking")) return;
+    this.applyThinking(str(record.uuid), thinkingMs(record.thinkingDurationMs));
+  }
+
+  /** Claude Code writes who allowed or blocked a tool call next to its result. */
+  private notePermission(record: Obj): void {
+    this.applyPermission(str(record.uuid), permissionFacts(record.permissionDecision));
+  }
+
+  private applyPermission(uuid: string, permission: PermissionFacts | null): void {
+    if (!permission || !permission.verdict || !this.firstSight(uuid, "permission")) return;
+    const verdict = permission.verdict;
+    this.approvals.seen = true;
+    if (verdict === "reject" || verdict === "deny") this.approvals.denied += 1;
+    else if (verdict === "accept" || verdict === "allow") {
+      if (permission.source.startsWith("user")) this.approvals.byPerson += 1;
+      else this.approvals.auto += 1;
+    }
+  }
+
+  /** The thinking count for a reply, by uuid: resumed and copied files repeat lines. */
+  private applyThinking(uuid: string, ms: number | null): void {
+    if (!this.firstSight(uuid, "thinking")) return;
     this.thinking.blocks += 1;
-    const ms = record.thinkingDurationMs;
-    if (typeof ms === "number" && Number.isFinite(ms) && ms >= 0 && ms < 86_400_000) {
+    if (ms !== null && Number.isFinite(ms) && ms >= 0 && ms < 86_400_000) {
       this.thinking.timed = true;
       this.thinking.totalMs += Math.round(ms);
       this.thinking.longestMs = Math.max(this.thinking.longestMs, Math.round(ms));
     }
   }
 
-  /** Claude Code writes who allowed or blocked a tool call next to its result. */
-  private notePermission(record: Obj): void {
-    const decision = obj(record.permissionDecision);
-    const verdict = str(decision.decision);
-    if (!verdict || !this.firstSight(record, "permission")) return;
-    this.approvals.seen = true;
-    if (verdict === "reject" || verdict === "deny") this.approvals.denied += 1;
-    else if (verdict === "accept" || verdict === "allow") {
-      if (str(decision.source).startsWith("user")) this.approvals.byPerson += 1;
-      else this.approvals.auto += 1;
+  /**
+   * A subagent line, reduced to what it can change (`subagentEvent`). Subagent lines fold in after the main file, so
+   * this is all that is read from them, both from the file and from a saved log.
+   */
+  applySubagentEvent(event: SubagentEvent): void {
+    this.noteEnvelope(event.envelope as unknown as Obj);
+    if (event.kind === "system") return;
+    this.noteTime(event.time, false);
+    if (!event.message) {
+      this.issues += 1;
+      return;
     }
+    if (event.kind === "user") {
+      for (const result of event.results) this.applyToolResult(result);
+      if (event.permission) this.applyPermission(event.uuid, event.permission);
+      return;
+    }
+    if (event.model && !event.synthetic && this.models.size < CAPS.featureList) this.models.add(truncate(event.model, 200));
+    if (event.request && !event.synthetic) this.issues += addRequest({ requests: this.requests, placeholders: this.placeholders, sessionId: this.sessionId }, { requestId: event.request.requestId }, event.request.message, event.time);
+    if (!event.content) return;
+    if (!event.synthetic && event.thinking) this.applyThinking(event.uuid, event.thinkingMs);
+    for (const tool of event.tools) this.applyToolUse(tool, event.time ?? this.end ?? "", false);
   }
 
   assistant(record: Obj, time: string | null, mainThread: boolean): void {
@@ -404,71 +630,22 @@ class SessionBuilder {
   }
 
   private toolUse(block: Obj, time: string, mainThread: boolean): void {
-    const id = str(block.id);
-    if (id && this.toolIndex.has(id)) return;
-    const name = truncate(str(block.name) || "unknown", CAPS.nameChars);
+    this.applyToolUse(toolUseFacts(block), time, mainThread);
+  }
+
+  private applyToolUse(facts: ToolUseFacts, time: string, mainThread: boolean): void {
+    if (facts.id && this.toolIndex.has(facts.id)) return;
     if (this.toolCalls.length >= CAPS.toolCalls) {
       this.issues += 1;
       this.toolCallsDropped += 1;
       return;
     }
-    const category = toolCategory(name);
-    const input = obj(block.input);
-    const call: ToolCall = { name, category, timestamp: time };
-    const effect: PendingEffect = { added: 0, removed: 0, modifiedPath: null, commits: 0, pushes: 0 };
-
-    if (category === "shell") {
-      const command = str(input.command);
-      if (command) {
-        call.command = scrub(command, CAPS.commandChars);
-        for (const sub of gitSubcommands(command)) {
-          if (sub === "commit") effect.commits += 1;
-          else if (sub === "push") effect.pushes += 1;
-        }
-      }
-    }
-    const filePath = str(input.file_path) || str(input.notebook_path);
-    if (filePath && (category === "read" || category === "edit")) call.filePath = truncate(filePath, CAPS.pathChars);
-
-    const server = mcpServer(name);
-    if (server) {
-      call.mcpServer = truncate(server, CAPS.nameChars);
-      if (this.mcpServers.size < CAPS.featureList) this.mcpServers.add(call.mcpServer);
-    }
-    if (name === "Skill") {
-      const skill = str(input.skill) || str(input.command);
-      if (skill) {
-        call.skill = truncate(skill, CAPS.nameChars);
-        this.addSkill(skill);
-      }
-    } else if (name === "SlashCommand") {
-      const command = str(input.command).trim().split(/\s+/)[0] ?? "";
-      if (command) {
-        call.skill = truncate(command, CAPS.nameChars);
-        this.addSlashCommand(command.startsWith("/") ? command : `/${command}`);
-      }
-    }
-
-    if (EDIT_TOOLS.has(name)) {
-      if (filePath) effect.modifiedPath = truncate(filePath, CAPS.pathChars);
-      if (name === "Edit") {
-        const delta = lineDelta(str(input.old_string), str(input.new_string));
-        effect.added = delta.added;
-        effect.removed = delta.removed;
-      } else if (name === "MultiEdit" && Array.isArray(input.edits)) {
-        for (const edit of input.edits.slice(0, 1000)) {
-          const e = obj(edit);
-          const delta = lineDelta(str(e.old_string), str(e.new_string));
-          effect.added += delta.added;
-          effect.removed += delta.removed;
-        }
-      } else if (name === "Write") {
-        effect.added = lineCount(str(input.content));
-      } else if (name === "NotebookEdit") {
-        if (input.edit_mode !== "delete") effect.added = lineCount(str(input.new_source));
-      }
-    }
-
+    const { name } = facts;
+    const { name: callName, category, ...rest } = facts.call;
+    const call: ToolCall = { name: callName, category, timestamp: time, ...rest };
+    if (call.mcpServer && this.mcpServers.size < CAPS.featureList) this.mcpServers.add(call.mcpServer);
+    if (facts.skill !== null) this.addSkill(facts.skill);
+    if (facts.slashCommand !== null) this.addSlashCommand(facts.slashCommand);
     if (name === "EnterPlanMode" || name === "ExitPlanMode") this.planMode = true;
     if (name === "WebSearch") this.webSearch = true;
     if (name === "WebFetch") this.webFetch = true;
@@ -476,8 +653,8 @@ class SessionBuilder {
 
     const index = this.toolCalls.length;
     this.toolCalls.push(call);
-    if (id) this.toolIndex.set(id, index);
-    this.effects.set(index, effect);
+    if (facts.id) this.toolIndex.set(facts.id, index);
+    this.effects.set(index, { ...facts.effect });
   }
 
   /** Tool results, plus the prompt when the line is something the person typed. */
@@ -566,27 +743,26 @@ class SessionBuilder {
   }
 
   private toolResult(block: Obj, toolUseResult: unknown): void {
-    const index = this.toolIndex.get(str(block.tool_use_id));
+    this.applyToolResult(toolResultFacts(block, toolUseResult));
+  }
+
+  private applyToolResult(facts: ToolResultFacts): void {
+    const index = this.toolIndex.get(facts.toolUseId);
     if (index === undefined) return;
     const call = this.toolCalls[index];
     if (!call) return;
-    const result = obj(toolUseResult);
     const effect = this.effects.get(index);
-    if (block.is_error === true) {
-      call.error = errorCategory(toolResultText(block.content), call.category);
+    if (facts.error) {
+      call.error = call.category === "shell" ? facts.error.shell : facts.error.other;
       return;
     }
     if (!effect) return;
     // An overwrite reports the file it replaced, which gives a real diff instead of "every line is new".
-    if (call.name === "Write" && result.type === "update" && typeof result.originalFile === "string") {
-      const delta = lineDelta(result.originalFile, typeof result.content === "string" ? result.content : "");
-      effect.added = delta.added;
-      effect.removed = delta.removed;
+    if (call.name === "Write" && facts.overwrite) {
+      effect.added = facts.overwrite.added;
+      effect.removed = facts.overwrite.removed;
     }
-    const git = obj(result.gitOperation);
-    if (git.commit || git.push) {
-      this.gitOps.set(index, { commits: git.commit ? 1 : 0, pushes: git.push ? 1 : 0 });
-    }
+    if (facts.git) this.gitOps.set(index, facts.git);
   }
 
   build(file: SessionFile): Session | null {
@@ -704,6 +880,11 @@ class SessionBuilder {
   }
 
   record(record: Obj, mainFile: boolean): void {
+    if (!mainFile) {
+      const event = subagentEvent(record);
+      if (event) this.applySubagentEvent(event);
+      return;
+    }
     const type = record.type;
     const time = isoTime(record.timestamp);
     // Older Claude Code versions wrote subagent turns into the parent file, flagged as sidechain.
@@ -799,7 +980,8 @@ export interface ParseCheckpoint {
  */
 export interface Checkpoints {
   load(path: string, key: string): Promise<ParseCheckpoint | null>;
-  save(path: string, key: string, checkpoint: ParseCheckpoint): Promise<void>;
+  /** `minBytes` overrides `this.minBytes` for this save. */
+  save(path: string, key: string, checkpoint: ParseCheckpoint, minBytes?: number): Promise<void>;
   /** Transcripts with fewer bytes than this are cheaper to re-read than to checkpoint. */
   minBytes: number;
 }
@@ -858,6 +1040,14 @@ export async function parseClaudeTranscript(file: SessionFile, limits: JsonlLimi
   // agent talking, not the person, so they are not counted.
   const subagents = await subagentFiles(file.path);
   for (const path of subagents) {
+    if (checkpoints) {
+      // The same lines as the events they become, replayed from the file's saved log.
+      const log = await readSubagentLog(path, limits, checkpoints);
+      builder.issues += log.issues;
+      for (const event of log.events) builder.applySubagentEvent(event);
+      if (log.records > 0) builder.subagentTranscripts += 1;
+      continue;
+    }
     let sawRecord = false;
     for await (const row of readJsonl(path, limits)) {
       if (row.kind === "issue") builder.issues += 1;
