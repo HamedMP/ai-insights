@@ -24,10 +24,15 @@ const NOT_MAIL_TLDS = new Set([
   "js", "mjs", "cjs", "ts", "tsx", "jsx", "json", "yaml", "yml", "toml", "txt", "log", "lru",
 ]);
 
+// What every ASSIGNMENT match contains: a key word, then the rest of the name and `=` or `:`. Most text has none, and
+// this test, with no word boundary and no leading name to backtrack over, costs far less than ASSIGNMENT itself.
+const ASSIGNMENT_HINT = /(?:TOKEN|SECRET|PASSWORD|PASSWD|API_?KEY|PRIVATE_?KEY|ACCESS_?KEY)[A-Z0-9_]*\s*[=:]/i;
+
 /** Replace anything that looks like a credential or an email address. Runs before text is stored or shown. */
 export function redact(text: string): string {
-  let out = text.replace(ASSIGNMENT, (_match, name: string) => `${name}=[redacted]`);
+  let out = ASSIGNMENT_HINT.test(text) ? text.replace(ASSIGNMENT, (_match, name: string) => `${name}=[redacted]`) : text;
   for (const pattern of SECRET_PATTERNS) out = out.replace(pattern, "[redacted]");
+  if (!out.includes("@") && !out.includes("%40")) return out;
   return out.replace(EMAIL, (match: string, local: string, tld: string) =>
     // `git@github.com:org/repo` is an SSH remote, not a person.
     local.toLowerCase() === "git" || NOT_MAIL_TLDS.has(tld.toLowerCase()) ? match : "[email]",
@@ -50,6 +55,7 @@ const URL_HOST_BEFORE = /[a-z][a-z0-9+.-]*:\/\/[^\s/]+$/i;
 
 /** Replace home directories with `~`, so usernames do not travel into another agent's context. */
 export function shortenHome(text: string): string {
+  if (!text.includes("/home/") && !text.includes("/Users/") && !text.includes(":\\Users\\")) return text;
   return text.replace(HOME_DIR, (match: string, offset: number, whole: string) => {
     const before = whole.slice(Math.max(0, offset - 300), offset);
     // `https://example.com/home/page` is a web page, not a home directory.
