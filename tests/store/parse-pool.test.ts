@@ -143,3 +143,24 @@ describe("parsing on worker threads", () => {
     expect(mod.ParsePool.create({ workerUrl: new URL("file:///no/such/parse-worker.js") })).toBeNull();
   });
 });
+
+describe("how many workers a scan uses by default", () => {
+  const GB = 1024 ** 3;
+  it("is at most four, one fewer than the cores, and fewer on small machines", async () => {
+    const { defaultPoolSize } = await import("../../src/store/parse-pool.js");
+    expect(defaultPoolSize({ cores: 32, totalBytes: 128 * GB, freeBytes: 30 * GB })).toBe(4);
+    expect(defaultPoolSize({ cores: 4, totalBytes: 16 * GB, freeBytes: 4 * GB })).toBe(3);
+    // An 8 GB laptop.
+    expect(defaultPoolSize({ cores: 8, totalBytes: 8 * GB, freeBytes: 2 * GB })).toBe(3);
+    expect(defaultPoolSize({ cores: 8, totalBytes: 4 * GB, freeBytes: 2 * GB })).toBe(2);
+    // Almost no free memory: at most two.
+    expect(defaultPoolSize({ cores: 16, totalBytes: 32 * GB, freeBytes: 0.2 * GB })).toBe(2);
+  });
+
+  it("is none where a single worker would only be slower than the main thread", async () => {
+    const { defaultPoolSize, ParsePool } = await import("../../src/store/parse-pool.js");
+    expect(defaultPoolSize({ cores: 2, totalBytes: 16 * GB, freeBytes: 8 * GB })).toBe(0);
+    expect(defaultPoolSize({ cores: 8, totalBytes: 2 * GB, freeBytes: 1 * GB })).toBe(0);
+    expect(ParsePool.create({ size: 0, workerUrl: compiled.url("store/parse-worker.js") })).toBeNull();
+  });
+});

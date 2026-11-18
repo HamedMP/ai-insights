@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { availableParallelism } from "node:os";
+import { availableParallelism, freemem, totalmem } from "node:os";
 import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
 import type { Harness, Session, SessionFile } from "../schema/types.js";
@@ -16,14 +16,24 @@ import type { FileParseOptions } from "./parse-file.js";
 
 /** Harnesses whose parse only reads their own transcript files; the SQLite-backed ones stay on the main thread. */
 export const POOLED_HARNESSES: ReadonlySet<Harness> = new Set<Harness>(["claude-code", "codex", "pi", "gemini"]);
+/** The most `AI_INSIGHTS_WORKERS` may ask for. */
 export const MAX_WORKERS = 8;
+/** The most chosen by default: measured, more cost memory and gain little. */
+export const DEFAULT_MAX_WORKERS = 4;
+/**
+ * Heap limits per worker. V8 lets an unlimited heap grow far past what a parse holds before collecting, and with
+ * several workers that adds up; these limits keep a cold scan of 1.2 GB of history near 600 MB resident. A worker
+ * that does run out is replaced and its transcript parsed on the calling thread, which has the usual limit.
+ */
+export const WORKER_YOUNG_MB = 16;
+export const WORKER_OLD_MB = 256;
 /** One transcript is bounded in size, so a parse this slow means something is wrong. */
 export const TASK_TIMEOUT_MS = 5 * 60_000;
 /**
  * Transcript bytes in flight across the pool. Each worker has its own heap, so the one-process budget would leave
  * workers idle behind one large session; this bound still keeps several large ones from all running at once.
  */
-export const POOLED_PARSE_BUDGET_BYTES = 1536 * 1024 * 1024;
+export const POOLED_PARSE_BUDGET_BYTES = 1024 * 1024 * 1024;
 /** Workers replaced after a crash, at most, before the pool stops and the calling thread does the rest. */
 const MAX_RESTARTS = 4;
 
@@ -60,14 +70,35 @@ export interface PoolOptions {
   timeoutMs?: number;
 }
 
-export function defaultPoolSize(): number {
+/** What a worker count is chosen from; tests pass made-up machines. */
+export interface MachineInfo {
+  cores: number;
+  totalBytes: number;
+  freeBytes: number;
+}
+
+const GB = 1024 ** 3;
+
+function machine(): MachineInfo {
   let cores = 1;
   try {
     cores = availableParallelism();
   } catch {
     cores = 1;
   }
-  return Math.max(1, Math.min(MAX_WORKERS, cores - 1));
+  return { cores, totalBytes: totalmem(), freeBytes: freemem() };
+}
+
+/**
+ * Workers for a cold scan, from cores and memory. Each worker costs about 100 MB at its heap limits, and beyond four
+ * they buy little (the largest session bounds the scan); one worker is slower than none. Free memory only lowers the
+ * count when it is very low, because macOS reports file cache as used.
+ */
+export function defaultPoolSize(info: MachineInfo = machine()): number {
+  const byMemory = info.totalBytes >= 12 * GB ? 4 : info.totalBytes >= 6 * GB ? 3 : info.totalBytes >= 3 * GB ? 2 : 0;
+  let size = Math.min(DEFAULT_MAX_WORKERS, info.cores - 1, byMemory);
+  if (info.freeBytes < GB / 2) size = Math.min(size, 2);
+  return size >= 2 ? size : 0;
 }
 
 export class ParsePool {
@@ -83,20 +114,22 @@ export class ParsePool {
 
   private constructor(url: URL, options: PoolOptions) {
     this.url = url;
-    this.workers = Math.max(1, Math.min(MAX_WORKERS, Math.floor(options.size ?? defaultPoolSize())));
+    this.workers = Math.max(1, Math.min(MAX_WORKERS, Math.floor(options.size ?? 1)));
     this.execArgv = options.execArgv;
     this.timeoutMs = options.timeoutMs ?? TASK_TIMEOUT_MS;
   }
 
-  /** A pool, or null when workers cannot run here (no compiled worker entry, as when running from source). */
+  /** A pool, or null when workers cannot or should not run here (no compiled worker entry, or a size of 0). */
   static create(options: PoolOptions = {}): ParsePool | null {
+    const size = Math.min(MAX_WORKERS, Math.floor(options.size ?? defaultPoolSize()));
+    if (!(size >= 1)) return null;
     const url = options.workerUrl ?? new URL("./parse-worker.js", import.meta.url);
     try {
       if (url.protocol !== "file:" || !existsSync(fileURLToPath(url))) return null;
     } catch {
       return null;
     }
-    return new ParsePool(url, options);
+    return new ParsePool(url, { ...options, size });
   }
 
   handles(harness: Harness): boolean {
@@ -146,7 +179,7 @@ export class ParsePool {
     if (this.closed) return null;
     let worker: Worker;
     try {
-      worker = new Worker(this.url, this.execArgv ? { execArgv: this.execArgv } : {});
+      worker = new Worker(this.url, { ...(this.execArgv ? { execArgv: this.execArgv } : {}), resourceLimits: { maxYoungGenerationSizeMb: WORKER_YOUNG_MB, maxOldGenerationSizeMb: WORKER_OLD_MB } });
     } catch {
       return null;
     }
