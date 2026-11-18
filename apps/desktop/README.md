@@ -11,7 +11,7 @@ The app never parses history itself. It runs your own `ai-insights` CLI and read
 All knowledge of that JSON lives in one adapter, `src-tauri/src/summary.rs`, which tolerates missing or
 mistyped fields so a CLI update cannot crash the app.
 
-**Finding the CLI.** The app uses the copy you installed with `npm i -g ai-insights`, looked up in this order:
+**Finding the CLI.** The app uses the copy you installed with `npm i -g ai-insights` (0.10.0 or newer, the first with `summary --json`; an older one gets an "update the CLI" notice), looked up in this order:
 
 1. a path you set in Settings;
 2. `AI_INSIGHTS_CLI` (for development);
@@ -58,7 +58,10 @@ for your OS.
 ```bash
 cd apps/desktop
 pnpm install
-AI_INSIGHTS_CLI="$PWD/fixtures/fake-cli.mjs" pnpm dev   # synthetic numbers, no real history
+pnpm dev                                                # your installed ai-insights (npm i -g ai-insights)
+pnpm dev:fixture                                        # fixtures/fake-cli.mjs: fixed numbers, every error state
+node scripts/synthetic-store.mjs /tmp/aii-synth         # the real CLI from this checkout (pnpm build at the
+AI_INSIGHTS_CLI=/tmp/aii-synth/ai-insights pnpm dev     #   root first) on made-up transcripts
 pnpm check                                              # typecheck, UI tests, UI build
 cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
 ```

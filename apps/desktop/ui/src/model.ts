@@ -145,7 +145,8 @@ function agentLines(p: Period | null, showCost: boolean): AgentLine[] {
   return p.byAgent.map((row: AgentRow) => ({
     label: row.label,
     sessions: row.sessions === null ? DASH : `${formatCount(row.sessions)} ${row.sessions === 1 ? "session" : "sessions"}`,
-    cost: !row.measured || row.costUsd === null ? NOT_MEASURED : showCost ? formatCost(row.costUsd) : "",
+    // Chat exports record no usage ("not measured"); a coding agent with no price for its models is "unpriced".
+    cost: !row.measured ? NOT_MEASURED : row.costUsd === null ? (showCost ? "unpriced" : "") : showCost ? formatCost(row.costUsd) : "",
     measured: row.measured,
   }));
 }

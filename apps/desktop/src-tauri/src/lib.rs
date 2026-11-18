@@ -261,12 +261,14 @@ fn open_report_now<R: Runtime>(app: &AppHandle<R>) -> Result<(), Problem> {
         Some(path) => path,
         None => {
             let cli = find_cli(&state).ok_or(Problem::CliMissing)?;
-            cli.run(&["report", "--no-open", "--no-install-prompt"], REPORT_TIMEOUT).map_err(|e| match e {
+            // `ai-insights report` never prompts and prints only the report's path (docs/summary-json.md).
+            let out = cli.run(&["report"], REPORT_TIMEOUT).map_err(|e| match e {
                 cli::RunError::Timeout => Problem::Timeout,
                 _ => Problem::ReportFailed,
             })?;
             refresh_now(app);
-            current_report(&state).ok_or(Problem::ReportFailed)?
+            let printed = String::from_utf8_lossy(&out).lines().last().map(|l| l.trim().to_string());
+            existing_report(printed.as_deref()).or_else(|| current_report(&state)).ok_or(Problem::ReportFailed)?
         }
     };
     app.opener().open_path(report.to_string_lossy(), None::<&str>).map_err(|_| Problem::ReportFailed)
