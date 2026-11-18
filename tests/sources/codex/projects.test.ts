@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mkdirSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { codexSource } from "../../../src/sources/codex/index.js";
@@ -127,7 +126,8 @@ describe("codex project attribution", () => {
 
 describe("codex home directories", () => {
   it("shortens the home directory in free text but keeps structural paths absolute", async () => {
-    const home = homedir();
+    // A home of the usual shape: tests run with a temporary HOME (tests/setup-home.ts), which is not one.
+    const home = "/home/someone";
     const todo = join(home, "notes", "todo.md");
     const session = await parseOne([
       meta(uuid(1), { cwd: join(home, "ai-insights-fixture-missing") }),

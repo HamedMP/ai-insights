@@ -79,9 +79,20 @@ function lightDefaults(): LightDeps {
   };
 }
 
+/**
+ * Moves a pre-0.2 `~/.hindsight` store to `~/.ai-insights` once (src/store/migrate-home.ts). Only commands a person
+ * runs do this: never `nudge` (the session-start hook) or `mcp` (an agent's server, which may share the folder with
+ * an older one still running), and never for help or the version.
+ */
+async function settleStore(deps: LightDeps): Promise<void> {
+  const { MOVED_LINE, settleHome } = await import("../store/migrate-home.js");
+  if (settleHome(deps.env).moved) deps.stderr(`${MOVED_LINE}\n`);
+}
+
 /** The whole CLI as a function, so tests can drive it. Returns the exit code. */
 export async function run(argv: string[], overrides: Partial<CliDeps> = {}): Promise<number> {
   const deps: LightDeps = { ...lightDefaults(), ...overrides };
+  if (argv[0] === "import" || argv[0] === "install" || argv[0] === "uninstall") await settleStore(deps);
   if (argv[0] === "import") {
     // Its own small parser and module (src/cli/import.ts), loaded only when asked for.
     try {
@@ -127,6 +138,7 @@ export async function run(argv: string[], overrides: Partial<CliDeps> = {}): Pro
     deps.stderr("ai-insights: --json only works with `ai-insights report`\n");
     return 2;
   }
+  if (parsed.command !== "mcp") await settleStore(deps);
   const style = detectStyle(deps.env, deps.terminal, deps.platform);
   if (parsed.command === "run" && style.rich) deps.stdout(richHeader(packageVersion(), style));
   const { execute } = await import("./commands.js");
