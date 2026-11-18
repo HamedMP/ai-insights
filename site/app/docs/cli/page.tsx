@@ -274,8 +274,8 @@ ai-insights uninstall [--harness <name>]... [--yes] [--dry-run]`}</Code>
         Adds one job to your computer&apos;s own scheduler that refreshes the report at a set time and shows a notification. It is the one thing
         AI Insights leaves running after a restart, so it is opt-in and works like <a href="#cmd-install">install</a>: it lists the files it
         adds, the exact command line it runs and when, and adds nothing until you say yes. It never runs in CI or when the output is not a
-        terminal; <code>--yes</code> only skips the question. The job reads your agent history on this computer, rewrites the report, saves the
-        counts for the session-start reminder (<code>digest.json</code> in the store) and shows a notification. It sends nothing anywhere.
+        terminal; <code>--yes</code> only skips the question. The job reads your agent history on this computer, rewrites the report and shows a
+        notification. It sends nothing anywhere.
       </p>
       <Code label="Usage" copy={false}>{`ai-insights schedule daily|weekly|monthly [--at HH:MM] [--day mon..sun] [--with-cost] [--yes] [--dry-run]
 ai-insights schedule off       remove everything it added
@@ -291,8 +291,8 @@ ai-insights schedule status    what is installed, when it runs next, how the las
         ]}
       />
       <p>
-        The default time is 09:00, and weekly runs on Monday. A daily, weekly or monthly job reports on the last 1, 7 or 30 days, and monthly runs
-        on the 1st. On Linux, a run missed while the computer was off happens at the next start. The notification holds counts only, since it can
+        The default time is 09:00, and weekly runs on Monday. Each run reports on the period that just ended: yesterday, last week (Monday to
+        Sunday) or last month. Monthly runs on the 1st. On Linux, a run missed while the computer was off happens at the next start. The notification holds counts only, since it can
         show on a lock screen: no project names, prompts or paths, and the estimated cost only with <code>--with-cost</code>. Clicking it opens
         nothing. The job starts this install&apos;s own Node and CLI file by absolute path, never <code>npx</code> (which would contact the npm
         registry), so <code>schedule</code> refuses to run from an npx cache: install it first with <code>npm i -g ai-insights</code>.
@@ -306,7 +306,7 @@ This adds a scheduled job to this computer that keeps running after a restart:
   then   systemctl --user daemon-reload
          systemctl --user enable --now ai-insights-schedule.timer
 Each time it reads your agent history on this computer, rewrites the report and shows a
-notification with counts only, like "Your weekly AI Insights are ready: 41 sessions, 6.1 h."
+notification with counts only, like "Your weekly AI Insights are ready: 41 sessions, 6.1 h last week."
 It sends nothing anywhere.
 Remove it any time with: ai-insights schedule off (ai-insights uninstall removes it too)
 Add this schedule? [Y/n]`}</Code>
