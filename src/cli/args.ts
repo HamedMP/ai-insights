@@ -16,6 +16,8 @@ Usage
   ai-insights scan [options]     scan and show what was found
   ai-insights report [options]   write the report (or print JSON with --json)
   ai-insights doctor             show which histories were found and where
+  ai-insights share [options]    print your stats share link, to open and publish from any device
+  ai-insights serve [--port <n>] show the last report to your computer through an SSH tunnel
   ai-insights mcp                start the MCP server on stdio (for your agent)
   ai-insights import claude <path>  add a Claude chat export (see import --help)
   ai-insights import openai <path>  add a ChatGPT data export (see import --help)
@@ -33,6 +35,11 @@ Options
   --no-open            do not ask to open it, and do not open it
   --no-install-prompt  do not offer to add AI Insights to your agents
                        (or set AI_INSIGHTS_NO_INSTALL_PROMPT=1)
+  --name <name>        share: the display name on your card (default: none)
+  --device <name>      share: a name for this computer (default: none)
+  --no-days            share: leave out which days you were active
+  --copy               share: also ask the terminal to copy the link (OSC 52)
+  --port <n>           serve: listen on this port on 127.0.0.1 (default: a free one)
   -h, --help           show this help
   -v, --version        show the version
 
@@ -56,13 +63,23 @@ export interface Parsed {
   noInstallPrompt: boolean;
   help: boolean;
   version: boolean;
+  /** share: --name, --device, --no-days and --copy. */
+  shareName: string;
+  deviceName: string;
+  days: boolean;
+  copy: boolean;
+  /** serve: --port, 0 for any free port. */
+  port: number;
 }
 
-const COMMANDS = new Set(["run", "scan", "report", "doctor", "mcp", "help"]);
-const VALUE_FLAGS = new Set(["--since", "--harness", "--max-sessions"]);
+const COMMANDS = new Set(["run", "scan", "report", "doctor", "mcp", "share", "serve", "help"]);
+const VALUE_FLAGS = new Set(["--since", "--harness", "--max-sessions", "--name", "--device", "--port"]);
+/** Flags that mean something to one command only: anywhere else they are a mistake worth saying. */
+const ONLY_FOR: Record<string, string> = { "--name": "share", "--device": "share", "--no-days": "share", "--copy": "share", "--port": "serve" };
 
 export function parseArgs(argv: string[], now: Date): Parsed {
-  const parsed: Parsed = { command: "run", refresh: false, json: false, open: null, noInstallPrompt: false, help: false, version: false };
+  const parsed: Parsed = { command: "run", refresh: false, json: false, open: null, noInstallPrompt: false, help: false, version: false, shareName: "", deviceName: "", days: true, copy: false, port: 0 };
+  const used: string[] = [];
   let commandSeen = false;
   for (let index = 0; index < argv.length; index += 1) {
     const raw = argv[index]!;
@@ -116,6 +133,24 @@ export function parseArgs(argv: string[], now: Date): Parsed {
       case "--no-install-prompt":
         parsed.noInstallPrompt = true;
         break;
+      case "--name":
+        parsed.shareName = value!;
+        break;
+      case "--device":
+        parsed.deviceName = value!;
+        break;
+      case "--no-days":
+        parsed.days = false;
+        break;
+      case "--copy":
+        parsed.copy = true;
+        break;
+      case "--port": {
+        const port = Number(value);
+        if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new UsageError("--port must be a whole number from 1024 to 65535");
+        parsed.port = port;
+        break;
+      }
       case "-h":
       case "--help":
         parsed.help = true;
@@ -127,7 +162,9 @@ export function parseArgs(argv: string[], now: Date): Parsed {
       default:
         throw new UsageError(`unknown option "${flag}"`);
     }
+    if (ONLY_FOR[flag]) used.push(flag);
   }
+  for (const flag of used) if (ONLY_FOR[flag] !== parsed.command) throw new UsageError(`${flag} only works with \`ai-insights ${ONLY_FOR[flag]}\``);
   return parsed;
 }
 

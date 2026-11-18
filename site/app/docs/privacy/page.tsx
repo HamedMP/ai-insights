@@ -94,7 +94,8 @@ export default function Privacy() {
 
       <H2 id="share-link-contents">What a share link contains</H2>
       <p>
-        A share link exists only when you make one in the report, and the report shows every line it carries before you copy it. It travels in the
+        A share link exists only when you make one, in the report or with <code>ai-insights share</code> in a terminal, and both show every
+        line it carries before you copy it. It travels in the
         URL fragment (after <code>#</code>), which browsers do not send to the website. It holds no project names, paths, prompts or commands.
       </p>
       <Table

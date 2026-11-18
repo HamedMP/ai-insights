@@ -74,7 +74,8 @@ function deps(overrides: Partial<CliDeps> = {}): Partial<CliDeps> {
   };
 }
 
-const tty = (columns = 80, env: NodeJS.ProcessEnv = {}) => ({ terminal: { isTTY: true, columns }, env: { AI_INSIGHTS_HOME: home, TERM: "xterm-256color", ...env } });
+// A desktop terminal: a display is there, so the run may offer to open the browser (tests/cli/headless.test.ts covers none).
+const tty = (columns = 80, env: NodeJS.ProcessEnv = {}) => ({ terminal: { isTTY: true, columns }, env: { AI_INSIGHTS_HOME: home, TERM: "xterm-256color", DISPLAY: ":0", ...env } });
 
 beforeEach(async () => {
   ({ home, cleanup } = await tempHome());

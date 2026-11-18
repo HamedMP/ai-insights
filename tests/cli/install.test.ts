@@ -44,7 +44,8 @@ function deps(overrides: Partial<CliDeps> = {}): Partial<CliDeps> {
     stderr: (text) => {
       out += text;
     },
-    env: { AI_INSIGHTS_HOME: home },
+    // A desktop session, so the run asks to open the report before the offer.
+    env: { AI_INSIGHTS_HOME: home, DISPLAY: ":0" },
     sources: [fakeSource("claude-code", [makeSession({ id: "c1" })])],
     buildReport: fakeBuildReport(),
     renderReport: fakeRenderReport,

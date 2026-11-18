@@ -7,6 +7,7 @@ import type { Harness, Source } from "../schema/types.js";
 import type { BuildReportFn, RenderReportFn } from "../store/pipeline.js";
 import type { RetentionPolicy } from "../store/retention.js";
 import type { AgentStatus, DetectContext } from "./agents.js";
+import type { RunningServer, ServeOptions } from "./serve.js";
 import type { Spawner } from "./spawn.js";
 import { HELP, parseArgs, UsageError, type Parsed } from "./args.js";
 import { richHeader } from "./header.js";
@@ -46,6 +47,8 @@ export interface CliDeps {
   detectAgents?: (context: DetectContext) => Promise<AgentStatus[]>;
   /** The person's home folder, where agents keep their config. Default: os.homedir(). */
   userHome?: string;
+  /** Starts the loopback report server for `serve`. Default: src/cli/serve.ts. */
+  serveReport?: (options: ServeOptions) => Promise<RunningServer>;
 }
 
 /** The parts that need the heavy modules; filled in by commands.ts when a test has not supplied them. */

@@ -1,4 +1,4 @@
-import { readdir, rm, stat } from "node:fs/promises";
+import { readdir, readFile, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { buildReport as realBuildReport } from "../analysis/index.js";
 import { packageVersion } from "../mcp/version.js";
@@ -12,6 +12,7 @@ import { measureRetention, readRetentionPolicies, type RetentionPolicy } from ".
 import { Store, resolveHome } from "../store/store.js";
 import type { Parsed } from "./args.js";
 import type { CliDeps, LightDeps } from "./main.js";
+import { headlessLines, noBrowserHere } from "./headless.js";
 import { OPEN_QUESTION, openMode, type OpenMode } from "./open.js";
 import { ProgressLine } from "./progress.js";
 import { compact, day, failureHint, noHistoryText, plural, resultScreen, retentionLine } from "./screen.js";
@@ -134,13 +135,16 @@ async function commandRun(parsed: Parsed, deps: CliDeps, store: Store, style: St
     progress?.stop();
     stopListening();
   }
-  const mode = openMode({ flag: parsed.open, env: deps.env, stdoutTTY: deps.terminal?.isTTY === true, stdinTTY: deps.terminal?.stdin === true, platform: deps.platform });
-  deps.stdout(
-    resultScreen(
-      { report: outcome.report, htmlPath: outcome.htmlPath, version: packageVersion(), now: deps.now(), open: mode, reviewed: outcome.facetCount > 0 || outcome.hasNarrative },
-      style,
-    ),
+  const noBrowser = noBrowserHere(deps.env, deps.platform);
+  const asked = openMode({ flag: parsed.open, env: deps.env, stdoutTTY: deps.terminal?.isTTY === true, stdinTTY: deps.terminal?.stdin === true, platform: deps.platform });
+  // Only an explicit --open still tries where no browser would show; otherwise the run says so (headless.ts).
+  const mode: OpenMode = noBrowser && parsed.open !== "open" ? "manual" : asked;
+  const screen = resultScreen(
+    { report: outcome.report, htmlPath: outcome.htmlPath, version: packageVersion(), now: deps.now(), open: mode, reviewed: outcome.facetCount > 0 || outcome.hasNarrative },
+    style,
   );
+  deps.stdout(screen);
+  if (noBrowser && mode === "manual") deps.stdout(`${screen.endsWith("\n\n") ? "" : "\n"}${headlessLines(outcome.htmlPath, style.rich ? "  " : "").join("\n")}\n`);
   const delivered = await deliver(mode, outcome.htmlPath, deps, style);
   if (delivered !== 0) return delivered;
   const { installDeps, offerInstall } = await import("./install-command.js");
@@ -162,16 +166,19 @@ async function deliver(mode: OpenMode, path: string, deps: CliDeps, style: Style
     deps.stdout(answer === "yes" ? "yes\n" : "no\n");
     if (answer === "no") return 0;
   }
-  await openReport(path, deps, indent);
+  if (!(await openReport(path, deps, indent))) deps.stdout(`${headlessLines(path, indent).join("\n")}\n`);
   return 0;
 }
 
-async function openReport(path: string, deps: CliDeps, indent = ""): Promise<void> {
+/** True when the opener started; a failure costs one line, never the command. */
+async function openReport(path: string, deps: CliDeps, indent = ""): Promise<boolean> {
   try {
     await deps.openFile(path);
+    return true;
   } catch (error) {
-    deps.stderr(`${indent}Could not open a browser here; open the report path above yourself.\n`);
+    deps.stderr(`${indent}Could not open a browser here.\n`);
     if (deps.env.AI_INSIGHTS_DEBUG) deps.stderr(`${error instanceof Error ? error.message : String(error)}\n`);
+    return false;
   }
 }
 
@@ -210,7 +217,64 @@ async function commandReport(parsed: Parsed, deps: CliDeps, store: Store): Promi
   }
   const outcome = await renderFromScan(pipelineDeps(deps, store), result);
   deps.stdout(`${outcome.htmlPath}\n`);
-  if (parsed.open === "open") await openReport(outcome.htmlPath, deps);
+  if (parsed.open === "open" && !(await openReport(outcome.htmlPath, deps))) deps.stderr("Open the report path above yourself.\n");
+  return 0;
+}
+
+/** Writes the report as `report` does, then prints the link its share box would make for the same choices. */
+async function commandShare(parsed: Parsed, deps: CliDeps, store: Store): Promise<number> {
+  const { buildShareLink, osc52, reportData, shareScreen } = await import("./share.js");
+  const result = await scan(scanDeps(deps, store), scanOptions(parsed));
+  if (result.sessions.length === 0) {
+    deps.stderr(noHistoryText([]));
+    return 1;
+  }
+  const outcome = await renderFromScan(pipelineDeps(deps, store), result);
+  const view = reportData(await readFile(outcome.htmlPath, "utf8"));
+  const link = view ? buildShareLink(view, { name: parsed.shareName, deviceName: parsed.deviceName, days: parsed.days }) : null;
+  if (!link) {
+    deps.stderr("ai-insights: this history has no recap to share yet.\n");
+    return 1;
+  }
+  const file = join(store.home, "share-link.txt");
+  let savedTo: string | null = file;
+  try {
+    await writeFileAtomic(file, `${link.url}\n`);
+  } catch (error) {
+    if (!(error instanceof Error)) throw error;
+    savedTo = null;
+  }
+  const copy = !parsed.copy ? "off" : deps.terminal?.isTTY === true ? "sent" : "no-terminal";
+  deps.stdout(shareScreen({ link, savedTo, copy }));
+  if (copy === "sent") deps.stdout(osc52(link.url));
+  return 0;
+}
+
+/** Serves the last written report on 127.0.0.1 until Ctrl-C or the idle timeout. */
+async function commandServe(parsed: Parsed, deps: CliDeps, store: Store): Promise<number> {
+  const file = join(store.reportsDir, "report.html");
+  if (!(await pathExists(file))) {
+    deps.stderr("ai-insights: no report yet. Run `npx ai-insights@latest` first, then serve it.\n");
+    return 1;
+  }
+  const { serveScreen, startReportServer } = await import("./serve.js");
+  let server: Awaited<ReturnType<typeof startReportServer>>;
+  try {
+    server = await (deps.serveReport ?? startReportServer)({ file, port: parsed.port });
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code !== "EADDRINUSE" && code !== "EACCES") throw error;
+    deps.stderr(`ai-insights: port ${parsed.port} is ${code === "EADDRINUSE" ? "in use" : "not allowed"}; pick another with --port, or leave it out for a free one.\n`);
+    return 1;
+  }
+  deps.stdout(serveScreen(server.port, server.path));
+  const stopListening = deps.onInterrupt(() => void server.close());
+  try {
+    const why = await server.closed;
+    deps.stdout(why === "idle" ? "Stopped: no visits for a while.\n" : "Stopped.\n");
+  } finally {
+    stopListening();
+  }
   return 0;
 }
 
@@ -340,6 +404,10 @@ export async function execute(parsed: Parsed, light: LightDeps, style: Style): P
         return await commandReport(parsed, deps, store);
       case "doctor":
         return await commandDoctor(deps, store);
+      case "share":
+        return await commandShare(parsed, deps, store);
+      case "serve":
+        return await commandServe(parsed, deps, store);
       default:
         return await commandRun(parsed, deps, store, style);
     }

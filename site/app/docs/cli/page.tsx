@@ -15,6 +15,8 @@ export default function Cli() {
 ai-insights scan [options]     scan and show what was found
 ai-insights report [options]   write the report (or print JSON with --json)
 ai-insights doctor             show which histories were found and where
+ai-insights share [options]    print your stats share link, to open and publish from any device
+ai-insights serve [--port <n>] show the last report to your computer through an SSH tunnel
 ai-insights mcp                start the MCP server on stdio (for your agent)
 ai-insights import claude <path>  add a Claude chat export
 ai-insights import openai <path>  add a ChatGPT data export
@@ -97,6 +99,57 @@ Store: ~/.ai-insights
   writable
   0 cached sessions, 0 saved facets, narrative not saved yet
   last report: none yet`}</Code>
+      <H3 id="cmd-share">ai-insights share</H3>
+      <p>
+        Writes the report as <code>report</code> does, then prints the stats share link that the report&apos;s{" "}
+        <strong>Publish to the leaderboard</strong> button makes: the same link, byte for byte, built by the same code from the same numbers.
+        Before the link it lists every line the link holds, the same list the report shows under &quot;See exactly what&apos;s in the
+        link&quot;. It contacts nothing: it only prints text. Open the link on any device to see your card on the site; nothing is published
+        until you sign in there and press Publish. See <DocLink href="/docs/sharing">Sharing</DocLink> for what the link carries.
+      </p>
+      <Code label="Usage" copy={false}>{`ai-insights share [--name <name>] [--device <name>] [--no-days] [--copy]`}</Code>
+      <p>
+        <code>--name</code> is the display name on your card (none by default: the card says &quot;Someone&quot;), <code>--device</code> names
+        this computer for publishing from several, and <code>--no-days</code> leaves out which days you were active, like unticking the box in
+        the report. The link is printed alone on its line and also saved to <code>share-link.txt</code> in the store, since terminals wrap long
+        lines. <code>--copy</code> also asks the terminal to put it on your clipboard (OSC 52; many terminals allow it, tmux only with{" "}
+        <code>set-clipboard on</code>). <code>--since</code> and <code>--harness</code> work as for the report.
+      </p>
+      <Code label="Output, from a synthetic history; home folder shortened to ~; cards and link abridged" copy={false}>{`Your stats share link. It holds exactly these lines:
+  Name: Ada
+  Device: “VPS”, random id b469a88d0fe09b46caf1fcf1465f2799 made by AI Insights, not from this computer's name or hardware
+  Which days you were active: 15 dates from 2026-10-01 on (dates only, no counts or times)
+  Period: 2026-11-01 to 2026-11-14
+  29 sessions, 35.0K tokens
+  15 active days, longest streak 14 days
+  Agents: Claude Code 71%, Codex 29%
+  Card “Longest streak”: 14 days, in a row, Nov 1 to Nov 14
+  …
+
+The numbers travel in the link's #fragment, which browsers do not send to any server. Nothing is uploaded:
+open the link on your laptop or phone to see your card, then sign in there and press Publish to join the leaderboard.
+
+https://ai-insights.app/share/#eyJ2IjozLCJuYW1lIjoiQWRhIiwiZnJvbSI6IjIwMjYtMTEtMDEi…
+
+Also saved to ~/.ai-insights/share-link.txt, in case your terminal wraps the link.`}</Code>
+      <H3 id="cmd-serve">ai-insights serve</H3>
+      <p>
+        Shows the last written report to a browser on your own computer, for when AI Insights runs on a server. It listens on{" "}
+        <code>127.0.0.1</code> only, so nothing on the network can reach it, and you forward the port over your own SSH connection. It serves
+        that one report file at one random path, read-only, and answers nothing else: no other files, no listing, only <code>GET</code> and{" "}
+        <code>HEAD</code>, only for a <code>localhost</code> address, with the report&apos;s own policy that loads nothing from the network. The
+        random path keeps other accounts on a shared server from reading the report. It stops after 30 minutes without a visit, or on Ctrl-C.
+        A free port is picked unless you pass <code>--port</code> (1024 to 65535).
+      </p>
+      <Code label="Output" copy={false}>{`Serving your report on this server at http://localhost:41234/9f2c…e1
+It listens on 127.0.0.1 only: nothing on the network can reach it.
+
+On your own computer, forward the port over SSH:
+  ssh -L 41234:127.0.0.1:41234 user@host
+then open:
+  http://localhost:41234/9f2c…e1
+
+It stops after 30 minutes without a visit, or press Ctrl-C.`}</Code>
       <H3 id="cmd-mcp">ai-insights mcp</H3>
       <p>
         Starts the MCP server on standard input and output. Your agent starts this for you once the plugin or server is installed; you do not run
@@ -166,9 +219,26 @@ ai-insights nudge --on     remind me again`}</Code>
         <code>help</code> is accepted as a command and prints the same text as <code>--help</code>.
       </p>
 
+      <H2 id="on-a-server">On a server</H2>
+      <p>
+        Over SSH without a forwarded display, or on Linux with no display at all, a run does not ask to open the report and does not pretend
+        it opened. It ends with the three ways to see it from your own computer (if a browser fails to open elsewhere, you get the same lines):
+      </p>
+      <Code label="Output, the end of a run over SSH; home folder shortened" copy={false}>{`No browser here to open the report. To see it from your own computer:
+  npx ai-insights@latest serve    through an SSH tunnel
+  scp user@host:/home/you/.ai-insights/reports/report.html .
+  npx ai-insights@latest share    a link to publish from any device`}</Code>
+      <p>
+        <a href="#cmd-serve">serve</a> shows the full report through an SSH tunnel; the <code>scp</code> line, run on your own computer with
+        your server&apos;s login in place of <code>user@host</code>, copies the file so you can open it there; <a href="#cmd-share">share</a>{" "}
+        prints the link to your card, which you can open on your laptop or phone and publish from. Nothing leaves the server unless you run one
+        of these yourself.
+      </p>
+
       <H2 id="options">Options</H2>
       <p>
-        Options work with the default command, <code>scan</code> and <code>report</code>. Values can follow a space or an equals sign:{" "}
+        Options work with the default command, <code>scan</code>, <code>report</code> and <code>share</code>; the share and serve options only
+        with their command. Values can follow a space or an equals sign:{" "}
         <code>--since 30d</code> or <code>--since=30d</code>.
       </p>
       <Table
@@ -195,6 +265,11 @@ ai-insights nudge --on     remind me again`}</Code>
           [<code key="o">--open</code>, "Open the written report in your default browser without asking."],
           [<code key="no">--no-open</code>, "Do not ask whether to open the report, and do not open it."],
           [<code key="ni">--no-install-prompt</code>, "Do not offer to add AI Insights to your agents after the run."],
+          [<code key="sn">--name &lt;name&gt;</code>, <>With <code>share</code> only: the display name on your card. None by default.</>],
+          [<code key="sd">--device &lt;name&gt;</code>, <>With <code>share</code> only: a name for this computer, for publishing from several. None by default.</>],
+          [<code key="sy">--no-days</code>, <>With <code>share</code> only: leave out which days you were active.</>],
+          [<code key="sc">--copy</code>, <>With <code>share</code> only: also ask the terminal to copy the link (OSC 52).</>],
+          [<code key="sp">--port &lt;n&gt;</code>, <>With <code>serve</code> only: the port on <code>127.0.0.1</code>, 1024 to 65535. A free one by default.</>],
           [<code key="hh">-h, --help</code>, "Show the help."],
           [<code key="v">-v, --version</code>, "Show the version."],
         ]}
@@ -246,7 +321,8 @@ npx ai-insights@latest --refresh`}</Code>
           [
             "1",
             <>
-              No sessions were found (the default command only), or the command failed. The message starts with <code>ai-insights:</code>.{" "}
+              No sessions were found (the default command and <code>share</code>), there is no report to serve yet, the chosen port is taken,
+              or the command failed. The message starts with <code>ai-insights:</code>.{" "}
               <code>install</code> and <code>uninstall</code> also exit 1 when a step failed, a named agent is not installed, or they would have
               needed <code>--yes</code>.
             </>,
@@ -254,7 +330,7 @@ npx ai-insights@latest --refresh`}</Code>
           [
             "2",
             <>
-              A usage error: an unknown command or option, a missing or invalid value, or <code>--json</code> without <code>report</code>.
+              A usage error: an unknown command or option, a missing or invalid value, <code>--json</code> without <code>report</code>, or a share or serve option with another command.
             </>,
           ],
         ]}

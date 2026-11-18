@@ -94,6 +94,14 @@ It needs no root, writes only inside your home folder, and is safe to run again.
 
 Then start a new session and run `/analyze-ai-usage` (or ask your agent to **analyze my AI usage**).
 
+### On a server
+
+Over SSH, or on Linux with no display, a run does not try to open a browser. It ends with three ways to see the report from your own computer:
+
+- `npx ai-insights@latest serve` shows the report through an SSH tunnel: it listens on `127.0.0.1` only, serves that one file read-only at a random path, and prints the `ssh -L <port>:127.0.0.1:<port> user@host` command to run on your computer. It stops after 30 minutes without a visit, or on Ctrl-C.
+- `scp user@host:<report path> .`, run on your computer, copies the file so you can open it there.
+- `npx ai-insights@latest share` prints your stats share link (the same link as the report's Publish button, after the same list of what it holds) so you can open it on your laptop or phone and publish from there. `--name`, `--device` and `--no-days` match the report's fields; `--copy` asks your terminal to copy it, and it is also saved to `share-link.txt` in the store.
+
 ## What it reads
 
 | Harness | Where |

@@ -36,6 +36,11 @@ export default function Sharing() {
         Anyone you send the link to sees your card page. Links made by earlier versions, without cards or without a device, still open and
         still publish.
       </p>
+      <p>
+        <strong>On a server with no browser,</strong> <code>npx ai-insights@latest share</code> prints the same link in the terminal, after the same
+        list of what it holds (<code>--name</code>, <code>--device</code> and <code>--no-days</code> match the box&apos;s fields). Open it on your
+        laptop or phone and publish from there. See <DocLink href="/docs/cli#on-a-server">On a server</DocLink>.
+      </p>
 
       <H2 id="publish">Publish to the leaderboard</H2>
       <ol>
