@@ -119,6 +119,12 @@ export async function runInstall(verb: "install" | "uninstall", argv: string[], 
   }
   const agents = await detectWith(deps);
   const plans = verb === "install" ? installPlan(agents, args.harnesses) : uninstallPlan(agents, args.harnesses);
+  // `uninstall` also takes away a schedule (`ai-insights schedule`), so one command removes everything AI Insights added.
+  const schedule = verb === "uninstall" && args.harnesses.length === 0 ? await scheduleToRemove(deps) : null;
+  if (schedule) {
+    deps.stdout(`The scheduled job (ai-insights schedule):\n${schedule.files.map((file) => `  remove ${file}`).join("\n")}\n`);
+    if (plans.every((plan) => plan.action !== "run")) return await removeScheduleOnly(deps, args);
+  }
   if (plans.length === 0) {
     deps.stdout(`No supported agent found on this machine (looked for ${AGENT_IDS.map((id) => AGENT_LABELS[id]).join(", ")}).\n`);
     return 1;
@@ -147,8 +153,50 @@ export async function runInstall(verb: "install" | "uninstall", argv: string[], 
   const outcomes = await executePlans(runnable, deps.spawner ?? spawnCommand, deps.env, (line) => deps.stdout(`${line}\n`));
   const failed = outcomes.some((outcome) => !outcome.ok);
   if (verb === "install") for (const line of afterInstall(outcomes)) deps.stdout(`${line}\n`);
-  if (verb === "uninstall" && !failed) deps.stdout("Your report and cache in the AI Insights folder were left as they are.\n");
-  return failed || absentAsked ? 1 : 0;
+  const scheduleOk = schedule ? await removeScheduleNow(deps) : true;
+  if (verb === "uninstall" && !failed && scheduleOk) deps.stdout("Your report and cache in the AI Insights folder were left as they are.\n");
+  return failed || absentAsked || !scheduleOk ? 1 : 0;
+}
+
+function removeDeps(deps: InstallDeps) {
+  const userHome = deps.userHome ?? homedir();
+  return { userHome, env: deps.env, home: deps.home, platform: deps.platform, uid: typeof process.getuid === "function" ? process.getuid() : null, ...(deps.spawner ? { spawner: deps.spawner } : {}) };
+}
+
+async function scheduleToRemove(deps: InstallDeps): Promise<{ files: string[] } | null> {
+  const { findInstalled } = await import("./schedule-command.js");
+  const found = await findInstalled(removeDeps(deps)).catch(() => null);
+  if (!found) return null;
+  const user = removeDeps(deps).userHome;
+  return { files: found.files.map((file) => (file.startsWith(`${user}/`) ? `~${file.slice(user.length)}` : file)) };
+}
+
+async function removeScheduleNow(deps: InstallDeps): Promise<boolean> {
+  const { removeSchedule } = await import("./schedule-command.js");
+  const { ok, lines } = await removeSchedule(removeDeps(deps));
+  for (const line of lines) deps.stdout(`${line}\n`);
+  return ok;
+}
+
+/** Only a schedule to remove (no agent plugin): the same yes, then the removal. */
+async function removeScheduleOnly(deps: InstallDeps, args: InstallArgs): Promise<number> {
+  if (args.dryRun) {
+    deps.stdout("Dry run: nothing was changed.\n");
+    return 0;
+  }
+  if (!args.yes) {
+    if (!deps.stdoutTTY || !deps.stdinTTY) {
+      deps.stdout("Run it again with --yes to remove it.\n");
+      return 1;
+    }
+    const question = "Remove it? [Y/n]";
+    deps.stdout(`${question} `);
+    const answer = await deps.prompt(question);
+    deps.stdout(answer === "yes" ? "yes\n" : "no\n");
+    if (answer === "cancel") return 130;
+    if (answer === "no") return 0;
+  }
+  return (await removeScheduleNow(deps)) ? 0 : 1;
 }
 
 interface CliLike {

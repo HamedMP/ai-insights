@@ -7,6 +7,7 @@ import type { Harness, Source } from "../schema/types.js";
 import type { BuildReportFn, RenderReportFn } from "../store/pipeline.js";
 import type { RetentionPolicy } from "../store/retention.js";
 import type { AgentStatus, DetectContext } from "./agents.js";
+import type { ScheduleDeps } from "./schedule-command.js";
 import type { RunningServer, ServeOptions } from "./serve.js";
 import type { Spawner } from "./spawn.js";
 import { HELP, parseArgs, QUICK_COMMANDS, UsageError, type Parsed } from "./args.js";
@@ -47,6 +48,10 @@ export interface CliDeps {
   detectAgents?: (context: DetectContext) => Promise<AgentStatus[]>;
   /** The person's home folder, where agents keep their config. Default: os.homedir(). */
   userHome?: string;
+  /** The Node binary and CLI file a scheduled job starts. Default: this process's, made stable (schedule-deps.ts). */
+  program?: { node: string; entry: string };
+  /** The scheduled job's work. Default: refreshForSchedule in commands.ts. */
+  scheduleRefresh?: ScheduleDeps["refresh"];
   /** Starts the loopback report server for `serve`. Default: src/cli/serve.ts. */
   serveReport?: (options: ServeOptions) => Promise<RunningServer>;
 }
@@ -109,6 +114,18 @@ export async function run(argv: string[], overrides: Partial<CliDeps> = {}): Pro
       return await runInstall(argv[0], argv.slice(1), installDeps(deps, resolveHome(deps.env)));
     } catch (error) {
       deps.stderr(`ai-insights: ${argv[0]} failed: ${error instanceof Error ? error.message : String(error)}\n`);
+      return 1;
+    }
+  }
+  if (argv[0] === "schedule") {
+    // The job itself (`schedule run`) leaves the store where it is; only a person's command moves it.
+    if (argv[1] !== "run") await settleStore(deps);
+    try {
+      const { scheduleDeps } = await import("./schedule-deps.js");
+      const { runSchedule } = await import("./schedule-command.js");
+      return await runSchedule(argv.slice(1), await scheduleDeps(deps));
+    } catch (error) {
+      deps.stderr(`ai-insights: schedule failed: ${error instanceof Error ? error.message : String(error)}\n`);
       return 1;
     }
   }
