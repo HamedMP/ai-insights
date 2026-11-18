@@ -15,7 +15,10 @@ const FORMAT = 1;
 const WINDOW_BYTES = 64 * 1024;
 /** A checkpoint bigger than this is not worth writing; the store would refuse to read it back anyway. */
 const MAX_STATE_CHARS = MAX_STORE_FILE_BYTES - 1024 * 1024;
-export const MAX_TAIL_ENTRIES = 256;
+/** A team session keeps one log per subagent file, so the cap is per file, not per session. */
+export const MAX_TAIL_ENTRIES = 2048;
+/** All checkpoints together, at most; the oldest go first. */
+export const MAX_TAIL_BYTES = 512 * 1024 * 1024;
 export const TAIL_TTL_MS = 30 * 86_400_000;
 /** Transcripts smaller than this re-read faster than a checkpoint loads. */
 export const DEFAULT_TAIL_MIN_BYTES = 4 * 1024 * 1024;
@@ -92,9 +95,9 @@ export class TailCheckpoints implements Checkpoints {
     return { position: { offset, lines }, state: saved.state };
   }
 
-  async save(path: string, key: string, checkpoint: ParseCheckpoint): Promise<void> {
+  async save(path: string, key: string, checkpoint: ParseCheckpoint, minBytes = this.minBytes): Promise<void> {
     const { offset, lines } = checkpoint.position;
-    if (offset < this.minBytes || checkpoint.state.length > MAX_STATE_CHARS) return;
+    if (offset < minBytes || checkpoint.state.length > MAX_STATE_CHARS) return;
     const before = await identity(path);
     if (!before || before.size < offset) return;
     const print = await fingerprint(path, offset);
@@ -116,20 +119,22 @@ export class TailCheckpoints implements Checkpoints {
     } catch {
       return;
     }
-    const entries: Array<{ path: string; mtimeMs: number }> = [];
+    const entries: Array<{ path: string; mtimeMs: number; size: number }> = [];
     for (const name of names.slice(0, MAX_TAIL_ENTRIES * 8)) {
       const path = join(this.dir, name);
       try {
         const info = await lstat(path);
-        if (info.isFile()) entries.push({ path, mtimeMs: info.mtimeMs });
+        if (info.isFile()) entries.push({ path, mtimeMs: info.mtimeMs, size: info.size });
       } catch {
         // Gone already.
       }
     }
     entries.sort((a, b) => b.mtimeMs - a.mtimeMs);
     const cutoff = this.now() - TAIL_TTL_MS;
+    let bytes = 0;
     for (const [index, entry] of entries.entries()) {
-      if (index < MAX_TAIL_ENTRIES && entry.mtimeMs >= cutoff) continue;
+      bytes += entry.size;
+      if (index < MAX_TAIL_ENTRIES && entry.mtimeMs >= cutoff && bytes <= MAX_TAIL_BYTES) continue;
       await rm(entry.path, { force: true }).catch(() => undefined);
     }
   }
