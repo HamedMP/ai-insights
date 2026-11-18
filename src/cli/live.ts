@@ -32,9 +32,10 @@ export interface LiveOptions {
   builtIn: boolean;
 }
 
-function costWord(usd: number | null, requests: number, measured: boolean): string {
+function costWord(usd: number | null, requests: number, measured: boolean, sessions = 0): string {
   if (!measured) return "not measured";
-  if (usd === null) return requests > 0 ? "unpriced" : "$0.00";
+  // An agent that ran but records no model requests (Cursor) has no usage to show, which is not $0.
+  if (usd === null) return requests > 0 ? "unpriced" : sessions > 0 ? "no usage recorded" : "$0.00";
   return formatUsd(usd);
 }
 
@@ -57,7 +58,7 @@ export function agentLine(harness: Harness, sessions: UsageSession[], month: Usa
   const active = sessions.filter((entry) => inRange(entry, month)).length;
   if (active === 0) return null;
   const [usage] = periodUsage(sessions, [month]);
-  const cost = costWord(usage!.totals.estimatedUsd, usage!.totals.requests, measured);
+  const cost = costWord(usage!.totals.estimatedUsd, usage!.totals.requests, measured, active);
   const count = `${active.toLocaleString("en-US")} session${active === 1 ? "" : "s"}`;
   const spend = cost === "not measured" ? "cost not measured" : cost;
   if (!style.rich) return `${label} this month: ${count}, ${spend}`;
