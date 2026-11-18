@@ -36,7 +36,7 @@
 | `tokens` | object or null | `{ input, output, cacheRead, cacheWrite, total }`. Null when every session in the period is a chat export, which records no tokens. Never 0 for "unknown". |
 | `costUsd` | number or null | Estimate at API list prices, rounded to cents. Not a bill. Null when it was not measured (chat exports only) or when nothing could be priced. An empty period is `0`. |
 | `unpricedRequestShare` | number | 0 to 1: the share of requests whose model or tier has no known price. These are left out of `costUsd`, never guessed. |
-| `byAgent` | array | `{ agent, label, sessions, costUsd }`, highest cost first. `agent` is a harness id (`claude-code`, `codex`, `claude-chat`, ...). Chat exports always have `costUsd: null`. |
+| `byAgent` | array | `{ agent, label, sessions, costUsd, measured }`, highest cost first. `agent` is a harness id (`claude-code`, `codex`, `claude-chat`, `chatgpt`, ...). `measured` is false for chat exports, which record no tokens or cost: show "not measured" for them. Their `costUsd` is always null. A measured agent with `costUsd: null` had nothing that could be priced. |
 | `byModel` | array | `{ model, costUsd, tokens }`, at most 10, highest cost first. |
 | `tip` | object or null | `{ id, text }`: one coaching line from the deterministic findings. `id` is the finding kind (`context_resets`, `long_sessions`, ...). `text` is fixed wording that never quotes a command, path or prompt. In `summary` and the single-period views, a period with no tip of its own borrows the next longer period's tip, and the text names that period ("this week"). |
 | `byProject` | array, optional | `{ project, sessions, activeMinutes, costUsd }`, folder names only. Present only with `--by project`. |

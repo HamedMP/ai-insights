@@ -1,4 +1,5 @@
 import { isoInZone, type PeriodSummary } from "../analysis/periods.js";
+import { isChatHarness } from "../schema/types.js";
 
 /**
  * The `--json` output of `today`, `week`, `month` and `summary`: a contract other tools (a tray app, a status bar
@@ -16,7 +17,8 @@ export interface SummaryPeriodJson {
   tokens: { input: number; output: number; cacheRead: number; cacheWrite: number; total: number } | null;
   costUsd: number | null;
   unpricedRequestShare: number;
-  byAgent: Array<{ agent: string; label: string; sessions: number; costUsd: number | null }>;
+  /** `measured` is false for chat exports, which record no tokens or cost: show "not measured", not a number. */
+  byAgent: Array<{ agent: string; label: string; sessions: number; costUsd: number | null; measured: boolean }>;
   byModel: Array<{ model: string; costUsd: number | null; tokens: number }>;
   tip: { id: string; text: string } | null;
   /** Only with `--by project`. */
@@ -48,7 +50,7 @@ export function periodJson(summary: PeriodSummary, timeZone: string, now: number
     tokens: summary.tokens ? { ...summary.tokens } : null,
     costUsd: summary.costUsd,
     unpricedRequestShare: summary.unpricedRequestShare,
-    byAgent: summary.byAgent.map((row) => ({ agent: row.agent, label: row.label, sessions: row.sessions, costUsd: row.costUsd })),
+    byAgent: summary.byAgent.map((row) => ({ agent: row.agent, label: row.label, sessions: row.sessions, costUsd: row.costUsd, measured: !isChatHarness(row.agent) })),
     byModel: summary.byModel.map((row) => ({ model: row.model, costUsd: row.costUsd, tokens: row.tokens })),
     tip: summary.tip ? { id: summary.tip.id, text: summary.tip.text } : null,
   };

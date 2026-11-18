@@ -279,7 +279,7 @@ ai-insights nudge --on     remind me again`}</Code>
         <code>periods.today</code>, <code>.week</code> and <code>.month</code>. With <code>--since</code> or <code>--until</code> it carries{" "}
         <code>.range</code> instead. Each period has <code>from</code>, <code>to</code>, <code>sessions</code>, <code>activeMinutes</code>,{" "}
         <code>prompts</code>, <code>tokens</code> (null when not measured), <code>costUsd</code> (null when not measured or nothing could be
-        priced), <code>unpricedRequestShare</code>, <code>byAgent</code>, <code>byModel</code> and <code>tip</code>. It holds aggregates only: no
+        priced), <code>unpricedRequestShare</code>, <code>byAgent</code> (each with <code>measured: false</code> for chat exports), <code>byModel</code> and <code>tip</code>. It holds aggregates only: no
         prompts, commands, paths or project names, except <code>byProject</code> with <code>--by project</code>. A new optional field keeps the
         version; any other change is a new version. The full description is{" "}
         <a href="https://github.com/HamedMP/ai-insights/blob/main/docs/summary-json.md">docs/summary-json.md</a>. Call it from a global install

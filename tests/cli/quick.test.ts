@@ -81,7 +81,7 @@ const Period = z.strictObject({
   tokens: Tokens.nullable(),
   costUsd: z.number().min(0).nullable(),
   unpricedRequestShare: z.number().min(0).max(1),
-  byAgent: z.array(z.strictObject({ agent: z.string(), label: z.string(), sessions: z.number().int(), costUsd: z.number().nullable() })),
+  byAgent: z.array(z.strictObject({ agent: z.string(), label: z.string(), sessions: z.number().int(), costUsd: z.number().nullable(), measured: z.boolean() })),
   byModel: z.array(z.strictObject({ model: z.string(), costUsd: z.number().nullable(), tokens: z.number().int() })),
   tip: z.strictObject({ id: z.string(), text: z.string() }).nullable(),
   byProject: z.array(z.strictObject({ project: z.string(), sessions: z.number().int(), activeMinutes: z.number().int(), costUsd: z.number().nullable() })).optional(),
@@ -123,7 +123,7 @@ describe("summary --json, the contract other tools read", () => {
   it("shows chat exports as not measured, never as 0 or an estimate", async () => {
     await run(["week", "--json"], deps(history()));
     const week = Summary.parse(JSON.parse(out)).periods.week!;
-    expect(week.byAgent.find((row) => row.agent === "claude-chat")).toEqual({ agent: "claude-chat", label: "claude-chat", sessions: 1, costUsd: null });
+    expect(week.byAgent.find((row) => row.agent === "claude-chat")).toEqual({ agent: "claude-chat", label: "claude-chat", sessions: 1, costUsd: null, measured: false });
     out = "";
     await run(["week", "--json", "--harness", "claude-chat"], deps(history()));
     const chatOnly = Summary.parse(JSON.parse(out)).periods.week!;
