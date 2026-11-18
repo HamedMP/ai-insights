@@ -148,6 +148,7 @@ export const DOCS: DocPage[] = [
     group: "Reference",
     sections: [
       { id: "commands", title: "Commands" },
+      { id: "on-a-server", title: "On a server" },
       { id: "options", title: "Options" },
       { id: "environment", title: "Environment variables" },
       { id: "exit-codes", title: "Exit codes" },
