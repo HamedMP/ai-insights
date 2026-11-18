@@ -8,11 +8,13 @@ on:
   pull_request:
     paths:
       - "apps/desktop/**"
+      - "apps/menubar-scripts/**"
       - ".github/workflows/desktop.yml"
   push:
     branches: [main]
     paths:
       - "apps/desktop/**"
+      - "apps/menubar-scripts/**"
       - ".github/workflows/desktop.yml"
   workflow_dispatch:
 

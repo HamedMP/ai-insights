@@ -58,6 +58,7 @@ Full documentation, written from the code: https://ai-insights.app/docs
 - [Recap cards](https://ai-insights.app/docs/recap-cards): the cards, styles, shapes, studio, video and image export, URL options
 - [The agent review](https://ai-insights.app/docs/agent-review): the analyze-ai-usage skill, installing per agent, what the model sees, session labels
 - [Sharing and the leaderboard](https://ai-insights.app/docs/sharing): share links, publishing, arenas, profiles, referrals, account
+- [Menu bar app](https://ai-insights.app/docs/desktop): the tray app, opt-in nudges, what runs in the background, turning it off, uninstalling, SwiftBar/xbar
 - [CLI reference](https://ai-insights.app/docs/cli): commands, options, environment variables, exit codes, the install script
 - [MCP reference](https://ai-insights.app/docs/mcp): the seven ai_insights_* tools and their parameters
 - [Privacy](https://ai-insights.app/docs/privacy): what stays local, redaction, exactly what a share link and a profile contain
