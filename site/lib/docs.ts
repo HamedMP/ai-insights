@@ -142,6 +142,22 @@ export const DOCS: DocPage[] = [
     ],
   },
   {
+    slug: "desktop",
+    title: "Menu bar app",
+    description: "A menu bar and system tray app that shows today, this week and this month with one tip, and can nudge you on a schedule. What runs in the background, how to turn it all off, and how to remove it.",
+    group: "Using it",
+    sections: [
+      { id: "what-it-shows", title: "What it shows" },
+      { id: "install", title: "Install" },
+      { id: "nudges", title: "Nudges" },
+      { id: "background", title: "What runs in the background" },
+      { id: "privacy", title: "Nothing leaves your computer" },
+      { id: "turn-off", title: "Turn it all off" },
+      { id: "uninstall", title: "Uninstall" },
+      { id: "menu-bar-scripts", title: "Without the app: SwiftBar and xbar" },
+    ],
+  },
+  {
     slug: "cli",
     title: "CLI reference",
     description: "Every ai-insights command, option, environment variable and exit code, and the quick-view JSON.",

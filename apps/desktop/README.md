@@ -68,3 +68,34 @@ cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings &
 `AI_INSIGHTS_DESKTOP_SHOW=1` opens the popover at start and `AI_INSIGHTS_DESKTOP_PIN=1` keeps it open when it
 loses focus. On a headless Linux box, run it under `xvfb-run` and `dbus-run-session` (GTK waits for a
 session bus).
+
+## Distribution and signing
+
+CI (`.github/workflows/desktop.yml`) produces **unsigned** builds as workflow artifacts: a universal macOS
+`.dmg`, a Windows NSIS installer (per-user, no admin) and a Linux `.deb` and `.AppImage`. macOS builds are
+ad-hoc signed (`signingIdentity: "-"`), which is not a Developer ID signature: it only lets the binary run on
+Apple Silicon. Nothing is notarised, and there is no auto-update; both are separate decisions.
+
+What people see with these builds today:
+
+| System | First open | Way through |
+| --- | --- | --- |
+| macOS | Gatekeeper: "Apple could not verify 'AI Insights' is free of malware" | System Settings, Privacy & Security, Open Anyway (once) |
+| Windows | SmartScreen: "Windows protected your PC" | More info, Run anyway |
+| Linux | nothing | `apt install ./AI*.deb`, or `chmod +x` the AppImage |
+
+To ship signed builds, the owner needs to provide (as GitHub Actions secrets; Tauri reads these names):
+
+- **macOS signing**: an Apple Developer Program membership and a *Developer ID Application* certificate,
+  exported as `.p12`: `APPLE_CERTIFICATE` (base64 of the .p12), `APPLE_CERTIFICATE_PASSWORD`,
+  `APPLE_SIGNING_IDENTITY` (for example `Developer ID Application: Name (TEAMID)`).
+- **macOS notarisation**: either an App Store Connect API key (`APPLE_API_ISSUER`, `APPLE_API_KEY`, and the
+  `.p8` file as `APPLE_API_KEY_PATH`) or an Apple ID with an app-specific password (`APPLE_ID`,
+  `APPLE_PASSWORD`, `APPLE_TEAM_ID`).
+- **Windows signing**: a code-signing certificate. New OV/EV certificates live on hardware or in a cloud HSM,
+  so this is usually a cloud signing account (for example Azure Trusted Signing, or a CA's cloud signer)
+  wired in through Tauri's `bundle.windows.signCommand`, plus its credentials. Without one, SmartScreen
+  warns until the file builds reputation.
+- **Linux** (optional): a GPG key to sign the AppImage or a package repository.
+- **Where downloads live** (for example GitHub Releases) and, separately, whether to add an updater, which
+  would be the app's first network request and needs its own wording on the site.
