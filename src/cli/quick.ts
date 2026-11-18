@@ -7,7 +7,7 @@ import { harnessLabel } from "../store/scan.js";
 import type { Store } from "../store/store.js";
 import type { Parsed } from "./args.js";
 import type { CliDeps } from "./main.js";
-import { buildDigest, digestIsFresh, saveDigest } from "./digest.js";
+import { buildDigest, digestIsFresh, previousRange, saveDigest } from "./digest.js";
 import { quickText, summaryText } from "./quick-screen.js";
 import { periodJson, summaryJson } from "./summary-json.js";
 import type { Style } from "./terminal.js";
@@ -45,9 +45,9 @@ export async function commandQuick(parsed: Parsed, deps: CliDeps, store: Store, 
       ? [calendarRange(parsed.sinceText?.trim(), parsed.until, now, timeZone)]
       : [currentRange(kind!, now, timeZone, parsed.last ?? 1)];
   const wider = kind && !parsed.sinceText && !parsed.until && (parsed.last ?? 1) === 1 && WIDER[kind] ? currentRange(WIDER[kind]!, now, timeZone) : null;
-  // Unfiltered views also refresh the saved digest, which covers this month: read that far back.
+  // Unfiltered views also refresh the saved digest, which reaches back to the start of last month: read that far.
   const digest = !parsed.harness && !parsed.maxSessions && !parsed.sinceText && !parsed.until && (parsed.last ?? 1) === 1;
-  const monthStart = digest ? currentRange("month", now, timeZone).from : Number.POSITIVE_INFINITY;
+  const monthStart = digest ? previousRange("month", now, timeZone).from : Number.POSITIVE_INFINITY;
   const earliest = Math.min(...main.map((range) => range.from), wider?.from ?? Number.POSITIVE_INFINITY, monthStart);
   const result = await runScan({
     ...(earliest > 0 ? { since: new Date(earliest) } : {}),

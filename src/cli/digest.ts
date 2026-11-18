@@ -1,23 +1,37 @@
-import { currentRange, isoInZone, PERIOD_KINDS, summarizePeriods, type PeriodKind, type PeriodSummary, type SummarizeOptions } from "../analysis/periods.js";
-import { DIGEST_FILE, DIGEST_SCHEMA_VERSION, type Digest, type DigestPeriod } from "../nudge/digest.js";
+import { currentRange, isoInZone, PERIOD_KINDS, periodStartDay, startOfDay, summarizePeriods, type PeriodKind, type PeriodRange, type PeriodSummary, type SummarizeOptions } from "../analysis/periods.js";
+import { makeClock } from "../analysis/time.js";
+import { DIGEST_PERIODS, DIGEST_VERSION, writeDigest, type Digest, type DigestPeriod, type DigestPeriodKind } from "../nudge/digest.js";
 import { isChatHarness, type Session } from "../schema/types.js";
-import { writeFileAtomic } from "../store/fs.js";
-import { join } from "node:path";
 
 /**
  * The digest (docs/digest-json.md) the commands a person runs leave in the store, for readers that must not read
  * history: the session-start hook, the statusline and scheduled notifications. Counts, cost and a tip kind only.
  */
+/** The whole period of `kind` before the current one: yesterday, last week (Mon to Sun), last month. */
+export function previousRange(kind: PeriodKind, now: Date, timeZone: string): PeriodRange {
+  const clock = makeClock(timeZone);
+  const today = clock.dayOfMs(now.getTime());
+  const scope = { today: "yesterday", week: "last week", month: "last month" }[kind];
+  return { kind, from: startOfDay(periodStartDay(kind, today, 1), clock), to: currentRange(kind, now, timeZone).from, scope };
+}
+
+const PREVIOUS_KEY: Record<PeriodKind, DigestPeriodKind> = { today: "yesterday", week: "lastWeek", month: "lastMonth" };
+
+/**
+ * The digest (docs/digest-json.md) for the current and the previous day, week and month. Periods the caller has
+ * already summarised with the same clock are passed in `known` and not worked out again: the tips cost most.
+ */
 export function buildDigest(sessions: Session[], options: Omit<SummarizeOptions, "byProject" | "noTip">, known: Partial<Record<PeriodKind, PeriodSummary>> = {}): Digest {
-  const ranges = PERIOD_KINDS.map((kind) => currentRange(kind, options.now, options.timeZone));
-  // Periods the caller has already summarised (with the same clock) are not worked out twice: the tips cost most.
-  const missing = PERIOD_KINDS.map((kind, index) => ({ kind, index })).filter(({ kind }) => !known[kind]);
-  const computed = summarizePeriods(sessions, missing.map(({ index }) => ranges[index]!), options);
-  const summaries = PERIOD_KINDS.map((kind) => known[kind] ?? computed[missing.findIndex((entry) => entry.kind === kind)]!);
+  const wanted: Array<{ key: DigestPeriodKind; range: PeriodRange; summary?: PeriodSummary }> = [];
+  for (const kind of PERIOD_KINDS) {
+    wanted.push({ key: kind, range: currentRange(kind, options.now, options.timeZone), ...(known[kind] ? { summary: known[kind] } : {}) });
+    wanted.push({ key: PREVIOUS_KEY[kind], range: previousRange(kind, options.now, options.timeZone) });
+  }
+  const missing = wanted.filter((entry) => !entry.summary);
+  summarizePeriods(sessions, missing.map((entry) => entry.range), options).forEach((summary, index) => (missing[index]!.summary = summary));
   const now = options.now.getTime();
-  const entries = PERIOD_KINDS.map((kind, index): [string, DigestPeriod] => {
-    const range = ranges[index]!;
-    const summary = summaries[index]!;
+  const periods: Partial<Record<DigestPeriodKind, DigestPeriod>> = {};
+  for (const { key, range, summary } of wanted) {
     let contextResets = 0;
     for (const session of sessions) {
       if (isChatHarness(session.harness)) continue;
@@ -25,28 +39,26 @@ export function buildDigest(sessions: Session[], options: Omit<SummarizeOptions,
       const end = Date.parse(session.endTime);
       if (start < range.to && end >= range.from) contextResets += Math.max(0, session.features.compactions || 0);
     }
-    return [
-      kind,
-      {
-        from: isoInZone(range.from, options.timeZone),
-        to: isoInZone(Math.min(range.to, now), options.timeZone),
-        sessions: summary.sessions,
-        activeMinutes: summary.activeMinutes,
-        prompts: summary.prompts,
-        contextResets,
-        tokens: summary.tokens ? summary.tokens.total : null,
-        costUsd: summary.costUsd,
-        tip: summary.tip ? { id: summary.tip.id } : null,
-      },
-    ];
-  });
-  return { schemaVersion: DIGEST_SCHEMA_VERSION, writtenAt: options.now.toISOString(), timezone: options.timeZone, periods: Object.fromEntries(entries) as Digest["periods"] };
+    periods[key] = {
+      from: isoInZone(range.from, options.timeZone),
+      to: isoInZone(Math.min(range.to, now), options.timeZone),
+      sessions: summary!.sessions,
+      activeMinutes: summary!.activeMinutes,
+      prompts: summary!.prompts,
+      contextResets,
+      tokens: summary!.tokens ? summary!.tokens.total : null,
+      costUsd: summary!.costUsd,
+      tip: summary!.tip ? { id: summary!.tip.id } : null,
+    };
+  }
+  const ordered = Object.fromEntries(DIGEST_PERIODS.map((key) => [key, periods[key]!])) as Digest["periods"];
+  return { v: DIGEST_VERSION, writtenAt: options.now.toISOString(), timezone: options.timeZone, periods: ordered };
 }
 
 /** Writes the digest; a store that cannot be written loses only the digest, never the command's own output. */
 export async function saveDigest(home: string, digest: Digest): Promise<boolean> {
   try {
-    await writeFileAtomic(join(home, DIGEST_FILE), `${JSON.stringify(digest)}\n`);
+    await writeDigest(home, digest);
     return true;
   } catch (error) {
     if (!(error instanceof Error)) throw error;

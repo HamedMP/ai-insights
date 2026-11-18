@@ -214,8 +214,9 @@ Next steps
       <Code label="Shown at session start, weekly" copy={false}>{`AI Insights: last week (to Fri 13 Nov) 37 sessions, 21 h active, 8 context resets. A command kept failing last week. Tell the agent how the command should be run, in your instructions file. Run /analyze-ai-usage for the full review. (Turn this off: npx ai-insights@latest nudge --off)`}</Code>
       <p>
         The counts come from <code>digest.json</code> in your AI Insights folder, which <code>npx ai-insights@latest</code>,{" "}
-        <code>today</code>, <code>week</code>, <code>month</code> and <code>summary</code> rewrite each time you run them: counts, the cost
-        estimate and the kind of one finding, nothing else. The reminder never reads your history. When the digest is missing or about an older
+        <code>today</code>, <code>week</code>, <code>month</code>, <code>summary</code> and a scheduled run rewrite: counts for this and
+        the previous day, week and month, the cost estimate and the kind of one finding, nothing else. At the first session of a week it
+        shows the week just ended, whole when you ran AI Insights after it ended. The reminder never reads your history. When the digest is missing or about an older
         period, the plain reminder shows instead. A partial period says how far it goes, as in &quot;to Fri 13 Nov&quot; above.
       </p>
       <p>

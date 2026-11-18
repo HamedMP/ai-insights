@@ -486,6 +486,10 @@ export async function refreshForSchedule(light: LightDeps, kind: "today" | "week
     now,
     labels: (harness) => harnessLabel(harness, deps.sources),
   });
+  // The same digest a run in a terminal leaves (docs/digest-json.md), so the reminder and the statusline agree with
+  // the notification. A store that cannot take it loses only the digest.
+  const { buildDigest, saveDigest } = await import("./digest.js");
+  await saveDigest(store.home, buildDigest(result.sessions, { timeZone, now, labels: (harness) => harnessLabel(harness, deps.sources) }));
   return {
     htmlPath: outcome.htmlPath,
     sessions: summary?.sessions ?? 0,
