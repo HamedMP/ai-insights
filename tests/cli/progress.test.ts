@@ -95,12 +95,10 @@ describe("while it works", () => {
     expect(stripAnsi(out)).not.toContain("Reading sessions");
   });
 
-  it("writes no status line when the output is piped: only the first numbers, as plain lines on stderr", async () => {
+  it("writes no progress at all when the output is piped", async () => {
     expect(await run([], deps({ terminal: { isTTY: false, stderr: true, stdin: true } }))).toBe(0);
-    expect(err).not.toContain(ESC);
-    expect(err).not.toMatch(/Reading sessions|Finding history|Analysing/);
+    expect(err).toBe("");
     expect(out).not.toContain(ESC);
-    expect(out).not.toContain("So far");
   });
 
   it("keeps the progress words but drops colour with NO_COLOR", async () => {
@@ -109,14 +107,11 @@ describe("while it works", () => {
     expect(err).not.toMatch(COLOUR);
   });
 
-  it("shows no status line on a dumb terminal or in CI, and no escape codes", async () => {
+  it("shows no progress on a dumb terminal or in CI", async () => {
     await run([], deps({ ...interactive, env: { AI_INSIGHTS_HOME: home, TERM: "dumb" } }));
-    expect(err).not.toContain(ESC);
-    expect(err).not.toMatch(/Reading sessions|Finding history|Analysing/);
-    err = "";
+    expect(err).toBe("");
     await run([], deps({ ...interactive, env: { AI_INSIGHTS_HOME: home, TERM: "xterm-256color", CI: "true" } }));
-    expect(err).not.toContain(ESC);
-    expect(err).not.toMatch(/Reading sessions|Finding history|Analysing/);
+    expect(err).toBe("");
   });
 
   it("clears the line and brings the cursor back on Ctrl-C", async () => {

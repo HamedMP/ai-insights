@@ -138,10 +138,22 @@ describe("the first numbers of a run", () => {
     expect(stripAnsi(plain)).not.toContain("Today $");
   });
 
-  it("go to stderr as plain lines when piped, leaving stdout as it was", async () => {
+  it("are off when piped or in CI, so nothing extra reaches an agent's context", async () => {
+    const piped = newLog();
+    await run(["--no-install-prompt"], deps(await home(), piped, { terminal: { isTTY: false, stderr: false, stdin: false } }));
+    expect(piped.err).toBe("");
+    expect(piped.out).not.toContain("So far");
+    const ci = newLog();
+    const c = await home();
+    await run(["--no-install-prompt"], deps(c, ci, { ...interactive, env: { AI_INSIGHTS_HOME: c, TERM: "xterm-256color", CI: "true" } }));
+    expect(ci.err).toBe("");
+    expect(stripAnsi(ci.out)).not.toContain("Today $");
+  });
+
+  it("go to stderr as plain lines when piped with AI_INSIGHTS_LIVE=1, leaving stdout as it was", async () => {
     const piped = newLog();
     const a = await home();
-    await run(["--no-install-prompt"], deps(a, piped, { terminal: { isTTY: false, stderr: false, stdin: false } }));
+    await run(["--no-install-prompt"], deps(a, piped, { terminal: { isTTY: false, stderr: false, stdin: false }, env: { AI_INSIGHTS_HOME: a, AI_INSIGHTS_LIVE: "1" } }));
     expect(piped.err).toMatch(/^Claude Code this month: 3 sessions, \$/m);
     expect(piped.err).toMatch(/^So far: today \$[\d.]+ \(2 sessions\), this week/m);
     expect(piped.err).not.toContain("\u001b");

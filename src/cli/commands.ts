@@ -124,7 +124,10 @@ async function commandRun(parsed: Parsed, deps: CliDeps, store: Store, style: St
   const pool = workerPool(deps);
   try {
     // Numbers first, while the full scan and analysis run: on a terminal above the status line, piped as plain lines.
-    const live = deps.env.AI_INSIGHTS_LIVE?.trim() !== "0";
+    // On by default only where a person watches the status line. Piped or in CI (an agent running the skill, a log)
+    // every extra line lands in someone's context, so there it takes AI_INSIGHTS_LIVE=1.
+    const liveSetting = deps.env.AI_INSIGHTS_LIVE?.trim();
+    const live = liveSetting === "0" ? false : liveSetting === "1" ? true : progress !== null;
     if (live) progress?.update(`Adding up this month's usage${style.unicode ? "…" : "..."}`, "live");
     const parsedEarly = !live ? undefined : await (await import("./live.js")).liveInsights({
       parsed,
