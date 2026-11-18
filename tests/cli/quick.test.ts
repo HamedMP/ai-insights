@@ -168,6 +168,12 @@ describe("the quick views in a terminal", () => {
     expect(out).not.toMatch(/\$|list prices|Cost/);
   });
 
+  it("say an agent that records no usage recorded none, rather than unpriced or $0", async () => {
+    const quiet = makeSession({ id: "cur", harness: "cursor", sourceMtimeMs: Date.parse("2026-11-17T10:00:00.000Z"), startTime: "2026-11-17T08:00:00.000Z", endTime: "2026-11-17T08:30:00.000Z", requests: [] });
+    await run(["week"], deps([...history()], { sources: [fakeSource("cursor", [quiet], { label: "Cursor" }), fakeSource("claude-code", history().filter((s) => s.harness === "claude-code"))] }));
+    expect(out).toMatch(/Cursor\s+1\s+no usage recorded/);
+  });
+
   it("show chat exports as not measured", async () => {
     await run(["week"], deps(history()));
     expect(out).toMatch(/claude-chat\s+1\s+not measured/);

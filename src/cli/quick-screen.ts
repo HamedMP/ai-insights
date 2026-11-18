@@ -32,9 +32,10 @@ export function costText(summary: Pick<PeriodSummary, "tokens" | "costUsd" | "re
   return `${formatUsd(summary.costUsd)}${unpriced}`;
 }
 
-function rowCost(value: number | null, measured: boolean): string {
+function rowCost(value: number | null, measured: boolean, requests = 1): string {
   if (!measured) return "not measured";
-  return value === null ? "unpriced" : formatUsd(value);
+  if (value === null) return requests > 0 ? "unpriced" : "no usage recorded";
+  return formatUsd(value);
 }
 
 function dayLabel(ms: number, timeZone: string, unit: "day" | "week" | "month"): string {
@@ -136,7 +137,7 @@ function breakdownTable(screen: QuickScreen, width: number, paint: Paint): strin
   if (!summary.byAgent.length) return [];
   return table(
     ["Agent", "Sessions", ...costHead],
-    summary.byAgent.map((row) => [row.label, String(row.sessions), ...(noCost ? [] : [rowCost(row.costUsd, !isChatHarness(row.agent))])]),
+    summary.byAgent.map((row) => [row.label, String(row.sessions), ...(noCost ? [] : [rowCost(row.costUsd, !isChatHarness(row.agent), row.requests)])]),
     ["left", "right", "right"],
     width,
     paint,

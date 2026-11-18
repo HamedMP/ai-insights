@@ -35,6 +35,8 @@ export interface AgentRow {
   sessions: number;
   /** Null when not measured (chat exports) or nothing could be priced. */
   costUsd: number | null;
+  /** Model requests the agent recorded in the period; 0 for an agent that records no usage (Cursor). */
+  requests: number;
 }
 
 export interface ModelRow {
@@ -265,7 +267,7 @@ export function summarizePeriods(all: Session[], ranges: PeriodRange[], options:
     const agents = new Map<Harness, number>();
     for (const session of inside) agents.set(session.harness, (agents.get(session.harness) ?? 0) + 1);
     const byAgent: AgentRow[] = [...agents]
-      .map(([agent, count]) => ({ agent, label: options.labels(agent), sessions: count, costUsd: isChatHarness(agent) ? null : cost(totals.byHarness.get(agent)) }))
+      .map(([agent, count]) => ({ agent, label: options.labels(agent), sessions: count, costUsd: isChatHarness(agent) ? null : cost(totals.byHarness.get(agent)), requests: totals.byHarness.get(agent)?.requests ?? 0 }))
       .sort((a, b) => (b.costUsd ?? -1) - (a.costUsd ?? -1) || b.sessions - a.sessions || a.agent.localeCompare(b.agent));
     const models = new Map<string, { costUsd: number | null; tokens: number }>();
     for (const row of totals.byModel.values()) {

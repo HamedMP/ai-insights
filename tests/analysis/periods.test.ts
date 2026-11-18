@@ -80,7 +80,7 @@ describe("the numbers for a period", () => {
     const [only] = summarizePeriods([chat], [today], options);
     expect(only!.tokens).toBeNull();
     expect(only!.costUsd).toBeNull();
-    expect(only!.byAgent).toEqual([{ agent: "claude-chat", label: "Claude chat", sessions: 1, costUsd: null }]);
+    expect(only!.byAgent).toEqual([{ agent: "claude-chat", label: "Claude chat", sessions: 1, costUsd: null, requests: 0 }]);
     const [mixed] = summarizePeriods([chat, session("code", { requests: [request("q", "2026-11-18T08:30:00.000Z")] })], [today], options);
     expect(mixed!.tokens!.total).toBe(1100);
     expect(mixed!.byAgent.find((row) => row.agent === "claude-chat")!.costUsd).toBeNull();
