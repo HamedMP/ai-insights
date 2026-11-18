@@ -385,6 +385,25 @@ function recordedCost(requests: OwnedRequest[]): Pick<UsageSummary, "recorded" |
   };
 }
 
+/** Harnesses whose transcripts can record an OpenAI service tier; a request without one is priced at Standard. */
+const TIER_HARNESSES: ReadonlySet<Harness> = new Set(["codex"]);
+
+function untieredSpend(requests: OwnedRequest[]): Pick<UsageSummary, "untiered"> {
+  const rows = new Map<Harness, { requests: number; estimatedUsd: number; atFastUsd: number }>();
+  for (const { session, request, usd } of requests) {
+    if (usd === null || request.serviceTier !== undefined || !TIER_HARNESSES.has(session.harness)) continue;
+    let row = rows.get(session.harness);
+    if (!row) rows.set(session.harness, (row = { requests: 0, estimatedUsd: 0, atFastUsd: 0 }));
+    row.requests += 1;
+    row.estimatedUsd += usd;
+    // A model or period with no published Fast price stays at its Standard price.
+    row.atFastUsd += estimateUsd(request.model, request.usage, { timestamp: request.timestamp, serviceTier: "priority" }) ?? usd;
+  }
+  const tidy = (usd: number) => Math.round(usd * 1e6) / 1e6;
+  const untiered = [...rows].map(([harness, row]) => ({ harness, requests: row.requests, estimatedUsd: tidy(row.estimatedUsd), atFastUsd: tidy(row.atFastUsd) }));
+  return untiered.length ? { untiered } : {};
+}
+
 export function summarizeUsage(requests: OwnedRequest[], clock: Clock): UsageSummary {
   const total = emptyTotals();
   const byDay = new Map<string, UsageTotals>();
@@ -406,5 +425,5 @@ export function summarizeUsage(requests: OwnedRequest[], clock: Clock): UsageSum
   const models = [...byModel.values()].sort(
     (a, b) => b.tokens - a.tokens || a.harness.localeCompare(b.harness) || a.model.localeCompare(b.model),
   );
-  return { ...total, daily, models, cacheHitRate: cacheHitRate(total), pricingVersion: PRICING_VERSION, ...recordedCost(requests) };
+  return { ...total, daily, models, cacheHitRate: cacheHitRate(total), pricingVersion: PRICING_VERSION, ...recordedCost(requests), ...untieredSpend(requests) };
 }

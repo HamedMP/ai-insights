@@ -977,6 +977,7 @@ const harnessColor = (key) => HCOL[Math.max(0, HORDER.indexOf(key)) % HCOL.lengt
       panel("Tokens", null, h("div", { class: "kpi" }, compact(U.tokens)), stack, h("div", { class: "plegend" }, parts.map(([, l, c]) => h("span", {}, h("i", { style: { background: c } }), l)))),
       panel("Cache", null, h("div", { class: "kpi" }, U.cacheHitRate != null ? `${one(U.cacheHitRate * 100)}%` : "n/a", h("small", {}, "of input from cache")), h("div", { class: "muted small" }, "Cached input is billed at a fraction of fresh input. Long sessions that keep their prefix stable get the most from it."))));
     if (U.gap) el.append(h("p", { class: "note" }, U.gap));
+    if (U.untiered) el.append(h("p", { class: "note" }, U.untiered));
     const W = 1100, H = 150, days = ACT.daily, dmax = Math.max(...days.map((d) => d.usd || 0), 1), bw = W / Math.max(1, days.length);
     const dsv = svgEl(W, H + 20); dsv.setAttribute("aria-label", "Cost per day");
     const every = Math.max(1, Math.ceil(days.length / 10));

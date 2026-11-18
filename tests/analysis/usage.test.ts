@@ -120,4 +120,31 @@ describe("cost the harness recorded", () => {
     expect(report.usage.recorded).toBeUndefined();
     expect(report.usage.recordedByHarness).toBeUndefined();
   });
+
+  it("adds up the Codex spend whose rollouts recorded no service tier, and what it would cost on Fast", () => {
+    const codex = (serviceTier?: string) =>
+      request({ model: "gpt-6.1-sol", timestamp: "2026-11-01T00:00:00Z", usage: { input: 100_000, cachedInput: 0, output: 0 }, ...(serviceTier ? { serviceTier } : {}) });
+    const report = buildReport({
+      sessions: [
+        session({ harness: "codex", requests: [codex(), codex(), codex("default"), codex("priority")] }),
+        // Claude Code requests carry no OpenAI tier; they are not part of this figure.
+        session({ requests: [request({ model: "claude-opus-5-5" })] }),
+      ],
+      coverage: [coverage("codex", 1), coverage("claude-code", 1)],
+      now: NOW,
+      timeZone: "UTC",
+    });
+    // Two untiered requests at $0.20 each on Standard, $0.40 each on Fast.
+    expect(report.usage.untiered).toEqual([{ harness: "codex", requests: 2, estimatedUsd: 0.4, atFastUsd: 0.8 }]);
+  });
+
+  it("says nothing about tiers when every Codex request recorded one", () => {
+    const report = buildReport({
+      sessions: [session({ harness: "codex", requests: [request({ model: "gpt-6.1-sol", serviceTier: "default" })] })],
+      coverage: [coverage("codex", 1)],
+      now: NOW,
+      timeZone: "UTC",
+    });
+    expect(report.usage.untiered).toBeUndefined();
+  });
 });

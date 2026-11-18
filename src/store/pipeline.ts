@@ -254,6 +254,12 @@ export function describeHeadline(report: Report): ReportHeadline {
     cost = `about ${formatUsd(usage.estimatedUsd)} for the requests we can price; ${share} unpriced`;
   }
 
+  // Older Codex versions record no speed tier; that spend is priced at Standard and may have run on Fast.
+  const untiered = usage.untiered?.find((row) => row.harness === "codex");
+  if (untiered && untiered.estimatedUsd > 0 && usage.estimatedUsd !== null) {
+    cost = `${cost}; Codex ${formatUsd(untiered.estimatedUsd)} has no recorded speed tier and is priced at Standard (about ${formatUsd(untiered.atFastUsd)} on Fast)`;
+  }
+
   const time =
     activeHours === null
       ? `${hoursText(agentHours)} agent-hours`

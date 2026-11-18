@@ -35,6 +35,12 @@ describe("describeHeadline", () => {
     );
   });
 
+  it("says next to the cost that Codex spend with no recorded speed tier is priced at Standard", () => {
+    const base = report({ estimatedUsd: 100, requests: 10, unpriced: 0 });
+    const withUntiered = { ...base, usage: { ...base.usage, untiered: [{ harness: "codex" as const, requests: 4, estimatedUsd: 40, atFastUsd: 80 }] } };
+    expect(describeHeadline(withUntiered).cost).toBe("about $100 at API list prices; Codex $40.00 has no recorded speed tier and is priced at Standard (about $80.00 on Fast)");
+  });
+
   it("states a plain list-price estimate when everything was priced", () => {
     expect(describeHeadline(report({ estimatedUsd: 0.42, requests: 10, unpriced: 0 })).cost).toBe("about $0.42 at API list prices");
   });
