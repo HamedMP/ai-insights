@@ -56,6 +56,8 @@ You need Node.js 20 or newer.
 
 **Without an agent:** `npx ai-insights@latest` writes the report and asks whether to open it (`--open` opens it without asking, `--no-open` never asks; it never asks when piped, in CI or over SSH). `npx ai-insights@latest doctor` shows which history it found and where.
 
+**A quick look:** `npx ai-insights@latest today` (or `week`, `month`, `summary`) prints one coaching tip, then sessions, active time, prompts, tokens and the cost estimate at API list prices. It writes no report, so it is cheap to run often. `--by project|model|agent` breaks it down, `--last 4` gives one row per period, `--no-cost` leaves the cost out, and `--json` prints numbers for other tools ([docs/summary-json.md](docs/summary-json.md)).
+
 **From your agent:** each install adds the same MCP server (`npx -y ai-insights mcp`) and three skills:
 - `analyze-ai-usage` builds the report, with your own agent labelling a sample of sessions and writing a short narrative;
 - `ai-insights-coach` turns the findings into edits you review;

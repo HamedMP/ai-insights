@@ -9,7 +9,7 @@ import type { RetentionPolicy } from "../store/retention.js";
 import type { AgentStatus, DetectContext } from "./agents.js";
 import type { RunningServer, ServeOptions } from "./serve.js";
 import type { Spawner } from "./spawn.js";
-import { HELP, parseArgs, UsageError, type Parsed } from "./args.js";
+import { HELP, parseArgs, QUICK_COMMANDS, UsageError, type Parsed } from "./args.js";
 import { richHeader } from "./header.js";
 import { openWithSystem, readAnswer, type Answer } from "./open.js";
 import { detectStyle, type TerminalInfo } from "./terminal.js";
@@ -134,8 +134,8 @@ export async function run(argv: string[], overrides: Partial<CliDeps> = {}): Pro
     deps.stdout(`${packageVersion()}\n`);
     return 0;
   }
-  if (parsed.json && parsed.command !== "report") {
-    deps.stderr("ai-insights: --json only works with `ai-insights report`\n");
+  if (parsed.json && parsed.command !== "report" && !QUICK_COMMANDS.has(parsed.command)) {
+    deps.stderr("ai-insights: --json only works with `ai-insights report`, `today`, `week`, `month` and `summary`\n");
     return 2;
   }
   if (parsed.command !== "mcp") await settleStore(deps);
