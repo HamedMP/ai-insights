@@ -50,9 +50,9 @@ export async function scheduleDeps(deps: LightDeps): Promise<ScheduleDeps> {
     uid: typeof process.getuid === "function" ? process.getuid() : null,
     refresh:
       deps.scheduleRefresh ??
-      (async (from) => {
+      (async (kind) => {
         const { refreshForSchedule } = await import("./commands.js");
-        return refreshForSchedule(deps, from);
+        return refreshForSchedule(deps, kind);
       }),
   };
 }

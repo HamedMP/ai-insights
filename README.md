@@ -98,7 +98,7 @@ Then start a new session and run `/analyze-ai-usage` (or ask your agent to **ana
 
 ### On a schedule
 
-`ai-insights schedule weekly` (or `daily`, `monthly`; `--at 18:30`, `--day fri`) adds one job to your computer's own scheduler: a launchd LaunchAgent on macOS, a systemd user timer on Linux. At that time it refreshes the report and shows a notification with counts only, such as "Your weekly AI Insights are ready: 41 sessions, 6.1 h." (the cost only with `--with-cost`). It lists the files and the command line first and adds nothing until you say yes, only at a terminal. `ai-insights schedule status` shows it, and `ai-insights schedule off` or `ai-insights uninstall` removes it. It needs a global install (`npm i -g ai-insights`), because a job must never start `npx`. Without user systemd it prints a crontab line instead. On Windows it prints a `schtasks` command and is untested.
+`ai-insights schedule weekly` (or `daily`, `monthly`; `--at 18:30`, `--day fri`) adds one job to your computer's own scheduler: a launchd LaunchAgent on macOS, a systemd user timer on Linux. At that time it refreshes the report and shows a notification with counts only, about the period that just ended, such as "Your weekly AI Insights are ready: 41 sessions, 6.1 h last week." (the cost only with `--with-cost`). It lists the files and the command line first and adds nothing until you say yes, only at a terminal. `ai-insights schedule status` shows it, and `ai-insights schedule off` or `ai-insights uninstall` removes it. It needs a global install (`npm i -g ai-insights`), because a job must never start `npx`. Without user systemd it prints a crontab line instead. On Windows it prints a `schtasks` command and is untested.
 
 ### On a server
 

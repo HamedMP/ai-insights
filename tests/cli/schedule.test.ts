@@ -17,13 +17,11 @@ import {
   systemdService,
   systemdTimer,
   whenText,
-  windowStart,
   type ScheduleSpec,
 } from "../../src/cli/schedule.js";
 import { notifyCommand, runSchedule, SCHEDULE_QUESTION, type ScheduleDeps } from "../../src/cli/schedule-command.js";
 import { stableNode } from "../../src/cli/schedule-deps.js";
 import type { SpawnResult, Spawner } from "../../src/cli/spawn.js";
-import { readDigest } from "../../src/store/digest.js";
 import { tempHome } from "../store/fixtures.js";
 
 const NODE = "/usr/local/bin/node";
@@ -112,20 +110,15 @@ describe("when it runs", () => {
     expect(whenText({ ...weekly, weekday: 5, hour: 17, minute: 45 })).toBe("every Friday at 17:45");
   });
 
-  it("counts a rolling window ending now", () => {
-    const now = new Date("2026-11-18T09:00:00Z");
-    expect(windowStart("weekly", now).toISOString()).toBe("2026-11-11T09:00:00.000Z");
-    expect(windowStart("daily", now).toISOString()).toBe("2026-11-17T09:00:00.000Z");
-  });
 });
 
 describe("the notification", () => {
   it("holds counts only, and the cost only when asked", () => {
-    expect(notificationText("weekly", { sessions: 41, activeMinutes: 366, costUsd: 123.4 }, false)).toBe("Your weekly AI Insights are ready: 41 sessions, 6.1 h.");
-    expect(notificationText("weekly", { sessions: 41, activeMinutes: 366, costUsd: 123.4 }, true)).toBe("Your weekly AI Insights are ready: 41 sessions, 6.1 h, about $123.");
-    expect(notificationText("daily", { sessions: 1, activeMinutes: 20, costUsd: null }, true)).toBe("Your daily AI Insights are ready: 1 session, 0.3 h.");
-    expect(notificationText("daily", { sessions: 1, activeMinutes: 50, costUsd: 0.01 }, true)).toBe("Your daily AI Insights are ready: 1 session, 0.8 h, under $1.");
-    expect(notificationText("monthly", { sessions: 0, activeMinutes: 0, costUsd: 0 }, false)).toBe("Your monthly AI Insights are ready: no sessions in the last 30 days.");
+    expect(notificationText("weekly", { sessions: 41, activeMinutes: 366, costUsd: 123.4 }, false)).toBe("Your weekly AI Insights are ready: 41 sessions, 6.1 h last week.");
+    expect(notificationText("weekly", { sessions: 41, activeMinutes: 366, costUsd: 123.4 }, true)).toBe("Your weekly AI Insights are ready: 41 sessions, 6.1 h, about $123 last week.");
+    expect(notificationText("daily", { sessions: 1, activeMinutes: 20, costUsd: null }, true)).toBe("Your daily AI Insights are ready: 1 session, 0.3 h yesterday.");
+    expect(notificationText("daily", { sessions: 1, activeMinutes: 50, costUsd: 0.01 }, true)).toBe("Your daily AI Insights are ready: 1 session, 0.8 h, under $1 yesterday.");
+    expect(notificationText("monthly", { sessions: 0, activeMinutes: 0, costUsd: 0 }, false)).toBe("Your monthly AI Insights are ready: no sessions last month.");
   });
 
   it("hands the text to the notifier as an argument, never inside a script", () => {
@@ -176,6 +169,7 @@ let out: string;
 let err: string;
 let calls: string[];
 let answers: Answer[];
+let refreshed: string[];
 
 const ok = (overrides: Partial<SpawnResult> = {}): SpawnResult => ({ ok: true, code: 0, timedOut: false, stdout: "", stderr: "", ...overrides });
 function spawner(fail: Record<string, Partial<SpawnResult>> = {}): Spawner {
@@ -203,7 +197,10 @@ function deps(overrides: Partial<ScheduleDeps> = {}): ScheduleDeps {
     node: NODE,
     entry: ENTRY,
     uid: 501,
-    refresh: async () => ({ sessions: 41, activeMinutes: 366, costUsd: 12, prompts: 90, tipId: null, htmlPath: join(user, ".ai-insights", "reports", "report.html") }),
+    refresh: async (kind) => {
+      refreshed.push(kind);
+      return { sessions: 41, activeMinutes: 366, costUsd: 12, htmlPath: join(user, ".ai-insights", "reports", "report.html") };
+    },
     ...overrides,
   };
 }
@@ -216,6 +213,7 @@ beforeEach(async () => {
   err = "";
   calls = [];
   answers = [];
+  refreshed = [];
 });
 afterEach(async () => cleanup());
 
@@ -233,7 +231,7 @@ describe("ai-insights schedule weekly (Linux, systemd user session)", () => {
         "  then   systemctl --user daemon-reload",
         "         systemctl --user enable --now ai-insights-schedule.timer",
         "Each time it reads your agent history on this computer, rewrites the report and shows a",
-        'notification with counts only, like "Your weekly AI Insights are ready: 41 sessions, 6.1 h."',
+        'notification with counts only, like "Your weekly AI Insights are ready: 41 sessions, 6.1 h last week."',
         "It sends nothing anywhere.",
         "Remove it any time with: ai-insights schedule off (ai-insights uninstall removes it too)",
         `${SCHEDULE_QUESTION} no`,
@@ -378,26 +376,21 @@ describe("other systems", () => {
 describe("the job (schedule run)", () => {
   it("refreshes the report, shows the counts-only notification and remembers the run", async () => {
     expect(await runSchedule(["run", "weekly"], deps())).toBe(0);
-    expect(calls).toEqual(["notify-send --app-name=AI Insights AI Insights Your weekly AI Insights are ready: 41 sessions, 6.1 h."]);
+    expect(calls).toEqual(["notify-send --app-name=AI Insights AI Insights Your weekly AI Insights are ready: 41 sessions, 6.1 h last week."]);
     const state = JSON.parse(await readFile(join(user, ".ai-insights", "schedule.json"), "utf8"));
     expect(state.lastRun.ok).toBe(true);
-    // The same counts, for the session-start reminder: counts and a tip id, nothing else.
-    expect(await readDigest(join(user, ".ai-insights"))).toEqual({ v: 1, generatedAt: new Date(2026, 10, 18, 12).toISOString(), days: 7, sessions: 41, activeMinutes: 366, prompts: 90, costUsd: 12, tipId: null });
+    expect(refreshed).toEqual(["week"]);
   });
 
-  it("reads back only a well-formed digest", async () => {
-    const home = join(user, "store");
-    await mkdir(home);
-    expect(await readDigest(home)).toBeNull();
-    await writeFile(join(home, "digest.json"), JSON.stringify({ v: 1, generatedAt: "2026-11-18T10:00:00Z", days: 7, sessions: 3, activeMinutes: 10, prompts: 4, costUsd: null, tipId: "rm -rf /", project: "secret-app" }));
-    expect(await readDigest(home)).toEqual({ v: 1, generatedAt: "2026-11-18T10:00:00.000Z", days: 7, sessions: 3, activeMinutes: 10, prompts: 4, costUsd: null, tipId: null });
-    await writeFile(join(home, "digest.json"), "{not json");
-    expect(await readDigest(home)).toBeNull();
+  it("reports on the period that just ended: yesterday, last week or last month", async () => {
+    for (const cadence of ["daily", "monthly"]) await runSchedule(["run", cadence], deps());
+    expect(refreshed).toEqual(["today", "month"]);
+    expect(calls.at(-1)).toContain("last month.");
   });
 
   it("adds the cost only with --with-cost", async () => {
     await runSchedule(["run", "weekly", "--with-cost"], deps());
-    expect(calls.at(-1)).toContain("41 sessions, 6.1 h, about $12.");
+    expect(calls.at(-1)).toContain("41 sessions, 6.1 h, about $12 last week.");
   });
 
   it("without a notifier still refreshes the report and succeeds", async () => {

@@ -22,14 +22,12 @@ import {
   systemdTimer,
   UNIT,
   whenText,
-  WINDOW_DAYS,
-  windowStart,
+  PERIOD_OF,
   type Cadence,
   type JobCommand,
   type NotificationCounts,
   type ScheduleSpec,
 } from "./schedule.js";
-import { writeDigest } from "../store/digest.js";
 import { spawnCommand, type Spawner } from "./spawn.js";
 
 // `ai-insights schedule daily|weekly|monthly | off | status`, and `schedule run`, which is what the installed job
@@ -83,7 +81,7 @@ export interface ScheduleDeps {
   entry: string;
   uid: number | null;
   /** The job's work: writes the report and counts the window. Throws on failure; the caller reports it. */
-  refresh?: (windowFrom: Date) => Promise<NotificationCounts & { htmlPath: string; prompts: number; tipId: string | null }>;
+  refresh?: (kind: "today" | "week" | "month") => Promise<NotificationCounts & { htmlPath: string }>;
 }
 
 /** What removing a schedule needs: no prompt, no program path. `ai-insights uninstall` passes this. */
@@ -486,13 +484,7 @@ async function commandRun(cadence: Cadence, args: ScheduleArgs, deps: ScheduleDe
   let ok = true;
   try {
     if (!deps.refresh) throw new Error("no report pipeline");
-    const counts = await deps.refresh(windowStart(cadence, now));
-    try {
-      await writeDigest(deps.home, { v: 1, generatedAt: now.toISOString(), days: WINDOW_DAYS[cadence], sessions: counts.sessions, activeMinutes: counts.activeMinutes, prompts: counts.prompts, costUsd: counts.costUsd, tipId: counts.tipId });
-    } catch (error) {
-      // Without it the reminder only lacks this run's counts; the notification still shows them.
-      if (!(error instanceof Error)) throw error;
-    }
+    const counts = await deps.refresh(PERIOD_OF[cadence]);
     const text = notificationText(cadence, counts, args.withCost);
     const notify = notifyCommand(deps.platform, text);
     if (notify) {
