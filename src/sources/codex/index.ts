@@ -3,7 +3,7 @@ import { join } from "node:path";
 import type { DiscoverOptions, ExcerptOptions, Session, SessionFile, Source, TranscriptTurn } from "../../schema/types.js";
 import { scrub } from "../shared.js";
 import { expandRoots, rolloutIndex, rootForPath } from "./discover.js";
-import { buildRollout, foldChild, SUBAGENT_REPLY } from "./parse.js";
+import { buildRollout, foldChild, SUBAGENT_REPLY, type BuiltRollout } from "./parse.js";
 import { chooseProject, MAX_EVIDENCE } from "./project.js";
 
 function codexHome(): string {
@@ -30,17 +30,27 @@ async function discover(options: DiscoverOptions = {}): Promise<SessionFile[]> {
 }
 
 async function parse(file: SessionFile): Promise<Session | null> {
+  return parseCodexFamily(file);
+}
+
+/**
+ * A rollout with the guardian reviews and subagents it started folded in. With `buildMany`, every rollout of the
+ * family is built at once (on worker threads) and then folded in the same order, so the Session is the same.
+ */
+export async function parseCodexFamily(file: SessionFile, buildMany?: (rollouts: Array<{ path: string; mtimeMs: number }>) => Promise<BuiltRollout[]>): Promise<Session | null> {
   try {
     const index = await rolloutIndex(expandRoots([rootForPath(file.path)]));
     // Guardian reviews and subagents are counted inside the session that started them.
     if (index.foldedInto.has(file.path)) return null;
-    const built = await buildRollout(file.path, file.mtimeMs);
+    const family = index.families.get(file.path);
+    const children = family?.children ?? [];
+    const prebuilt = buildMany ? await buildMany([{ path: file.path, mtimeMs: file.mtimeMs }, ...children]) : null;
+    const built = prebuilt ? prebuilt[0]! : await buildRollout(file.path, file.mtimeMs);
     const session = built.session;
     if (!session) return null;
-    const family = index.families.get(file.path);
     const evidence = [...built.evidence];
-    for (const child of family?.children ?? []) {
-      const folded = await buildRollout(child.path, child.mtimeMs);
+    for (const [position, child] of children.entries()) {
+      const folded = prebuilt ? prebuilt[position + 1]! : await buildRollout(child.path, child.mtimeMs);
       foldChild(session, folded);
       // A subagent's edits are this session's work; a guardian only reads what it reviews.
       if (folded.meta.kind !== "guardian") evidence.push(...folded.evidence.slice(0, Math.max(0, MAX_EVIDENCE - evidence.length)));

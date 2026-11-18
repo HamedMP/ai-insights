@@ -173,6 +173,17 @@ const MAX_DELEGATES = 2_000;
 export class Delegates {
   private readonly ids = new Set<string>();
 
+  /** The ids noted so far, for a parse checkpoint. */
+  list(): string[] {
+    return [...this.ids];
+  }
+
+  static of(ids: Iterable<unknown>): Delegates {
+    const delegates = new Delegates();
+    for (const id of ids) delegates.add(id);
+    return delegates;
+  }
+
   add(id: unknown): void {
     if (typeof id === "string" && id.trim() !== "" && this.ids.size < MAX_DELEGATES) this.ids.add(id.trim());
   }

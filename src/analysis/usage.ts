@@ -312,8 +312,11 @@ export function priceContext(request: ModelRequest): PriceContext {
   return request.serviceTier === undefined ? { timestamp: request.timestamp } : { timestamp: request.timestamp, serviceTier: request.serviceTier };
 }
 
-export interface OwnedRequest {
-  session: Session;
+/** What de-duplicating requests needs from a session; the usage-only scan has no more than this. */
+export type RequestOwner = Pick<Session, "harness" | "requests">;
+
+export interface OwnedRequest<S extends RequestOwner = Session> {
+  session: S;
   request: ModelRequest;
   usd: number | null;
 }
@@ -322,9 +325,9 @@ export interface OwnedRequest {
  * Every request once. Ids are unique per harness, and a resumed or forked session
  * repeats its parent's responses, so the first session (by start time) keeps them.
  */
-export function uniqueRequests(sessions: Session[]): OwnedRequest[] {
+export function uniqueRequests<S extends RequestOwner = Session>(sessions: S[]): Array<OwnedRequest<S>> {
   const seen = new Set<string>();
-  const out: OwnedRequest[] = [];
+  const out: Array<OwnedRequest<S>> = [];
   for (const session of sessions) {
     for (const request of session.requests) {
       const key = `${session.harness}\u0000${request.id}`;

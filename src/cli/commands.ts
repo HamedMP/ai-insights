@@ -7,7 +7,9 @@ import { HARNESSES, isChatHarness, type AnalysisStep, type Coverage, type Harnes
 import { sources as realSources } from "../sources/index.js";
 import { ensureDir, pathExists, writeFileAtomic } from "../store/fs.js";
 import { buildFromScan, describeHeadline, headline, renderFromScan, tokensPhrase, type PipelineProgress } from "../store/pipeline.js";
-import { harnessLabel, scan, totalBytes, type ScanOptions, type ScanProgress } from "../store/scan.js";
+import { fileParser } from "../store/parse-file.js";
+import { ParsePool, POOLED_PARSE_BUDGET_BYTES } from "../store/parse-pool.js";
+import { DEFAULT_CONCURRENCY, harnessLabel, scan, totalBytes, type ScanOptions, type ScanProgress, type ScanResult } from "../store/scan.js";
 import { measureRetention, readRetentionPolicies, type RetentionPolicy } from "../store/retention.js";
 import { Store, resolveHome } from "../store/store.js";
 import type { Parsed } from "./args.js";
@@ -120,7 +122,7 @@ async function commandRun(parsed: Parsed, deps: CliDeps, store: Store, style: St
     : undefined;
   let outcome: Awaited<ReturnType<typeof renderFromScan>>;
   try {
-    const result = await scan(scanDeps(deps, store), { ...scanOptions(parsed), ...(onProgress ? { onProgress } : {}) });
+    const result = await runScan(deps, store, { ...scanOptions(parsed), ...(onProgress ? { onProgress } : {}) });
     if (result.sessions.length === 0) {
       progress?.stop();
       const filters = [...(parsed.sinceText ? [`--since ${parsed.sinceText}`] : []), ...(parsed.harness ? [`--harness ${parsed.harness}`] : [])];
@@ -183,7 +185,7 @@ async function openReport(path: string, deps: CliDeps, indent = ""): Promise<boo
 }
 
 async function commandScan(parsed: Parsed, deps: CliDeps, store: Store): Promise<number> {
-  const result = await scan(scanDeps(deps, store), scanOptions(parsed));
+  const result = await runScan(deps, store, scanOptions(parsed));
   const numbers = headline(result.sessions);
   let analysed: string | null = null;
   if (result.sessions.length > 0) {
@@ -209,7 +211,7 @@ async function commandScan(parsed: Parsed, deps: CliDeps, store: Store): Promise
 }
 
 async function commandReport(parsed: Parsed, deps: CliDeps, store: Store): Promise<number> {
-  const result = await scan(scanDeps(deps, store), scanOptions(parsed));
+  const result = await runScan(deps, store, scanOptions(parsed));
   if (parsed.json) {
     const { report } = await buildFromScan(pipelineDeps(deps, store), result);
     deps.stdout(`${JSON.stringify(report, null, 2)}\n`);
@@ -365,6 +367,24 @@ function keepsText(policy: RetentionPolicy): string {
 
 function scanDeps(deps: CliDeps, store: Store) {
   return { sources: deps.sources, store, now: deps.now, ...(deps.retentionPolicies ? { retentionPolicies: deps.retentionPolicies } : {}) };
+}
+
+/**
+ * A scan with the built-in sources parses on worker threads (unless `AI_INSIGHTS_WORKERS=0`) and resumes appended
+ * transcripts from their checkpoints. Sources a test supplies are parsed as they are.
+ */
+export async function runScan(deps: CliDeps, store: Store, options: ScanOptions): Promise<ScanResult> {
+  if (deps.sources !== realSources) return scan(scanDeps(deps, store), options);
+  const workers = deps.env.AI_INSIGHTS_WORKERS?.trim();
+  const pool = workers === "0" ? null : ParsePool.create(workers && /^\d+$/.test(workers) ? { size: Number(workers) } : {});
+  try {
+    return await scan(
+      { ...scanDeps(deps, store), parse: fileParser({ pool, home: store.home }), ...(pool ? { concurrency: Math.max(DEFAULT_CONCURRENCY, pool.workers + 2), parseBudgetBytes: POOLED_PARSE_BUDGET_BYTES } : {}) },
+      options,
+    );
+  } finally {
+    await pool?.close();
+  }
 }
 
 function pipelineDeps(deps: CliDeps, store: Store) {
