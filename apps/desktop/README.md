@@ -15,7 +15,7 @@ mistyped fields so a CLI update cannot crash the app.
 
 1. a path you set in Settings;
 2. `AI_INSIGHTS_CLI` (for development);
-3. your login shell's `PATH` (asked once, with a 4 s limit), the app's own `PATH`, and the usual install
+3. the `PATH` your terminal would have (an interactive login shell, asked once with a 4 s limit, so nvm and fnm set up in `.zshrc` count), the app's own `PATH`, and the usual install
    folders: Homebrew, `/usr/local/bin`, `~/.local/bin`, `~/.npm-global/bin`, Volta, fnm, the newest nvm
    version, pnpm, Bun, asdf, mise, and `%APPDATA%\npm` on Windows.
 
