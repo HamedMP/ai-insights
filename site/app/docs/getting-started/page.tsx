@@ -205,7 +205,19 @@ Next steps
         <li>
           <code>npx ai-insights@latest nudge --off</code> turns it off; <code>--on</code> turns it back on. Uninstalling the plugin removes it.
         </li>
+        <li>
+          <code>npx ai-insights@latest nudge --cadence weekly</code> (or <code>daily</code>) shows one line at the first session of each week (or
+          day) instead: that period&apos;s sessions, active time and context resets, and one tip. <code>--cadence monthly</code> goes back to the
+          default, where the monthly line also carries last month&apos;s counts when it can.
+        </li>
       </ul>
+      <Code label="Shown at session start, weekly" copy={false}>{`AI Insights: last week (to Fri 13 Nov) 37 sessions, 21 h active, 8 context resets. A command kept failing last week. Tell the agent how the command should be run, in your instructions file. Run /analyze-ai-usage for the full review. (Turn this off: npx ai-insights@latest nudge --off)`}</Code>
+      <p>
+        The counts come from <code>digest.json</code> in your AI Insights folder, which <code>npx ai-insights@latest</code>,{" "}
+        <code>today</code>, <code>week</code>, <code>month</code> and <code>summary</code> rewrite each time you run them: counts, the cost
+        estimate and the kind of one finding, nothing else. The reminder never reads your history. When the digest is missing or about an older
+        period, the plain reminder shows instead. A partial period says how far it goes, as in &quot;to Fri 13 Nov&quot; above.
+      </p>
       <p>
         Why monthly: Claude Code and Gemini CLI delete transcripts after 30 days by default. Each run saves the stats and your prompts from every
         transcript it reads (see <DocLink href="/docs/agents#what-is-kept">What is kept</DocLink>), so a review a month keeps that history after the

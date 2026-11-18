@@ -1,5 +1,6 @@
 import { readFile, rename, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { CADENCES, dayKey, digestLine, readDigest, weekStartKey, type Cadence } from "./digest.js";
 
 // The monthly review reminder. An agent's session-start hook runs this on every new session, so it stays tiny:
 // Node built-ins only, two small file reads, no network, and it never throws. The plugin ships a copy of this
@@ -10,14 +11,24 @@ export const NUDGE_FILE = "nudge.json";
 /** The report every run writes; its age says when the last review was. */
 export const REPORT_FILE = join("reports", "report.html");
 
-export const NUDGE_TEXT =
-  "AI Insights: your monthly review is due. Run /analyze-ai-usage, or npx ai-insights@latest in a terminal. (Turn this off: npx ai-insights@latest nudge --off)";
+const OFF = "Turn this off: npx ai-insights@latest nudge --off";
+
+export const NUDGE_TEXT = `AI Insights: your monthly review is due. Run /analyze-ai-usage, or npx ai-insights@latest in a terminal. (${OFF})`;
+
+/** Without a current digest: the plain reminder, for the period the cadence names. */
+export function plainText(cadence: Cadence): string {
+  if (cadence === "monthly") return NUDGE_TEXT;
+  const period = cadence === "daily" ? "today" : "this week";
+  return `AI Insights: see how ${period} is going with npx ai-insights@latest ${cadence === "daily" ? "today" : "week"} in a terminal, or run /analyze-ai-usage. (${OFF})`;
+}
 
 export interface NudgeState {
   /** The person turned the reminder off. */
   off: boolean;
-  /** The month ("2026-11") the reminder was last shown. */
+  /** The period the reminder was last shown in: a month ("2026-11"), a week's Monday or a day ("2026-11-16"). */
   shown: string | null;
+  /** How often it may show. Absent in files from before cadences, which means monthly. */
+  cadence?: Cadence;
 }
 
 /** Local calendar month, "YYYY-MM". */
@@ -29,10 +40,12 @@ export async function readNudgeState(home: string): Promise<NudgeState> {
   try {
     const raw = await readFile(join(home, NUDGE_FILE), "utf8");
     if (raw.length > 10_000) return { off: false, shown: null };
-    const value = JSON.parse(raw) as { off?: unknown; shown?: unknown };
+    const value = JSON.parse(raw) as { off?: unknown; shown?: unknown; cadence?: unknown };
+    const cadence = CADENCES.find((candidate) => candidate === value.cadence);
     return {
       off: value.off === true,
-      shown: typeof value.shown === "string" && /^\d{4}-\d{2}$/.test(value.shown) ? value.shown : null,
+      shown: typeof value.shown === "string" && /^\d{4}-\d{2}(-\d{2})?$/.test(value.shown) ? value.shown : null,
+      ...(cadence ? { cadence } : {}),
     };
   } catch {
     return { off: false, shown: null };
@@ -59,31 +72,39 @@ async function lastReport(home: string): Promise<Date | null> {
   }
 }
 
-/**
- * Due once per calendar month: when no report has been written this month and the reminder has not been
- * shown this month. So the first session of a new month asks for the month just ended, a report written this
- * month (by `npx ai-insights@latest` or the skill) quiets it, and it never repeats within the month.
- */
-export function isDue(state: NudgeState, report: Date | null, now: Date): boolean {
-  if (state.off) return false;
-  const month = monthKey(now);
-  if (state.shown === month) return false;
-  return report === null || monthKey(report) !== month;
+/** The key of the period `now` is in, for a cadence: the month, the week's Monday or the day. */
+export function periodKey(cadence: Cadence, now: Date): string {
+  return cadence === "daily" ? dayKey(now) : cadence === "weekly" ? weekStartKey(now) : monthKey(now);
 }
 
 /**
- * The reminder line when one is due, recording that it was shown; null otherwise. Shown only when the store
- * folder already exists (the person has run AI Insights here) and the record could be written, so a broken
- * store can never make it repeat every session.
+ * Due once per period of the cadence (monthly unless chosen otherwise), the first session of it. Monthly keeps its
+ * original rule: a report written this month (by `npx ai-insights@latest` or the skill) quiets it, because the
+ * review it asks for is done. Daily and weekly lines are a digest, shown whether or not a report was written.
+ */
+export function isDue(state: NudgeState, report: Date | null, now: Date): boolean {
+  if (state.off) return false;
+  const cadence = state.cadence ?? "monthly";
+  if (state.shown === periodKey(cadence, now)) return false;
+  if (cadence !== "monthly") return true;
+  return report === null || monthKey(report) !== monthKey(now);
+}
+
+/**
+ * The line when one is due, recording that it was shown; null otherwise. It is the saved digest's counts for the
+ * period when the digest is current (written by the commands a person runs; the hook never reads history), and the
+ * plain reminder otherwise. Shown only when the store folder already exists (the person has run AI Insights here)
+ * and the record could be written, so a broken store can never make it repeat every session.
  */
 export async function takeNudge(home: string, now: Date): Promise<string | null> {
   try {
     const folder = await stat(home).catch(() => null);
     if (!folder?.isDirectory()) return null;
-    const [state, report] = await Promise.all([readNudgeState(home), lastReport(home)]);
+    const [state, report, digest] = await Promise.all([readNudgeState(home), lastReport(home), readDigest(home)]);
     if (!isDue(state, report, now)) return null;
-    if (!(await writeNudgeState(home, { ...state, shown: monthKey(now) }))) return null;
-    return NUDGE_TEXT;
+    const cadence = state.cadence ?? "monthly";
+    if (!(await writeNudgeState(home, { ...state, shown: periodKey(cadence, now) }))) return null;
+    return (digest ? digestLine(digest, cadence, now, OFF) : null) ?? plainText(cadence);
   } catch {
     return null;
   }

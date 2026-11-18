@@ -27,7 +27,7 @@ Usage
   ai-insights uninstall          remove it again (and a schedule, if you added one)
   ai-insights schedule weekly    refresh the report on a schedule, with a notification
                                  (daily, weekly, monthly, off, status; see schedule --help)
-  ai-insights nudge              print a line when a monthly review is due (--off, --on)
+  ai-insights nudge              print a line when a review is due (--off, --on, --cadence)
 
 Options
   --since <window>     only history from ${SINCE_HELP}

@@ -63,7 +63,7 @@ You need Node.js 20 or newer.
 - `ai-insights-coach` turns the findings into edits you review;
 - `ai-insights-setup` checks that everything works.
 
-The Claude Code and Codex plugin also shows one line at the start of a new session when a monthly review is due (offline, at most once a month; `npx ai-insights@latest nudge --off` turns it off). Codex runs it only after you approve the hook in `/hooks`; it is untested in the Codex CLI.
+The Claude Code and Codex plugin also shows one line at the start of a new session when a monthly review is due (offline, at most once a month; `npx ai-insights@latest nudge --off` turns it off). `nudge --cadence weekly` (or `daily`) makes it a weekly (or daily) line with that period's sessions, active time, context resets and one tip, read from the small digest your runs save ([docs/digest-json.md](docs/digest-json.md)); the hook never reads your history. Codex runs it only after you approve the hook in `/hooks`; it is untested in the Codex CLI.
 
 **From the command line:** `npx ai-insights@latest install` runs the Claude Code and Codex commands below for the agents it finds, after showing them (`--dry-run` only prints them). The end of a normal run offers the same once; a no is remembered for 30 days, and `--no-install-prompt` or `AI_INSIGHTS_NO_INSTALL_PROMPT=1` turns the offer off.
 

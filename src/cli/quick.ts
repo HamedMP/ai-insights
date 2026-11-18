@@ -7,6 +7,7 @@ import { harnessLabel } from "../store/scan.js";
 import type { Store } from "../store/store.js";
 import type { Parsed } from "./args.js";
 import type { CliDeps } from "./main.js";
+import { buildDigest, digestIsFresh, saveDigest } from "./digest.js";
 import { quickText, summaryText } from "./quick-screen.js";
 import { periodJson, summaryJson } from "./summary-json.js";
 import type { Style } from "./terminal.js";
@@ -44,7 +45,10 @@ export async function commandQuick(parsed: Parsed, deps: CliDeps, store: Store, 
       ? [calendarRange(parsed.sinceText?.trim(), parsed.until, now, timeZone)]
       : [currentRange(kind!, now, timeZone, parsed.last ?? 1)];
   const wider = kind && !parsed.sinceText && !parsed.until && (parsed.last ?? 1) === 1 && WIDER[kind] ? currentRange(WIDER[kind]!, now, timeZone) : null;
-  const earliest = Math.min(...main.map((range) => range.from), wider?.from ?? Number.POSITIVE_INFINITY);
+  // Unfiltered views also refresh the saved digest, which covers this month: read that far back.
+  const digest = !parsed.harness && !parsed.maxSessions && !parsed.sinceText && !parsed.until && (parsed.last ?? 1) === 1;
+  const monthStart = digest ? currentRange("month", now, timeZone).from : Number.POSITIVE_INFINITY;
+  const earliest = Math.min(...main.map((range) => range.from), wider?.from ?? Number.POSITIVE_INFINITY, monthStart);
   const result = await runScan({
     ...(earliest > 0 ? { since: new Date(earliest) } : {}),
     ...(parsed.harness ? { harness: parsed.harness } : {}),
@@ -53,6 +57,11 @@ export async function commandQuick(parsed: Parsed, deps: CliDeps, store: Store, 
   });
   const options = { timeZone, now, labels, byProject: parsed.by === "project" };
   const summaries = summarizePeriods(result.sessions, main, options);
+  // `summary` has all three periods already; a single view refreshes a digest older than a few minutes.
+  if (digest && (summaryMode || !(await digestIsFresh(store.home, now)))) {
+    const known = summaryMode ? Object.fromEntries(PERIOD_KINDS.map((period, index) => [period, summaries[index]!])) : { [kind!]: summaries[0]! };
+    await saveDigest(store.home, buildDigest(result.sessions, { timeZone, now, labels }, known));
+  }
   const reportPath = await lastReport(store);
   const nowMs = now.getTime();
 

@@ -5,6 +5,7 @@ import { periodUsage, type UsageRange } from "./period-usage.js";
 import { makeClock, shiftDay, type Clock } from "./time.js";
 import { addRequest, emptyTotals, summarizeUsage, uniqueRequests } from "./usage.js";
 import { uniqueSessions } from "./sessions.js";
+import { TIP_LEADS } from "../nudge/tips.js";
 
 /**
  * Today, this week, this month: the numbers behind the quick views and `--json`. Aggregates only: counts, minutes,
@@ -199,20 +200,7 @@ function projectName(session: Session): string | null {
 // -- the tip ----------------------------------------------------------------------
 
 /** Kinds that coach how the person works; history and coverage notices are left to the full report. */
-const LEADS: Partial<Record<FindingKind, (scope: string) => string>> = {
-  repeated_failed_command: (scope) => `A command kept failing ${scope}.`,
-  repeated_instruction: (scope) => `You typed the same instruction more than once ${scope}.`,
-  slow_correction: (scope) => `Corrections came late ${scope}.`,
-  frequent_interruptions: (scope) => `You stopped the agent often ${scope}.`,
-  context_resets: (scope) => `Sessions ran out of context ${scope}.`,
-  long_sessions: (scope) => `Some sessions ran very long ${scope}.`,
-  cache_miss_cost: (scope) => `Little was read from the prompt cache ${scope}.`,
-  expensive_model_for_simple_work: (scope) => `Top-tier models answered quick questions ${scope}.`,
-  no_tests_before_done: (scope) => `Code was committed without a test run ${scope}.`,
-  permission_prompt_load: (scope) => `Permission prompts kept interrupting ${scope}.`,
-  tool_error_hotspot: (scope) => `One tool failed often ${scope}.`,
-  unused_feature: () => "Something to try:",
-};
+const LEADS: Partial<Record<FindingKind, (scope: string) => string>> = TIP_LEADS;
 
 export function scopeText(range: Pick<PeriodRange, "kind" | "scope">): string {
   if (range.scope) return range.scope;

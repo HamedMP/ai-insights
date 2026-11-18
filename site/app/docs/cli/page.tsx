@@ -25,7 +25,7 @@ ai-insights import openai <path>  add a ChatGPT data export
 ai-insights install            add the plugin to your agents
 ai-insights uninstall          remove it again (and a schedule, if you added one)
 ai-insights schedule weekly    refresh the report on a schedule, with a notification
-ai-insights nudge              print a line when a monthly review is due`}</Code>
+ai-insights nudge              print a line when a review or digest is due`}</Code>
 
       <H2 id="commands">Commands</H2>
       <H3 id="cmd-run">ai-insights</H3>
@@ -312,12 +312,15 @@ Remove it any time with: ai-insights schedule off (ai-insights uninstall removes
 Add this schedule? [Y/n]`}</Code>
       <H3 id="cmd-nudge">ai-insights nudge</H3>
       <p>
-        Prints one line when a monthly review is due, and nothing otherwise. The plugin runs the same code when a new Claude Code or Codex
-        session starts; see <DocLink href="/docs/getting-started#monthly-reminder">The monthly reminder</DocLink>. It always exits 0.
+        Prints one line when a review or a digest is due, and nothing otherwise. The plugin runs the same code when a new Claude Code or Codex
+        session starts; see <DocLink href="/docs/getting-started#monthly-reminder">The monthly reminder</DocLink>. It always exits 0. With a
+        cadence of <code>daily</code> or <code>weekly</code>, the line is that period&apos;s counts and one tip, read from the{" "}
+        <a href="https://github.com/HamedMP/ai-insights/blob/main/docs/digest-json.md">saved digest</a>; monthly stays the default.
       </p>
-      <Code label="Usage" copy={false}>{`ai-insights nudge          the line, if a review is due
-ai-insights nudge --off    never remind me
-ai-insights nudge --on     remind me again`}</Code>
+      <Code label="Usage" copy={false}>{`ai-insights nudge                     the line, if one is due
+ai-insights nudge --off               never remind me
+ai-insights nudge --on                remind me again
+ai-insights nudge --cadence weekly    daily, weekly or monthly (the default)`}</Code>
       <p>
         <code>help</code> is accepted as a command and prints the same text as <code>--help</code>.
       </p>
