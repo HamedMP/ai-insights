@@ -21,7 +21,7 @@ import {
   toolCategory,
   type PromptKind,
 } from "./classify.js";
-import { DEFAULT_LIMITS, readJsonl, type JsonlLimits } from "./jsonl.js";
+import { DEFAULT_LIMITS, readJsonl, scanJsonl, type JsonlLimits, type JsonlPosition } from "./jsonl.js";
 
 export const CAPS = {
   prompts: 2_000,
@@ -174,6 +174,66 @@ export async function subagentFiles(transcriptPath: string): Promise<string[]> {
   return found.sort().slice(0, CAPS.subagentFiles);
 }
 
+/** Where a transcript's model requests are gathered: the full parse and the usage-only read share this. */
+export interface RequestLog {
+  requests: Map<string, ModelRequest>;
+  /** Response ids seen only as an incomplete proxy placeholder so far. */
+  placeholders: Set<string>;
+  sessionId: string | null;
+}
+
+/** Adds one assistant message's usage to `log`; returns the issues it found (0 or 1). */
+export function addRequest(log: RequestLog, record: Obj, m: Obj, time: string | null): number {
+  const u = obj(m.usage);
+  const messageId = str(m.id);
+  const requestId = str(record.requestId);
+  if (!messageId && !requestId) return 1;
+  if (typeof u.input_tokens !== "number" || typeof u.output_tokens !== "number") return 1;
+  const id = messageId ? `claude:${messageId}` : `claude:${log.sessionId ?? "unknown"}:${requestId}`;
+  const usage: ModelRequest["usage"] = {
+    input: counter(u.input_tokens),
+    cachedInput: counter(u.cache_read_input_tokens),
+    cacheWrite: counter(u.cache_creation_input_tokens),
+    output: counter(u.output_tokens),
+  };
+  // Fast mode is billed at its own rates; anything but the default speed is kept so the price lookup can decide.
+  const speed = str(u.speed).trim().toLowerCase();
+  const serviceTier = speed && speed !== "standard" ? truncate(speed, 32) : undefined;
+  if (u.cache_creation && typeof u.cache_creation === "object") {
+    const cache = obj(u.cache_creation);
+    usage.cacheWrite5m = counter(cache.ephemeral_5m_input_tokens);
+    usage.cacheWrite1h = counter(cache.ephemeral_1h_input_tokens);
+  }
+  // A proxy's placeholder for a response still in flight: explicit null stop reason, the prompt as plain input,
+  // no output and no cache counters. Its input is not the billed split, so it never counts on its own and a
+  // completed copy replaces it instead of merging with it. The signature is CodexBar's (docs/claude.md,
+  // https://github.com/steipete/CodexBar, MIT).
+  const placeholder = m.stop_reason === null && usage.input > 0 && usage.output === 0 && usage.cachedInput === 0 && usage.cacheWrite === 0;
+  if (placeholder) {
+    if (!log.requests.has(id) && log.placeholders.size < CAPS.requests) log.placeholders.add(id);
+    return 0;
+  }
+  log.placeholders.delete(id);
+  const existing = log.requests.get(id);
+  if (existing) {
+    // Streamed copies of one response repeat or grow the counters; the largest is the final one.
+    const old = existing.usage;
+    old.input = Math.max(old.input, usage.input);
+    old.cachedInput = Math.max(old.cachedInput, usage.cachedInput);
+    old.cacheWrite = Math.max(old.cacheWrite, usage.cacheWrite);
+    old.output = Math.max(old.output, usage.output);
+    if (usage.cacheWrite5m !== undefined) old.cacheWrite5m = Math.max(old.cacheWrite5m ?? 0, usage.cacheWrite5m);
+    if (usage.cacheWrite1h !== undefined) old.cacheWrite1h = Math.max(old.cacheWrite1h ?? 0, usage.cacheWrite1h);
+    if (serviceTier) existing.serviceTier = serviceTier;
+    return 0;
+  }
+  if (usage.input + usage.cachedInput + usage.cacheWrite + usage.output === 0) return 0;
+  if (!time) return 1;
+  if (log.requests.size >= CAPS.requests) return 1;
+  log.requests.set(id, { id, timestamp: time, model: truncate(str(m.model) || "unknown", 200), usage, ...(serviceTier ? { serviceTier } : {}) });
+  return 0;
+}
+
 interface PendingEffect {
   added: number;
   removed: number;
@@ -193,7 +253,7 @@ class SessionBuilder {
   models = new Set<string>();
   requests = new Map<string, ModelRequest>();
   /** Response ids seen only as an incomplete proxy placeholder so far. */
-  private placeholders = new Set<string>();
+  placeholders = new Set<string>();
   assistantMessages = new Set<string>();
   toolCalls: ToolCall[] = [];
   toolIndex = new Map<string, number>();
@@ -340,65 +400,7 @@ class SessionBuilder {
   }
 
   private addRequest(record: Obj, m: Obj, time: string | null): void {
-    const u = obj(m.usage);
-    const messageId = str(m.id);
-    const requestId = str(record.requestId);
-    if (!messageId && !requestId) {
-      this.issues += 1;
-      return;
-    }
-    if (typeof u.input_tokens !== "number" || typeof u.output_tokens !== "number") {
-      this.issues += 1;
-      return;
-    }
-    const id = messageId ? `claude:${messageId}` : `claude:${this.sessionId ?? "unknown"}:${requestId}`;
-    const usage: ModelRequest["usage"] = {
-      input: counter(u.input_tokens),
-      cachedInput: counter(u.cache_read_input_tokens),
-      cacheWrite: counter(u.cache_creation_input_tokens),
-      output: counter(u.output_tokens),
-    };
-    // Fast mode is billed at its own rates; anything but the default speed is kept so the price lookup can decide.
-    const speed = str(u.speed).trim().toLowerCase();
-    const serviceTier = speed && speed !== "standard" ? truncate(speed, 32) : undefined;
-    if (u.cache_creation && typeof u.cache_creation === "object") {
-      const cache = obj(u.cache_creation);
-      usage.cacheWrite5m = counter(cache.ephemeral_5m_input_tokens);
-      usage.cacheWrite1h = counter(cache.ephemeral_1h_input_tokens);
-    }
-    // A proxy's placeholder for a response still in flight: explicit null stop reason, the prompt as plain input,
-    // no output and no cache counters. Its input is not the billed split, so it never counts on its own and a
-    // completed copy replaces it instead of merging with it. The signature is CodexBar's (docs/claude.md,
-    // https://github.com/steipete/CodexBar, MIT).
-    const placeholder = m.stop_reason === null && usage.input > 0 && usage.output === 0 && usage.cachedInput === 0 && usage.cacheWrite === 0;
-    if (placeholder) {
-      if (!this.requests.has(id) && this.placeholders.size < CAPS.requests) this.placeholders.add(id);
-      return;
-    }
-    this.placeholders.delete(id);
-    const existing = this.requests.get(id);
-    if (existing) {
-      // Streamed copies of one response repeat or grow the counters; the largest is the final one.
-      const old = existing.usage;
-      old.input = Math.max(old.input, usage.input);
-      old.cachedInput = Math.max(old.cachedInput, usage.cachedInput);
-      old.cacheWrite = Math.max(old.cacheWrite, usage.cacheWrite);
-      old.output = Math.max(old.output, usage.output);
-      if (usage.cacheWrite5m !== undefined) old.cacheWrite5m = Math.max(old.cacheWrite5m ?? 0, usage.cacheWrite5m);
-      if (usage.cacheWrite1h !== undefined) old.cacheWrite1h = Math.max(old.cacheWrite1h ?? 0, usage.cacheWrite1h);
-      if (serviceTier) existing.serviceTier = serviceTier;
-      return;
-    }
-    if (usage.input + usage.cachedInput + usage.cacheWrite + usage.output === 0) return;
-    if (!time) {
-      this.issues += 1;
-      return;
-    }
-    if (this.requests.size >= CAPS.requests) {
-      this.issues += 1;
-      return;
-    }
-    this.requests.set(id, { id, timestamp: time, model: truncate(str(m.model) || "unknown", 200), usage, ...(serviceTier ? { serviceTier } : {}) });
+    this.issues += addRequest({ requests: this.requests, placeholders: this.placeholders, sessionId: this.sessionId }, record, m, time);
   }
 
   private toolUse(block: Obj, time: string, mainThread: boolean): void {
@@ -669,6 +671,38 @@ class SessionBuilder {
     return { auto, byPerson, denied };
   }
 
+  /**
+   * Everything the builder has gathered, as JSON-safe data, so a parse can resume from it. Throws on a field it
+   * cannot encode, so a new kind of field fails loudly (and the checkpoint is skipped) instead of resuming wrong.
+   */
+  snapshot(): string {
+    const out: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(this)) out[key] = encodeField(value);
+    return JSON.stringify(out);
+  }
+
+  static restore(json: string): SessionBuilder | null {
+    let state: unknown;
+    try {
+      state = JSON.parse(json);
+    } catch {
+      return null;
+    }
+    if (!state || typeof state !== "object" || Array.isArray(state)) return null;
+    const builder = new SessionBuilder();
+    const fields = builder as unknown as Record<string, unknown>;
+    const expected = Object.keys(fields);
+    const given = state as Record<string, unknown>;
+    if (Object.keys(given).length !== expected.length) return null;
+    for (const key of expected) {
+      if (!(key in given)) return null;
+      const decoded = decodeField(given[key], fields[key]);
+      if (decoded === INVALID) return null;
+      fields[key] = decoded;
+    }
+    return builder;
+  }
+
   record(record: Obj, mainFile: boolean): void {
     const type = record.type;
     const time = isoTime(record.timestamp);
@@ -730,18 +764,95 @@ class SessionBuilder {
   }
 }
 
-export async function parseClaudeTranscript(file: SessionFile, limits: JsonlLimits = DEFAULT_LIMITS): Promise<Session | null> {
-  const builder = new SessionBuilder();
+const INVALID = Symbol("invalid");
+
+function encodeField(value: unknown): unknown {
+  if (value instanceof Set) return { $set: [...value] };
+  if (value instanceof Map) return { $map: [...value] };
+  if (value instanceof Delegates) return { $delegates: value.list() };
+  if (value === null || typeof value !== "object" || Array.isArray(value) || Object.getPrototypeOf(value) === Object.prototype) return value;
+  throw new Error("unencodable builder field");
+}
+
+/** Decodes a field to the same kind as the fresh builder's default, or INVALID. */
+function decodeField(value: unknown, fresh: unknown): unknown {
+  const tagged = value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+  if (fresh instanceof Set) return Array.isArray(tagged?.$set) ? new Set(tagged.$set) : INVALID;
+  if (fresh instanceof Map) return Array.isArray(tagged?.$map) && tagged.$map.every((entry) => Array.isArray(entry) && entry.length === 2) ? new Map(tagged.$map as Array<[unknown, unknown]>) : INVALID;
+  if (fresh instanceof Delegates) return Array.isArray(tagged?.$delegates) ? Delegates.of(tagged.$delegates) : INVALID;
+  if (Array.isArray(fresh)) return Array.isArray(value) ? value : INVALID;
+  if (fresh === null) return value === null || typeof value === "string" ? value : INVALID;
+  if (typeof fresh === "object") return tagged ?? INVALID;
+  return typeof value === typeof fresh ? value : INVALID;
+}
+
+/** A resumable point in a transcript: where its last complete line ended and what the parse knew by then. */
+export interface ParseCheckpoint {
+  position: JsonlPosition;
+  /** The builder, as JSON: taken at that line, before anything after it changes the builder. */
+  state: string;
+}
+
+/**
+ * Where checkpoints live. `load` must return only a checkpoint whose file still starts with exactly the bytes it was
+ * made from (the store checks this); anything doubtful is null and the transcript is read from the top.
+ */
+export interface Checkpoints {
+  load(path: string, key: string): Promise<ParseCheckpoint | null>;
+  save(path: string, key: string, checkpoint: ParseCheckpoint): Promise<void>;
+  /** Transcripts with fewer bytes than this are cheaper to re-read than to checkpoint. */
+  minBytes: number;
+}
+
+/** Bump with any change to the builder or how lines feed it, so a checkpoint never resumes a different parser. */
+const CHECKPOINT_FORMAT = "1";
+
+function checkpointKey(limits: JsonlLimits): string {
+  return `claude:${CHECKPOINT_FORMAT}:${limits.maxBytes}:${limits.maxLineBytes}:${limits.maxLines}`;
+}
+
+export interface ParseOptions {
+  /** Resume appended transcripts from their last checkpoint and save a new one. */
+  checkpoints?: Checkpoints;
+}
+
+/**
+ * Parses a Claude Code transcript. With `checkpoints`, a transcript that has only grown since the last parse is read
+ * from where that parse stopped: the result is the same Session a full read gives, only the new lines are parsed.
+ */
+export async function parseClaudeTranscript(file: SessionFile, limits: JsonlLimits = DEFAULT_LIMITS, options: ParseOptions = {}): Promise<Session | null> {
+  let builder = new SessionBuilder();
   // Claude Code names the file after the session. Lines stamped with another
   // session id are history copied in on resume; the original file counts them.
   const stem = basename(file.path, ".jsonl");
   const fileSession = UUID.test(stem) ? stem : null;
   if (fileSession) builder.sessionId = fileSession;
-  for await (const row of readJsonl(file.path, limits)) {
-    if (row.kind === "issue") builder.issues += 1;
+  const checkpoints = options.checkpoints;
+  const key = checkpointKey(limits);
+  let from: JsonlPosition | undefined;
+  if (checkpoints) {
+    const saved = await checkpoints.load(file.path, key).catch(() => null);
+    const restored = saved && typeof saved.state === "string" ? SessionBuilder.restore(saved.state) : null;
+    if (saved && restored) {
+      builder = restored;
+      from = saved.position;
+    }
+  }
+  let reached: ParseCheckpoint | null = null;
+  for await (const row of scanJsonl(file.path, limits, from ? { from } : {})) {
+    if (row.kind === "at") {
+      if (checkpoints && row.position.offset >= checkpoints.minBytes && row.position.offset !== from?.offset) {
+        try {
+          reached = { position: row.position, state: builder.snapshot() };
+        } catch {
+          reached = null;
+        }
+      }
+    } else if (row.kind === "issue") builder.issues += 1;
     else if (fileSession && typeof row.value.sessionId === "string" && row.value.sessionId !== fileSession) continue;
     else builder.record(row.value, true);
   }
+  if (checkpoints && reached) await checkpoints.save(file.path, key, reached).catch(() => undefined);
   // Subagent work is spend and edits made on this session's behalf, so its
   // requests and tool calls fold into the parent; its prompts are the parent
   // agent talking, not the person, so they are not counted.
