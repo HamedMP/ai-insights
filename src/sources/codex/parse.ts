@@ -151,6 +151,8 @@ interface TurnState {
 export interface BuilderOptions {
   /** Collect transcript turns for `excerpt`, each cut to roughly this many characters before redaction. */
   turnChars?: number;
+  /** Read every record as the thread's own, even those before `subagent_history_start_ordinal`. */
+  ignoreStartOrdinal?: boolean;
 }
 
 export interface BuiltRollout {
@@ -166,6 +168,9 @@ export class RolloutBuilder {
   meta: RolloutMeta = { id: null, parentId: null, kind: "main" };
   private sawMeta = false;
   private startOrdinal: number | null = null;
+  private readonly ignoreStartOrdinal: boolean;
+  private sawBeforeStart = false;
+  private reachedStart = false;
   private index = 0;
   issues = 0;
 
@@ -217,6 +222,15 @@ export class RolloutBuilder {
   constructor(private readonly path: string, options: BuilderOptions = {}) {
     this.usage = new UsageParser(path);
     this.turnChars = options.turnChars ?? null;
+    this.ignoreStartOrdinal = options.ignoreStartOrdinal ?? false;
+  }
+
+  /**
+   * True when the rollout named a start ordinal and no record reached it. Paginated subagent rollouts can name one
+   * past their last record; their records are then the thread's own work, not a copy of the parent's history.
+   */
+  get startNeverReached(): boolean {
+    return this.startOrdinal !== null && this.sawBeforeStart && !this.reachedStart;
   }
 
   push(raw: RawRecord): void {
@@ -234,7 +248,15 @@ export class RolloutBuilder {
       return;
     }
     // Forked subagent rollouts start with a copy of the parent's history; their own part starts later.
-    if (this.startOrdinal !== null && typeof record.ordinal === "number" && record.ordinal < this.startOrdinal) return;
+    if (this.startOrdinal !== null && typeof record.ordinal === "number") {
+      if (record.ordinal < this.startOrdinal) {
+        this.sawBeforeStart = true;
+        // A copied counter is not this thread's usage, but the thread's own part may repeat it.
+        if (type === "event_msg" && payload.type === "token_count") this.usage.baseline(record);
+        return;
+      }
+      this.reachedStart = true;
+    }
 
     const timestamp = validTime(record.timestamp);
     // Codex Desktop re-applies thread settings whenever a thread is reopened, days later; that is not work.
@@ -276,7 +298,7 @@ export class RolloutBuilder {
     if (this.meta.id) this.usage.setSession(this.meta.id);
     this.cwd = str(payload.cwd) ?? this.cwd;
     this.branch = str(obj(payload.git).branch) ?? this.branch;
-    if (typeof payload.subagent_history_start_ordinal === "number") this.startOrdinal = payload.subagent_history_start_ordinal;
+    if (typeof payload.subagent_history_start_ordinal === "number" && !this.ignoreStartOrdinal) this.startOrdinal = payload.subagent_history_start_ordinal;
     // Scheduled automations write their own prompts; nothing in such a thread is the person typing.
     this.automated = /automation|schedul|cron/i.test(String(payload.thread_source ?? "")) || "automation" in obj(payload.source);
     if (this.meta.kind === "main" && (payload.history_base || typeof payload.forked_from_ordinal_exclusive === "number")) this.usage.inheritCounters();
@@ -900,11 +922,18 @@ export function idFromPath(path: string): string {
 }
 
 export async function buildRollout(path: string, mtimeMs: number, options: BuilderOptions = {}): Promise<BuiltRollout> {
+  let builder = await readRollout(path, options);
+  // Rare, so a second pass costs less than holding the records of a long copied prefix in memory.
+  if (builder.startNeverReached && !options.ignoreStartOrdinal) builder = await readRollout(path, { ...options, ignoreStartOrdinal: true });
+  return builder.finish(mtimeMs);
+}
+
+async function readRollout(path: string, options: BuilderOptions): Promise<RolloutBuilder> {
   const builder = new RolloutBuilder(path, options);
   const read = { issues: 0 };
   for await (const record of readRecords(path, read)) builder.push(record);
   builder.issues += read.issues;
-  return builder.finish(mtimeMs);
+  return builder;
 }
 
 /** `codex/telemetry` error codes of actions the automatic reviewer blocked or let time out. */

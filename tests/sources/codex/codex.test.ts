@@ -507,6 +507,49 @@ describe("codex guardian reviews and subagents", () => {
     expect(child).toBeNull();
   });
 
+  it("counts a subagent whose declared history start lies past its last record, so its own work is not dropped", async () => {
+    // Paginated subagent rollouts can name a start ordinal one past their last record. Nothing in such a file is
+    // copied parent history: its counter starts at zero in this thread and its tool calls are its own.
+    const parentId = uuid(1);
+    tree.write(rolloutName(1), [
+      meta(parentId, { thread_source: "user" }),
+      turnContext("main-model"),
+      ...userMessage("build it"),
+      rec("token_usage_record", { response_id: "p1", thread_id: parentId, usage: { input_tokens: 100, output_tokens: 10 } }),
+    ]);
+    const sub = uuid(3);
+    const own = [turnContext("sub-model"), tokenCountWithLast([100, 0, 10], [100, 0, 10]), ...shell("sc", "git commit -m sub", 0), tokenCountWithLast([250, 50, 30], [150, 50, 20])];
+    tree.write(rolloutName(3), [
+      meta(sub, { thread_source: "subagent", source: { subagent: { thread_spawn: { parent_thread_id: parentId } } }, parent_thread_id: parentId, history_mode: "paginated", subagent_history_start_ordinal: own.length + 1 }),
+      ...own.map((record, index) => ({ ...record, ordinal: index + 1 })),
+    ], { base: "archived_sessions" });
+
+    const files = await codexSource.discover({ roots: [tree.sessions] });
+    expect(files).toHaveLength(1);
+    const session = await codexSource.parse(files[0]!);
+    const child = session!.requests.filter((request) => request.model === "sub-model");
+    expect(child.map((request) => request.usage)).toEqual([
+      { input: 100, cachedInput: 0, cacheWrite: 0, output: 10 },
+      { input: 100, cachedInput: 50, cacheWrite: 0, output: 20 },
+    ]);
+    expect(session!.toolCalls.map((call) => call.command)).toEqual(["git commit -m sub"]);
+  });
+
+  it("does not count a review thread's repeat of the counter it copied from earlier history", async () => {
+    // The copied prefix (before the start ordinal) ends on another thread's counter; the thread's own part first
+    // repeats that counter, then adds one response of its own.
+    const guardian = uuid(2);
+    tree.write(rolloutName(2), [
+      meta(guardian, { thread_source: "guardian_review", source: { subagent: { other: "guardian" } }, parent_thread_id: uuid(9), history_mode: "paginated", subagent_history_start_ordinal: 3 }),
+      { ...tokenCountWithLast([5000, 4000, 100], [1000, 800, 20]), ordinal: 1 },
+      { ...turnContext("review-model"), ordinal: 3 },
+      { ...tokenCountWithLast([5000, 4000, 100], [1000, 800, 20]), ordinal: 4 },
+      { ...tokenCountWithLast([6200, 4900, 130], [1200, 900, 30]), ordinal: 5 },
+    ]);
+    const session = await codexSource.parse(await only());
+    expect(session!.requests.map((request) => request.usage)).toEqual([{ input: 300, cachedInput: 900, cacheWrite: 0, output: 30 }]);
+  });
+
   it("keeps an orphaned child as its own session so its usage is not lost", async () => {
     tree.write(rolloutName(2), [
       meta(uuid(2), { thread_source: "guardian_review", parent_thread_id: uuid(9) }),
@@ -613,7 +656,7 @@ describe("codex excerpts", () => {
 
 describe("codex parser version", () => {
   it("declares a parser version so the store re-parses cached history after a parser fix", () => {
-    expect(codexSource.parserVersion).toBe("6");
+    expect(codexSource.parserVersion).toBe("7");
   });
 });
 

@@ -96,6 +96,23 @@ export class UsageParser {
     this.inherited = true;
   }
 
+  /**
+   * A cumulative counter copied in from other history: remembered so a later repeat of it is a replay, never counted.
+   */
+  baseline(record: RawRecord): void {
+    const info = obj(obj(record.payload).info);
+    if (!info.total_token_usage) return;
+    try {
+      const usage = obj(info.total_token_usage);
+      const next = { input: count(usage.input_tokens), cached: count(usage.cached_input_tokens), output: count(usage.output_tokens) };
+      this.previous = next;
+      this.remember(next);
+    } catch (error) {
+      if (!(error instanceof BadCounter)) throw error;
+      this.issues += 1;
+    }
+  }
+
   /** `model` and `serviceTier` are whatever the caller knows to be active for this record's turn. */
   push(record: RawRecord, model: string, serviceTier?: string): void {
     const payload = obj(record.payload);

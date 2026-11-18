@@ -46,7 +46,7 @@ export interface ModelRequest {
   costUsd?: number;
   /**
    * The provider's service tier, when the transcript records one that changes the price (Codex `priority`
-   * for Fast mode, `ultrafast`). Absent for the standard tier and when unknown.
+   * for Fast mode, `ultrafast`; Claude Code `fast` for fast mode). Absent for the standard tier and when unknown.
    */
   serviceTier?: string;
 }

@@ -36,7 +36,7 @@ const harnessLines = () => [
 
 describe("claude source: harness events", () => {
   it("carries a parser version, so sessions cached by the old counting get parsed again", () => {
-    expect(claudeSource.parserVersion).toBe("6");
+    expect(claudeSource.parserVersion).toBe("7");
   });
 
   it("counts task notifications, monitor events and wake-ups as neither the person nor another agent", async () => {

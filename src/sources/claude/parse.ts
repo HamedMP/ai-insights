@@ -358,6 +358,9 @@ class SessionBuilder {
       cacheWrite: counter(u.cache_creation_input_tokens),
       output: counter(u.output_tokens),
     };
+    // Fast mode is billed at its own rates; anything but the default speed is kept so the price lookup can decide.
+    const speed = str(u.speed).trim().toLowerCase();
+    const serviceTier = speed && speed !== "standard" ? truncate(speed, 32) : undefined;
     if (u.cache_creation && typeof u.cache_creation === "object") {
       const cache = obj(u.cache_creation);
       usage.cacheWrite5m = counter(cache.ephemeral_5m_input_tokens);
@@ -383,6 +386,7 @@ class SessionBuilder {
       old.output = Math.max(old.output, usage.output);
       if (usage.cacheWrite5m !== undefined) old.cacheWrite5m = Math.max(old.cacheWrite5m ?? 0, usage.cacheWrite5m);
       if (usage.cacheWrite1h !== undefined) old.cacheWrite1h = Math.max(old.cacheWrite1h ?? 0, usage.cacheWrite1h);
+      if (serviceTier) existing.serviceTier = serviceTier;
       return;
     }
     if (usage.input + usage.cachedInput + usage.cacheWrite + usage.output === 0) return;
@@ -394,7 +398,7 @@ class SessionBuilder {
       this.issues += 1;
       return;
     }
-    this.requests.set(id, { id, timestamp: time, model: truncate(str(m.model) || "unknown", 200), usage });
+    this.requests.set(id, { id, timestamp: time, model: truncate(str(m.model) || "unknown", 200), usage, ...(serviceTier ? { serviceTier } : {}) });
   }
 
   private toolUse(block: Obj, time: string, mainThread: boolean): void {

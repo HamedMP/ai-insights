@@ -29,7 +29,7 @@ interface PriceRow {
   until?: string;
   overTokens?: number;
   standard: TierPrice;
-  /** OpenAI Fast mode (request value `priority`). */
+  /** OpenAI Fast mode (request value `priority`) or Anthropic fast mode (`usage.speed: "fast"`). */
   fast?: TierPrice;
   ultrafast?: TierPrice;
 }
@@ -123,19 +123,24 @@ const ANTHROPIC_SONNET_4_LONG = claudeLong(6, 22.5);
  * Gemini: `gemini-3-pro-preview` was shut down on 2026-03-09 and Google's pricing page no longer lists a rate
  * (https://ai.google.dev/gemini-api/docs/pricing, read 2026-11-16), so it stays unpriced.
  *
- * Not modelled: Anthropic fast mode, batch, flex, data residency (1.1x) and 12-hour OpenAI cache writes,
- * because transcripts do not record them. `codex-auto-review` has no API price and stays unpriced.
+ * Anthropic fast mode (Claude Code records `usage.speed: "fast"`), read 2026-11-18 from
+ * https://platform.claude.com/docs/en/about-claude/pricing#fast-mode-pricing: $16 / $80 on Fable 5.2 and
+ * Mythos 5.2, $8 / $40 on Opus 5.5, $10 / $50 on Opus 5 and Opus 4.8, across the full context window, with the
+ * prompt-caching multipliers applied on top. Other models publish no fast-mode price, so such a request stays unpriced.
+ *
+ * Not modelled: batch, flex, data residency (1.1x; Claude Code records `usage.inference_geo`, the request does
+ * not carry it yet) and 12-hour OpenAI cache writes. `codex-auto-review` has no API price and stays unpriced.
  */
 const PRICES: Record<string, PriceRow[]> = {
-  "claude-fable-5-2": [{ standard: tier(claude(8, 10, 16, 0.2, 40)) }],
-  "claude-mythos-5-2": [{ standard: tier(claude(8, 10, 16, 0.2, 40)) }],
+  "claude-fable-5-2": [{ standard: tier(claude(8, 10, 16, 0.2, 40)), fast: tier(claude(16, 20, 32, 0.4, 80)) }],
+  "claude-mythos-5-2": [{ standard: tier(claude(8, 10, 16, 0.2, 40)), fast: tier(claude(16, 20, 32, 0.4, 80)) }],
   "claude-fable-5-1": [{ standard: tier(claude(10, 12.5, 20, 0.25, 50)) }],
   "claude-mythos-5-1": [{ standard: tier(claude(10, 12.5, 20, 0.25, 50)) }],
   "claude-fable-5": [{ standard: tier(claude(10, 12.5, 20, 1, 50)) }],
   "claude-mythos-5": [{ standard: tier(claude(10, 12.5, 20, 1, 50)) }],
-  "claude-opus-5-5": [{ standard: tier(claude(4, 5, 8, 0.2, 20)) }],
-  "claude-opus-5": [{ standard: tier(claude(5, 6.25, 10, 0.5, 25)) }],
-  "claude-opus-4-8": [{ standard: tier(claude(5, 6.25, 10, 0.5, 25)) }],
+  "claude-opus-5-5": [{ standard: tier(claude(4, 5, 8, 0.2, 20)), fast: tier(claude(8, 10, 16, 0.4, 40)) }],
+  "claude-opus-5": [{ standard: tier(claude(5, 6.25, 10, 0.5, 25)), fast: tier(claude(10, 12.5, 20, 1, 50)) }],
+  "claude-opus-4-8": [{ standard: tier(claude(5, 6.25, 10, 0.5, 25)), fast: tier(claude(10, 12.5, 20, 1, 50)) }],
   "claude-opus-4-7": [{ standard: tier(claude(5, 6.25, 10, 0.5, 25)) }],
   "claude-opus-4-6": [
     { until: "2026-03-13T00:00:00Z", overTokens: CLAUDE_LONG, standard: tier(claude(5, 6.25, 10, 0.5, 25), claudeLong(10, 37.5)) },
@@ -223,7 +228,7 @@ const PRICES: Record<string, PriceRow[]> = {
   "gpt-5": [{ overTokens: OPENAI_LONG, standard: tier(openai(1.25, 0.125, null, 10), null), fast: tier(openai(2.5, 0.25, null, 20), null) }],
 };
 
-export const PRICING_VERSION = "api-list-2026-11-16b";
+export const PRICING_VERSION = "api-list-2026-11-18";
 
 /** Daily rollups keep at most this many of the newest days, bounding a report built from years of history. */
 export const MAX_DAYS = 1100;
@@ -251,7 +256,7 @@ export function canonicalModel(model: string): string {
 export interface PriceContext {
   /** ISO time of the request; picks the price row in force then. Absent: today's prices. */
   timestamp?: string;
-  /** OpenAI service tier as the transcript records it (`default`, `priority`, `ultrafast`, ...). */
+  /** Service tier as the transcript records it: OpenAI `default`, `priority`, `ultrafast`, ...; Claude `fast`. */
   serviceTier?: string;
 }
 
