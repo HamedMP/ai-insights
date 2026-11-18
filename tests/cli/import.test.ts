@@ -1,9 +1,10 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { run } from "../../src/cli/main.js";
 import { conversation, exportJson, makeZip } from "../sources/claude-chat/fixtures.js";
+import { classicConversation, currentConversation, exportJson as gptExportJson } from "../sources/chatgpt/fixtures.js";
 
 let dir: string;
 let out: string;
@@ -46,9 +47,36 @@ describe("ai-insights import", () => {
     expect(out).toContain("Nothing imported yet");
   });
 
+  it("imports a ChatGPT export beside a Claude one, lists both and removes one", async () => {
+    const zip = join(dir, "export.zip");
+    writeFileSync(zip, makeZip([{ name: "conversations.json", data: exportJson([conversation()]) }]));
+    expect(await cli(["import", "claude", zip])).toBe(0);
+    const folder = join(dir, "openai-export");
+    mkdirSync(folder);
+    writeFileSync(join(folder, "conversations-000.json"), gptExportJson([classicConversation(), currentConversation()]));
+    out = "";
+    expect(await cli(["import", "openai", folder])).toBe(0);
+    expect(out).toContain("Imported your ChatGPT history");
+    expect(out).toContain("ChatGPT      2 conversations, 2026-08-03 to 2026-08-04");
+    expect(out).toContain("ChatGPT's answers");
+    expect(out).toMatch(/unmeasured/);
+    out = "";
+    expect(await cli(["import", "--list"])).toBe(0);
+    expect(out).toContain("Claude chat  1 conversation,");
+    expect(out).toContain("ChatGPT      2 conversations,");
+    out = "";
+    expect(await cli(["import", "--remove", "chatgpt"])).toBe(0);
+    expect(out).toContain("Removed the ChatGPT import");
+    out = "";
+    expect(await cli(["import", "--list"])).toBe(0);
+    expect(out).not.toContain("ChatGPT");
+    expect(out).toContain("Claude chat  1 conversation,");
+  });
+
   it("needs an explicit source and path, and explains what went wrong", async () => {
     expect(await cli(["import"])).toBe(2);
-    expect(await cli(["import", "chatgpt", "x.zip"])).toBe(2);
+    expect(await cli(["import", "gemini", "x.zip"])).toBe(2);
+    expect(await cli(["import", "openai"])).toBe(2);
     expect(await cli(["import", "claude"])).toBe(2);
     expect(await cli(["import", "claude", "a", "b"])).toBe(2);
     expect(await cli(["import", "--remove"])).toBe(2);
@@ -64,5 +92,6 @@ describe("ai-insights import", () => {
   it("the main help names the import command", async () => {
     expect(await cli(["--help"])).toBe(0);
     expect(out).toContain("ai-insights import claude <path>");
+    expect(out).toContain("ai-insights import openai <path>");
   });
 });

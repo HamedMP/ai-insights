@@ -28,10 +28,10 @@ const ShareLink = (() => {
   const dshort = (d) => `${MONTHS[Number(d.slice(5, 7)) - 1] || "?"} ${Number(d.slice(8, 10))}`;
 
   /** Fixed wording only: anything not in these tables is left out, never passed through. */
-  const AGENTS = { "claude-code": "Claude Code", codex: "Codex", cursor: "Cursor", pi: "Pi", opencode: "OpenCode", gemini: "Gemini CLI", "claude-chat": "Claude chat" };
+  const AGENTS = { "claude-code": "Claude Code", codex: "Codex", cursor: "Cursor", pi: "Pi", opencode: "OpenCode", gemini: "Gemini CLI", "claude-chat": "Claude chat", chatgpt: "ChatGPT" };
   // Chat exports record no tokens. The site estimates each agent's tokens as total tokens times its share of
   // sessions, so their sessions stay out of the per-agent shares (and the arenas built on them).
-  const UNMEASURED = new Set(["claude-chat"]);
+  const UNMEASURED = new Set(["claude-chat", "chatgpt"]);
   const VERDICTS = { night_owl: "Night owl", early_bird: "Early bird", evening: "Golden-hour builder", afternoon: "Afternoon engine", morning: "Morning mind" };
   const DAYS = { Mon: "Monday", Tue: "Tuesday", Wed: "Wednesday", Thu: "Thursday", Fri: "Friday", Sat: "Saturday", Sun: "Sunday" };
   const PERSONA = /^The (?:Night|Dawn|Golden-Hour|Afternoon|Morning) (?:Orchestrator|Shipper|Delegator|Conversationalist)$/;

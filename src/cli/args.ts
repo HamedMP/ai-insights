@@ -18,6 +18,7 @@ Usage
   ai-insights doctor             show which histories were found and where
   ai-insights mcp                start the MCP server on stdio (for your agent)
   ai-insights import claude <path>  add a Claude chat export (see import --help)
+  ai-insights import openai <path>  add a ChatGPT data export (see import --help)
   ai-insights install            add the plugin to your agents (see install --help)
   ai-insights uninstall          remove it again
   ai-insights nudge              print a line when a monthly review is due (--off, --on)

@@ -259,7 +259,7 @@ async function commandDoctor(deps: CliDeps, store: Store): Promise<number> {
     if (policy && files.length) lines.push(`  keeps   ${keepsText(policy)}`);
     const note = source.diagnose ? await source.diagnose().catch(() => null) : null;
     if (note) lines.push(`  note    ${note}`);
-    if (isChatHarness(harness) && files.length === 0) lines.push("  import  not imported: run `npx ai-insights@latest import claude <path>` with your Claude data export");
+    if (isChatHarness(harness) && files.length === 0) lines.push(`  import  not imported: run \`npx ai-insights@latest import ${harness === "chatgpt" ? "openai" : "claude"} <path>\` with your ${harness === "chatgpt" ? "ChatGPT" : "Claude"} data export`);
     for (const root of roots) lines.push(`  ${(await pathExists(root)) ? "found  " : "missing"} ${root}`);
     if (roots.length === 0) lines.push("  (no default location on this machine)");
   }

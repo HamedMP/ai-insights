@@ -21,8 +21,7 @@ export const IMPORT_VERSION = 1;
 
 /**
  * What differs between chat products' exports. The zip and JSON readers, the staging, swap and removal are
- * shared, so a ChatGPT importer (its `conversations.json` or `conversations-000.json` shards, a `mapping` tree per
- * conversation) needs only its own format and mapper.
+ * shared, so each product needs only its own format and mapper (ChatGPT's is in `src/sources/chatgpt/`).
  */
 export interface ExportFormat {
   /** The word after `ai-insights import`. */
@@ -31,6 +30,8 @@ export interface ExportFormat {
   label: string;
   /** Files that hold conversations, inside a zip or a folder. */
   conversationFile: RegExp;
+  /** Inside a zip, matched on the entry's whole path instead of its file name, so a folder's file is not taken for one. */
+  conversationEntry?: RegExp;
   /** Zips in a folder that may hold conversations. Others are not opened. */
   conversationZip: RegExp;
   /** Zips never to open even when nothing else matches: account details, login history, memories, projects. */
@@ -101,7 +102,7 @@ async function zipInputs(path: string, format: ExportFormat): Promise<{ inputs: 
   if (listing.error) return { inputs: [], issues: listing.issues, error: true };
   // Only entry names are compared; no other entry is ever read.
   const inputs: Input[] = listing.entries
-    .filter((entry) => format.conversationFile.test(basename(entry.name)))
+    .filter((entry) => (format.conversationEntry ? format.conversationEntry.test(entry.name) : format.conversationFile.test(basename(entry.name))))
     .sort((a, b) => a.name.localeCompare(b.name))
     .map((entry) => ({ kind: "zip", path, entry }));
   return { inputs, issues: listing.issues, error: false };
