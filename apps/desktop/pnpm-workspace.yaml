@@ -1,0 +1,9 @@
+# Its own install, separate from the ai-insights package at the repo root.
+packages: []
+
+# Only versions published at least a week ago.
+minimumReleaseAge: 10080
+
+# esbuild (via vitest) ships its binary as an optional package; its install script is not needed.
+allowBuilds:
+  esbuild: false
