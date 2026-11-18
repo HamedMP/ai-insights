@@ -35,6 +35,8 @@ export interface UsageSession extends UsageHolder {
 
 export interface UsageScanResult {
   sessions: UsageSession[];
+  /** Transcripts this scan parsed in full, with what they gave: a full scan right after can reuse them. */
+  parsed: Map<string, { file: SessionFile; session: Session | null }>;
   stats: { discovered: number; cached: number; usageOnly: number; parsed: number; reparsed: number };
 }
 
@@ -74,9 +76,11 @@ export async function usageScan(deps: UsageScanDeps, options: UsageScanOptions =
     }
   };
 
+  const parsed = new Map<string, { file: SessionFile; session: Session | null }>();
   const fullParse = async (source: Source, file: SessionFile): Promise<Session | null> => {
     try {
       const session = await parseOne(source, file, {});
+      if (parsed.size < HARD_MAX_SESSIONS) parsed.set(file.path, { file, session });
       return session && session.harness === file.harness ? session : null;
     } catch {
       return null;
@@ -152,5 +156,5 @@ export async function usageScan(deps: UsageScanDeps, options: UsageScanOptions =
     if (existing?.session && entry.session && newer(existing.session, entry.session) === existing.session) continue;
     unique.set(key, entry);
   }
-  return { sessions: [...unique.values()], stats };
+  return { sessions: [...unique.values()], parsed, stats };
 }

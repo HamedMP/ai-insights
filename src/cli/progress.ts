@@ -68,6 +68,21 @@ export class ProgressLine {
     if (changed || this.options.clock() - this.lastDraw >= MIN_INTERVAL_MS) this.draw();
   }
 
+  /**
+   * Prints lines above the status line: the line is cleared first and drawn again after, so the two never mix.
+   * `print` writes to stdout; on one terminal the clear, the lines and the redraw land in that order.
+   */
+  above(print: () => void): void {
+    if (!this.active) {
+      print();
+      return;
+    }
+    this.options.write(CLEAR_LINE);
+    print();
+    this.lastDraw = Number.NEGATIVE_INFINITY;
+    this.draw();
+  }
+
   elapsedMs(): number {
     return this.options.clock() - this.startedAt;
   }

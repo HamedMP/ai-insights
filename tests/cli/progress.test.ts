@@ -95,10 +95,12 @@ describe("while it works", () => {
     expect(stripAnsi(out)).not.toContain("Reading sessions");
   });
 
-  it("writes no progress at all when the output is piped", async () => {
+  it("writes no status line when the output is piped: only the first numbers, as plain lines on stderr", async () => {
     expect(await run([], deps({ terminal: { isTTY: false, stderr: true, stdin: true } }))).toBe(0);
-    expect(err).toBe("");
+    expect(err).not.toContain(ESC);
+    expect(err).not.toMatch(/Reading sessions|Finding history|Analysing/);
     expect(out).not.toContain(ESC);
+    expect(out).not.toContain("So far");
   });
 
   it("keeps the progress words but drops colour with NO_COLOR", async () => {
@@ -107,19 +109,25 @@ describe("while it works", () => {
     expect(err).not.toMatch(COLOUR);
   });
 
-  it("shows no progress on a dumb terminal or in CI", async () => {
+  it("shows no status line on a dumb terminal or in CI, and no escape codes", async () => {
     await run([], deps({ ...interactive, env: { AI_INSIGHTS_HOME: home, TERM: "dumb" } }));
-    expect(err).toBe("");
+    expect(err).not.toContain(ESC);
+    expect(err).not.toMatch(/Reading sessions|Finding history|Analysing/);
+    err = "";
     await run([], deps({ ...interactive, env: { AI_INSIGHTS_HOME: home, TERM: "xterm-256color", CI: "true" } }));
-    expect(err).toBe("");
+    expect(err).not.toContain(ESC);
+    expect(err).not.toMatch(/Reading sessions|Finding history|Analysing/);
   });
 
   it("clears the line and brings the cursor back on Ctrl-C", async () => {
     let interrupt: (() => void) | null = null;
     const source = fakeSource("claude-code", sessions(3));
     const discover = source.discover;
+    // The first numbers and the full scan each discover; Ctrl-C comes once, during the first.
+    let pressed = false;
     source.discover = async (options) => {
-      interrupt?.();
+      if (!pressed) interrupt?.();
+      pressed = true;
       return discover(options);
     };
     await run([], deps({ ...interactive, sources: [source], onInterrupt: (handler) => ((interrupt = handler), () => (interrupt = null)) }));

@@ -3,13 +3,13 @@ import { join } from "node:path";
 import { buildReport as realBuildReport } from "../analysis/index.js";
 import { packageVersion } from "../mcp/version.js";
 import { renderReport as realRenderReport } from "../render/index.js";
-import { HARNESSES, isChatHarness, type AnalysisStep, type Coverage, type Harness, type SessionFile, type Source } from "../schema/types.js";
+import { HARNESSES, isChatHarness, type AnalysisStep, type Coverage, type Harness, type Session, type SessionFile, type Source } from "../schema/types.js";
 import { sources as realSources } from "../sources/index.js";
 import { ensureDir, pathExists, writeFileAtomic } from "../store/fs.js";
 import { buildFromScan, describeHeadline, headline, renderFromScan, tokensPhrase, type PipelineProgress } from "../store/pipeline.js";
 import { fileParser } from "../store/parse-file.js";
 import { ParsePool, POOLED_PARSE_BUDGET_BYTES } from "../store/parse-pool.js";
-import { DEFAULT_CONCURRENCY, harnessLabel, scan, totalBytes, type ScanOptions, type ScanProgress, type ScanResult } from "../store/scan.js";
+import { DEFAULT_CONCURRENCY, harnessLabel, scan, totalBytes, type ScanDeps, type ScanOptions, type ScanProgress, type ScanResult } from "../store/scan.js";
 import { measureRetention, readRetentionPolicies, type RetentionPolicy } from "../store/retention.js";
 import { Store, resolveHome } from "../store/store.js";
 import type { Parsed } from "./args.js";
@@ -121,8 +121,23 @@ async function commandRun(parsed: Parsed, deps: CliDeps, store: Store, style: St
       }
     : undefined;
   let outcome: Awaited<ReturnType<typeof renderFromScan>>;
+  const pool = workerPool(deps);
   try {
-    const result = await runScan(deps, store, { ...scanOptions(parsed), ...(onProgress ? { onProgress } : {}) });
+    // Numbers first, while the full scan and analysis run: on a terminal above the status line, piped as plain lines.
+    const live = deps.env.AI_INSIGHTS_LIVE?.trim() !== "0";
+    if (live) progress?.update(`Adding up this month's usage${style.unicode ? "…" : "..."}`, "live");
+    const parsedEarly = !live ? undefined : await (await import("./live.js")).liveInsights({
+      parsed,
+      deps,
+      store,
+      // Plain without the status line: no colour or glyphs go to a pipe, a log or a dumb terminal.
+      style: progress ? style : { ...style, rich: false, color: 0, unicode: false, hyperlinks: false },
+      pool,
+      builtIn: deps.sources === realSources,
+      // Without the status line (piped, CI) they go to stderr as plain lines, so stdout stays the stable summary scripts read.
+      print: (text) => (progress ? progress.above(() => deps.stdout(text)) : deps.stderr(text)),
+    });
+    const result = await runScan(deps, store, { ...scanOptions(parsed), ...(onProgress ? { onProgress } : {}) }, { pool, ...(parsedEarly ? { parsed: parsedEarly } : {}) });
     if (result.sessions.length === 0) {
       progress?.stop();
       const filters = [...(parsed.sinceText ? [`--since ${parsed.sinceText}`] : []), ...(parsed.harness ? [`--harness ${parsed.harness}`] : [])];
@@ -136,6 +151,7 @@ async function commandRun(parsed: Parsed, deps: CliDeps, store: Store, style: St
     // Errors and early returns too: the line is cleared and the cursor comes back before anything else prints.
     progress?.stop();
     stopListening();
+    await pool?.close();
   }
   const noBrowser = noBrowserHere(deps.env, deps.platform);
   const asked = openMode({ flag: parsed.open, env: deps.env, stdoutTTY: deps.terminal?.isTTY === true, stdinTTY: deps.terminal?.stdin === true, platform: deps.platform });
@@ -373,18 +389,43 @@ function scanDeps(deps: CliDeps, store: Store) {
  * A scan with the built-in sources parses on worker threads (unless `AI_INSIGHTS_WORKERS=0`) and resumes appended
  * transcripts from their checkpoints. Sources a test supplies are parsed as they are.
  */
-export async function runScan(deps: CliDeps, store: Store, options: ScanOptions, extra: { retention?: boolean } = {}): Promise<ScanResult> {
-  const base = { ...scanDeps(deps, store), ...(extra.retention === false ? { retentionPolicies: false as const } : {}) };
-  if (deps.sources !== realSources) return scan(base, options);
+/** Worker threads for the built-in sources, unless `AI_INSIGHTS_WORKERS=0`; a number sets how many. */
+export function workerPool(deps: CliDeps): ParsePool | null {
+  if (deps.sources !== realSources) return null;
   const workers = deps.env.AI_INSIGHTS_WORKERS?.trim();
-  const pool = workers === "0" ? null : ParsePool.create(workers && /^\d+$/.test(workers) ? { size: Number(workers) } : {});
+  return workers === "0" ? null : ParsePool.create(workers && /^\d+$/.test(workers) ? { size: Number(workers) } : {});
+}
+
+export interface RunScanExtra {
+  /** False skips measuring how long agents keep history. */
+  retention?: boolean;
+  /** A pool the caller owns (and closes); otherwise one is made for this scan. */
+  pool?: ParsePool | null;
+  /** Transcripts already parsed in full this run, reused while unchanged. */
+  parsed?: Map<string, { file: SessionFile; session: Session | null }>;
+}
+
+/**
+ * A scan with the built-in sources parses on worker threads and resumes appended transcripts from their
+ * checkpoints. Sources a test supplies are parsed as they are.
+ */
+export async function runScan(deps: CliDeps, store: Store, options: ScanOptions, extra: RunScanExtra = {}): Promise<ScanResult> {
+  const base = { ...scanDeps(deps, store), ...(extra.retention === false ? { retentionPolicies: false as const } : {}) };
+  const reuse = options.refresh ? undefined : extra.parsed;
+  const reused = (inner: NonNullable<ScanDeps["parse"]>): NonNullable<ScanDeps["parse"]> => async (source, file, flags) => {
+    const hit = reuse?.get(file.path);
+    return hit && hit.file.mtimeMs === file.mtimeMs && hit.file.sizeBytes === file.sizeBytes ? hit.session : inner(source, file, flags);
+  };
+  if (deps.sources !== realSources) return scan(reuse ? { ...base, parse: reused((source, file) => source.parse(file)) } : base, options);
+  const owned = extra.pool === undefined;
+  const pool = owned ? workerPool(deps) : extra.pool!;
   try {
     return await scan(
-      { ...base, parse: fileParser({ pool, home: store.home }), ...(pool ? { concurrency: Math.max(DEFAULT_CONCURRENCY, pool.workers + 2), parseBudgetBytes: POOLED_PARSE_BUDGET_BYTES } : {}) },
+      { ...base, parse: reused(fileParser({ pool, home: store.home })), ...(pool ? { concurrency: Math.max(DEFAULT_CONCURRENCY, pool.workers + 2), parseBudgetBytes: POOLED_PARSE_BUDGET_BYTES } : {}) },
       options,
     );
   } finally {
-    await pool?.close();
+    if (owned) await pool?.close();
   }
 }
 
