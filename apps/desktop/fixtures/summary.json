@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-11-18T15:42:00.000Z",
+  "timezone": "Europe/Helsinki",
+  "periods": {
+    "today": {
+      "from": "2026-11-18T00:00:00+02:00",
+      "to": "2026-11-18T17:42:00+02:00",
+      "sessions": 7,
+      "activeMinutes": 138,
+      "prompts": 64,
+      "tokens": { "input": 182000, "output": 96400, "cacheRead": 4210000, "cacheWrite": 312000, "total": 4800400 },
+      "costUsd": 4.2,
+      "unpricedRequestShare": 0,
+      "byAgent": [
+        { "agent": "claude-code", "label": "Claude Code", "sessions": 5, "costUsd": 3.55 },
+        { "agent": "codex", "label": "Codex", "sessions": 2, "costUsd": 0.65 }
+      ],
+      "byModel": [{ "model": "claude-opus", "costUsd": 3.55, "tokens": 3900000 }],
+      "tip": { "id": "clear-between-tasks", "text": "Two of today's sessions ran past 3 hours. Start a fresh session between tasks so the agent re-reads less." }
+    },
+    "week": {
+      "from": "2026-11-16T00:00:00+02:00",
+      "to": "2026-11-18T17:42:00+02:00",
+      "sessions": 41,
+      "activeMinutes": 366,
+      "prompts": 402,
+      "tokens": { "input": 1204000, "output": 610000, "cacheRead": 28400000, "cacheWrite": 2100000, "total": 32314000 },
+      "costUsd": 27.9,
+      "unpricedRequestShare": 0.02,
+      "byAgent": [
+        { "agent": "claude-code", "label": "Claude Code", "sessions": 29, "costUsd": 22.1 },
+        { "agent": "codex", "label": "Codex", "sessions": 9, "costUsd": 5.8 },
+        { "agent": "claude-chat", "label": "Claude (chat export)", "sessions": 3, "costUsd": null }
+      ],
+      "byModel": [{ "model": "claude-opus", "costUsd": 22.1, "tokens": 26000000 }],
+      "tip": { "id": "compactions", "text": "9 sessions this week hit a compaction. Try /clear between unrelated tasks instead of letting one session run all day." }
+    },
+    "month": {
+      "from": "2026-11-01T00:00:00+02:00",
+      "to": "2026-11-18T17:42:00+02:00",
+      "sessions": 168,
+      "activeMinutes": 2890,
+      "prompts": 1720,
+      "tokens": null,
+      "costUsd": 118.4,
+      "unpricedRequestShare": 0.11,
+      "byAgent": [
+        { "agent": "claude-code", "label": "Claude Code", "sessions": 120, "costUsd": 96.2 },
+        { "agent": "codex", "label": "Codex", "sessions": 36, "costUsd": 22.2 },
+        { "agent": "claude-chat", "label": "Claude (chat export)", "sessions": 12, "costUsd": null }
+      ],
+      "byModel": [],
+      "tip": null
+    }
+  },
+  "reportPath": null
+}

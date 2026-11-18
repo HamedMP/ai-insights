@@ -1,0 +1,116 @@
+name: Desktop app
+
+# Builds the tray app in apps/desktop on all three platforms. It runs only when the app (or this file)
+# changes, never for the npm package's own pull requests. Builds are unsigned: see apps/desktop/README.md
+# for what signing and notarisation need.
+
+on:
+  pull_request:
+    paths:
+      - "apps/desktop/**"
+      - ".github/workflows/desktop.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/desktop/**"
+      - ".github/workflows/desktop.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: apps/desktop
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS (universal)
+            os: macos-latest
+            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
+            build-args: --target universal-apple-darwin --bundles app,dmg
+            bundle-dir: src-tauri/target/universal-apple-darwin/release/bundle
+          - name: Windows (x64)
+            os: windows-latest
+            rust-targets: x86_64-pc-windows-msvc
+            build-args: --bundles nsis
+            bundle-dir: src-tauri/target/release/bundle
+          # 22.04 rather than latest: an AppImage only runs on systems with a glibc at least as new as the builder's.
+          - name: Linux (x64)
+            os: ubuntu-22.04
+            rust-targets: x86_64-unknown-linux-gnu
+            build-args: --bundles deb,appimage
+            bundle-dir: src-tauri/target/release/bundle
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev patchelf
+
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: apps/desktop/package.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: apps/desktop/pnpm-lock.yaml
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-targets }}
+          components: clippy, rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Typecheck, UI tests, UI build
+        run: pnpm check
+
+      - name: Rust format
+        working-directory: apps/desktop/src-tauri
+        run: cargo fmt --check
+
+      - name: Rust lint
+        working-directory: apps/desktop/src-tauri
+        run: cargo clippy --all-targets --locked -- -D warnings
+
+      - name: Rust tests
+        working-directory: apps/desktop/src-tauri
+        run: cargo test --locked
+
+      - name: Build the app (unsigned)
+        run: pnpm tauri build ${{ matrix.build-args }}
+
+      - name: Sizes
+        shell: bash
+        run: find "${{ matrix.bundle-dir }}" -maxdepth 2 -type f \( -name '*.dmg' -o -name '*.exe' -o -name '*.deb' -o -name '*.AppImage' \) -exec ls -l {} \; ; du -sh "${{ matrix.bundle-dir }}"/macos/*.app 2>/dev/null || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ai-insights-desktop-${{ runner.os }}-unsigned
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            apps/desktop/${{ matrix.bundle-dir }}/dmg/*.dmg
+            apps/desktop/${{ matrix.bundle-dir }}/nsis/*.exe
+            apps/desktop/${{ matrix.bundle-dir }}/deb/*.deb
+            apps/desktop/${{ matrix.bundle-dir }}/appimage/*.AppImage

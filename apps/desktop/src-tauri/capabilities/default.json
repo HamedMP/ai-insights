@@ -1,0 +1,16 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "popover",
+  "description": "Exactly what the popover may ask for: the app's own commands and listening for its state events. No plugin is reachable from the page; the Rust side uses them directly.",
+  "windows": ["popover"],
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "allow-get-state",
+    "allow-refresh",
+    "allow-open-report",
+    "allow-save-settings",
+    "allow-hide-popover",
+    "allow-quit"
+  ]
+}
