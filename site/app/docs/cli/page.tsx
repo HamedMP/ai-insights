@@ -323,7 +323,7 @@ ai-insights nudge --on     remind me again`}</Code>
             <code key="s">--since &lt;window&gt;</code>,
             <>
               Only history from a window like <code>30d</code>, <code>12w</code>, <code>6m</code> or <code>1y</code> (a month counts as 30 days, a
-              year as 365), or from an ISO date like <code>2026-01-31</code>.
+              year as 365), or from a day like <code>2026-01-31</code>, which starts at midnight in your time zone.
             </>,
           ],
           [
@@ -342,7 +342,14 @@ ai-insights nudge --on     remind me again`}</Code>
               <code>month</code> and <code>summary</code>: print the <a href="#summary-json">quick-view JSON</a>.
             </>,
           ],
-          [<code key="u">--until &lt;date&gt;</code>, <>With <code>today</code>, <code>week</code> or <code>month</code>: up to and including this day. <code>--since</code> there takes a day too.</>],
+          [
+            <code key="u">--until &lt;day&gt;</code>,
+            <>
+              Only history up to and including this day (<code>2026-11-30</code>, to midnight in your time zone). With the default command,{" "}
+              <code>scan</code>, <code>report</code> and <code>share</code> it keeps sessions that started by then, each counted whole. With{" "}
+              <code>today</code>, <code>week</code> or <code>month</code> it ends the period there, and <code>--since</code> takes a day too.
+            </>,
+          ],
           [<code key="l">--last &lt;n&gt;</code>, <>With <code>today</code>, <code>week</code> or <code>month</code>: the last n days, weeks or months (1 to 366), one row each.</>],
           [<code key="b">--by &lt;what&gt;</code>, <>With <code>today</code>, <code>week</code> or <code>month</code>: break it down by <code>project</code>, <code>model</code> or <code>agent</code> (the default).</>],
           [<code key="nc">--no-cost</code>, <>With the quick views: leave the cost out, for a screen others can see.</>],
@@ -360,7 +367,8 @@ ai-insights nudge --on     remind me again`}</Code>
       />
       <Code label="Examples">{`npx ai-insights@latest --since 90d --open
 npx ai-insights@latest scan --harness codex
-npx ai-insights@latest --refresh`}</Code>
+npx ai-insights@latest --refresh
+npx ai-insights@latest report --since 2026-10-01 --until 2026-10-31`}</Code>
 
       <H2 id="environment">Environment variables</H2>
       <Table

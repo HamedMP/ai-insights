@@ -29,12 +29,13 @@ Usage
 
 Options
   --since <window>     only history from ${SINCE_HELP}
+                       (a bare day starts at local midnight)
   --harness <name>     only one of: ${HARNESSES.join(", ")}
   --max-sessions <n>   read at most n transcripts, newest first
   --refresh            re-parse every transcript, ignoring the cache
   --json               report: print the report as JSON instead of writing HTML;
                        today|week|month|summary: print the numbers as JSON (docs/summary-json.md)
-  --until <date>       today|week|month: up to and including this day (YYYY-MM-DD)
+  --until <day>        only history up to and including this day (YYYY-MM-DD)
   --last <n>           today|week|month: the last n days, weeks or months, one row each
   --by <what>          today|week|month: break it down by project, model or agent
   --no-cost            today|week|month|summary: leave the cost out
@@ -86,7 +87,7 @@ export interface Parsed {
 
 /** The quick views; they read the same history as a run but write no report. */
 export const QUICK_COMMANDS = new Set(["today", "week", "month", "summary"]);
-const DAY = /^\d{4}-\d{2}-\d{2}$/;
+export const DAY = /^\d{4}-\d{2}-\d{2}$/;
 export const MAX_LAST = 366;
 
 const COMMANDS = new Set(["run", "scan", "report", "doctor", "mcp", "share", "serve", "help", ...QUICK_COMMANDS]);
@@ -94,7 +95,9 @@ const VALUE_FLAGS = new Set(["--since", "--harness", "--max-sessions", "--name",
 /** Flags that mean something to one command only: anywhere else they are a mistake worth saying. */
 const ONLY_FOR: Record<string, string> = { "--name": "share", "--device": "share", "--no-days": "share", "--copy": "share", "--port": "serve" };
 /** Flags for the quick views only. */
-const QUICK_ONLY = new Set(["--until", "--last", "--by", "--no-cost"]);
+const QUICK_ONLY = new Set(["--last", "--by", "--no-cost"]);
+/** Commands that read history and can stop at a day. */
+const UNTIL_COMMANDS = new Set(["run", "scan", "report", "share", ...QUICK_COMMANDS]);
 
 export function parseArgs(argv: string[], now: Date): Parsed {
   const parsed: Parsed = { command: "run", refresh: false, json: false, open: null, noInstallPrompt: false, help: false, version: false, shareName: "", deviceName: "", days: true, copy: false, port: 0, noCost: false };
@@ -206,6 +209,8 @@ export function parseArgs(argv: string[], now: Date): Parsed {
     if (!QUICK_COMMANDS.has(parsed.command)) throw new UsageError(`${flag} only works with \`ai-insights today\`, \`week\`, \`month\` or \`summary\``);
     if (parsed.command === "summary" && flag !== "--no-cost") throw new UsageError(`${flag} does not work with \`ai-insights summary\``);
   }
+  if (parsed.until && !UNTIL_COMMANDS.has(parsed.command)) throw new UsageError(`--until does not work with \`ai-insights ${parsed.command}\``);
+  if (parsed.until && parsed.command === "summary") throw new UsageError("--until does not work with `ai-insights summary`");
   if (QUICK_COMMANDS.has(parsed.command) && parsed.sinceText && !DAY.test(parsed.sinceText.trim())) throw new UsageError("--since must be a day like 2026-11-01 here");
   if (parsed.command === "summary" && parsed.sinceText) throw new UsageError("--since does not work with `ai-insights summary`");
   if (parsed.last !== undefined && (parsed.sinceText || parsed.until)) throw new UsageError("use --last or --since/--until, not both");

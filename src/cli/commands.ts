@@ -6,13 +6,15 @@ import { renderReport as realRenderReport } from "../render/index.js";
 import { HARNESSES, isChatHarness, type AnalysisStep, type Coverage, type Harness, type Session, type SessionFile, type Source } from "../schema/types.js";
 import { sources as realSources } from "../sources/index.js";
 import { ensureDir, pathExists, writeFileAtomic } from "../store/fs.js";
-import { buildFromScan, describeHeadline, headline, renderFromScan, tokensPhrase, type PipelineProgress } from "../store/pipeline.js";
+import { buildFromScan, describeHeadline, headline, localTimeZone, renderFromScan, tokensPhrase, type PipelineProgress } from "../store/pipeline.js";
 import { fileParser } from "../store/parse-file.js";
 import { ParsePool, POOLED_PARSE_BUDGET_BYTES } from "../store/parse-pool.js";
 import { DEFAULT_CONCURRENCY, harnessLabel, scan, totalBytes, type ScanDeps, type ScanOptions, type ScanProgress, type ScanResult } from "../store/scan.js";
 import { measureRetention, readRetentionPolicies, type RetentionPolicy } from "../store/retention.js";
 import { Store, resolveHome } from "../store/store.js";
-import type { Parsed } from "./args.js";
+import { startOfDay } from "../analysis/periods.js";
+import { makeClock, resolveTimeZone, shiftDay } from "../analysis/time.js";
+import { DAY, type Parsed } from "./args.js";
 import type { CliDeps, LightDeps } from "./main.js";
 import { headlessLines, noBrowserHere } from "./headless.js";
 import { OPEN_QUESTION, openMode, type OpenMode } from "./open.js";
@@ -22,9 +24,21 @@ import type { Style } from "./terminal.js";
 
 // The commands themselves. Loaded by main.ts after the header is drawn, so the imports above cost nothing visible.
 
-function scanOptions(parsed: Parsed): ScanOptions {
+/**
+ * A bare day (`--since 2026-11-01`, `--until 2026-11-30`) is a whole local day in the person's zone: `--since` from
+ * its first instant, `--until` through its last. Windows (`30d`) and full timestamps stay as parsed.
+ */
+function calendarBounds(parsed: Parsed, deps: Pick<CliDeps, "timeZone">): { since?: Date; until?: Date } {
+  const clock = makeClock(resolveTimeZone(deps.timeZone ?? localTimeZone()));
+  const sinceDay = parsed.sinceText?.trim();
+  const since = sinceDay && DAY.test(sinceDay) ? new Date(startOfDay(sinceDay, clock)) : parsed.since;
+  const until = parsed.until ? new Date(startOfDay(shiftDay(parsed.until, 1), clock)) : undefined;
+  return { ...(since ? { since } : {}), ...(until ? { until } : {}) };
+}
+
+function scanOptions(parsed: Parsed, deps: Pick<CliDeps, "timeZone">): ScanOptions {
   return {
-    ...(parsed.since ? { since: parsed.since } : {}),
+    ...calendarBounds(parsed, deps),
     ...(parsed.harness ? { harness: parsed.harness } : {}),
     ...(parsed.maxSessions ? { maxSessions: parsed.maxSessions } : {}),
     ...(parsed.refresh ? { refresh: true } : {}),
@@ -125,9 +139,10 @@ async function commandRun(parsed: Parsed, deps: CliDeps, store: Store, style: St
   try {
     // Numbers first, while the full scan and analysis run: on a terminal above the status line, piped as plain lines.
     // On by default only where a person watches the status line. Piped or in CI (an agent running the skill, a log)
-    // every extra line lands in someone's context, so there it takes AI_INSIGHTS_LIVE=1.
+    // every extra line lands in someone's context, so there it takes AI_INSIGHTS_LIVE=1. A report that stops at a
+    // past day is not about this month, so it gets no early month numbers.
     const liveSetting = deps.env.AI_INSIGHTS_LIVE?.trim();
-    const live = liveSetting === "0" ? false : liveSetting === "1" ? true : progress !== null;
+    const live = !parsed.until && (liveSetting === "0" ? false : liveSetting === "1" ? true : progress !== null);
     if (live) progress?.update(`Adding up this month's usage${style.unicode ? "…" : "..."}`, "live");
     const parsedEarly = !live ? undefined : await (await import("./live.js")).liveInsights({
       parsed,
@@ -140,10 +155,10 @@ async function commandRun(parsed: Parsed, deps: CliDeps, store: Store, style: St
       // Without the status line (piped, CI) they go to stderr as plain lines, so stdout stays the stable summary scripts read.
       print: (text) => (progress ? progress.above(() => deps.stdout(text)) : deps.stderr(text)),
     });
-    const result = await runScan(deps, store, { ...scanOptions(parsed), ...(onProgress ? { onProgress } : {}) }, { pool, ...(parsedEarly ? { parsed: parsedEarly } : {}) });
+    const result = await runScan(deps, store, { ...scanOptions(parsed, deps), ...(onProgress ? { onProgress } : {}) }, { pool, ...(parsedEarly ? { parsed: parsedEarly } : {}) });
     if (result.sessions.length === 0) {
       progress?.stop();
-      const filters = [...(parsed.sinceText ? [`--since ${parsed.sinceText}`] : []), ...(parsed.harness ? [`--harness ${parsed.harness}`] : [])];
+      const filters = [...(parsed.sinceText ? [`--since ${parsed.sinceText}`] : []), ...(parsed.until ? [`--until ${parsed.until}`] : []), ...(parsed.harness ? [`--harness ${parsed.harness}`] : [])];
       deps.stderr(noHistoryText(filters));
       return 1;
     }
@@ -204,7 +219,7 @@ async function openReport(path: string, deps: CliDeps, indent = ""): Promise<boo
 }
 
 async function commandScan(parsed: Parsed, deps: CliDeps, store: Store): Promise<number> {
-  const result = await runScan(deps, store, scanOptions(parsed));
+  const result = await runScan(deps, store, scanOptions(parsed, deps));
   const numbers = headline(result.sessions);
   let analysed: string | null = null;
   if (result.sessions.length > 0) {
@@ -230,7 +245,7 @@ async function commandScan(parsed: Parsed, deps: CliDeps, store: Store): Promise
 }
 
 async function commandReport(parsed: Parsed, deps: CliDeps, store: Store): Promise<number> {
-  const result = await runScan(deps, store, scanOptions(parsed));
+  const result = await runScan(deps, store, scanOptions(parsed, deps));
   if (parsed.json) {
     const { report } = await buildFromScan(pipelineDeps(deps, store), result);
     deps.stdout(`${JSON.stringify(report, null, 2)}\n`);
@@ -245,7 +260,7 @@ async function commandReport(parsed: Parsed, deps: CliDeps, store: Store): Promi
 /** Writes the report as `report` does, then prints the link its share box would make for the same choices. */
 async function commandShare(parsed: Parsed, deps: CliDeps, store: Store): Promise<number> {
   const { buildShareLink, osc52, reportData, shareScreen } = await import("./share.js");
-  const result = await scan(scanDeps(deps, store), scanOptions(parsed));
+  const result = await scan(scanDeps(deps, store), scanOptions(parsed, deps));
   if (result.sessions.length === 0) {
     deps.stderr(noHistoryText([]));
     return 1;
