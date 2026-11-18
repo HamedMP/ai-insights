@@ -23,7 +23,8 @@ ai-insights mcp                start the MCP server on stdio (for your agent)
 ai-insights import claude <path>  add a Claude chat export
 ai-insights import openai <path>  add a ChatGPT data export
 ai-insights install            add the plugin to your agents
-ai-insights uninstall          remove it again
+ai-insights uninstall          remove it again (and a schedule, if you added one)
+ai-insights schedule weekly    refresh the report on a schedule, with a notification
 ai-insights nudge              print a line when a monthly review is due`}</Code>
 
       <H2 id="commands">Commands</H2>
@@ -265,8 +266,50 @@ ai-insights uninstall [--harness <name>]... [--yes] [--dry-run]`}</Code>
         <code>--harness</code> takes <code>claude-code</code>, <code>codex</code>, <code>cursor</code>, <code>opencode</code> or <code>pi</code>{" "}
         and can repeat. <code>--dry-run</code> prints the plan and changes nothing. Without <code>--yes</code> it only asks at a terminal;
         piped, it prints the plan and exits 1. Claude Code and Codex download the plugin from GitHub when they install it; see{" "}
-        <DocLink href="/docs/privacy#installing">Privacy</DocLink>. Uninstalling leaves your report and cache in place.
+        <DocLink href="/docs/privacy#installing">Privacy</DocLink>. Uninstalling leaves your report and cache in place.{" "}
+        <code>uninstall</code> also removes a schedule added with <a href="#cmd-schedule">ai-insights schedule</a>.
       </p>
+      <H3 id="cmd-schedule">ai-insights schedule</H3>
+      <p>
+        Adds one job to your computer&apos;s own scheduler that refreshes the report at a set time and shows a notification. It is the one thing
+        AI Insights leaves running after a restart, so it is opt-in and works like <a href="#cmd-install">install</a>: it lists the files it
+        adds, the exact command line it runs and when, and adds nothing until you say yes. It never runs in CI or when the output is not a
+        terminal; <code>--yes</code> only skips the question. The job reads your agent history on this computer, rewrites the report, saves the
+        counts for the session-start reminder (<code>digest.json</code> in the store) and shows a notification. It sends nothing anywhere.
+      </p>
+      <Code label="Usage" copy={false}>{`ai-insights schedule daily|weekly|monthly [--at HH:MM] [--day mon..sun] [--with-cost] [--yes] [--dry-run]
+ai-insights schedule off       remove everything it added
+ai-insights schedule status    what is installed, when it runs next, how the last run went`}</Code>
+      <Table
+        caption="Where the job lives"
+        head={["System", "What it adds", "Notification"]}
+        rows={[
+          ["macOS", <><code key="p">~/Library/LaunchAgents/app.ai-insights.schedule.plist</code>, loaded with <code>launchctl bootstrap gui/&lt;uid&gt;</code></>, <code key="n">osascript</code>],
+          ["Linux", <><code key="u">ai-insights-schedule.service</code> and <code>.timer</code> in <code>~/.config/systemd/user</code>, enabled with <code>systemctl --user</code></>, <><code key="n">notify-send</code>, when installed</>],
+          ["Linux without user systemd", "Nothing: it prints a crontab line for you to add", "None"],
+          ["Windows", "Nothing: it prints a schtasks command for you to run (untested on Windows)", "None"],
+        ]}
+      />
+      <p>
+        The default time is 09:00, and weekly runs on Monday. A daily, weekly or monthly job reports on the last 1, 7 or 30 days, and monthly runs
+        on the 1st. On Linux, a run missed while the computer was off happens at the next start. The notification holds counts only, since it can
+        show on a lock screen: no project names, prompts or paths, and the estimated cost only with <code>--with-cost</code>. Clicking it opens
+        nothing. The job starts this install&apos;s own Node and CLI file by absolute path, never <code>npx</code> (which would contact the npm
+        registry), so <code>schedule</code> refuses to run from an npx cache: install it first with <code>npm i -g ai-insights</code>.
+      </p>
+      <Code label="Output, on Linux; home folder shortened to ~" copy={false}>{`$ ai-insights schedule weekly
+This adds a scheduled job to this computer that keeps running after a restart:
+  when   every Monday at 09:00 (next: Mon 23 Nov 2026, 09:00)
+  runs   /usr/local/bin/node /usr/local/lib/node_modules/ai-insights/dist/cli/main.js schedule run weekly
+  adds   ~/.config/systemd/user/ai-insights-schedule.service
+         ~/.config/systemd/user/ai-insights-schedule.timer
+  then   systemctl --user daemon-reload
+         systemctl --user enable --now ai-insights-schedule.timer
+Each time it reads your agent history on this computer, rewrites the report and shows a
+notification with counts only, like "Your weekly AI Insights are ready: 41 sessions, 6.1 h."
+It sends nothing anywhere.
+Remove it any time with: ai-insights schedule off (ai-insights uninstall removes it too)
+Add this schedule? [Y/n]`}</Code>
       <H3 id="cmd-nudge">ai-insights nudge</H3>
       <p>
         Prints one line when a monthly review is due, and nothing otherwise. The plugin runs the same code when a new Claude Code or Codex
