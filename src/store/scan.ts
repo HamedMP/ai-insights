@@ -7,6 +7,8 @@ import { sessionKey, type Store } from "./store.js";
 export interface ScanOptions {
   /** Only history modified at or after this instant. */
   since?: Date;
+  /** Only sessions that started before this instant. A session that ran on past it counts whole. */
+  until?: Date;
   /** Only these harnesses. Coverage still lists every harness. */
   harness?: Harness | Harness[];
   /** Newest first across all harnesses; stop after this many transcript files. */
@@ -304,8 +306,10 @@ export async function scan(deps: ScanDeps, options: ScanOptions = {}): Promise<S
     }
     unique.set(key, entry);
   }
+  const until = options.until?.getTime();
   const sessions = [...unique.values()]
     .map((entry) => entry.session)
+    .filter((session) => until === undefined || Date.parse(session.startTime) < until)
     .sort((a, b) => Date.parse(b.startTime) - Date.parse(a.startTime));
   const files = new Map([...unique].map(([key, entry]) => [key, entry.file]));
 

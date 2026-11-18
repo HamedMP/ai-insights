@@ -206,3 +206,27 @@ describe("quick view options", () => {
     expect(err).toMatch(message);
   });
 });
+
+describe("calendar days on the other commands", () => {
+  it("reads --since as local midnight and --until as the end of that day, for scan and report", async () => {
+    const sessions = [
+      // 23:30 in Helsinki on 31 Oct, the evening before the 1st there: out of --since 2026-11-01.
+      makeSession({ id: "eve", sourceMtimeMs: Date.parse("2026-10-31T21:40:00.000Z"), startTime: "2026-10-31T21:30:00.000Z", endTime: "2026-10-31T21:40:00.000Z" }),
+      // 00:30 on the 1st there (22:30 UTC on 31 Oct): in.
+      makeSession({ id: "first", sourceMtimeMs: Date.parse("2026-10-31T22:40:00.000Z"), startTime: "2026-10-31T22:30:00.000Z", endTime: "2026-10-31T22:40:00.000Z" }),
+      makeSession({ id: "tenth", sourceMtimeMs: Date.parse("2026-11-10T20:00:00.000Z"), startTime: "2026-11-10T20:00:00.000Z", endTime: "2026-11-10T20:10:00.000Z" }),
+      // 00:30 on the 11th there: past --until 2026-11-10.
+      makeSession({ id: "eleventh", sourceMtimeMs: Date.parse("2026-11-10T22:40:00.000Z"), startTime: "2026-11-10T22:30:00.000Z", endTime: "2026-11-10T22:40:00.000Z" }),
+    ];
+    expect(await run(["report", "--json", "--since", "2026-11-01", "--until", "2026-11-10"], deps(sessions))).toBe(0);
+    expect(JSON.parse(out).activity.sessions).toBe(2);
+    out = "";
+    expect(await run(["scan", "--until", "2026-11-10"], deps(sessions))).toBe(0);
+    expect(out).toContain("3 sessions");
+  });
+
+  it("refuses --until where nothing is read", async () => {
+    expect(await run(["doctor", "--until", "2026-11-10"], deps(history()))).toBe(2);
+    expect(err).toMatch(/--until does not work with `ai-insights doctor`/);
+  });
+});
