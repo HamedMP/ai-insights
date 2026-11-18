@@ -459,17 +459,21 @@ function pipelineDeps(deps: CliDeps, store: Store) {
 
 /**
  * What the scheduled job (`ai-insights schedule run`) does: write the report as `report` does, then count the
- * window it reports on. Counts only: they go into a notification that can show on a lock screen.
+ * period that just ended. Counts only: they go into a notification that can show on a lock screen.
  */
-export async function refreshForSchedule(light: LightDeps, windowFrom: Date): Promise<{ htmlPath: string; sessions: number; activeMinutes: number; prompts: number; costUsd: number | null; tipId: string | null }> {
+export async function refreshForSchedule(light: LightDeps, kind: "today" | "week" | "month"): Promise<{ htmlPath: string; sessions: number; activeMinutes: number; costUsd: number | null }> {
   const deps = complete(light);
   const store = new Store(resolveHome(deps.env));
   const result = await runScan(deps, store, {});
   const outcome = await renderFromScan(pipelineDeps(deps, store), result);
-  const { summarizePeriods } = await import("../analysis/periods.js");
+  const { periodStartDay, summarizePeriods } = await import("../analysis/periods.js");
   const now = deps.now();
   const timeZone = resolveTimeZone(deps.timeZone ?? localTimeZone());
-  const [summary] = summarizePeriods(result.sessions, [{ kind: "range", from: windowFrom.getTime(), to: now.getTime() + 1 }], {
+  // The period that just ended, in the person's own calendar: yesterday, last Monday to Sunday, or last month.
+  const clock = makeClock(timeZone);
+  const today = clock.dayOfMs(now.getTime());
+  const range = { kind, from: startOfDay(periodStartDay(kind, today, 1), clock), to: startOfDay(periodStartDay(kind, today, 0), clock) };
+  const [summary] = summarizePeriods(result.sessions, [range], {
     timeZone,
     now,
     labels: (harness) => harnessLabel(harness, deps.sources),
@@ -478,9 +482,7 @@ export async function refreshForSchedule(light: LightDeps, windowFrom: Date): Pr
     htmlPath: outcome.htmlPath,
     sessions: summary?.sessions ?? 0,
     activeMinutes: summary?.activeMinutes ?? 0,
-    prompts: summary?.prompts ?? 0,
     costUsd: summary?.costUsd ?? null,
-    tipId: summary?.tip?.id ?? null,
   };
 }
 

@@ -246,7 +246,8 @@ export interface NotificationCounts {
   costUsd: number | null;
 }
 
-const PERIOD_WORD: Record<Cadence, string> = { daily: "in the last 24 hours", weekly: "in the last 7 days", monthly: "in the last 30 days" };
+/** Each run reports on the period that just ended: a Monday-morning weekly run is about last week, not two hours of this one. */
+export const ENDED: Record<Cadence, string> = { daily: "yesterday", weekly: "last week", monthly: "last month" };
 
 /**
  * Counts only: a notification can show on a lock screen. No project names, prompts or paths ever; the cost only
@@ -254,17 +255,13 @@ const PERIOD_WORD: Record<Cadence, string> = { daily: "in the last 24 hours", we
  */
 export function notificationText(cadence: Cadence, counts: NotificationCounts, withCost: boolean): string {
   const head = `Your ${cadence} AI Insights are ready`;
-  if (counts.sessions <= 0) return `${head}: no sessions ${PERIOD_WORD[cadence]}.`;
+  if (counts.sessions <= 0) return `${head}: no sessions ${ENDED[cadence]}.`;
   const sessions = `${counts.sessions.toLocaleString("en-US")} ${counts.sessions === 1 ? "session" : "sessions"}`;
   const hours = `${(Math.round((counts.activeMinutes / 60) * 10) / 10).toLocaleString("en-US")} h`;
   const usd = counts.costUsd;
   const cost = !withCost || typeof usd !== "number" || usd <= 0 ? "" : usd < 1 ? ", under $1" : `, about $${Math.round(usd).toLocaleString("en-US")}`;
-  return `${head}: ${sessions}, ${hours}${cost}.`;
+  return `${head}: ${sessions}, ${hours}${cost} ${ENDED[cadence]}.`;
 }
 
-/** The rolling window each cadence reports on, ending now. */
-export const WINDOW_DAYS: Record<Cadence, number> = { daily: 1, weekly: 7, monthly: 30 };
-
-export function windowStart(cadence: Cadence, now: Date): Date {
-  return new Date(now.getTime() - WINDOW_DAYS[cadence] * 86_400_000);
-}
+/** The calendar period each cadence reports on (the one before the current one): a day, a Monday-to-Sunday week, a month. */
+export const PERIOD_OF: Record<Cadence, "today" | "week" | "month"> = { daily: "today", weekly: "week", monthly: "month" };
