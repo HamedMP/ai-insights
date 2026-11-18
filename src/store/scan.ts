@@ -48,6 +48,15 @@ export interface ScanDeps {
    * the retention measurement (the report then has no `retention`).
    */
   retentionPolicies?: false | (() => Promise<Map<Harness, RetentionPolicy>>);
+  /**
+   * Parses one transcript. Default: `source.parse(file)`. The CLI passes one that uses worker threads and resumes
+   * appended transcripts; it must give the same Session `source.parse` would.
+   */
+  parse?: (source: Source, file: SessionFile, flags: { refresh?: boolean }) => Promise<Session | null>;
+  /** Parses at once when `concurrency` is not given. Default: DEFAULT_CONCURRENCY. */
+  concurrency?: number;
+  /** Transcript bytes parsed at once when `parseBudgetBytes` is not given; workers each have their own heap. */
+  parseBudgetBytes?: number;
 }
 
 export interface ScanResult {
@@ -133,7 +142,7 @@ export function totalBytes(files: SessionFile[]): number {
   return total;
 }
 
-async function safeDiscover(source: Source, since: Date | undefined, maxFiles: number): Promise<SessionFile[] | null> {
+export async function safeDiscover(source: Source, since: Date | undefined, maxFiles: number): Promise<SessionFile[] | null> {
   try {
     const files = await source.discover({ ...(since ? { since } : {}), maxFiles });
     return Array.isArray(files) ? files.filter((file) => file && file.harness === source.harness) : [];
@@ -178,7 +187,7 @@ function skippedUsage(sessions: Session[]): { skippedUsageRecords?: number } {
   return total > 0 ? { skippedUsageRecords: total } : {};
 }
 
-function newer(a: Session, b: Session): Session {
+export function newer<S extends Pick<Session, "endTime">>(a: S, b: S): S {
   return Date.parse(b.endTime) > Date.parse(a.endTime) ? b : a;
 }
 
@@ -189,7 +198,9 @@ function newer(a: Session, b: Session): Session {
 export async function scan(deps: ScanDeps, options: ScanOptions = {}): Promise<ScanResult> {
   const wanted = options.harness === undefined ? null : Array.isArray(options.harness) ? options.harness : [options.harness];
   const maxSessions = Math.max(1, Math.min(HARD_MAX_SESSIONS, Math.floor(options.maxSessions ?? DEFAULT_MAX_SESSIONS)));
-  const concurrency = Math.max(1, Math.min(32, options.concurrency ?? DEFAULT_CONCURRENCY));
+  const concurrency = Math.max(1, Math.min(32, options.concurrency ?? deps.concurrency ?? DEFAULT_CONCURRENCY));
+  const parseOne = deps.parse ?? ((source: Source, file: SessionFile) => source.parse(file));
+  const parseFlags = options.refresh ? { refresh: true } : {};
   const active = deps.sources.filter((source) => !wanted || wanted.includes(source.harness));
 
   const issues = new Map<Harness, number>();
@@ -213,16 +224,19 @@ export async function scan(deps: ScanDeps, options: ScanOptions = {}): Promise<S
   const byHarness = new Map(deps.sources.map((source) => [source.harness, source]));
   const stats = { discovered: all.length, parsed: 0, cached: 0, failed: 0, skippedEmpty: 0, duplicates: 0, orphaned: 0 };
 
-  const budget = new ByteBudget(Math.max(1, options.parseBudgetBytes ?? DEFAULT_PARSE_BUDGET_BYTES));
+  const budget = new ByteBudget(Math.max(1, options.parseBudgetBytes ?? deps.parseBudgetBytes ?? DEFAULT_PARSE_BUDGET_BYTES));
   let done = 0;
   const read = () => {
     done += 1;
     notify(progress, { stage: "read", done, total: all.length, cached: stats.cached });
   };
   notify(progress, { stage: "read", done: 0, total: all.length, cached: 0 });
-  const parsed = await mapLimit(all, concurrency, async (file): Promise<ScannedEntry | null> => {
+  // Largest first, so the longest parse starts at once instead of holding up the end; results keep the newest-first order.
+  const order = all.map((file, index) => ({ file, index })).sort((a, b) => b.file.sizeBytes - a.file.sizeBytes || a.index - b.index);
+  const parsed = new Array<ScannedEntry | null>(all.length);
+  await mapLimit(order, concurrency, async ({ file, index }) => {
     try {
-      return await readOne(file);
+      parsed[index] = await readOne(file);
     } finally {
       read();
     }
@@ -240,7 +254,7 @@ export async function scan(deps: ScanDeps, options: ScanOptions = {}): Promise<S
     }
     let session: Session | null;
     try {
-      session = await budget.run(file.sizeBytes, () => source.parse(file));
+      session = await budget.run(file.sizeBytes, () => parseOne(source, file, parseFlags));
     } catch {
       stats.failed += 1;
       bump(file.harness);

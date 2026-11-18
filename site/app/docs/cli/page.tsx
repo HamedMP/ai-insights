@@ -286,6 +286,7 @@ npx ai-insights@latest --refresh`}</Code>
           [<code key="a">AI_INSIGHTS_HOME</code>, <>Where AI Insights keeps its cache, labels, snapshots and reports. Default <code>~/.ai-insights</code>.</>],
           [<code key="h">HINDSIGHT_HOME</code>, <>The pre-0.2 name, used when <code>AI_INSIGHTS_HOME</code> is not set.</>],
           [<code key="d">AI_INSIGHTS_DEBUG</code>, "When set, a failed command also prints the error's stack trace."],
+          [<code key="w">AI_INSIGHTS_WORKERS</code>, <>Worker threads used to read transcripts. <code>0</code> reads everything on one thread; default: one less than your CPU cores, at most 8.</>],
           [
             <code key="ao">AI_INSIGHTS_OPEN</code>,
             <>

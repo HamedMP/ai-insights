@@ -8,6 +8,8 @@ const MAX_SCAN_ENTRIES = 200_000;
 const MAX_DEPTH = 6;
 const MAX_CHILDREN = 5_000;
 const INDEX_TTL_MS = 5_000;
+/** Rollout heads read at once while indexing. */
+const HEAD_READS = 16;
 const ROLLOUT_NAME = /^rollout-.+\.(jsonl|jsonl\.zst|json)$/;
 
 export interface RolloutFile {
@@ -135,8 +137,20 @@ async function buildIndex(roots: string[]): Promise<RolloutIndex> {
   const { files, issues } = await scanRollouts(roots);
   const metas = new Map<string, RolloutMeta>();
   const byId = new Map<string, RolloutFile>();
-  for (const file of files) {
-    const meta = await readHead(file);
+  // Heads are read side by side (each waits mostly on the disk and on zstd), then used in listing order.
+  const headOf = new Array<RolloutMeta>(files.length);
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(HEAD_READS, files.length) }, async () => {
+      while (next < files.length) {
+        const index = next;
+        next += 1;
+        headOf[index] = await readHead(files[index]!);
+      }
+    }),
+  );
+  for (const [index, file] of files.entries()) {
+    const meta = headOf[index]!;
     metas.set(file.path, meta);
     if (!meta.id) continue;
     const existing = byId.get(meta.id);
