@@ -135,6 +135,8 @@ async function commandRun(parsed: Parsed, deps: CliDeps, store: Store, style: St
       }
     : undefined;
   let outcome: Awaited<ReturnType<typeof renderFromScan>>;
+  /** A run over the whole history also refreshes the digest the session-start line and the statusline read. */
+  let digestSessions: Session[] | null = null;
   const pool = workerPool(deps);
   try {
     // Numbers first, while the full scan and analysis run: on a terminal above the status line, piped as plain lines.
@@ -163,6 +165,7 @@ async function commandRun(parsed: Parsed, deps: CliDeps, store: Store, style: St
       return 1;
     }
     outcome = await renderFromScan({ ...pipelineDeps(deps, store), ...(onProgress ? { onProgress } : {}) }, result);
+    digestSessions = !parsed.since && !parsed.until && !parsed.harness && !parsed.maxSessions ? result.sessions : null;
     const agents = found.length > 1 ? ` (${found.map((entry) => `${harnessLabel(entry.harness, deps.sources)} ${entry.files.toLocaleString("en-US")}`).join(style.unicode ? " · " : ", ")})` : "";
     progress?.done(`${plural(result.sessions.length, "session")}${agents} read and analysed in ${seconds(progress.elapsedMs())}`);
   } finally {
@@ -180,6 +183,11 @@ async function commandRun(parsed: Parsed, deps: CliDeps, store: Store, style: St
     style,
   );
   deps.stdout(screen);
+  // After the screen, so the person reads it while this runs.
+  if (digestSessions) {
+    const { buildDigest, saveDigest } = await import("./digest.js");
+    await saveDigest(store.home, buildDigest(digestSessions, { timeZone: resolveTimeZone(deps.timeZone ?? localTimeZone()), now: deps.now(), labels: (harness) => harnessLabel(harness, deps.sources) }));
+  }
   if (noBrowser && mode === "manual") deps.stdout(`${screen.endsWith("\n\n") ? "" : "\n"}${headlessLines(outcome.htmlPath, style.rich ? "  " : "").join("\n")}\n`);
   const delivered = await deliver(mode, outcome.htmlPath, deps, style);
   if (delivered !== 0) return delivered;
@@ -478,6 +486,10 @@ export async function refreshForSchedule(light: LightDeps, kind: "today" | "week
     now,
     labels: (harness) => harnessLabel(harness, deps.sources),
   });
+  // The same digest a run in a terminal leaves (docs/digest-json.md), so the reminder and the statusline agree with
+  // the notification. A store that cannot take it loses only the digest.
+  const { buildDigest, saveDigest } = await import("./digest.js");
+  await saveDigest(store.home, buildDigest(result.sessions, { timeZone, now, labels: (harness) => harnessLabel(harness, deps.sources) }));
   return {
     htmlPath: outcome.htmlPath,
     sessions: summary?.sessions ?? 0,

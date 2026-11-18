@@ -65,7 +65,7 @@ export default function Privacy() {
         current version.
       </p>
       <p>
-        The monthly reminder runs offline inside the plugin and reads only the date of your last report and its own <code>nudge.json</code>. See{" "}
+        The session-start reminder runs offline inside the plugin and reads only the date of your last report, its own <code>nudge.json</code> and <code>digest.json</code>: counts for today, this week and this month, a cost estimate and the kind of one finding, which your own runs write. It never reads your history. See{" "}
         <DocLink href="/docs/getting-started#monthly-reminder">The monthly reminder</DocLink>.
       </p>
 
