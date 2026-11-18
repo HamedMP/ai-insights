@@ -20,9 +20,7 @@ export const FONTS: Array<[string, string, string]> = [
 
 /** Script files in load order. Styles go between the engine and the page; Pop first, as the default. */
 const BEFORE_STYLES = ["vendor/mediabunny.js", "rabbit.js", "engine.js"];
-const AFTER_STYLES = ["export.js", "pdf.js", "sharelink.js", "sharebox.js", "deck.js", "page.js", "event-banner.js"];
-/** Page stylesheets in order. event-banner.css is temporary (see event-banner.ts). */
-const PAGE_CSS = ["page.css", "event-banner.css"];
+const AFTER_STYLES = ["export.js", "pdf.js", "sharelink.js", "sharebox.js", "deck.js", "page.js"];
 
 export interface ClientAssets {
   /** @font-face rules + base card CSS + every style's card CSS: also copied into exported frames. */
@@ -61,8 +59,7 @@ export function clientAssets(): ClientAssets {
   ].join("\n");
   // `</` cannot appear inside an inline <script>; none of our sources need it, and a check keeps it that way.
   const script = [...BEFORE_STYLES.map(read), ...styles.map((id) => read(`styles/${id}.js`)), ...AFTER_STYLES.map(read)].join("\n;\n");
-  const pageCss = PAGE_CSS.map(read).join("\n");
-  if (/<\/script/i.test(script) || /<\/style/i.test(cardCss + pageCss)) throw new Error("client assets must not contain a closing script or style tag");
+  if (/<\/script/i.test(script) || /<\/style/i.test(cardCss + read("page.css"))) throw new Error("client assets must not contain a closing script or style tag");
   // A style's own fonts (styles/<id>.fonts.json: [{ family, file, weight }]) stay out of the card CSS until the
   // style is picked, so exported frames of other styles do not carry them.
   const styleFonts: Record<string, string> = {};
@@ -79,7 +76,7 @@ export function clientAssets(): ClientAssets {
   cached = {
     styleFonts,
     cardCss,
-    pageCss,
+    pageCss: read("page.css"),
     script,
     scriptHash: createHash("sha256").update(script).digest("base64"),
     styles,
