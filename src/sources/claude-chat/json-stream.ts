@@ -11,7 +11,28 @@
  * spec keeps the named keys of an object; `[spec]` keeps the items of an array. A key the spec does not name is
  * skipped without being built, so its contents never reach memory beyond the bytes being scanned.
  */
-export type Spec = true | { readonly [key: string]: Spec } | readonly [Spec];
+export type Spec = true | ObjectSpec | readonly [Spec];
+
+/** In an object spec: the spec for every key it does not name, so an object keyed by ids is read as a map. */
+export const EACH_KEY: unique symbol = Symbol("eachKey");
+/** In an object spec: a scalar in its place is kept too, for arrays that mix strings and objects. */
+export const SCALAR_TOO: unique symbol = Symbol("scalarToo");
+
+export interface ObjectSpec {
+  readonly [key: string]: Spec;
+  readonly [EACH_KEY]?: Spec;
+  readonly [SCALAR_TOO]?: true;
+}
+
+/** An object keyed by ids (a ChatGPT `mapping`): every entry built to `spec`, capped like an array's items. */
+export function eachKey(spec: Spec): ObjectSpec {
+  return { [EACH_KEY]: spec };
+}
+
+/** `spec` for an object, or the scalar itself when the value is a string, number, boolean or null. */
+export function orScalar(spec: ObjectSpec): ObjectSpec {
+  return { ...spec, [SCALAR_TOO]: true };
+}
 
 export interface JsonLimits {
   /** Input bytes read at most; reading stops there. */
@@ -69,7 +90,21 @@ function childSpec(spec: Spec | null, array: boolean, key: string | null): Spec 
   if (spec === null || spec === true) return null;
   if (array) return Array.isArray(spec) ? (spec as readonly [Spec])[0] : null;
   if (Array.isArray(spec) || key === null) return null;
-  return Object.prototype.hasOwnProperty.call(spec, key) ? (spec as { readonly [key: string]: Spec })[key]! : null;
+  const named = spec as ObjectSpec;
+  if (Object.prototype.hasOwnProperty.call(named, key)) return named[key]!;
+  // A map's keys come from the input: `__proto__` would set the built object's prototype.
+  return key === "__proto__" ? null : (named[EACH_KEY] ?? null);
+}
+
+/** The key being read is an entry of a map (`eachKey`), not a key the spec names. */
+function isMapEntry(frame: Frame): boolean {
+  if (frame.array || frame.spec === null || frame.spec === true || Array.isArray(frame.spec) || frame.key === null) return false;
+  const named = frame.spec as ObjectSpec;
+  return named[EACH_KEY] !== undefined && !Object.prototype.hasOwnProperty.call(named, frame.key);
+}
+
+function keepsScalar(spec: Spec | null): boolean {
+  return spec === true || (spec !== null && !Array.isArray(spec) && (spec as ObjectSpec)[SCALAR_TOO] === true);
 }
 
 /**
@@ -245,7 +280,7 @@ export class ArrayElementParser {
   private value(byte: number, spec: Spec | null, frame: Frame): void {
     const keep = spec !== null && this.broken === null && frame.target !== null && !this.overflowing(frame);
     if (byte === 0x22) {
-      this.startString(false, keep && spec === true);
+      this.startString(false, keep && keepsScalar(spec));
       return;
     }
     if (byte === 0x7b || byte === 0x5b) {
@@ -268,14 +303,15 @@ export class ArrayElementParser {
     if ((byte >= 0x30 && byte <= 0x39) || byte === 0x2d || byte === 0x74 || byte === 0x66 || byte === 0x6e) {
       this.inLiteral = true;
       this.literal = String.fromCharCode(byte);
-      this.literalKeep = keep && spec === true;
+      this.literalKeep = keep && keepsScalar(spec);
       return;
     }
     this.fail("syntax");
   }
 
   private overflowing(frame: Frame): boolean {
-    return frame.array && !frame.emit && frame.items >= this.limits.maxArrayItems;
+    if (frame.items < this.limits.maxArrayItems) return false;
+    return frame.array ? !frame.emit : isMapEntry(frame);
   }
 
   private open(array: boolean, spec: Spec | null, emitRoot: boolean): void {
@@ -333,7 +369,11 @@ export class ArrayElementParser {
       }
       frame.items += 1;
     } else if (frame.target !== null && frame.key !== null && childSpec(frame.spec, false, frame.key) !== null) {
-      (frame.target as Record<string, unknown>)[frame.key] = value;
+      if (!isMapEntry(frame)) (frame.target as Record<string, unknown>)[frame.key] = value;
+      else if (frame.items < this.limits.maxArrayItems) {
+        (frame.target as Record<string, unknown>)[frame.key] = value;
+        frame.items += 1;
+      } else this.dropped += 1;
     }
     frame.state = 2;
   }

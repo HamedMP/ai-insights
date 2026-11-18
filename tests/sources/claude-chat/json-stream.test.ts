@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ArrayElementParser, readArrayElements, type ElementResult, type JsonLimits, type Spec } from "../../../src/sources/claude-chat/json-stream.js";
+import { ArrayElementParser, eachKey, orScalar, readArrayElements, type ElementResult, type JsonLimits, type Spec } from "../../../src/sources/claude-chat/json-stream.js";
 
 const SPEC: Spec = { id: true, name: true, items: [{ n: true }], tags: [true] };
 
@@ -122,5 +122,35 @@ describe("streaming a large JSON array one element at a time", () => {
     expect(result).toMatchObject({ kind: "element", value: { id: "a" } });
     expect(({} as Record<string, unknown>).polluted).toBeUndefined();
     expect(Object.getPrototypeOf((result as { value: object }).value)).toBe(Object.prototype);
+  });
+
+  it("builds every entry of a keyed map (a ChatGPT mapping) to one spec, capped like an array", async () => {
+    const spec: Spec = { mapping: eachKey({ parent: true }) };
+    const text = JSON.stringify([{ mapping: { a: { parent: null, secret: "SECRET" }, b: { parent: "a", message: { text: "SECRET" } }, c: { parent: "b" } } }]);
+    const got = await all(text, { spec });
+    expect(values(got)).toEqual([{ mapping: { a: { parent: null }, b: { parent: "a" }, c: { parent: "b" } } }]);
+    expect(JSON.stringify(values(got))).not.toContain("SECRET");
+    const capped = await all(text, { spec, limits: { maxArrayItems: 2 } });
+    expect(values(capped)).toEqual([{ mapping: { a: { parent: null }, b: { parent: "a" } } }]);
+    expect((capped[0] as { dropped: number }).dropped).toBe(1);
+  });
+
+  it("a keyed map never assigns __proto__, so a hostile export cannot pollute", async () => {
+    const parser = new ArrayElementParser({ mapping: eachKey({ parent: true }) });
+    const [result] = parser.write(Buffer.from('[{"mapping":{"__proto__":{"parent":"x","polluted":true},"a":{"parent":null}}}]'));
+    expect(result).toMatchObject({ kind: "element", value: { mapping: { a: { parent: null } } } });
+    const mapping = (result as { value: { mapping: object } }).value.mapping;
+    expect(Object.getPrototypeOf(mapping)).toBe(Object.prototype);
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+  });
+
+  it("an array of mixed strings and objects keeps both when the spec allows a scalar", async () => {
+    const spec: Spec = { parts: [orScalar({ content_type: true })] };
+    const text = JSON.stringify([{ parts: ["hello", { content_type: "image_asset_pointer", asset_pointer: "SECRET" }, 3, [1]] }]);
+    const [first] = values(await all(text, { spec }));
+    expect(first).toEqual({ parts: ["hello", { content_type: "image_asset_pointer" }, 3, null] });
+    // Without orScalar, a string where an object is expected is scanned and stands as null.
+    const [strict] = values(await all(text, { spec: { parts: [{ content_type: true }] } }));
+    expect(strict).toEqual({ parts: [null, { content_type: "image_asset_pointer" }, null, null] });
   });
 });
