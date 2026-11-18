@@ -15,6 +15,8 @@ Usage
   ai-insights [options]          scan, write the report, print a summary
   ai-insights scan [options]     scan and show what was found
   ai-insights report [options]   write the report (or print JSON with --json)
+  ai-insights today|week|month   a quick look: sessions, time, tokens, cost and one tip
+  ai-insights summary            today, this week and this month side by side
   ai-insights doctor             show which histories were found and where
   ai-insights share [options]    print your stats share link, to open and publish from any device
   ai-insights serve [--port <n>] show the last report to your computer through an SSH tunnel
@@ -30,7 +32,12 @@ Options
   --harness <name>     only one of: ${HARNESSES.join(", ")}
   --max-sessions <n>   read at most n transcripts, newest first
   --refresh            re-parse every transcript, ignoring the cache
-  --json               report: print the report as JSON instead of writing HTML
+  --json               report: print the report as JSON instead of writing HTML;
+                       today|week|month|summary: print the numbers as JSON (docs/summary-json.md)
+  --until <date>       today|week|month: up to and including this day (YYYY-MM-DD)
+  --last <n>           today|week|month: the last n days, weeks or months, one row each
+  --by <what>          today|week|month: break it down by project, model or agent
+  --no-cost            today|week|month|summary: leave the cost out
   --open               open the written report in your browser without asking
   --no-open            do not ask to open it, and do not open it
   --no-install-prompt  do not offer to add AI Insights to your agents
@@ -70,15 +77,28 @@ export interface Parsed {
   copy: boolean;
   /** serve: --port, 0 for any free port. */
   port: number;
+  /** Quick views: --until as typed (YYYY-MM-DD), --last, --by and --no-cost. */
+  until?: string;
+  last?: number;
+  by?: "project" | "model" | "agent";
+  noCost: boolean;
 }
 
-const COMMANDS = new Set(["run", "scan", "report", "doctor", "mcp", "share", "serve", "help"]);
-const VALUE_FLAGS = new Set(["--since", "--harness", "--max-sessions", "--name", "--device", "--port"]);
+/** The quick views; they read the same history as a run but write no report. */
+export const QUICK_COMMANDS = new Set(["today", "week", "month", "summary"]);
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+export const MAX_LAST = 366;
+
+const COMMANDS = new Set(["run", "scan", "report", "doctor", "mcp", "share", "serve", "help", ...QUICK_COMMANDS]);
+const VALUE_FLAGS = new Set(["--since", "--harness", "--max-sessions", "--name", "--device", "--port", "--until", "--last", "--by"]);
 /** Flags that mean something to one command only: anywhere else they are a mistake worth saying. */
 const ONLY_FOR: Record<string, string> = { "--name": "share", "--device": "share", "--no-days": "share", "--copy": "share", "--port": "serve" };
+/** Flags for the quick views only. */
+const QUICK_ONLY = new Set(["--until", "--last", "--by", "--no-cost"]);
 
 export function parseArgs(argv: string[], now: Date): Parsed {
-  const parsed: Parsed = { command: "run", refresh: false, json: false, open: null, noInstallPrompt: false, help: false, version: false, shareName: "", deviceName: "", days: true, copy: false, port: 0 };
+  const parsed: Parsed = { command: "run", refresh: false, json: false, open: null, noInstallPrompt: false, help: false, version: false, shareName: "", deviceName: "", days: true, copy: false, port: 0, noCost: false };
+  const quickFlags: string[] = [];
   const used: string[] = [];
   let commandSeen = false;
   for (let index = 0; index < argv.length; index += 1) {
@@ -151,6 +171,23 @@ export function parseArgs(argv: string[], now: Date): Parsed {
         parsed.port = port;
         break;
       }
+      case "--until":
+        if (!DAY.test(value!) || !Number.isFinite(Date.parse(`${value}T00:00:00Z`))) throw new UsageError("--until must be a day like 2026-11-30");
+        parsed.until = value!;
+        break;
+      case "--last": {
+        const count = Number(value);
+        if (!Number.isInteger(count) || count < 1 || count > MAX_LAST) throw new UsageError(`--last must be a whole number from 1 to ${MAX_LAST}`);
+        parsed.last = count;
+        break;
+      }
+      case "--by":
+        if (value !== "project" && value !== "model" && value !== "agent") throw new UsageError("--by must be project, model or agent");
+        parsed.by = value;
+        break;
+      case "--no-cost":
+        parsed.noCost = true;
+        break;
       case "-h":
       case "--help":
         parsed.help = true;
@@ -163,7 +200,16 @@ export function parseArgs(argv: string[], now: Date): Parsed {
         throw new UsageError(`unknown option "${flag}"`);
     }
     if (ONLY_FOR[flag]) used.push(flag);
+    if (QUICK_ONLY.has(flag)) quickFlags.push(flag);
   }
+  for (const flag of quickFlags) {
+    if (!QUICK_COMMANDS.has(parsed.command)) throw new UsageError(`${flag} only works with \`ai-insights today\`, \`week\`, \`month\` or \`summary\``);
+    if (parsed.command === "summary" && flag !== "--no-cost") throw new UsageError(`${flag} does not work with \`ai-insights summary\``);
+  }
+  if (QUICK_COMMANDS.has(parsed.command) && parsed.sinceText && !DAY.test(parsed.sinceText.trim())) throw new UsageError("--since must be a day like 2026-11-01 here");
+  if (parsed.command === "summary" && parsed.sinceText) throw new UsageError("--since does not work with `ai-insights summary`");
+  if (parsed.last !== undefined && (parsed.sinceText || parsed.until)) throw new UsageError("use --last or --since/--until, not both");
+  if (parsed.sinceText && parsed.until && parsed.until < parsed.sinceText.trim()) throw new UsageError("--until is before --since");
   for (const flag of used) if (ONLY_FOR[flag] !== parsed.command) throw new UsageError(`${flag} only works with \`ai-insights ${ONLY_FOR[flag]}\``);
   return parsed;
 }

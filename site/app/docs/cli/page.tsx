@@ -14,6 +14,8 @@ export default function Cli() {
       <Code label="Usage" copy={false}>{`ai-insights [options]          scan, write the report, print a summary
 ai-insights scan [options]     scan and show what was found
 ai-insights report [options]   write the report (or print JSON with --json)
+ai-insights today|week|month   a quick look: sessions, time, tokens, cost and one tip
+ai-insights summary            today, this week and this month side by side
 ai-insights doctor             show which histories were found and where
 ai-insights share [options]    print your stats share link, to open and publish from any device
 ai-insights serve [--port <n>] show the last report to your computer through an SSH tunnel
@@ -76,6 +78,57 @@ Parsed 0, reused 12 from cache.`}</Code>
         time zone, range, coverage, activity, usage, findings, facets, narrative, recap, retention, the causes of friction and the ratios.
       </p>
       <Code label="Terminal">{`npx ai-insights@latest report --json > report.json`}</Code>
+      <H3 id="cmd-quick">ai-insights today, week, month and summary</H3>
+      <p>
+        A quick look that writes no report, so it is cheap to run often. It reads only the transcripts changed since the start of the period, reuses
+        the cache, and reads a session that is still being written from where the last run stopped. <code>today</code> runs from local midnight,{" "}
+        <code>week</code> from Monday and <code>month</code> from the 1st, all up to now in your time zone. <code>summary</code> shows all three side by
+        side.
+      </p>
+      <p>
+        One coaching tip comes first, drawn from the same findings as the report. When the period has none of its own, it borrows the longer
+        period&apos;s tip and says so (&quot;this week&quot;). After the tip come sessions, active time (wall-clock, parallel sessions counted once), prompts,
+        tokens and the cost estimate at API list prices, then a breakdown by agent and the top models. Chat exports record no tokens, so they show as{" "}
+        <em>not measured</em>, never 0 or an estimate. Requests with no known price show as unpriced. <code>--no-cost</code> leaves the cost out.
+        Piped, the same is printed as plain text.
+      </p>
+      <Code label="Output, from a synthetic history" copy={false}>{`  Today  Wed 18 Nov, so far · Europe/Helsinki
+
+  * Tip  Sessions ran out of context this week. Hand off instead of
+    compacting.
+
+  3 sessions - 1.4 h active - 14 prompts
+  2.7M tokens - $3.13 at API list prices
+
+  Agent        Sessions   Cost
+  Claude Code         2  $1.81
+  Codex               1  $1.32
+
+  Models  claude-opus-4-8 $1.49, gpt-5.5 $1.32, claude-sonnet-4-6 $0.33
+
+  Run ai-insights for the full report.`}</Code>
+      <Code label="Output, from a synthetic history" copy={false}>{`  AI Insights  Europe/Helsinki
+
+  * Tip  Sessions ran out of context this week. Hand off instead of
+    compacting.
+
+            Today  This week  This month
+  Sessions      3          6           7
+  Active    1.4 h      4.4 h       7.3 h
+  Prompts      14         29          41
+  Tokens     2.7M       5.3M        7.3M
+  Cost      $3.13      $6.27       $8.74
+
+  Cost is an estimate at API list prices.`}</Code>
+      <p>
+        <code>--last &lt;n&gt;</code> covers the last n days, weeks or months, with one row each. <code>--since</code> and{" "}
+        <code>--until</code> take days (<code>2026-11-01</code>), both included. <code>--by project</code>, <code>--by model</code> or{" "}
+        <code>--by agent</code> (the default) picks the breakdown. Project names appear only on your terminal, and only when you ask for them.
+      </p>
+      <Code label="Terminal">{`npx ai-insights@latest today
+npx ai-insights@latest week --last 4 --by model
+npx ai-insights@latest month --since 2026-10-01 --until 2026-10-31
+npx ai-insights@latest summary --json`}</Code>
       <H3 id="cmd-doctor">ai-insights doctor</H3>
       <p>
         Shows the version and Node version, then for each agent: how many transcripts it found and their dates, how long the agent keeps them,
@@ -219,6 +272,20 @@ ai-insights nudge --on     remind me again`}</Code>
         <code>help</code> is accepted as a command and prints the same text as <code>--help</code>.
       </p>
 
+      <H2 id="summary-json">Quick-view JSON</H2>
+      <p>
+        With <code>--json</code>, each of these prints numbers for other tools: a tray app, a status-bar script. It carries{" "}
+        <code>schemaVersion: 1</code>, <code>generatedAt</code>, <code>timezone</code>, <code>reportPath</code> (or null) and{" "}
+        <code>periods.today</code>, <code>.week</code> and <code>.month</code>. With <code>--since</code> or <code>--until</code> it carries{" "}
+        <code>.range</code> instead. Each period has <code>from</code>, <code>to</code>, <code>sessions</code>, <code>activeMinutes</code>,{" "}
+        <code>prompts</code>, <code>tokens</code> (null when not measured), <code>costUsd</code> (null when not measured or nothing could be
+        priced), <code>unpricedRequestShare</code>, <code>byAgent</code>, <code>byModel</code> and <code>tip</code>. It holds aggregates only: no
+        prompts, commands, paths or project names, except <code>byProject</code> with <code>--by project</code>. A new optional field keeps the
+        version; any other change is a new version. The full description is{" "}
+        <a href="https://github.com/HamedMP/ai-insights/blob/main/docs/summary-json.md">docs/summary-json.md</a>. Call it from a global install
+        (<code>npm i -g ai-insights</code>), not <code>npx</code>, when something runs it every few minutes.
+      </p>
+
       <H2 id="on-a-server">On a server</H2>
       <p>
         Over SSH without a forwarded display, or on Linux with no display at all, a run does not ask to open the report and does not pretend
@@ -261,7 +328,17 @@ ai-insights nudge --on     remind me again`}</Code>
           ],
           [<code key="m">--max-sessions &lt;n&gt;</code>, "Read at most n transcripts, newest first. The default is 5,000; the most is 50,000."],
           [<code key="r">--refresh</code>, "Re-parse every transcript, ignoring the cache."],
-          [<code key="j">--json</code>, <>With <code>report</code> only: print the report as JSON instead of writing HTML.</>],
+          [
+            <code key="j">--json</code>,
+            <>
+              With <code>report</code>: print the report as JSON instead of writing HTML. With <code>today</code>, <code>week</code>,{" "}
+              <code>month</code> and <code>summary</code>: print the <a href="#summary-json">quick-view JSON</a>.
+            </>,
+          ],
+          [<code key="u">--until &lt;date&gt;</code>, <>With <code>today</code>, <code>week</code> or <code>month</code>: up to and including this day. <code>--since</code> there takes a day too.</>],
+          [<code key="l">--last &lt;n&gt;</code>, <>With <code>today</code>, <code>week</code> or <code>month</code>: the last n days, weeks or months (1 to 366), one row each.</>],
+          [<code key="b">--by &lt;what&gt;</code>, <>With <code>today</code>, <code>week</code> or <code>month</code>: break it down by <code>project</code>, <code>model</code> or <code>agent</code> (the default).</>],
+          [<code key="nc">--no-cost</code>, <>With the quick views: leave the cost out, for a screen others can see.</>],
           [<code key="o">--open</code>, "Open the written report in your default browser without asking."],
           [<code key="no">--no-open</code>, "Do not ask whether to open the report, and do not open it."],
           [<code key="ni">--no-install-prompt</code>, "Do not offer to add AI Insights to your agents after the run."],

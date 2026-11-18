@@ -144,10 +144,11 @@ export const DOCS: DocPage[] = [
   {
     slug: "cli",
     title: "CLI reference",
-    description: "Every ai-insights command, option, environment variable and exit code.",
+    description: "Every ai-insights command, option, environment variable and exit code, and the quick-view JSON.",
     group: "Reference",
     sections: [
       { id: "commands", title: "Commands" },
+      { id: "summary-json", title: "Quick-view JSON" },
       { id: "on-a-server", title: "On a server" },
       { id: "options", title: "Options" },
       { id: "environment", title: "Environment variables" },
