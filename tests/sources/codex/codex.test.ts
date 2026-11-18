@@ -290,7 +290,44 @@ describe("codex token usage", () => {
       turnContext("gpt-test", { turn_id: "t2" }),
       tokenCountWithLast([3000, 0, 30], [1000, 0, 10]),
     ]);
-    expect(session.requests.map((request) => request.serviceTier ?? "standard")).toEqual(["priority", "priority", "standard"]);
+    expect(session.requests.map((request) => request.serviceTier)).toEqual(["priority", "priority", "default"]);
+  });
+
+  it("prices a turn at the tier its own start applied, even when Codex writes the settings after the turn began", async () => {
+    // Codex writes a new turn's settings snapshot a few records after task_started, before the turn's first response.
+    const settings = (serviceTier: string) => event({ type: "thread_settings_applied", thread_settings: { model: "gpt-test", service_tier: serviceTier } });
+    const session = await parseOne([
+      meta(uuid(1)),
+      settings("default"),
+      event({ type: "task_started", turn_id: "t1" }),
+      turnContext("gpt-test", { turn_id: "t1" }),
+      ...userMessage("go"),
+      settings("priority"),
+      tokenCountWithLast([1000, 0, 10], [1000, 0, 10]),
+      tokenCountWithLast([2000, 0, 20], [1000, 0, 10]),
+      event({ type: "task_complete", turn_id: "t1" }),
+      event({ type: "task_started", turn_id: "t2" }),
+      turnContext("gpt-test", { turn_id: "t2" }),
+      ...userMessage("again"),
+      settings("default"),
+      tokenCountWithLast([3000, 0, 30], [1000, 0, 10]),
+    ]);
+    expect(session.requests.map((request) => request.serviceTier)).toEqual(["priority", "priority", "default"]);
+  });
+
+  it("tells a recorded standard tier apart from a rollout that records no tier", async () => {
+    const recorded = await parseOne([
+      meta(uuid(1)),
+      // Codex leaves `service_tier` out of the snapshot when no tier is set, which is a standard request.
+      event({ type: "thread_settings_applied", thread_settings: { model: "gpt-test" } }),
+      event({ type: "task_started", turn_id: "t1" }),
+      tokenCountWithLast([1000, 0, 10], [1000, 0, 10]),
+    ]);
+    expect(recorded.requests.map((request) => request.serviceTier)).toEqual(["default"]);
+    tree.cleanup();
+    tree = new Tree();
+    const unknown = await parseOne([meta(uuid(2)), event({ type: "task_started", turn_id: "t1" }), tokenCountWithLast([1000, 0, 10], [1000, 0, 10])]);
+    expect(unknown.requests.map((request) => request.serviceTier)).toEqual([undefined]);
   });
 
   it("counts a response once when both a native record and a cumulative counter describe it", async () => {
@@ -656,7 +693,7 @@ describe("codex excerpts", () => {
 
 describe("codex parser version", () => {
   it("declares a parser version so the store re-parses cached history after a parser fix", () => {
-    expect(codexSource.parserVersion).toBe("7");
+    expect(codexSource.parserVersion).toBe("8");
   });
 });
 
