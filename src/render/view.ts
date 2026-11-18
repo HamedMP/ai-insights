@@ -270,6 +270,8 @@ export interface PageView {
     cacheHitRate: number | null;
     pricingVersion: string;
     gap: string | null;
+    /** Codex spend with no recorded speed tier, priced at Standard; null when there is none. */
+    untiered: string | null;
     perCommit: number | null;
     /** What the tools themselves logged (OpenCode, Pi), beside the list-price estimate; null when none did. */
     recorded: { usd: number; requests: number; zeroRequests: number; text: string; harnesses: Array<{ label: string; usd: number; requests: number; zeroRequests: number; text: string }> } | null;
@@ -1047,6 +1049,16 @@ export function retentionView(report: Report, zone: string): RetentionView | nul
   };
 }
 
+/**
+ * Codex spend whose sessions recorded no speed tier (older Codex versions), priced at Standard. OpenAI's Fast tier
+ * costs 2x Standard on most models and 2.5x on gpt-5.5 (https://developers.openai.com/api/docs/pricing).
+ */
+function untieredNote(usage: UsageSummary | undefined): string | null {
+  const row = usage?.untiered?.find((entry) => entry.harness === "codex");
+  if (!row || !(count(row.estimatedUsd) > 0)) return null;
+  return `${formatUsd(row.estimatedUsd)} of the Codex estimate (${plural(count(row.requests), "request")}) comes from sessions that recorded no speed tier, so it is priced at Standard rates. OpenAI's Fast tier costs 2x Standard on most models; if those requests ran on Fast, they came to about ${formatUsd(row.atFastUsd)}.`;
+}
+
 /** What OpenCode and Pi logged themselves, beside the estimate. A recorded $0 is a subscription or plan, never "free". */
 export function recordedSpend(usage: Pick<UsageSummary, "recorded" | "recordedByHarness"> | undefined): PageView["usage"]["recorded"] {
   const total = usage?.recorded;
@@ -1289,6 +1301,7 @@ export function buildView(input: RenderInput, zone: string, extras: RenderExtras
       cacheHitRate: maybe(report.usage?.cacheHitRate),
       pricingVersion: str(report.usage?.pricingVersion, 60),
       gap: gap ? `${gap.unpricedShare < 0.01 ? "Under 1%" : `${Math.round(gap.unpricedShare * 100)}%`} of requests (${formatInt(count(report.usage.unpriced))}) have no known price${gap.models.length > 0 ? `: ${unpricedModelsText(gap.models, 6)}` : ""}. They are left out of the estimate, not counted as free, so the real figure is higher.` : null,
+      untiered: untieredNote(report.usage),
       perCommit: usd !== null && usd > 0 && count(a.gitCommits) > 0 ? usd / count(a.gitCommits) : null,
       recorded: recordedSpend(report.usage),
       noTokens,

@@ -157,6 +157,15 @@ describe("truthful degradation", () => {
     expect(buildView(makeReport(), ZONE).usage.gap).toMatch(/^\d+% of requests \([\d,]+\) have no known price/);
   });
 
+  it("explains in the cost section that Codex spend with no recorded tier is priced at Standard", () => {
+    const report = makeReport();
+    const view = buildView({ ...report, usage: { ...report.usage, untiered: [{ harness: "codex", requests: 3, estimatedUsd: 12, atFastUsd: 24 }] } }, ZONE);
+    expect(view.usage.untiered).toBe(
+      "$12.00 of the Codex estimate (3 requests) comes from sessions that recorded no speed tier, so it is priced at Standard rates. OpenAI's Fast tier costs 2x Standard on most models; if those requests ran on Fast, they came to about $24.00.",
+    );
+    expect(buildView(makeReport(), ZONE).usage.untiered).toBeNull();
+  });
+
   it("renders an empty history without inventing anything", () => {
     const view = buildView(makeEmptyReport(), ZONE);
     expect(view.recap).toBeNull();

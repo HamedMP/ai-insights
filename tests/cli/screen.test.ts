@@ -139,6 +139,16 @@ describe("on a terminal: the designed result screen", () => {
     expect(text).toContain("tabs_context_mcp");
   });
 
+  it("notes Codex spend with no recorded speed tier, so the estimate is not read as exact", async () => {
+    const withUntiered = (input: BuildReportInput): Report => {
+      const report = richReport(input);
+      return { ...report, usage: { ...report.usage, untiered: [{ harness: "codex", requests: 3, estimatedUsd: 12, atFastUsd: 24 }] } };
+    };
+    expect(await run([], { ...deps({ buildReport: withUntiered }), ...tty(120, { NO_COLOR: "1" }) })).toBe(0);
+    const text = stripAnsi(out).replace(/[│\s]+/gu, " ");
+    expect(text).toContain("Codex $12.00 had no recorded speed tier: priced at Standard, about $24.00 on Fast");
+  });
+
   it("walks through every next step with the report's own button labels", async () => {
     await run([], deps(tty()));
     const text = stripAnsi(out).replace(/\s+/gu, " ");

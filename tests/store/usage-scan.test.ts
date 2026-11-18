@@ -94,7 +94,7 @@ describe("the usage-only scan", () => {
 
     const report = buildReport({ sessions: full.sessions, facets: [], narrative: null, coverage: full.coverage, timeZone: "UTC", now: new Date("2026-11-03T00:00:00.000Z") });
     const [all, ...days] = periodUsage(fast.sessions, ranges());
-    const { daily: _daily, models: _models, cacheHitRate: _rate, pricingVersion: _version, ...totals } = report.usage;
+    const { daily: _daily, models: _models, cacheHitRate: _rate, pricingVersion: _version, untiered: _untiered, ...totals } = report.usage;
     expect(all!.totals).toEqual(totals);
     for (const [index, day] of ["2026-10-30", "2026-10-31", "2026-11-01", "2026-11-02"].entries()) {
       const { day: _day, ...row } = report.usage.daily.find((entry) => entry.day === day)!;

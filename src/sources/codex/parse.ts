@@ -40,10 +40,10 @@ const MAX_MODELS = 50;
 const MAX_TURN_MODELS = 20_000;
 
 /** A recorded service tier that can change the price; the standard tier (and none) is undefined. */
-function priceTier(value: unknown): string | undefined {
-  if (typeof value !== "string") return undefined;
-  const tier = value.trim().toLowerCase().slice(0, 40);
-  return !tier || tier === "default" || tier === "standard" || tier === "auto" ? undefined : tier;
+/** A recorded tier. Codex leaves `service_tier` out of a settings snapshot when none is set: a standard request. */
+function priceTier(value: unknown): string {
+  const tier = typeof value === "string" ? value.trim().toLowerCase().slice(0, 40) : "";
+  return !tier || tier === "standard" || tier === "auto" ? "default" : tier;
 }
 
 /** What kind of thread a rollout holds. Guardian reviews and spawned subagents belong to a parent. */
@@ -188,6 +188,8 @@ export class RolloutBuilder {
   /** The tier the current turn runs on, and the one the latest settings chose for the next turn. Absent: standard. */
   private serviceTier: string | undefined;
   private pendingTier: string | undefined;
+  /** Whether the open turn has sent a model request yet; settings written before that belong to the turn itself. */
+  private turnRequested = false;
 
   private state: TurnState = { turnOpen: false, lastDoneMs: null, interruptions: 0 };
   private tracks = { item: new PromptTrack(), event: new PromptTrack(), response: new PromptTrack() };
@@ -275,6 +277,7 @@ export class RolloutBuilder {
         this.readEvent(payload, record, time);
         break;
       case "token_usage_record":
+        this.turnRequested = true;
         this.usage.push(record, this.modelFor(payload.turn_id), this.serviceTier);
         break;
       case "compacted":
@@ -542,15 +545,19 @@ export class RolloutBuilder {
         this.readItem(obj(payload.item), payload, time);
         return;
       case "token_count":
+        if (payload.info) this.turnRequested = true;
         this.usage.push(record, this.modelFor(payload.turn_id), this.serviceTier);
         return;
       case "thread_settings_applied": {
-        // Settings apply to new turns, so a change made mid-turn waits for the next one.
+        // Codex writes a starting turn's settings a few records after task_started, before its first request, and
+        // those settings are the turn's own. A change once the turn is under way (steering) applies from the next turn.
         const settings = obj(payload.thread_settings);
         this.pendingTier = priceTier(settings.service_tier);
+        if (this.state.turnOpen && !this.turnRequested) this.serviceTier = this.pendingTier;
         return;
       }
       case "task_started":
+        this.turnRequested = false;
         this.serviceTier = this.pendingTier;
         this.sawTurnEvents = true;
         this.state.turnOpen = true;

@@ -224,6 +224,8 @@ function statsPanel(input: ResultInput, style: Style, paint: Paint, glyphs: Glyp
   if (numbers.estimatedUsd === null) notes.push(numbers.requests > 0 ? "no request could be priced" : "no model requests to price");
   else if (numbers.unpricedRequests > 0) notes.push(`${numbers.unpricedShare < 0.01 ? "<1%" : `${Math.round(numbers.unpricedShare * 100)}%`} of requests unpriced`);
   else notes.push("API list prices");
+  const untiered = report.usage.untiered?.find((row) => row.harness === "codex");
+  if (untiered && untiered.estimatedUsd > 0) notes.push(`Codex ${formatUsd(untiered.estimatedUsd)} had no recorded speed tier: priced at Standard, about ${formatUsd(untiered.atFastUsd)} on Fast`);
   // A no-break space ties each dot to the note before it, so a wrapped line never starts with one.
   body.push("", ...wrapSegments([{ text: notes.join(`\u00a0${glyphs.dot} `), tone: "muted" }], inner, style));
 

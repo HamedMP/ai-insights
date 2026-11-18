@@ -46,8 +46,9 @@ export interface ModelRequest {
    */
   costUsd?: number;
   /**
-   * The provider's service tier, when the transcript records one that changes the price (Codex `priority`
-   * for Fast mode, `ultrafast`; Claude Code `fast` for fast mode). Absent for the standard tier and when unknown.
+   * The provider's service tier, when the transcript records one (Codex `default`, `priority` for Fast mode,
+   * `ultrafast`; Claude Code `fast` for fast mode). Absent when the transcript records none, which is priced at
+   * standard rates; Claude Code's standard speed is left absent too.
    */
   serviceTier?: string;
 }
@@ -498,6 +499,11 @@ export interface UsageSummary extends UsageTotals {
   /** cachedInput / (input + cachedInput + cacheWrite), 0..1, null when there was no input. */
   cacheHitRate: number | null;
   pricingVersion: string;
+  /**
+   * Priced spend from harnesses that can record an OpenAI service tier (Codex) but whose requests recorded none,
+   * so it is estimated at Standard rates; `atFastUsd` is the same requests at Fast rates. Absent when there is none.
+   */
+  untiered?: Array<{ harness: Harness; requests: number; estimatedUsd: number; atFastUsd: number }>;
 }
 
 export interface Coverage {
