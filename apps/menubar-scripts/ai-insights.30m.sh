@@ -87,7 +87,8 @@ for (const [key, label] of [["today", "Today"], ["week", "This week"], ["month",
   if (!p || typeof p !== "object") continue;
   const parts = [`${count(p.sessions)} sessions`, hours(p.activeMinutes)];
   const c = cost(p.costUsd);
-  if (!hideCost && c) parts.push(`≈ ${c}`);
+  // null cost means the CLI could not measure it (chat exports only, or nothing priced): never show $0.
+  if (!hideCost) parts.push(c ? `≈ ${c}` : "cost not measured");
   out(`${label}: ${parts.join(" · ")} | font=Menlo`);
 }
 const tip = ["week", "today", "month"].map((k) => periods[k] && periods[k].tip && periods[k].tip.text).find((t) => typeof t === "string" && t.trim());
