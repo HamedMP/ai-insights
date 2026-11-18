@@ -58,7 +58,10 @@ for your OS.
 ```bash
 cd apps/desktop
 pnpm install
-AI_INSIGHTS_CLI="$PWD/fixtures/fake-cli.mjs" pnpm dev   # synthetic numbers, no real history
+pnpm dev                                                # your installed ai-insights (npm i -g ai-insights)
+pnpm dev:fixture                                        # fixtures/fake-cli.mjs: fixed numbers, every error state
+node scripts/synthetic-store.mjs /tmp/aii-synth         # the real CLI from this checkout (pnpm build at the
+AI_INSIGHTS_CLI=/tmp/aii-synth/ai-insights pnpm dev     #   root first) on made-up transcripts
 pnpm check                                              # typecheck, UI tests, UI build
 cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
 ```

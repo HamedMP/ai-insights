@@ -92,6 +92,12 @@ describe("the popover model", () => {
     }
   });
 
+  it("calls a measured agent with no known price unpriced, not free and not unmeasured", () => {
+    const s = summary();
+    s.periods[1]!.byAgent = [{ agent: "cursor", label: "Cursor", sessions: 2, costUsd: null, measured: true }];
+    expect(buildModel(state({ summary: s }), NOW).agents[0]?.cost).toBe("unpriced");
+  });
+
   it("hides every cost figure when the person turns cost off", () => {
     const model = buildModel(state({}, { hideCost: true }), NOW);
     expect(model.showCost).toBe(false);

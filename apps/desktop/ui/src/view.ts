@@ -140,7 +140,7 @@ function agentsView(model: Model): HTMLElement | null {
       "ul",
       {},
       ...model.agents.map((a) =>
-        h("li", {}, h("span", { class: "agent-name" }, a.label), h("span", { class: "agent-sessions" }, a.sessions), h("span", { class: a.measured ? "agent-cost" : "agent-cost unmeasured" }, a.cost)),
+        h("li", {}, h("span", { class: "agent-name" }, a.label), h("span", { class: "agent-sessions" }, a.sessions), h("span", { class: a.cost.startsWith("$") ? "agent-cost" : "agent-cost unmeasured" }, a.cost)),
       ),
     ),
   );
