@@ -52,14 +52,30 @@ export interface Snapshot {
   cliLocation: string | null;
 }
 
+export type Cadence = "off" | "daily" | "weekly" | "monthly";
+
+export interface Nudge {
+  cadence: Cadence;
+  hour: number;
+  minute: number;
+  /** 1 = Monday … 7 = Sunday. */
+  weekday: number;
+}
+
 export interface Settings {
   hideCost: boolean;
   refreshMinutes: number;
   cliPath: string | null;
+  nudge: Nudge;
+  /** The first-run question was answered. */
+  onboarded: boolean;
 }
 
 export interface ViewState {
   snapshot: Snapshot;
   settings: Settings;
   platform: "macos" | "windows" | "linux";
+  launchAtLogin: boolean;
+  /** Local time of the next nudge (RFC 3339), or null when nudges are off. */
+  nextNudgeAt: string | null;
 }

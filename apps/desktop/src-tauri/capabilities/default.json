@@ -10,6 +10,8 @@
     "allow-refresh",
     "allow-open-report",
     "allow-save-settings",
+    "allow-set-launch-at-login",
+    "allow-send-test-nudge",
     "allow-hide-popover",
     "allow-quit"
   ]

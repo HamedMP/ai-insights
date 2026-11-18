@@ -6,6 +6,8 @@ fn main() {
         "refresh",
         "open_report",
         "save_settings",
+        "set_launch_at_login",
+        "send_test_nudge",
         "hide_popover",
         "quit",
     ])))

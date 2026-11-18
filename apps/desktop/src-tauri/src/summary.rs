@@ -172,7 +172,6 @@ fn amount(value: Option<&Value>) -> Option<f64> {
 }
 
 impl Summary {
-    #[cfg_attr(not(test), allow(dead_code))]
     pub fn period(&self, key: &str) -> Option<&Period> {
         self.periods.iter().flatten().find(|p| p.key == key)
     }

@@ -104,6 +104,7 @@ button:disabled { cursor: default; }
 .stats tr.big td { font: 800 22px/1.1 var(--display); color: var(--ink); letter-spacing: -0.02em; }
 .stats tr.cost td { color: var(--brand-ink); }
 .stats td.na { color: var(--line-strong); }
+.stats td.unmeasured { font: 500 10.5px/1.2 var(--mono); color: var(--muted); white-space: normal; }
 .stats tbody tr + tr th, .stats tbody tr + tr td { border-top: 1px solid var(--line); }
 .fine { font-size: 11px; line-height: 1.4; color: var(--muted); margin-top: 7px; }
 
@@ -159,3 +160,17 @@ input[role="switch"]:checked::after { transform: translateX(14px); }
 .secondary:hover { background: var(--card); }
 .danger { color: #b42318; }
 @media (prefers-color-scheme: dark) { .danger { color: #f97066; } }
+
+/* ===== first-run question ===== */
+.ask { border: 1px dashed var(--line-strong); border-radius: 12px; padding: 11px 12px 12px; }
+.ask-text { font-size: 12.5px; color: var(--ink-soft); margin-bottom: 10px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { border: 1px solid var(--line-strong); background: var(--card); border-radius: 99px; padding: 6px 12px; font: 600 12px/1 var(--text); }
+.chip:hover { border-color: var(--brand); color: var(--brand-ink); }
+.chip.quiet { border-color: transparent; background: transparent; color: var(--muted); }
+.chip.quiet:hover { color: var(--ink); }
+
+/* ===== nudge controls ===== */
+.row-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.select { font: 500 12px/1.2 var(--text); color: var(--ink); background: var(--bg); border: 1px solid var(--line-strong); border-radius: 8px; padding: 5px 8px; height: 30px; }
+.link { border: 0; background: none; padding: 0; color: var(--brand-ink); font-weight: 600; font-size: 12px; text-decoration: underline; text-underline-offset: 2px; }

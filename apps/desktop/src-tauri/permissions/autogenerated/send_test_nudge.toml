@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-send-test-nudge"
+description = "Enables the send_test_nudge command without any pre-configured scope."
+commands.allow = ["send_test_nudge"]
+
+[[permission]]
+identifier = "deny-send-test-nudge"
+description = "Denies the send_test_nudge command without any pre-configured scope."
+commands.deny = ["send_test_nudge"]

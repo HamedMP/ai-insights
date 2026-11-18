@@ -1,7 +1,8 @@
 // Turns the model into elements. Text only ever goes in through textContent, never innerHTML, so nothing
 // the CLI prints can become markup.
 
-import type { Model, Notice } from "./model.js";
+import { NOT_MEASURED, type Model, type Notice } from "./model.js";
+import type { Cadence } from "./types.js";
 
 type Child = Node | string | null | false | undefined;
 
@@ -64,6 +65,23 @@ export interface MainHandlers {
   onRefresh(): void;
   onSettings(): void;
   onOpenReport(): void;
+  onChooseNudge(cadence: Cadence): void;
+}
+
+/** Asked once on first run. Every answer, including "Not now", is final until changed in Settings. */
+function askView(onChoose: (cadence: Cadence) => void): HTMLElement {
+  const choice = (cadence: Cadence, label: string, cls = "chip") => {
+    const button = h("button", { type: "button", class: cls }, label);
+    button.addEventListener("click", () => onChoose(cadence));
+    return button;
+  };
+  return h(
+    "section",
+    { class: "ask", "aria-label": "Nudges" },
+    h("p", { class: "eyebrow" }, "Want a regular look back?"),
+    h("p", { class: "ask-text" }, "Get a short notification with your counts. Sessions and hours only, never project names or prompts."),
+    h("div", { class: "chips" }, choice("daily", "Daily"), choice("weekly", "Weekly"), choice("monthly", "Monthly"), choice("off", "Not now", "chip quiet")),
+  );
 }
 
 export function header(model: Model, handlers: Pick<MainHandlers, "onRefresh" | "onSettings">): HTMLElement {
@@ -98,7 +116,7 @@ function tipView(model: Model): HTMLElement | null {
 function statsView(model: Model): HTMLElement {
   const head = h("tr", {}, h("th", { scope: "col" }, h("span", { class: "sr" }, "Measure")), ...model.columns.map((c) => h("th", { scope: "col" }, c.label)));
   const row = (label: string, values: string[], cls = "") =>
-    h("tr", { class: cls }, h("th", { scope: "row" }, label), ...values.map((v) => h("td", { class: v === "–" ? "na" : "" }, v)));
+    h("tr", { class: cls }, h("th", { scope: "row" }, label), ...values.map((v) => h("td", { class: v === "–" ? "na" : v === NOT_MEASURED ? "unmeasured" : "" }, v)));
   const rows = [
     row("Sessions", model.columns.map((c) => c.sessions), "big"),
     row("Active", model.columns.map((c) => c.active)),
@@ -158,6 +176,7 @@ export function mainView(model: Model, handlers: MainHandlers): HTMLElement {
     h(
       "main",
       { class: "body" },
+      model.askAboutNudges ? askView(handlers.onChooseNudge) : null,
       model.notice ? noticeView(model.notice) : null,
       model.loading ? loadingView() : null,
       hasData ? tipView(model) : null,
