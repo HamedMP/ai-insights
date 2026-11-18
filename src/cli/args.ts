@@ -28,6 +28,7 @@ Usage
   ai-insights schedule weekly    refresh the report on a schedule, with a notification
                                  (daily, weekly, monthly, off, status; see schedule --help)
   ai-insights nudge              print a line when a review is due (--off, --on, --cadence)
+  ai-insights statusline         one line for Claude Code's status bar (--print-config shows how to add it)
 
 Options
   --since <window>     only history from ${SINCE_HELP}

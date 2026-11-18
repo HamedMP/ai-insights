@@ -117,6 +117,11 @@ export async function run(argv: string[], overrides: Partial<CliDeps> = {}): Pro
       return 1;
     }
   }
+  if (argv[0] === "statusline") {
+    // Claude Code runs this on every status bar update: it loads nothing but its own small module.
+    const { runStatusline } = await import("../statusline/statusline.js");
+    return runStatusline(argv.slice(1), { stdin: process.stdin, stdout: deps.stdout, env: deps.env, now: deps.now });
+  }
   if (argv[0] === "schedule") {
     // The job itself (`schedule run`) leaves the store where it is; only a person's command moves it.
     if (argv[1] !== "run") await settleStore(deps);

@@ -58,6 +58,8 @@ You need Node.js 20 or newer.
 
 **A quick look:** `npx ai-insights@latest today` (or `week`, `month`, `summary`) prints one coaching tip, then sessions, active time, prompts, tokens and the cost estimate at API list prices. It writes no report, so it is cheap to run often. `--by project|model|agent` breaks it down, `--last 4` gives one row per period, `--no-cost` leaves the cost out, and `--json` prints numbers for other tools ([docs/summary-json.md](docs/summary-json.md)).
 
+**In Claude Code's status bar** (opt-in): `ai-insights statusline` prints one line with the model, the session's and today's cost, context use and one hint for the session. It reads only the saved digest and the session's new transcript bytes, and a warm call takes about 35 ms. `ai-insights statusline --print-config` prints the `settings.json` entry to add; it needs `npm install -g ai-insights`, because `npx` would contact the registry on every refresh.
+
 **From your agent:** each install adds the same MCP server (`npx -y ai-insights mcp`) and three skills:
 - `analyze-ai-usage` builds the report, with your own agent labelling a sample of sessions and writing a short narrative;
 - `ai-insights-coach` turns the findings into edits you review;
