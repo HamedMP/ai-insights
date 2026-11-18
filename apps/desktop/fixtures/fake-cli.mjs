@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // A stand-in for the ai-insights CLI with synthetic numbers, for developing and screenshotting the app
 // without anyone's real history:  AI_INSIGHTS_CLI=$PWD/fixtures/fake-cli.mjs pnpm dev
-// FAKE_CLI_MODE: ok (default) | slow | fail | garbage | empty | hang
+// FAKE_CLI_MODE: ok (default) | slow | fail | old | garbage | empty | hang
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -15,9 +15,14 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 if (mode === "hang") await wait(10 * 60_000);
 if (mode === "slow") await wait(4000);
+if (mode === "old") {
+  // What a CLI from before `summary` existed does: a usage error, exit code 2.
+  process.stderr.write(`ai-insights: unknown command "${command}"\n`);
+  process.exit(2);
+}
 if (mode === "fail") {
   process.stderr.write("fake failure\n");
-  process.exit(2);
+  process.exit(1);
 }
 
 if (command === "summary" && rest.includes("--json")) {

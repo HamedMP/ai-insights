@@ -102,6 +102,12 @@ const PROBLEMS: Record<Problem, Notice> = {
     body: "This app reads your history through the ai-insights command. Install it once, then press Refresh. Installed somewhere unusual? Set its path in Settings.",
     command: "npm i -g ai-insights",
   },
+  cliTooOld: {
+    tone: "info",
+    title: "Update the AI Insights CLI",
+    body: "Your installed ai-insights is older than this app needs. Update it, then press Check again.",
+    command: "npm i -g ai-insights@latest",
+  },
   timeout: {
     tone: "warn",
     title: "Reading your history took too long",
@@ -178,7 +184,7 @@ export function buildModel(state: ViewState, nowMs: number): Model {
     agents: agentLines(week, showCost),
     notice,
     loading: summary === null && snapshot.problem === null,
-    canOpenReport: snapshot.problem !== "cliMissing",
+    canOpenReport: snapshot.problem !== "cliMissing" && snapshot.problem !== "cliTooOld",
     openingReport: false,
     footnote: summary?.newerSchema ? "Your CLI is newer than this app. Some numbers may be missing until the app is updated." : null,
   };

@@ -111,6 +111,12 @@ describe("the popover model", () => {
     expect(model.loading).toBe(false);
   });
 
+  it("asks for a CLI update when the installed one predates the summary command", () => {
+    const model = buildModel(state({ summary: null, problem: "cliTooOld" }), NOW);
+    expect(model.notice?.command).toBe("npm i -g ai-insights@latest");
+    expect(model.canOpenReport).toBe(false);
+  });
+
   it("keeps the last numbers on screen when a later refresh fails", () => {
     const model = buildModel(state({ problem: "timeout" }), NOW);
     expect(model.notice?.title).toMatch(/too long/);

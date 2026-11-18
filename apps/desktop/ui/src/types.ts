@@ -42,7 +42,7 @@ export interface Summary {
   reportPath: string | null;
 }
 
-export type Problem = "cliMissing" | "timeout" | "failed" | "badOutput" | "reportFailed";
+export type Problem = "cliMissing" | "cliTooOld" | "timeout" | "failed" | "badOutput" | "reportFailed";
 
 export interface Snapshot {
   summary: Summary | null;

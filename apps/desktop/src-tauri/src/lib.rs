@@ -35,6 +35,8 @@ const REOPEN_GUARD: Duration = Duration::from_millis(300);
 #[serde(rename_all = "camelCase")]
 enum Problem {
     CliMissing,
+    /// The CLI rejected `summary --json` as a usage error: it predates the command.
+    CliTooOld,
     Timeout,
     Failed,
     BadOutput,
@@ -133,7 +135,7 @@ fn refresh_now<R: Runtime>(app: &AppHandle<R>) {
             Ok(out) => summary::parse(&String::from_utf8_lossy(&out)).map_err(|_| Problem::BadOutput),
             Err(cli::RunError::Timeout) => Err(Problem::Timeout),
             Err(cli::RunError::Spawn) => Err(Problem::CliMissing),
-            Err(cli::RunError::Failed(_)) => Err(Problem::Failed),
+            Err(cli::RunError::Failed(code)) => Err(problem_for_exit(code)),
             Err(cli::RunError::TooLarge) => Err(Problem::BadOutput),
         },
     };
@@ -153,6 +155,16 @@ fn refresh_now<R: Runtime>(app: &AppHandle<R>) {
     }
     state.busy.store(false, Ordering::SeqCst);
     emit_state(app);
+}
+
+/// The CLI exits 2 on a usage error (src/cli/main.ts), which for `summary --json` means a version from before
+/// the command existed.
+fn problem_for_exit(code: Option<i32>) -> Problem {
+    if code == Some(2) {
+        Problem::CliTooOld
+    } else {
+        Problem::Failed
+    }
 }
 
 fn refresh_in_background<R: Runtime>(app: &AppHandle<R>) {
@@ -431,6 +443,13 @@ mod tests {
         assert_eq!(existing_report(Some("report.html")), None);
         assert_eq!(existing_report(dir.join("missing.html").to_str()), None);
         assert_eq!(existing_report(None), None);
+    }
+
+    #[test]
+    fn a_usage_error_means_the_cli_is_too_old_and_anything_else_is_a_failure() {
+        assert_eq!(problem_for_exit(Some(2)), Problem::CliTooOld);
+        assert_eq!(problem_for_exit(Some(1)), Problem::Failed);
+        assert_eq!(problem_for_exit(None), Problem::Failed);
     }
 
     #[test]
