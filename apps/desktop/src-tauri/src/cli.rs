@@ -142,6 +142,14 @@ fn launcher(path: PathBuf, path_env: &OsString) -> Cli {
             }
         }
     }
+    // A path to the package's own entry script (a checkout's dist/cli/main.js, say) is run with Node, so it
+    // works without an executable bit or a shebang PATH lookup.
+    if path.extension().is_some_and(|e| ["js", "mjs", "cjs"].iter().any(|x| e.eq_ignore_ascii_case(x))) {
+        let node_name = if cfg!(windows) { "node.exe" } else { "node" };
+        if let Some(node) = std::env::split_paths(path_env).map(|d| d.join(node_name)).find(|p| is_file(p)) {
+            return Cli { program: node, prefix_args: vec![path.into_os_string()], path_env: path_env.clone() };
+        }
+    }
     Cli { program: path, prefix_args: Vec::new(), path_env: path_env.clone() }
 }
 
@@ -307,6 +315,19 @@ mod tests {
     fn asks_a_real_shell_for_its_path() {
         let path = login_shell_path().expect("a PATH from the shell");
         assert!(!path.is_empty());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn an_entry_script_path_is_run_with_node_from_the_path() {
+        let dir = temp_dir("script");
+        let script = dir.join("main.js");
+        fs::write(&script, "").unwrap();
+        fs::write(dir.join("node"), "").unwrap();
+        let search = Search { override_path: Some(&script), path: Some(dir.as_os_str().into()), ..empty_search() };
+        let cli = locate(&search).unwrap();
+        assert_eq!(cli.program, dir.join("node"));
+        assert_eq!(cli.prefix_args, vec![script.into_os_string()]);
     }
 
     #[cfg(unix)]
