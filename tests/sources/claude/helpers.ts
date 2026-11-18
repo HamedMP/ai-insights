@@ -59,6 +59,8 @@ export interface UsageInput {
   cacheWrite?: number;
   cache5m?: number;
   cache1h?: number;
+  /** Claude Code's `usage.speed`: `standard` or `fast`. */
+  speed?: string;
 }
 
 export function assistant(
@@ -79,6 +81,7 @@ export function assistant(
           ...(u.cache5m !== undefined || u.cache1h !== undefined
             ? { cache_creation: { ephemeral_5m_input_tokens: u.cache5m ?? 0, ephemeral_1h_input_tokens: u.cache1h ?? 0 } }
             : {}),
+          ...(u.speed !== undefined ? { speed: u.speed } : {}),
         };
   return {
     ...envelope(timestamp),

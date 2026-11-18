@@ -77,6 +77,35 @@ describe("Anthropic list prices", () => {
   });
 });
 
+describe("Anthropic fast mode", () => {
+  // https://platform.claude.com/docs/en/about-claude/pricing#fast-mode-pricing: fast-mode input and output rates,
+  // with the prompt-caching multipliers applied on top of the fast-mode input price.
+  const fast = { serviceTier: "fast" };
+
+  it("prices an Opus 5.5 fast-mode request at $8 / $40, twice its standard price", () => {
+    const u = usage({ input: M, output: M });
+    expect(estimateUsd("claude-opus-5-5", u, fast)).toBeCloseTo(8 + 40, 9);
+    expect(estimateUsd("claude-opus-5-5", u)).toBeCloseTo(4 + 20, 9);
+  });
+
+  it("applies each model's cache multipliers to the fast-mode input price", () => {
+    const cache = usage({ cachedInput: M, cacheWrite: 2 * M, cacheWrite5m: M, cacheWrite1h: M });
+    // Opus 5.5: hit 0.05x, 5m write 1.25x, 1h write 2x of $8.
+    expect(estimateUsd("claude-opus-5-5", cache, fast)).toBeCloseTo(0.4 + 10 + 16, 9);
+    // Fable 5.2 and Mythos 5.2: $16 input, hit 0.025x.
+    expect(estimateUsd("claude-fable-5-2", cache, fast)).toBeCloseTo(0.4 + 20 + 32, 9);
+    expect(estimateUsd("claude-mythos-5-2", usage({ input: M, output: M }), fast)).toBeCloseTo(16 + 80, 9);
+    // Opus 5 and Opus 4.8: $10 / $50, hit 0.1x.
+    expect(estimateUsd("claude-opus-5", cache, fast)).toBeCloseTo(1 + 12.5 + 20, 9);
+    expect(estimateUsd("claude-opus-4-8", usage({ input: M, output: M }), fast)).toBeCloseTo(10 + 50, 9);
+  });
+
+  it("leaves a fast-mode request unpriced on a model whose fast-mode price is not published", () => {
+    expect(estimateUsd("claude-opus-4-6", usage({ input: M }), fast)).toBeNull();
+    expect(estimateUsd("claude-sonnet-5-5", usage({ input: M }), fast)).toBeNull();
+  });
+});
+
 describe("model id matching", () => {
   it("maps dated, provider-prefixed and variant ids onto their table row", () => {
     expect(canonicalModel("claude-opus-4-1-20250805")).toBe("claude-opus-4-1");

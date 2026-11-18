@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { uniqueRequests } from "../../../src/analysis/usage.js";
 import { claudeSource } from "../../../src/sources/claude/index.js";
 import {
   CWD,
@@ -149,6 +150,38 @@ describe("claude source: token usage", () => {
     ]);
     expect(session.models).toEqual(["claude-opus-4-5"]);
     expect(session.requests.map((r) => r.id)).toEqual(["claude:msg_1"]);
+  });
+
+  it("keeps the fast-mode speed Claude Code records, so the request is priced at fast-mode rates", async () => {
+    const session = await parse([
+      prompt(T(0), "go"),
+      assistant(T(1), "msg_F", [text("x")], { usage: { input: 3, output: 40, speed: "fast" } }),
+      assistant(T(2), "msg_S", [text("y")], { usage: { input: 3, output: 40, speed: "standard" } }),
+      assistant(T(3), "msg_N", [text("z")], { usage: { input: 3, output: 40 } }),
+    ]);
+    expect(session.requests.map((r) => [r.id, r.serviceTier])).toEqual([
+      ["claude:msg_F", "fast"],
+      ["claude:msg_S", undefined],
+      ["claude:msg_N", undefined],
+    ]);
+  });
+
+  it("bills a fast-mode Opus 5.5 response at twice the standard estimate", async () => {
+    const line = (id: string, speed: string) => assistant(T(1), id, [text("x")], { model: "claude-opus-5-5", usage: { input: 1_000, output: 1_000, speed } });
+    const session = await parse([prompt(T(0), "go"), line("msg_F", "fast"), line("msg_S", "standard")]);
+    const [fast, standard] = uniqueRequests([session]).map((r) => r.usd);
+    expect(standard).toBeCloseTo(0.024, 9);
+    expect(fast).toBeCloseTo(0.048, 9);
+  });
+
+  it("keeps fast mode when only a later streamed copy of the response reports it", async () => {
+    const session = await parse([
+      prompt(T(0), "go"),
+      assistant(T(1), "msg_F", [thinking("...")], { usage: { input: 3, output: 1 }, stop: null }),
+      assistant(T(1, 5), "msg_F", [text("x")], { usage: { input: 3, output: 40, speed: "fast" } }),
+    ]);
+    expect(session.requests).toHaveLength(1);
+    expect(session.requests[0]!.serviceTier).toBe("fast");
   });
 
   it("falls back to the request id when a response has no message id", async () => {
