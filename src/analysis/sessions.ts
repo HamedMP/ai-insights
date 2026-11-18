@@ -1,4 +1,5 @@
 import type { Session } from "../schema/types.js";
+import { parseMs } from "./time.js";
 
 /** Worktrees and subfolders of one repository are one project to the person, so everything groups by the root. */
 export function projectKey(session: Session): string | null {
@@ -23,4 +24,27 @@ const POINTS_AT_BRIEF = /\b(?:read|follow|open|see)\b[^\n]{0,100}?(?:\.md\b|\b(?
 export function isBriefDriven(session: Session): boolean {
   const first = session.prompts[0]?.text ?? "";
   return first.split(/\s+/).filter(Boolean).length >= BRIEF_WORDS || POINTS_AT_BRIEF.test(first);
+}
+
+type SessionKey = Pick<Session, "harness" | "id"> & { startTime: string | null };
+
+function byStart(a: SessionKey, b: SessionKey): number {
+  return (
+    (parseMs(a.startTime) ?? Number.POSITIVE_INFINITY) - (parseMs(b.startTime) ?? Number.POSITIVE_INFINITY) ||
+    a.harness.localeCompare(b.harness) ||
+    a.id.localeCompare(b.id)
+  );
+}
+
+/** One copy per session, oldest first: the scan may hand over the same transcript twice (a backup root, a moved file). */
+export function uniqueSessions<S extends SessionKey>(sessions: S[]): S[] {
+  const seen = new Set<string>();
+  const out: S[] = [];
+  for (const session of [...sessions].sort(byStart)) {
+    const key = `${session.harness}\u0000${session.id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(session);
+  }
+  return out;
 }

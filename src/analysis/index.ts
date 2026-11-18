@@ -7,35 +7,16 @@ import { detectFindings } from "./findings/index.js";
 import { buildRecap } from "./recap/index.js";
 import { historyDaysFrom, withHistoryDays } from "./history.js";
 import { makeClock, parseMs, resolveTimeZone, type Clock } from "./time.js";
+import { uniqueSessions } from "./sessions.js";
 import { summarizeUsage, uniqueRequests } from "./usage.js";
 
 export { DETECTORS, detectFindings } from "./findings/index.js";
 export { estimateUsd, PRICING_VERSION } from "./usage.js";
 export { historyDays } from "./history.js";
+export { uniqueSessions } from "./sessions.js";
 export { buildFrictionCauses, MIN_CAUSE_SESSIONS, MIN_JUDGED_SESSIONS } from "./causes.js";
 export { buildWorkRatios } from "./ratios.js";
 export { buildRecap, MAX_RECAP_DAYS, MAX_REPLY_SEC } from "./recap/index.js";
-
-function byStart(a: Session, b: Session): number {
-  return (
-    (parseMs(a.startTime) ?? Number.POSITIVE_INFINITY) - (parseMs(b.startTime) ?? Number.POSITIVE_INFINITY) ||
-    a.harness.localeCompare(b.harness) ||
-    a.id.localeCompare(b.id)
-  );
-}
-
-/** One copy per session: the scan may hand over the same transcript twice (a backup root, a moved file). */
-function uniqueSessions(sessions: Session[]): Session[] {
-  const seen = new Set<string>();
-  const out: Session[] = [];
-  for (const session of [...sessions].sort(byStart)) {
-    const key = `${session.harness}\u0000${session.id}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(session);
-  }
-  return out;
-}
 
 function range(sessions: Session[]): Report["range"] {
   let from: number | null = null;
