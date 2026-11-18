@@ -16,7 +16,7 @@ function Params({ rows, name }: { rows: Param[]; name: string }) {
   )
 }
 
-const HARNESS = "claude-code, codex, cursor, pi, opencode or gemini"
+const HARNESS = "claude-code, codex, cursor, pi, opencode, gemini, claude-chat or chatgpt"
 
 export default function Mcp() {
   return (

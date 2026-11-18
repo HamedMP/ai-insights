@@ -117,6 +117,7 @@ const FALLBACK_LABELS: Record<Harness, string> = {
   opencode: "OpenCode",
   gemini: "Gemini CLI",
   "claude-chat": "Claude chat",
+  chatgpt: "ChatGPT",
 };
 
 export function harnessLabel(harness: Harness, sources: Source[] = []): string {

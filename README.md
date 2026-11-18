@@ -1,6 +1,6 @@
 # AI Insights
 
-**Your AI coding, recapped.** One command turns your local agent history (Claude Code, Codex, OpenCode, Pi, Cursor, Gemini CLI), and Claude chat history you import, into animated recap cards you can post, and a private analysis of what to change. Nothing leaves your machine.
+**Your AI coding, recapped.** One command turns your local agent history (Claude Code, Codex, OpenCode, Pi, Cursor, Gemini CLI), and Claude and ChatGPT chat history you import, into animated recap cards you can post, and a private analysis of what to change. Nothing leaves your machine.
 
 [![Recap cards from the sample report, in the Pop, Instrument panel and Sticker sheet styles](https://raw.githubusercontent.com/hamedmp/ai-insights/main/assets/report.png)](https://ai-insights.app/demo/report.html)
 
@@ -48,6 +48,7 @@ Early (0.2). History is read from six agents:
 | Cursor | read | no: its local transcripts hold no token counts | untested |
 | Gemini CLI | untested: built from its source format, not yet tried on real history | yes | none yet, use `npx` |
 | Claude chat | imported from a data export (`ai-insights import claude <path>`) | no: the export records no model or token counts | not needed |
+| ChatGPT | imported from a data export (`npx ai-insights@latest import openai <path>`) | no: the export names the model but records no token counts | not needed |
 
 ## Install
 
@@ -105,6 +106,7 @@ Then start a new session and run `/analyze-ai-usage` (or ask your agent to **ana
 | Gemini CLI | `~/.gemini/tmp/*/chats` (or under `GEMINI_CLI_HOME`) |
 
 | Claude chat | Nothing by itself. `ai-insights import claude <path>` reads a Claude data export (the `.zip`, its unzipped folder or `conversations.json`) and keeps the result under `~/.ai-insights/imports/`; `ai-insights import --list` and `--remove claude` manage it |
+| ChatGPT | Nothing by itself. `npx ai-insights@latest import openai <path>` reads a ChatGPT data export (request it in ChatGPT under Settings, Data controls, Export data; then pass the downloaded `.zip`, its unzipped folder, or a `conversations.json` / `conversations-000.json` file) and keeps the result under `~/.ai-insights/imports/`; `--remove openai` removes it |
 
 From each transcript, AI Insights keeps:
 - numbers: tokens, durations, tool calls, errors and lines changed;

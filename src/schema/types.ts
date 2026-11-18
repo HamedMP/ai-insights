@@ -4,16 +4,17 @@
  * modules depend on it.
  */
 
-export const HARNESSES = ["claude-code", "codex", "cursor", "pi", "opencode", "gemini", "claude-chat"] as const;
+export const HARNESSES = ["claude-code", "codex", "cursor", "pi", "opencode", "gemini", "claude-chat", "chatgpt"] as const;
 export type Harness = (typeof HARNESSES)[number];
 
 /**
  * Chat products read from a data export the person imported (`ai-insights import`), not coding agents read from
  * their own folders. Their exports record no model, no token counts and no cost, so their usage is "not measured":
  * never zero, never estimated. They also have no shell, files, permissions or compactions, so the coding findings,
- * work ratios and friction causes leave them out.
+ * work ratios and friction causes leave them out. A ChatGPT export names the model per message, so `chatgpt`
+ * sessions list the model family in `models`; they still have no requests, tokens or cost.
  */
-export const CHAT_HARNESSES = ["claude-chat"] as const satisfies readonly Harness[];
+export const CHAT_HARNESSES = ["claude-chat", "chatgpt"] as const satisfies readonly Harness[];
 
 export function isChatHarness(harness: Harness): boolean {
   return (CHAT_HARNESSES as readonly string[]).includes(harness);

@@ -8,8 +8,8 @@ export default function ImportChatHistory() {
   return (
     <DocShell slug="import">
       <p>
-        Coding agents keep their history in folders AI Insights reads on its own. A chat product such as Claude (claude.ai and the Claude apps)
-        keeps your conversations on its servers, so you request a data export, download it, and point AI Insights at the file. It never looks in
+        Coding agents keep their history in folders AI Insights reads on its own. A chat product such as Claude (claude.ai and the Claude apps) or
+        ChatGPT keeps your conversations on its servers, so you request a data export, download it, and point AI Insights at the file. It never looks in
         your downloads folder by itself.
       </p>
 
@@ -35,13 +35,30 @@ export default function ImportChatHistory() {
         folder holding the parts, or the manifest: it reads every conversations part and never opens the others.
       </p>
 
-      <H2 id="other-products">Other chat products</H2>
+      <H2 id="export-chatgpt">Get your ChatGPT export</H2>
+      <ol>
+        <li>In ChatGPT, open Settings, then Data controls.</li>
+        <li>Under Export data, choose Export and confirm.</li>
+        <li>
+          Open the email when it arrives (it can take up to 7 days) and choose Download data export. Download it soon: the link expires, often
+          after 24 hours, and then you request a new one.
+        </li>
+        <li>
+          Run <code>npx ai-insights@latest import openai &lt;path&gt;</code> on the zip, or on the folder you unzipped it into.
+        </li>
+      </ol>
       <p>
-        <strong>ChatGPT: coming next.</strong> The importer will read its export once it has been checked against a real one. To get it ready: in
-        ChatGPT, open Settings, then Data controls, then Export data, and confirm. The email can take up to 7 days and its link expires after
-        24 hours. Business and Enterprise workspaces cannot export this way. See OpenAI&apos;s{" "}
-        <a href="https://help.openai.com/en/articles/7260999-how-do-i-export-my-chatgpt-history-and-data">How do I export my ChatGPT history and data?</a>
+        Business and Enterprise workspaces cannot export this way; on Edu it depends on your role and the workspace settings. See OpenAI&apos;s{" "}
+        <a href="https://help.openai.com/en/articles/7260999-exporting-your-chatgpt-history-and-data">Exporting your ChatGPT history and data</a>.
       </p>
+      <p>
+        Newer exports split the conversations into <code>conversations-000.json</code>, <code>conversations-001.json</code> and so on beside an{" "}
+        <code>export_manifest.json</code>; older ones hold a single <code>conversations.json</code>. The export also holds your account details,
+        settings, conversation summaries and every file you uploaded: AI Insights reads only the conversations files and never
+        opens the rest.
+      </p>
+
+      <H2 id="other-products">Other chat products</H2>
       <ul>
         <li>
           <strong>Gemini:</strong> not supported yet. Its history comes from <a href="https://takeout.google.com/">Google Takeout</a>, under My
@@ -54,19 +71,21 @@ export default function ImportChatHistory() {
       </ul>
 
       <H2 id="import">Import it</H2>
-      <Code label="Terminal">{`npx ai-insights@latest import claude ~/Downloads/<your-export>.zip`}</Code>
+      <Code label="Terminal">{`npx ai-insights@latest import claude ~/Downloads/<your-export>.zip
+npx ai-insights@latest import openai ~/Downloads/<your-chatgpt-export>.zip`}</Code>
       <p>The path can be any of:</p>
       <ul>
         <li>the export <code>.zip</code> as you downloaded it (it is read in place and never unpacked to disk);</li>
-        <li>the folder you unzipped it into, or a folder holding several <code>conversations-*.zip</code> parts;</li>
+        <li>the folder you unzipped it into, or a folder holding several Claude <code>conversations-*.zip</code> parts;</li>
         <li>
-          the <code>conversations.json</code> file itself.
+          the <code>conversations.json</code> file itself (for ChatGPT, also one <code>conversations-000.json</code> part).
         </li>
       </ul>
       <p>
         The file is read a piece at a time, so a large history does not need much memory: an export of about 1,300 conversations (a 76 MB{" "}
         <code>conversations.json</code>) imports in about a second. From then on every run includes your chats as their own agent,{" "}
-        <strong>Claude chat</strong> (<code>claude-chat</code> in <code>--harness</code>), separate from Claude Code.
+        <strong>Claude chat</strong> (<code>claude-chat</code> in <code>--harness</code>), separate from Claude Code, or{" "}
+        <strong>ChatGPT</strong> (<code>chatgpt</code>), separate from Codex.
       </p>
       <Code label="Output, from a synthetic export" copy={false}>{`Imported your Claude chat history
   Claude chat  300 conversations, 2026-03-01 to 2026-09-16
@@ -79,7 +98,8 @@ Run \`ai-insights\` to see it in your report.`}</Code>
 
       <H2 id="what-is-read">What is read and kept</H2>
       <p>
-        Each conversation becomes one session, the same shape as a coding agent&apos;s, stored under <code>~/.ai-insights/imports/claude-chat/</code>.
+        Each conversation becomes one session, the same shape as a coding agent&apos;s, stored under <code>~/.ai-insights/imports/claude-chat/</code> or{" "}
+        <code>~/.ai-insights/imports/chatgpt/</code>.
         The export itself is not copied.
       </p>
       <Table
@@ -88,25 +108,30 @@ Run \`ai-insights\` to see it in your report.`}</Code>
         rows={[
           ["Your own messages", "As prompts, with secrets and email addresses redacted and each cut to 2,000 characters. Only what you typed: text the product added to a message and attachment text are not prompts. A message with only an attachment counts as a turn with no words."],
           ["When each message was sent", "Times, for activity, streaks, your hour of day and how fast you replied."],
-          ["Claude's replies", "Counted only. The text is never read into memory."],
-          ["Thinking", "How many times Claude thought and for how long. The thinking text is not read."],
+          ["Claude's or ChatGPT's replies", "Counted only. The text is never kept."],
+          ["Thinking", "How many times the model thought, and for Claude how long. The thinking text and ChatGPT's reasoning summaries are not read."],
+          ["The model (ChatGPT only)", "The public model family, such as gpt-5.6, from each reply. Internal variant names are dropped. Nothing about tokens or cost."],
           ["Tools Claude used", "Claude's own tools by name (web search, artifacts, code execution, file creation and similar) and whether a call failed. Connectors and MCP servers are counted as one label, never by their name. Tool inputs and results are not read."],
+          ["Tools ChatGPT used", "ChatGPT's own tools by kind (web search, code runs, image generation, canvas, file search, memory and similar) and whether a call failed. Custom GPT actions, plugins and connectors are counted as one label, never by their name. Newer exports record web searches only, as the results on a reply."],
           ["Attachments and files", "Counted only. File names and extracted text are not read."],
-          ["Regenerated answers and edited prompts", "The export keeps every version as a tree. Prompts, replies and tools are counted on the branch you ended on (the newest); the replaced versions are counted as branches."],
-          ["Voice notes", "Counted only."],
+          ["Regenerated answers and edited prompts", "The export keeps every version as a tree. Prompts, replies and tools are counted on the branch you ended on (Claude: the newest; ChatGPT: the one the export marks as current); the replaced versions are counted as branches."],
+          ["Voice notes", "Counted only. A ChatGPT voice message's transcript is your prompt; ChatGPT's spoken replies are not read."],
           ["Chat titles and summaries", "Not read."],
+          ["ChatGPT custom instructions, memories and system messages", "Not read: they are hidden context, not something you typed in that chat."],
+          ["Custom GPT and project ids", "Not read."],
           ["Projects, memories, design chats, account details and login history", "Never opened."],
+          ["ChatGPT's account, settings, summary, library and uploaded files", "Never opened."],
         ]}
       />
       <p>
-        The agent review (the <code>analyze-ai-usage</code> skill) sees only what an import keeps: your prompts and Claude&apos;s tool names, never
-        its answers.
+        The agent review (the <code>analyze-ai-usage</code> skill) sees only what an import keeps: your prompts and the product&apos;s tool names,
+        never its answers.
       </p>
 
       <H2 id="not-measured">What chat exports cannot show</H2>
       <ul>
         <li>
-          <strong>No model, no tokens, no cost.</strong> The export records none of them, so they are shown as not measured, never as zero and
+          <strong>No tokens, no cost.</strong> The exports record neither (and Claude&apos;s records no model), so they are shown as not measured, never as zero and
           never estimated. Chats stay out of token and spend totals, out of the per-agent split in a share link and out of the leaderboard arenas
           built on it.
         </li>
@@ -129,7 +154,8 @@ Run \`ai-insights\` to see it in your report.`}</Code>
         imported:
       </p>
       <Code label="Terminal">{`npx ai-insights@latest import --list
-npx ai-insights@latest import --remove claude`}</Code>
+npx ai-insights@latest import --remove claude
+npx ai-insights@latest import --remove openai`}</Code>
       <p>
         Removing deletes the imported sessions, their cached copies and any labels your agent saved for them. It never touches the export file you
         downloaded.

@@ -65,10 +65,11 @@ export const DOCS: DocPage[] = [
   {
     slug: "import",
     title: "Import chat history",
-    description: "Add your Claude chat history from its data export: how to get the export, the import command, what is read and kept, and what a chat export cannot show.",
+    description: "Add your Claude or ChatGPT chat history from its data export: how to get the export, the import command, what is read and kept, and what a chat export cannot show.",
     group: "Start",
     sections: [
       { id: "export-claude", title: "Get your Claude export" },
+      { id: "export-chatgpt", title: "Get your ChatGPT export" },
       { id: "other-products", title: "Other chat products" },
       { id: "import", title: "Import it" },
       { id: "what-is-read", title: "What is read and kept" },

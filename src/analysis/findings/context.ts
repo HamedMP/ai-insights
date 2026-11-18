@@ -74,6 +74,7 @@ export const HARNESS_LABELS: Record<Harness, string> = {
   opencode: "OpenCode",
   gemini: "Gemini CLI",
   "claude-chat": "Claude chat",
+  chatgpt: "ChatGPT",
 };
 
 export const SEVERITY_RANK: Record<Severity, number> = { high: 3, medium: 2, low: 1, info: 0 };

@@ -159,11 +159,12 @@ export default function Privacy() {
 
       <H2 id="chat-exports">Imported chat exports</H2>
       <p>
-        A chat export you import with <code>ai-insights import claude</code> is read on your machine, and what is kept from it goes to{" "}
+        A chat export you import with <code>ai-insights import claude</code> or <code>ai-insights import openai</code> is read on your machine, and what is kept from it goes to{" "}
         <code>~/.ai-insights/imports/</code> like the rest of the cache. AI Insights keeps the same things it keeps from a coding agent: counts,
-        times, Claude&apos;s own tool names and your own prompts, redacted. It never reads Claude&apos;s answers, its thinking text, tool inputs or
-        results, attachments, file names, chat titles or summaries, and it never opens the export&apos;s account, project or memory files. The zip
-        is read in memory and nothing in it is unpacked to disk. <code>ai-insights import --remove claude</code> deletes all of it. Details are in{" "}
+        times, the product&apos;s own tool names and your own prompts, redacted (plus, for ChatGPT, the model family). It never reads the assistant&apos;s
+        answers, its thinking text, tool inputs or results, attachments, file names, chat titles or summaries, custom instructions or memories, and
+        it never opens the export&apos;s account, settings, project, memory or uploaded files. The zip
+        is read in memory and nothing in it is unpacked to disk. <code>ai-insights import --remove claude</code> (or <code>openai</code>) deletes all of it. Details are in{" "}
         <DocLink href="/docs/import#what-is-read">What is read and kept</DocLink>.
       </p>
 
