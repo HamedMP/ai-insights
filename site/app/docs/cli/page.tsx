@@ -25,7 +25,8 @@ ai-insights import openai <path>  add a ChatGPT data export
 ai-insights install            add the plugin to your agents
 ai-insights uninstall          remove it again (and a schedule, if you added one)
 ai-insights schedule weekly    refresh the report on a schedule, with a notification
-ai-insights nudge              print a line when a review or digest is due`}</Code>
+ai-insights nudge              print a line when a review or digest is due
+ai-insights statusline         one line for Claude Code's status bar`}</Code>
 
       <H2 id="commands">Commands</H2>
       <H3 id="cmd-run">ai-insights</H3>
@@ -321,6 +322,34 @@ Add this schedule? [Y/n]`}</Code>
 ai-insights nudge --off               never remind me
 ai-insights nudge --on                remind me again
 ai-insights nudge --cadence weekly    daily, weekly or monthly (the default)`}</Code>
+      <H3 id="cmd-statusline">ai-insights statusline</H3>
+      <p>
+        One line for Claude Code&apos;s status bar, opt-in. Claude Code runs it on every update and passes the session&apos;s details on
+        stdin; it prints the model, this session&apos;s cost (Claude Code&apos;s own figure), today&apos;s cost from your last AI Insights run
+        (&quot;by 09:30&quot; when that run was a while ago), how full the context is, and one hint for this session, rotating each minute
+        when there are several: context nearly full, repeated compactions, many interrupts, a very long session, or this week&apos;s tip.
+        <code>--no-cost</code> leaves both costs out.
+      </p>
+      <Code label="Status bar, from a synthetic session" copy={false}>{`Opus · $1.23 session · $8.40 today · ctx 42% · 2 compactions: /clear between tasks`}</Code>
+      <p>
+        It never reads your history. It reads the saved digest and the bytes this session&apos;s transcript gained since its last call,
+        counting compaction and interrupt markers, and keeps those counts in <code>statusline/</code> in your AI Insights folder (at most 200
+        sessions, 14 days). A warm call takes about 35 ms. Anything it cannot read gives a shorter line, never an error, and it always exits 0.
+        The line is shown to you, not added to the model&apos;s context.
+      </p>
+      <p>
+        AI Insights does not change Claude Code&apos;s settings. <code>ai-insights statusline --print-config</code> prints the entry to add to{" "}
+        <code>~/.claude/settings.json</code>:
+      </p>
+      <Code label="~/.claude/settings.json">{`"statusLine": {
+  "type": "command",
+  "command": "ai-insights statusline"
+}`}</Code>
+      <p>
+        It needs a global install (<code>npm install -g ai-insights</code>): with <code>npx</code> the status bar would ask the npm registry
+        for the latest version on every refresh. A Claude Code plugin cannot set a status line, so installing the plugin does not add it; remove
+        it by deleting the <code>statusLine</code> entry.
+      </p>
       <p>
         <code>help</code> is accepted as a command and prints the same text as <code>--help</code>.
       </p>
