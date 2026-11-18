@@ -88,7 +88,11 @@ export function quickText(screen: QuickScreen, style: Style): string {
   const numbers = [`${summary.sessions.toLocaleString("en-US")} session${summary.sessions === 1 ? "" : "s"}`, `${minutesText(summary.activeMinutes)} active`, `${summary.prompts.toLocaleString("en-US")} prompt${summary.prompts === 1 ? "" : "s"}`];
   lines.push(`  ${numbers.join(paint("muted", style.unicode ? " · " : " - "))}`);
   const tokens = summary.tokens === null ? "tokens not measured (chat exports record none)" : `${compact(summary.tokens.total)} tokens`;
-  lines.push(screen.noCost ? `  ${tokens}` : `  ${tokens}${paint("muted", style.unicode ? " · " : " - ")}${costText(summary)}${summary.costUsd !== null ? paint("muted", " at API list prices") : ""}`);
+  const cost = costText(summary);
+  // "$104 at API list prices (1% unpriced)": the note on what could not be priced reads last.
+  const [amount, unpriced] = summary.costUsd !== null ? [cost.replace(/ \(.*\)$/u, ""), / \(.*\)$/u.exec(cost)?.[0] ?? ""] : [cost, ""];
+  const priced = summary.costUsd !== null ? `${amount}${paint("muted", ` at API list prices${unpriced}`)}` : amount;
+  lines.push(screen.noCost ? `  ${tokens}` : `  ${tokens}${paint("muted", style.unicode ? " · " : " - ")}${priced}`);
 
   if (screen.series && screen.series.rows.length > 1) {
     lines.push("");
