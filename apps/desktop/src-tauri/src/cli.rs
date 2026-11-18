@@ -149,19 +149,28 @@ fn is_file(path: &Path) -> bool {
     std::fs::metadata(path).map(|m| m.is_file()).unwrap_or(false)
 }
 
-/// The PATH a login shell sets up, asked for once at start. Best effort: a slow or noisy shell profile
-/// only costs this lookup, never the app.
+/// The PATH a terminal would have, asked for once at start. nvm and fnm usually set themselves up in
+/// `.zshrc`/`.bashrc`, which only interactive shells read, so an interactive login shell is tried first and a
+/// plain login shell second. Startup files may print anything, so the PATH is read between markers.
+/// Best effort: a slow or noisy profile only costs this lookup, never the app.
 pub fn login_shell_path() -> Option<OsString> {
     if cfg!(windows) {
         return None;
     }
     let shell = std::env::var_os("SHELL").filter(|s| !s.is_empty()).unwrap_or_else(|| "/bin/sh".into());
-    let mut cmd = Command::new(shell);
-    cmd.args(["-l", "-c", "printf '%s' \"$PATH\""]);
-    let out = run_bounded(cmd, SHELL_PATH_TIMEOUT).ok()?;
-    let text = String::from_utf8(out).ok()?;
-    let line = text.lines().last()?.trim().to_string();
-    (!line.is_empty()).then(|| line.into())
+    ["-ilc", "-lc"].iter().find_map(|flags| {
+        let mut cmd = Command::new(&shell);
+        cmd.args([flags, "printf '%s%s%s' __AII_PATH__ \"$PATH\" __AII_END__"]);
+        let out = run_bounded(cmd, SHELL_PATH_TIMEOUT).ok()?;
+        between_markers(&String::from_utf8_lossy(&out)).map(OsString::from)
+    })
+}
+
+fn between_markers(text: &str) -> Option<String> {
+    let start = text.rfind("__AII_PATH__")? + "__AII_PATH__".len();
+    let end = start + text[start..].find("__AII_END__")?;
+    let path = text[start..end].trim();
+    (!path.is_empty()).then(|| path.to_string())
 }
 
 impl Cli {
@@ -283,6 +292,21 @@ mod tests {
         let search = Search { home: Some(home.clone()), path: Some("/nonexistent".into()), ..empty_search() };
         let cli = locate(&search).unwrap();
         assert!(cli.program.ends_with("v24.2.0/bin/ai-insights"), "{:?}", cli.program);
+    }
+
+    #[test]
+    fn the_shell_path_is_read_between_markers_whatever_startup_files_print() {
+        let noisy = "Welcome!\n\x1b[1mupdate available\x1b[0m\n__AII_PATH__/opt/a:/opt/b__AII_END__\nbye";
+        assert_eq!(between_markers(noisy), Some("/opt/a:/opt/b".to_string()));
+        assert_eq!(between_markers("no markers"), None);
+        assert_eq!(between_markers("__AII_PATH____AII_END__"), None);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn asks_a_real_shell_for_its_path() {
+        let path = login_shell_path().expect("a PATH from the shell");
+        assert!(!path.is_empty());
     }
 
     #[cfg(unix)]
