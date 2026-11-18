@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildModel, formatCost, formatCount, formatDuration, pickTip, relativeTime } from "../ui/src/model.ts";
+import { buildModel, describeNext, describeNudge, formatCost, formatCount, formatDuration, nudgeFor, pickTip, relativeTime } from "../ui/src/model.ts";
 import type { Period, Summary, ViewState } from "../ui/src/types.ts";
 
 const NOW = Date.UTC(2026, 10, 18, 15, 45);
@@ -36,8 +36,10 @@ function summary(over: Partial<Summary> = {}): Summary {
 function state(over: Partial<ViewState["snapshot"]> = {}, settings: Partial<ViewState["settings"]> = {}): ViewState {
   return {
     snapshot: { summary: summary(), problem: null, fetchedAt: NOW - 3 * 60_000, refreshing: false, cliLocation: "/usr/local/bin/ai-insights", ...over },
-    settings: { hideCost: false, refreshMinutes: 30, cliPath: null, ...settings },
+    settings: { hideCost: false, refreshMinutes: 30, cliPath: null, nudge: { cadence: "off", hour: 16, minute: 0, weekday: 5 }, onboarded: true, ...settings },
     platform: "macos",
+    launchAtLogin: false,
+    nextNudgeAt: null,
   };
 }
 
@@ -139,5 +141,31 @@ describe("the popover model", () => {
 
   it("notes when the CLI speaks a newer contract than the app", () => {
     expect(buildModel(state({ summary: summary({ newerSchema: true }) }), NOW).footnote).toMatch(/newer/);
+  });
+});
+
+describe("nudges", () => {
+  const nudge = { cadence: "off" as const, hour: 16, minute: 0, weekday: 5 };
+
+  it("asks about nudges until the first-run question is answered", () => {
+    expect(buildModel(state({}, { nudge, onboarded: false }), NOW).askAboutNudges).toBe(true);
+    expect(buildModel(state({}, { nudge, onboarded: true }), NOW).askAboutNudges).toBe(false);
+  });
+
+  it("gives each cadence a sensible default time when picked", () => {
+    expect(nudgeFor("daily", nudge)).toMatchObject({ cadence: "daily", hour: 18, minute: 0 });
+    expect(nudgeFor("weekly", { ...nudge, weekday: 2 })).toMatchObject({ cadence: "weekly", hour: 16, weekday: 5 });
+    expect(nudgeFor("monthly", nudge)).toMatchObject({ cadence: "monthly", hour: 16 });
+    expect(nudgeFor("off", { ...nudge, cadence: "weekly" }).cadence).toBe("off");
+  });
+
+  it("describes the schedule and the next nudge in plain words, in the app's local time", () => {
+    expect(describeNudge({ cadence: "weekly", hour: 16, minute: 0, weekday: 5 })).toBe("Every Friday at 16:00, about this week");
+    expect(describeNudge({ cadence: "daily", hour: 9, minute: 5, weekday: 1 })).toBe("Every day at 09:05, about today");
+    expect(describeNudge({ cadence: "monthly", hour: 16, minute: 0, weekday: 1 })).toMatch(/last day/);
+    expect(describeNext("2026-11-20T16:00:00+02:00")).toBe("Next: Friday 20 Nov, 16:00");
+    expect(describeNext("2026-11-30T23:30:00-08:00")).toBe("Next: Monday 30 Nov, 23:30");
+    expect(describeNext(null)).toBeNull();
+    expect(describeNext("garbage")).toBeNull();
   });
 });

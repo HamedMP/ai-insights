@@ -1,9 +1,9 @@
-// Wires the popover to the Rust side. Everything goes through the six commands the capability file
+// Wires the popover to the Rust side. Everything goes through the eight commands the capability file
 // allows (src-tauri/capabilities/default.json) and one "state" event.
 
-import { buildModel, problemNotice } from "./model.js";
+import { buildModel, nudgeFor, problemNotice } from "./model.js";
 import { settingsView } from "./settings-view.js";
-import type { Problem, Settings, ViewState } from "./types.js";
+import type { Cadence, Problem, Settings, ViewState } from "./types.js";
 import { mainView } from "./view.js";
 
 interface TauriGlobal {
@@ -36,6 +36,8 @@ function render(): void {
       settingsView(state, {
         onBack: () => go("main"),
         onSave: (next: Settings) => void tauri.core.invoke<ViewState>("save_settings", { settings: next }).then(update),
+        onLaunchAtLogin: (enabled: boolean) => void tauri.core.invoke<ViewState>("set_launch_at_login", { enabled }).then(update),
+        onTestNudge: () => void tauri.core.invoke("send_test_nudge"),
         onQuit: () => void tauri.core.invoke("quit"),
       }),
     );
@@ -48,6 +50,7 @@ function render(): void {
         onRefresh: () => void tauri.core.invoke<ViewState>("refresh").then(update),
         onSettings: () => go("settings"),
         onOpenReport: openReport,
+        onChooseNudge: chooseNudge,
       }),
     );
   }
@@ -66,6 +69,12 @@ function update(next: ViewState): void {
 function go(next: "main" | "settings"): void {
   screen = next;
   render();
+}
+
+function chooseNudge(cadence: Cadence): void {
+  if (!state) return;
+  const settings: Settings = { ...state.settings, nudge: nudgeFor(cadence, state.settings.nudge), onboarded: true };
+  void tauri.core.invoke<ViewState>("save_settings", { settings }).then(update);
 }
 
 async function openReport(): Promise<void> {

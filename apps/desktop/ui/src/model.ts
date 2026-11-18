@@ -1,7 +1,7 @@
 // What the popover shows, as plain data: every wording and number decision lives here, so it is tested
 // without a window or a DOM. view.ts only turns this into elements.
 
-import type { AgentRow, Period, PeriodKey, Problem, Summary, ViewState } from "./types.js";
+import type { AgentRow, Cadence, Nudge, Period, PeriodKey, Problem, Summary, ViewState } from "./types.js";
 
 export const PERIOD_LABELS: Record<PeriodKey, string> = { today: "Today", week: "This week", month: "This month" };
 const ORDER: PeriodKey[] = ["today", "week", "month"];
@@ -93,6 +93,8 @@ export interface Model {
   /** Set by the page while the report is being written or opened. */
   openingReport: boolean;
   footnote: string | null;
+  /** Ask once, on first run, whether the person wants a nudge. */
+  askAboutNudges: boolean;
 }
 
 const PROBLEMS: Record<Problem, Notice> = {
@@ -186,6 +188,53 @@ export function buildModel(state: ViewState, nowMs: number): Model {
     loading: summary === null && snapshot.problem === null,
     canOpenReport: snapshot.problem !== "cliMissing" && snapshot.problem !== "cliTooOld",
     openingReport: false,
+    askAboutNudges: !settings.onboarded,
     footnote: summary?.newerSchema ? "Your CLI is newer than this app. Some numbers may be missing until the app is updated." : null,
   };
+}
+
+const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+export function weekdayName(n: number): string {
+  return WEEKDAYS[Math.min(7, Math.max(1, Math.round(n))) - 1]!;
+}
+
+export function clock(hour: number, minute: number): string {
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+/** The default time each cadence starts with when picked in the first-run question. */
+export function nudgeFor(cadence: Cadence, current: Nudge): Nudge {
+  if (cadence === "daily") return { ...current, cadence, hour: 18, minute: 0 };
+  if (cadence === "weekly") return { ...current, cadence, hour: 16, minute: 0, weekday: 5 };
+  if (cadence === "monthly") return { ...current, cadence, hour: 16, minute: 0 };
+  return { ...current, cadence: "off" };
+}
+
+/** "Every Friday at 16:00", in words a person would use. */
+export function describeNudge(nudge: Nudge): string {
+  const at = clock(nudge.hour, nudge.minute);
+  switch (nudge.cadence) {
+    case "daily":
+      return `Every day at ${at}, about today`;
+    case "weekly":
+      return `Every ${weekdayName(nudge.weekday)} at ${at}, about this week`;
+    case "monthly":
+      return `On the last day of each month at ${at}, about that month`;
+    default:
+      return "Off";
+  }
+}
+
+/** "Next: Friday 20 Nov, 16:00" from the RFC 3339 time the app computed in local time. */
+export function describeNext(iso: string | null): string | null {
+  if (!iso) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(iso);
+  if (!match) return null;
+  const [, y, mo, d, h, mi] = match.map(Number) as [number, number, number, number, number, number];
+  // The wall-clock parts are already local; build the date from them so the browser's zone cannot shift it.
+  const date = new Date(Date.UTC(y, mo - 1, d));
+  const weekday = weekdayName(((date.getUTCDay() + 6) % 7) + 1);
+  const month = date.toLocaleString("en-GB", { month: "short", timeZone: "UTC" });
+  return `Next: ${weekday} ${d} ${month}, ${clock(h, mi)}`;
 }

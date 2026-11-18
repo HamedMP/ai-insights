@@ -31,9 +31,24 @@ failure shows a short explanation and keeps the last numbers on screen.
 
 - No network requests: no update checks, no analytics, no web fonts (Bricolage Grotesque and Geist are
   bundled, SIL OFL). The page's CSP is `default-src 'none'` plus the app's own files and IPC.
-- The popover can call exactly six commands (`src-tauri/capabilities/default.json`); no plugin is reachable
-  from the page.
-- Settings are one JSON file in the app's config folder.
+- The popover can call exactly eight commands (`src-tauri/capabilities/default.json`); no plugin is
+  reachable from the page.
+- Settings are one JSON file in the app's config folder, and `nudge-state.json` beside it records when the
+  last nudge went out.
+
+## Nudges and launch at login
+
+Both are off by default. On first run the popover asks once whether you want a daily, weekly or monthly
+nudge; "Not now" is a full answer. A nudge is a notification with counts only (sessions and active hours),
+because it can show on a lock screen: no project names, prompts, tips or cost. A period with no sessions
+sends nothing. The schedule lives in `src-tauri/src/schedule.rs` (pure, tested with a fixed clock and time
+zone): a slot missed while the computer slept fires on wake within 12 hours, otherwise it is skipped, and
+changing the schedule never fires a slot that already passed.
+
+"Open at login" uses the OS's own mechanism and is created only when switched on: a per-user LaunchAgent
+(`~/Library/LaunchAgents/AI Insights.plist`) on macOS, `~/.config/autostart/AI Insights.desktop` on Linux and
+an entry under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` on Windows. Switching it off removes
+it. A second launch only opens the running app's popover.
 
 ## Develop
 

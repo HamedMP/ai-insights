@@ -2,12 +2,14 @@
 //! running the person's own `ai-insights` CLI. The app makes no network requests of its own.
 
 mod cli;
+mod nudge;
 mod placement;
+mod schedule;
 mod settings;
 mod summary;
 
 use serde::Serialize;
-use settings::Settings;
+use settings::{NudgeState, Settings};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -17,6 +19,8 @@ use summary::Summary;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, Runtime, WebviewWindow, WindowEvent};
+use tauri_plugin_autostart::ManagerExt as _;
+use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_opener::OpenerExt;
 
 const POPOVER: &str = "popover";
@@ -61,11 +65,18 @@ struct ViewState {
     snapshot: Snapshot,
     settings: Settings,
     platform: &'static str,
+    /// Read from the OS (login item / autostart entry), which is the source of truth.
+    launch_at_login: bool,
+    /// The next nudge in local time (RFC 3339), when one is scheduled.
+    next_nudge_at: Option<String>,
 }
 
 struct AppState {
     settings_path: PathBuf,
     settings: Mutex<Settings>,
+    nudge_state_path: PathBuf,
+    nudge_state: Mutex<NudgeState>,
+    launch_at_login: AtomicBool,
     snapshot: Mutex<Snapshot>,
     busy: AtomicBool,
     last_attempt: Mutex<Option<SystemTime>>,
@@ -93,7 +104,15 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 }
 
 fn view_state(state: &AppState) -> ViewState {
-    ViewState { snapshot: lock(&state.snapshot).clone(), settings: lock(&state.settings).clone(), platform: platform() }
+    let settings = lock(&state.settings).clone();
+    let next_nudge_at = schedule::next_slot(&settings.nudge, &chrono::Local::now()).map(|t| t.to_rfc3339());
+    ViewState {
+        snapshot: lock(&state.snapshot).clone(),
+        settings,
+        platform: platform(),
+        launch_at_login: state.launch_at_login.load(Ordering::SeqCst),
+        next_nudge_at,
+    }
 }
 
 fn emit_state<R: Runtime>(app: &AppHandle<R>) {
@@ -180,6 +199,37 @@ fn due(last: Option<SystemTime>, every: Duration) -> bool {
     }
 }
 
+/// Sends the nudge when its slot has come. The numbers are refreshed first; if that fails, numbers read in
+/// the last day are used, and with none the slot passes silently (a nudge is never an error message).
+fn nudge_if_due<R: Runtime>(app: &AppHandle<R>) {
+    let state = app.state::<AppState>();
+    let nudge = lock(&state.settings).nudge;
+    let not_before = lock(&state.nudge_state).not_before();
+    if schedule::due(&nudge, &chrono::Local::now(), not_before).is_none() {
+        return;
+    }
+    {
+        let mut ns = lock(&state.nudge_state);
+        ns.last_fired_at = Some(chrono::Utc::now());
+        if settings::save(&state.nudge_state_path, &*ns).is_err() {
+            eprintln!("ai-insights-desktop: could not save nudge state");
+        }
+    }
+    refresh_now(app);
+    let snap = lock(&state.snapshot).clone();
+    let fresh = snap.fetched_at.is_some_and(|at| now_ms().saturating_sub(at) < 24 * 3600 * 1000);
+    let Some(summary) = snap.summary.filter(|_| fresh) else { return };
+    if let Some(message) = nudge::message(nudge.cadence, &summary, cfg!(target_os = "macos")) {
+        notify(app, message);
+    }
+}
+
+fn notify<R: Runtime>(app: &AppHandle<R>, message: nudge::Message) {
+    if app.notification().builder().title(message.title).body(message.body).show().is_err() {
+        eprintln!("ai-insights-desktop: could not show a notification");
+    }
+}
+
 fn start_loop<R: Runtime>(app: AppHandle<R>) {
     std::thread::spawn(move || loop {
         let state = app.state::<AppState>();
@@ -188,6 +238,7 @@ fn start_loop<R: Runtime>(app: AppHandle<R>) {
         if due(last, every) {
             refresh_now(&app);
         }
+        nudge_if_due(&app);
         std::thread::sleep(TICK);
     });
 }
@@ -355,9 +406,20 @@ async fn open_report(app: AppHandle) -> Result<(), Problem> {
 #[tauri::command]
 fn save_settings(app: AppHandle, state: tauri::State<'_, AppState>, settings: Settings) -> ViewState {
     let settings = settings.sanitized();
-    let cli_changed = lock(&state.settings).cli_path != settings.cli_path;
+    let (cli_changed, nudge_changed) = {
+        let old = lock(&state.settings);
+        (old.cli_path != settings.cli_path, old.nudge != settings.nudge)
+    };
     if settings::save(&state.settings_path, &settings).is_err() {
         eprintln!("ai-insights-desktop: could not save settings");
+    }
+    if nudge_changed {
+        // A changed schedule starts from now: a slot that already passed today does not fire at once.
+        let mut ns = lock(&state.nudge_state);
+        ns.armed_at = Some(chrono::Utc::now());
+        if settings::save(&state.nudge_state_path, &*ns).is_err() {
+            eprintln!("ai-insights-desktop: could not save nudge state");
+        }
     }
     *lock(&state.settings) = settings;
     if cli_changed {
@@ -366,6 +428,22 @@ fn save_settings(app: AppHandle, state: tauri::State<'_, AppState>, settings: Se
     let view = view_state(&state);
     let _ = app.emit("state", view.clone());
     view
+}
+
+#[tauri::command]
+fn set_launch_at_login(app: AppHandle, state: tauri::State<'_, AppState>, enabled: bool) -> ViewState {
+    let launcher = app.autolaunch();
+    let result = if enabled { launcher.enable() } else { launcher.disable() };
+    if result.is_err() {
+        eprintln!("ai-insights-desktop: could not change launch at login");
+    }
+    state.launch_at_login.store(launcher.is_enabled().unwrap_or(false), Ordering::SeqCst);
+    view_state(&state)
+}
+
+#[tauri::command]
+fn send_test_nudge(app: AppHandle) {
+    notify(&app, nudge::sample(cfg!(target_os = "macos")));
 }
 
 #[tauri::command]
@@ -380,17 +458,37 @@ fn quit(app: AppHandle) {
 
 pub fn run() {
     tauri::Builder::default()
+        // First, so a second launch (say, from the login item and by hand) only opens the running app's popover.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_popover(app, None)))
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![get_state, refresh, open_report, save_settings, hide_popover, quit])
+        .plugin(tauri_plugin_notification::init())
+        // A per-user LaunchAgent on macOS, an autostart .desktop entry on Linux, a Run key on Windows; all
+        // created only when the person turns "Open at login" on, and removed when they turn it off.
+        .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
+        .invoke_handler(tauri::generate_handler![
+            get_state,
+            refresh,
+            open_report,
+            save_settings,
+            set_launch_at_login,
+            send_test_nudge,
+            hide_popover,
+            quit
+        ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
             let config_dir = app.path().app_config_dir()?;
             let settings_path = settings::file_in(&config_dir);
+            let nudge_state_path = settings::state_file_in(&config_dir);
+            let launch_at_login = app.autolaunch().is_enabled().unwrap_or(false);
             app.manage(AppState {
                 settings: Mutex::new(settings::load(&settings_path)),
                 settings_path,
+                nudge_state: Mutex::new(settings::load_state(&nudge_state_path)),
+                nudge_state_path,
+                launch_at_login: AtomicBool::new(launch_at_login),
                 snapshot: Mutex::new(Snapshot::default()),
                 busy: AtomicBool::new(false),
                 last_attempt: Mutex::new(None),
