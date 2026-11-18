@@ -5,7 +5,7 @@ AI Insights reads a person's local AI coding-agent history (Claude Code, Codex, 
 ## How it works
 
 1. **Sources** (`src/sources/<harness>/`) discover transcripts and parse each into a `Session`: numbers, tool metadata and the person's own prompts. No assistant text, no tool output. Chat exports are the exception to discovery: `ai-insights import` (`src/cli/import.ts`) turns one into sessions under `imports/<harness>/` in the store (`claude-chat`, `chatgpt`), which that harness's source then reads.
-2. **Store** (`src/store/`) caches parsed sessions, facets and reports under `~/.ai-insights/` (`AI_INSIGHTS_HOME` overrides; an existing pre-0.2 `~/.hindsight/` and `HINDSIGHT_HOME` are still used, see `resolveHome`).
+2. **Store** (`src/store/`) caches parsed sessions, facets and reports under `~/.ai-insights/` (`AI_INSIGHTS_HOME` overrides; `HINDSIGHT_HOME` is still honoured; a pre-0.2 `~/.hindsight/` with no `~/.ai-insights/` is moved there once by the CLI's own commands, leaving a symlink, and stays in use when that cannot be done safely: `src/store/migrate-home.ts`. `resolveHome` only reads, and the session-start reminder and the MCP server never move it).
 3. **Analysis** (`src/analysis/`) turns sessions into a `Report`: activity, token usage and cost, and deterministic `Finding`s with evidence. No model involved.
 4. **Model-run pass**: the `analyze-ai-usage` skill has the person's own agent read redacted excerpts through the MCP server, write one `SessionFacet` per session using the fixed taxonomy, then a `Narrative`. AI Insights never calls a model API itself.
 5. **Render** (`src/render/`) writes one self-contained HTML report.

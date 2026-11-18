@@ -221,8 +221,11 @@ Next steps
           The package installs a second command, <code>hindsight</code>, which runs the same program as <code>ai-insights</code>.
         </li>
         <li>
-          If <code>~/.ai-insights/</code> does not exist and <code>~/.hindsight/</code> does, AI Insights keeps using <code>~/.hindsight/</code>, so
-          earlier results carry over. Nothing is moved or deleted.
+          If <code>~/.hindsight/</code> exists and <code>~/.ai-insights/</code> does not, the next <code>ai-insights</code> command moves it to{" "}
+          <code>~/.ai-insights/</code> in one step and leaves <code>~/.hindsight</code> as a link to it, so earlier results carry over and the
+          old path keeps working. It says so in one line. If the move cannot be done safely (another disk, no permission, no symlinks), nothing
+          changes and <code>~/.hindsight/</code> stays in use. Two folders are never merged and nothing is deleted. The session-start reminder
+          and the MCP server never move it.
         </li>
         <li>
           <code>HINDSIGHT_HOME</code> still works when <code>AI_INSIGHTS_HOME</code> is not set.

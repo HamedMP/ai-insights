@@ -1,4 +1,4 @@
-import { readFile, stat, writeFile } from "node:fs/promises";
+import { readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { DEVICE_FILE, DEVICE_ID, deviceId } from "../../src/store/device.js";
@@ -55,5 +55,19 @@ describe("device id", () => {
   it("gives concurrent first runs the same id", async () => {
     const ids = await Promise.all([deviceId(home), deviceId(home), deviceId(home)]);
     expect(new Set(ids).size).toBe(1);
+  });
+
+  it("waits for a run that is still writing its new id instead of replacing it with another", async () => {
+    // Another run (or an older version, which creates the file empty and then writes it) is mid-write.
+    await writeFile(join(home, DEVICE_FILE), "");
+    const theirs = "fedcba9876543210fedcba9876543210";
+    const writing = new Promise<void>((resolve) => setTimeout(() => void writeFile(join(home, DEVICE_FILE), JSON.stringify({ id: theirs, createdAt: "x" })).then(resolve), 30));
+    const [id] = await Promise.all([deviceId(home), writing]);
+    expect(id).toBe(theirs);
+  });
+
+  it("never leaves its temporary file behind", async () => {
+    await Promise.all([deviceId(home), deviceId(home)]);
+    expect((await readdir(home)).filter((name) => name.endsWith(".tmp"))).toEqual([]);
   });
 });

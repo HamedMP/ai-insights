@@ -44,7 +44,7 @@ Options
   -v, --version        show the version
 
 Cache and reports live in ~/.ai-insights (set AI_INSIGHTS_HOME to move them;
-an existing ~/.hindsight from before 0.2 keeps being used).
+a ~/.hindsight from before 0.2 is moved there once, and the old path still works).
 For the qualitative analysis, run the analyze-ai-usage skill in your agent.
 `;
 
