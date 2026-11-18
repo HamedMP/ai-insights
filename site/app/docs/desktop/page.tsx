@@ -42,8 +42,8 @@ export default function Desktop() {
 
       <H2 id="install">Install</H2>
       <p>
-        The app reads your history through the AI Insights command-line tool, so install that first. The app uses this copy and never downloads
-        one, and never runs <code>npx</code>.
+        The app reads your history through the AI Insights command-line tool, version 0.10.0 or newer, so install or update that first. The app
+        uses this copy and never downloads one, and never runs <code>npx</code>. With an older version installed, the app asks you to update it.
       </p>
       <Code label="Terminal">npm i -g ai-insights</Code>
       <p>
