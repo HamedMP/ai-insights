@@ -133,6 +133,15 @@ describe("the popover model", () => {
     expect(model.tip).toBeNull();
   });
 
+  it("says not measured, never $0, when the CLI could not measure a period's cost", () => {
+    const s = summary();
+    s.periods[0] = period("today", { sessions: 2, costUsd: null });
+    s.periods[1] = period("week", { sessions: 0, costUsd: 0 });
+    const columns = buildModel(state({ summary: s }), NOW).columns;
+    expect(columns[0]?.cost).toBe("not measured");
+    expect(columns[1]?.cost).toBe("$0.00");
+  });
+
   it("shows a dash, not zero, for a period the CLI left out", () => {
     const s = summary();
     s.periods[0] = null;

@@ -1,7 +1,7 @@
 // Turns the model into elements. Text only ever goes in through textContent, never innerHTML, so nothing
 // the CLI prints can become markup.
 
-import type { Model, Notice } from "./model.js";
+import { NOT_MEASURED, type Model, type Notice } from "./model.js";
 import type { Cadence } from "./types.js";
 
 type Child = Node | string | null | false | undefined;
@@ -116,7 +116,7 @@ function tipView(model: Model): HTMLElement | null {
 function statsView(model: Model): HTMLElement {
   const head = h("tr", {}, h("th", { scope: "col" }, h("span", { class: "sr" }, "Measure")), ...model.columns.map((c) => h("th", { scope: "col" }, c.label)));
   const row = (label: string, values: string[], cls = "") =>
-    h("tr", { class: cls }, h("th", { scope: "row" }, label), ...values.map((v) => h("td", { class: v === "–" ? "na" : "" }, v)));
+    h("tr", { class: cls }, h("th", { scope: "row" }, label), ...values.map((v) => h("td", { class: v === "–" ? "na" : v === NOT_MEASURED ? "unmeasured" : "" }, v)));
   const rows = [
     row("Sessions", model.columns.map((c) => c.sessions), "big"),
     row("Active", model.columns.map((c) => c.active)),

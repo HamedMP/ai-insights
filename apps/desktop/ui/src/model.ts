@@ -9,6 +9,7 @@ const ORDER: PeriodKey[] = ["today", "week", "month"];
 const UNPRICED_NOTE_AT = 0.05;
 
 const DASH = "–";
+export const NOT_MEASURED = "not measured";
 
 export function formatCount(n: number | null | undefined): string {
   if (n === null || n === undefined || !Number.isFinite(n)) return DASH;
@@ -144,7 +145,7 @@ function agentLines(p: Period | null, showCost: boolean): AgentLine[] {
   return p.byAgent.map((row: AgentRow) => ({
     label: row.label,
     sessions: row.sessions === null ? DASH : `${formatCount(row.sessions)} ${row.sessions === 1 ? "session" : "sessions"}`,
-    cost: !row.measured ? "not measured" : showCost ? formatCost(row.costUsd) : "",
+    cost: !row.measured || row.costUsd === null ? NOT_MEASURED : showCost ? formatCost(row.costUsd) : "",
     measured: row.measured,
   }));
 }
@@ -177,7 +178,9 @@ export function buildModel(state: ViewState, nowMs: number): Model {
         label: PERIOD_LABELS[key],
         sessions: formatCount(p?.sessions),
         active: formatDuration(p?.activeMinutes),
-        cost: formatCost(p?.costUsd),
+        // The CLI sends null cost for a period it could not measure (chat exports only, or nothing priced):
+        // that is "not measured", never $0. A period missing altogether is a dash.
+        cost: p && p.costUsd === null ? NOT_MEASURED : formatCost(p?.costUsd),
       };
     }),
     showCost,
