@@ -38,6 +38,13 @@ ai-insights nudge              print a line when a monthly review is due`}</Code
         writing the report), ending with a check mark and the time taken. Piped, in CI or on a dumb terminal there is no status line.
       </p>
       <p>
+        While it works, the first numbers show up within about a second, above the status line. Each agent&apos;s sessions and cost this month
+        appear as soon as its history is read, then today, this week and this month. They come from a quick pass over usage alone and match
+        the report and <a href="#cmd-quick">ai-insights month</a> to the cent. They are off when piped or in CI, where
+        an agent or a log would only collect extra lines; <code>AI_INSIGHTS_LIVE=1</code> turns them on there, as plain lines on stderr, so
+        stdout stays what scripts read. <code>AI_INSIGHTS_LIVE=0</code> turns them off on a terminal too.
+      </p>
+      <p>
         At the end it asks <code>Open the report in your browser? [Y/n]</code>: Enter or <code>y</code> opens it, <code>n</code> does not, and
         Ctrl-C exits. It asks only when you are at a terminal: never when stdin or stdout is piped, in CI (<code>CI</code> set), or over SSH
         without a forwarded display, and never for <code>scan</code>, <code>report</code>, <code>doctor</code> or <code>mcp</code>. So an agent or
@@ -363,6 +370,7 @@ npx ai-insights@latest --refresh`}</Code>
           [<code key="a">AI_INSIGHTS_HOME</code>, <>Where AI Insights keeps its cache, labels, snapshots and reports. Default <code>~/.ai-insights</code>.</>],
           [<code key="h">HINDSIGHT_HOME</code>, <>The pre-0.2 name, used when <code>AI_INSIGHTS_HOME</code> is not set.</>],
           [<code key="d">AI_INSIGHTS_DEBUG</code>, "When set, a failed command also prints the error's stack trace."],
+          [<code key="l">AI_INSIGHTS_LIVE</code>, <>The first numbers a run shows while it works: <code>0</code> turns them off, <code>1</code> turns them on when piped or in CI (off there by default).</>],
           [<code key="w">AI_INSIGHTS_WORKERS</code>, <>Worker threads used to read transcripts, 0 to 8. <code>0</code> reads everything on one thread. By default it picks up to 4 from your cores and memory (none on a 2-core or 2 GB machine); each worker adds about 100 MB while a first, cold scan runs.</>],
           [
             <code key="ao">AI_INSIGHTS_OPEN</code>,

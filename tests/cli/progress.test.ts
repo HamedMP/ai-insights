@@ -118,8 +118,11 @@ describe("while it works", () => {
     let interrupt: (() => void) | null = null;
     const source = fakeSource("claude-code", sessions(3));
     const discover = source.discover;
+    // The first numbers and the full scan each discover; Ctrl-C comes once, during the first.
+    let pressed = false;
     source.discover = async (options) => {
-      interrupt?.();
+      if (!pressed) interrupt?.();
+      pressed = true;
       return discover(options);
     };
     await run([], deps({ ...interactive, sources: [source], onInterrupt: (handler) => ((interrupt = handler), () => (interrupt = null)) }));
