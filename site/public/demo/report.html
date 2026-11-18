@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'sha256-08lWdovatBn2qv8f1OAVrmUCYgnha9YOsE6Nqj0Ftqk='; img-src data: blob:; font-src data:; media-src blob:; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'sha256-9mnCMa4emM3vy86GkmzhIR9gk9veEWr704jUVGtzbX4='; img-src data: blob:; font-src data:; media-src blob:; base-uri 'none'; form-action 'none'">
 <meta name="color-scheme" content="light">
 <meta name="referrer" content="no-referrer">
 <meta name="generator" content="AI Insights">
@@ -785,7 +785,7 @@ const DAYNAME = { Mon: "Mondays", Tue: "Tuesdays", Wed: "Wednesdays", Thu: "Thur
 const hh = (x) => `${String(x).padStart(2, "0")}:00`;
 /** Counts that can run into the hundreds of thousands: past `cap`, say "10,000+" instead of a wall of digits. */
 const capped = (n, cap = 10000) => (n > cap ? `${int(cap)}+` : int(n));
-const HARNESS_NAMES = { "claude-code": "Claude Code", codex: "Codex", cursor: "Cursor", pi: "Pi", opencode: "OpenCode", gemini: "Gemini CLI", "claude-chat": "Claude chat" };
+const HARNESS_NAMES = { "claude-code": "Claude Code", codex: "Codex", cursor: "Cursor", pi: "Pi", opencode: "OpenCode", gemini: "Gemini CLI", "claude-chat": "Claude chat", chatgpt: "ChatGPT" };
 const harnessName = (key) => HARNESS_NAMES[key] || String(key);
 function rng(seed) { let q = seed >>> 0 || 1; return () => ((q = (q * 1664525 + 1013904223) >>> 0) / 4294967296); }
 
@@ -4524,10 +4524,10 @@ const ShareLink = (() => {
   const dshort = (d) => `${MONTHS[Number(d.slice(5, 7)) - 1] || "?"} ${Number(d.slice(8, 10))}`;
 
   /** Fixed wording only: anything not in these tables is left out, never passed through. */
-  const AGENTS = { "claude-code": "Claude Code", codex: "Codex", cursor: "Cursor", pi: "Pi", opencode: "OpenCode", gemini: "Gemini CLI", "claude-chat": "Claude chat" };
+  const AGENTS = { "claude-code": "Claude Code", codex: "Codex", cursor: "Cursor", pi: "Pi", opencode: "OpenCode", gemini: "Gemini CLI", "claude-chat": "Claude chat", chatgpt: "ChatGPT" };
   // Chat exports record no tokens. The site estimates each agent's tokens as total tokens times its share of
   // sessions, so their sessions stay out of the per-agent shares (and the arenas built on them).
-  const UNMEASURED = new Set(["claude-chat"]);
+  const UNMEASURED = new Set(["claude-chat", "chatgpt"]);
   const VERDICTS = { night_owl: "Night owl", early_bird: "Early bird", evening: "Golden-hour builder", afternoon: "Afternoon engine", morning: "Morning mind" };
   const DAYS = { Mon: "Monday", Tue: "Tuesday", Wed: "Wednesday", Thu: "Thursday", Fri: "Friday", Sat: "Saturday", Sun: "Sunday" };
   const PERSONA = /^The (?:Night|Dawn|Golden-Hour|Afternoon|Morning) (?:Orchestrator|Shipper|Delegator|Conversationalist)$/;

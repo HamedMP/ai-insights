@@ -17,6 +17,7 @@ ai-insights report [options]   write the report (or print JSON with --json)
 ai-insights doctor             show which histories were found and where
 ai-insights mcp                start the MCP server on stdio (for your agent)
 ai-insights import claude <path>  add a Claude chat export
+ai-insights import openai <path>  add a ChatGPT data export
 ai-insights install            add the plugin to your agents
 ai-insights uninstall          remove it again
 ai-insights nudge              print a line when a monthly review is due`}</Code>
@@ -106,12 +107,13 @@ Store: ~/.ai-insights
         Adds the history of a chat product from its data export. Chat exports are never looked for on their own: you point AI Insights at the
         file. See <DocLink href="/docs/import">Import chat history</DocLink> for what is read and what cannot be measured.
       </p>
-      <Code label="Usage" copy={false}>{`ai-insights import claude <path>    the export .zip, its unzipped folder, or conversations.json
+      <Code label="Usage" copy={false}>{`ai-insights import claude <path>    a Claude export: the .zip, its unzipped folder, or conversations.json
+ai-insights import openai <path>    a ChatGPT export: the .zip, its unzipped folder, or a conversations JSON file
 ai-insights import --list           show what has been imported
-ai-insights import --remove claude  remove the import and everything made from it`}</Code>
+ai-insights import --remove <src>   remove that import (claude or openai) and everything made from it`}</Code>
       <p>
-        A newer import replaces the earlier one. Imported conversations then appear in every run as their own agent, <code>claude-chat</code>{" "}
-        (Claude chat).
+        A newer import of the same source replaces the earlier one. Imported conversations then appear in every run as their own agent,{" "}
+        <code>claude-chat</code> (Claude chat) or <code>chatgpt</code> (ChatGPT).
       </p>
       <H3 id="cmd-install">ai-insights install</H3>
       <p>
@@ -184,7 +186,7 @@ ai-insights nudge --on     remind me again`}</Code>
             <code key="h">--harness &lt;name&gt;</code>,
             <>
               Only one agent: <code>claude-code</code>, <code>codex</code>, <code>cursor</code>, <code>pi</code>, <code>opencode</code>,{" "}
-              <code>gemini</code> or <code>claude-chat</code> (an imported Claude chat export).
+              <code>gemini</code>, <code>claude-chat</code> (an imported Claude chat export) or <code>chatgpt</code> (an imported ChatGPT export).
             </>,
           ],
           [<code key="m">--max-sessions &lt;n&gt;</code>, "Read at most n transcripts, newest first. The default is 5,000; the most is 50,000."],

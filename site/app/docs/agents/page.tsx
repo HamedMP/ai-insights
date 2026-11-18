@@ -9,7 +9,7 @@ export default function Agents() {
     <DocShell slug="agents">
       <H2 id="supported-agents">Supported agents</H2>
       <p>
-        AI Insights reads six agents, plus Claude chat history you import from its data export. &ldquo;Untested&rdquo; means the code exists
+        AI Insights reads six agents, plus Claude and ChatGPT chat history you import from their data exports. &ldquo;Untested&rdquo; means the code exists
         and has tests on synthetic files, but nobody has confirmed it on that agent in daily use yet.
       </p>
       <Table
@@ -28,6 +28,14 @@ export default function Agents() {
               Imported from a data export with <code>ai-insights import claude</code>; see <DocLink href="/docs/import">Import chat history</DocLink>
             </>,
             "No: the export records no model or token counts",
+            "Not needed: it is not a coding agent",
+          ],
+          [
+            "ChatGPT",
+            <>
+              Imported from a data export with <code>ai-insights import openai</code>; see <DocLink href="/docs/import">Import chat history</DocLink>
+            </>,
+            "No: the export names the model but records no token counts",
             "Not needed: it is not a coding agent",
           ],
         ]}
