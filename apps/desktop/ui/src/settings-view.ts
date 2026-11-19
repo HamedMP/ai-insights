@@ -1,4 +1,4 @@
-import { clock, describeNext, describeNudge, nudgeFor, weekdayName } from "./model.js";
+import { cliScheduleNotice, clock, describeNext, describeNudge, nudgeFor, weekdayName } from "./model.js";
 import type { Cadence, Settings, ViewState } from "./types.js";
 import { h, icon, ICONS } from "./view.js";
 
@@ -11,6 +11,16 @@ export interface SettingsHandlers {
 }
 
 function nudgeGroup(state: ViewState, save: (patch: Partial<Settings>) => void, onTest: () => void): HTMLElement {
+  const lock = cliScheduleNotice(state);
+  if (lock) {
+    return h(
+      "section",
+      { class: "group" },
+      h("div", { class: "row" }, h("span", { class: "row-text" }, h("span", { class: "row-label" }, "Nudges"), h("span", { class: "row-hint" }, lock.title))),
+      h("p", { class: "row-hint" }, lock.body),
+      h("code", { class: "command" }, lock.command),
+    );
+  }
   const nudge = state.settings.nudge;
   const next = describeNext(state.nextNudgeAt);
   const controls: HTMLElement[] = [];

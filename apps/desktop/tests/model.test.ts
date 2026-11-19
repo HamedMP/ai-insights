@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildModel, describeNext, describeNudge, formatCost, formatCount, formatDuration, nudgeFor, pickTip, relativeTime } from "../ui/src/model.ts";
+import { buildModel, cliScheduleNotice, describeNext, describeNudge, formatCost, formatCount, formatDuration, nudgeFor, pickTip, relativeTime } from "../ui/src/model.ts";
 import type { Period, Summary, ViewState } from "../ui/src/types.ts";
 
 const NOW = Date.UTC(2026, 10, 18, 15, 45);
@@ -35,7 +35,7 @@ function summary(over: Partial<Summary> = {}): Summary {
 
 function state(over: Partial<ViewState["snapshot"]> = {}, settings: Partial<ViewState["settings"]> = {}): ViewState {
   return {
-    snapshot: { summary: summary(), problem: null, fetchedAt: NOW - 3 * 60_000, refreshing: false, cliLocation: "/usr/local/bin/ai-insights", ...over },
+    snapshot: { summary: summary(), problem: null, fetchedAt: NOW - 3 * 60_000, refreshing: false, cliLocation: "/usr/local/bin/ai-insights", cliSchedule: null, ...over },
     settings: { hideCost: false, refreshMinutes: 30, cliPath: null, nudge: { cadence: "off", hour: 16, minute: 0, weekday: 5 }, onboarded: true, ...settings },
     platform: "macos",
     launchAtLogin: false,
@@ -182,5 +182,25 @@ describe("nudges", () => {
     expect(describeNext("2026-11-30T23:30:00-08:00")).toBe("Next: Monday 30 Nov, 23:30");
     expect(describeNext(null)).toBeNull();
     expect(describeNext("garbage")).toBeNull();
+  });
+});
+
+describe("never two notifications: the CLI's own schedule", () => {
+  it("while ai-insights schedule is on, the app says so, offers the way to switch, and does not ask about nudges", () => {
+    const on = state({ cliSchedule: { active: true, when: "every Monday at 09:00" } }, { onboarded: false });
+    expect(cliScheduleNotice(on)).toEqual({
+      title: "Scheduled notifications are already on (ai-insights schedule, every Monday at 09:00).",
+      body: expect.stringContaining("this app's nudges stay off"),
+      command: "ai-insights schedule off",
+    });
+    expect(buildModel(on, NOW).askAboutNudges).toBe(false);
+  });
+
+  it("with no CLI schedule, or an older CLI that cannot say, the app's nudges work as before", () => {
+    for (const cliSchedule of [null, { active: false, when: null }]) {
+      const s = state({ cliSchedule }, { onboarded: false });
+      expect(cliScheduleNotice(s)).toBeNull();
+      expect(buildModel(s, NOW).askAboutNudges).toBe(true);
+    }
   });
 });

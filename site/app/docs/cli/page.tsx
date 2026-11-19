@@ -280,7 +280,8 @@ ai-insights uninstall [--harness <name>]... [--yes] [--dry-run]`}</Code>
       </p>
       <Code label="Usage" copy={false}>{`ai-insights schedule daily|weekly|monthly [--at HH:MM] [--day mon..sun] [--with-cost] [--yes] [--dry-run]
 ai-insights schedule off       remove everything it added
-ai-insights schedule status    what is installed, when it runs next, how the last run went`}</Code>
+ai-insights schedule status    what is installed, when it runs next, how the last run went
+ai-insights schedule status --json   the same as JSON, for tools (no file paths)`}</Code>
       <Table
         caption="Where the job lives"
         head={["System", "What it adds", "Notification"]}
@@ -297,6 +298,13 @@ ai-insights schedule status    what is installed, when it runs next, how the las
         show on a lock screen: no project names, prompts or paths, and the estimated cost only with <code>--with-cost</code>. Clicking it opens
         nothing. The job starts this install&apos;s own Node and CLI file by absolute path, never <code>npx</code> (which would contact the npm
         registry), so <code>schedule</code> refuses to run from an npx cache: install it first with <code>npm i -g ai-insights</code>.
+      </p>
+      <p>
+        <code>schedule status --json</code> prints <code>schemaVersion</code>, <code>active</code>, <code>system</code>,{" "}
+        <code>cadence</code>, <code>hour</code>, <code>minute</code>, <code>weekday</code> (0 is Sunday; weekly only), <code>when</code> in
+        words, <code>nextRun</code> and <code>lastRun</code>. The <DocLink href="/docs/desktop#nudges">menu bar app</DocLink> reads it and turns
+        its own nudges off while a schedule is active, so you never get two notifications. It finds jobs added through launchd or systemd, not a
+        crontab line or schtasks task you added by hand.
       </p>
       <Code label="Output, on Linux; home folder shortened to ~" copy={false}>{`$ ai-insights schedule weekly
 This adds a scheduled job to this computer that keeps running after a restart:

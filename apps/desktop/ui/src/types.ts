@@ -50,6 +50,8 @@ export interface Snapshot {
   fetchedAt: number | null;
   refreshing: boolean;
   cliLocation: string | null;
+  /** The CLI's own `ai-insights schedule`, or null when unknown (an older CLI). */
+  cliSchedule: { active: boolean; when: string | null } | null;
 }
 
 export type Cadence = "off" | "daily" | "weekly" | "monthly";
