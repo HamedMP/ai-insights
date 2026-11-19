@@ -52,8 +52,11 @@
     "test:site": "vitest run --config vitest.site.config.ts",
     "test:watch": "vitest",
     "generate:harness": "node scripts/generate-harness.mjs",
-    "check": "pnpm typecheck && node scripts/build-client.mjs --check && pnpm test && pnpm generate:harness:check",
+    "check": "pnpm typecheck && node scripts/build-client.mjs --check && pnpm test && pnpm generate:harness:check && pnpm prices:check",
     "generate:harness:check": "node scripts/generate-harness.mjs --check",
+    "prices": "node scripts/update-prices.mjs",
+    "prices:check": "node scripts/update-prices.mjs --check",
+    "prices:refresh": "node scripts/update-prices.mjs --refresh",
     "prepublishOnly": "pnpm check && pnpm build",
     "audit:cards": "node scripts/audit-cards.mjs"
   },

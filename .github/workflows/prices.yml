@@ -1,0 +1,64 @@
+name: Price snapshot refresh
+
+# Weekly, and on demand: downloads LiteLLM's public price table, rewrites the pinned snapshot
+# (scripts/prices/litellm-snapshot.json) and regenerates src/analysis/prices.generated.ts. When a price the report
+# uses changed, it opens a pull request labelled `prices` for a person to check against the providers' pricing pages.
+# It only proposes a diff: nothing merges on its own, and the package itself never fetches prices.
+# Needs no secrets: the built-in GITHUB_TOKEN opens the pull request. Pull requests opened with that token do not
+# start other workflows, so push an empty commit or close and reopen the PR to run CI on it.
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: price-snapshot
+  cancel-in-progress: true
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Refresh the snapshot and regenerate the table
+        run: node scripts/update-prices.mjs --refresh | tee refresh.log
+
+      - name: Open a pull request when prices changed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet -- scripts/prices src/analysis/prices.generated.ts; then
+            echo "No price changes."
+            exit 0
+          fi
+          branch="prices/snapshot-$(date -u +%Y-%m-%d)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git add scripts/prices/litellm-snapshot.json src/analysis/prices.generated.ts
+          git commit -m "chore(prices): refresh the LiteLLM price snapshot"
+          git push --force origin "$branch"
+          gh label create prices --color FBCA04 --description "Price snapshot refresh" 2>/dev/null || true
+          {
+            echo "Automated weekly refresh of the pinned LiteLLM price snapshot."
+            echo
+            echo "Before merging:"
+            echo "- check each changed price against https://platform.claude.com/docs/en/about-claude/pricing and https://developers.openai.com/api/docs/pricing;"
+            echo "- where LiteLLM is wrong, pin the right value in scripts/prices/overrides.mjs and regenerate;"
+            echo "- record the new snapshot date in tests/analysis/fixtures/verified-prices.json once the prices are checked."
+            echo
+            echo '```'
+            cat refresh.log
+            echo '```'
+          } > body.md
+          gh pr create --base main --head "$branch" --label prices --title "chore(prices): refresh the price snapshot" --body-file body.md \
+            || gh pr edit "$branch" --body-file body.md

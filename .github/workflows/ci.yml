@@ -32,6 +32,10 @@ jobs:
       - name: Generated harness files are up to date
         run: node scripts/generate-harness.mjs --check
 
+      # Regenerates the price table from the committed snapshot; no network.
+      - name: Generated price table is up to date
+        run: node scripts/update-prices.mjs --check
+
       - name: Build
         run: pnpm build
 

@@ -40,6 +40,7 @@ pnpm typecheck
 pnpm test                 # all tests
 pnpm exec vitest run tests/<module>   # one module
 pnpm build
+node scripts/update-prices.mjs --refresh   # refresh the price snapshot before a release; see scripts/prices/README.md
 ```
 
 ## Finishing
