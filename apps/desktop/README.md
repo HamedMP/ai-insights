@@ -60,13 +60,14 @@ cd apps/desktop
 pnpm install
 pnpm dev                                                # your installed ai-insights (npm i -g ai-insights)
 pnpm dev:fixture                                        # fixtures/fake-cli.mjs: fixed numbers, every error state
-node scripts/synthetic-store.mjs /tmp/aii-synth         # the real CLI from this checkout (pnpm build at the
-AI_INSIGHTS_CLI=/tmp/aii-synth/ai-insights pnpm dev     #   root first) on made-up transcripts
+node scripts/synthetic-store.mjs /tmp/aii-synth "$(npm root -g)/ai-insights/dist/cli/main.js"
+AI_INSIGHTS_CLI=/tmp/aii-synth/ai-insights pnpm dev     # your installed CLI on made-up transcripts
 pnpm check                                              # typecheck, UI tests, UI build
 cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
 ```
 
-`fixtures/fake-cli.mjs` stands in for the CLI with the synthetic `fixtures/summary.json`;
+Without the second argument, `synthetic-store.mjs` uses this checkout's `dist/cli/main.js` (run `pnpm build`
+at the repo root first), for testing unreleased CLI changes. `fixtures/fake-cli.mjs` stands in for the CLI with the synthetic `fixtures/summary.json`;
 `FAKE_CLI_MODE=slow|fail|garbage|empty|hang` exercises the error states. For screenshots,
 `AI_INSIGHTS_DESKTOP_SHOW=1` opens the popover at start and `AI_INSIGHTS_DESKTOP_PIN=1` keeps it open when it
 loses focus. On a headless Linux box, run it under `xvfb-run` and `dbus-run-session` (GTK waits for a
