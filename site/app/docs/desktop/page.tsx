@@ -87,6 +87,11 @@ export default function Desktop() {
           is skipped.
         </li>
         <li>
+          <strong>Never two.</strong> If you set up <DocLink href="/docs/cli#cmd-schedule">ai-insights schedule</DocLink>, which sends its own
+          notification, the app turns its nudges off while that schedule is on and says so in Settings. To use the app&apos;s nudges instead, run{" "}
+          <code>ai-insights schedule off</code>. The app never changes the CLI&apos;s schedule itself.
+        </li>
+        <li>
           Nudges need the app to be running. Turn on <strong>Open at login</strong> if you want them without opening the app yourself.
         </li>
       </ul>

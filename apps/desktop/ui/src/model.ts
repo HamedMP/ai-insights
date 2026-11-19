@@ -98,6 +98,26 @@ export interface Model {
   askAboutNudges: boolean;
 }
 
+export interface CliScheduleNotice {
+  title: string;
+  body: string;
+  command: string;
+}
+
+/**
+ * While the CLI's own `ai-insights schedule` is on, the app sends no nudges (that job notifies already) and
+ * says so in Settings. The app never turns the CLI schedule off itself.
+ */
+export function cliScheduleNotice(state: ViewState): CliScheduleNotice | null {
+  const cli = state.snapshot.cliSchedule;
+  if (!cli?.active) return null;
+  return {
+    title: `Scheduled notifications are already on (ai-insights schedule${cli.when ? `, ${cli.when}` : ""}).`,
+    body: "So you never get two, this app's nudges stay off while that schedule is on. To use the app's nudges instead, remove the schedule in a terminal:",
+    command: "ai-insights schedule off",
+  };
+}
+
 const PROBLEMS: Record<Problem, Notice> = {
   cliMissing: {
     tone: "info",
@@ -192,7 +212,8 @@ export function buildModel(state: ViewState, nowMs: number): Model {
     loading: summary === null && snapshot.problem === null,
     canOpenReport: snapshot.problem !== "cliMissing" && snapshot.problem !== "cliTooOld",
     openingReport: false,
-    askAboutNudges: !settings.onboarded,
+    // No question about nudges while the CLI's schedule already notifies.
+    askAboutNudges: !settings.onboarded && !state.snapshot.cliSchedule?.active,
     footnote: summary?.newerSchema ? "Your CLI is newer than this app. Some numbers may be missing until the app is updated." : null,
   };
 }

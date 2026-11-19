@@ -2,6 +2,7 @@
 // A stand-in for the ai-insights CLI with synthetic numbers, for developing and screenshotting the app
 // without anyone's real history:  AI_INSIGHTS_CLI=$PWD/fixtures/fake-cli.mjs pnpm dev
 // FAKE_CLI_MODE: ok (default) | slow | fail | old | garbage | empty | hang
+// FAKE_CLI_SCHEDULE=on: `schedule status --json` reports an active weekly `ai-insights schedule`
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -37,6 +38,11 @@ if (command === "summary" && rest.includes("--json")) {
     for (const p of Object.values(summary.periods)) Object.assign(p, { sessions: 0, activeMinutes: 0, prompts: 0, costUsd: 0, byAgent: [], tip: null });
   }
   process.stdout.write(JSON.stringify(summary));
+} else if (command === "schedule" && rest[0] === "status" && rest.includes("--json")) {
+  const on = process.env.FAKE_CLI_SCHEDULE === "on";
+  process.stdout.write(
+    JSON.stringify({ schemaVersion: 1, active: on, system: on ? "launchd" : null, cadence: on ? "weekly" : null, hour: on ? 9 : null, minute: on ? 0 : null, weekday: on ? 1 : null, when: on ? "every Monday at 09:00" : null, nextRun: null, lastRun: null }) + "\n",
+  );
 } else if (command === "report") {
   mkdirSync(reportDir, { recursive: true });
   writeFileSync(reportPath, "<!doctype html><title>AI Insights (fake)</title><h1>Fake report with synthetic data</h1>");

@@ -2,6 +2,7 @@
 //! running the person's own `ai-insights` CLI. The app makes no network requests of its own.
 
 mod cli;
+mod cli_schedule;
 mod nudge;
 mod placement;
 mod schedule;
@@ -28,6 +29,7 @@ const POPOVER: &str = "popover";
 const POPOVER_SIZE: (f64, f64) = (360.0, 560.0);
 const SUMMARY_TIMEOUT: Duration = Duration::from_secs(120);
 const REPORT_TIMEOUT: Duration = Duration::from_secs(300);
+const SCHEDULE_STATUS_TIMEOUT: Duration = Duration::from_secs(15);
 /// Opening the popover refreshes only when the numbers are older than this.
 const STALE_ON_OPEN: Duration = Duration::from_secs(120);
 /// The loop wakes once a minute to see whether anything is due; it never spins.
@@ -57,6 +59,8 @@ struct Snapshot {
     refreshing: bool,
     /// Where the CLI was found, shown in settings so a person can tell which install is used.
     cli_location: Option<String>,
+    /// The CLI's own `ai-insights schedule`, when it could be read. Active means the app sends no nudges.
+    cli_schedule: Option<cli_schedule::CliSchedule>,
 }
 
 #[derive(Serialize, Clone)]
@@ -158,10 +162,18 @@ fn refresh_now<R: Runtime>(app: &AppHandle<R>) {
             Err(cli::RunError::TooLarge) => Err(Problem::BadOutput),
         },
     };
+    // Read with every refresh, so turning the CLI schedule on or off is noticed within one refresh interval.
+    let cli_schedule = found.as_ref().and_then(|cli| {
+        let out = cli.run(&["schedule", "status", "--json"], SCHEDULE_STATUS_TIMEOUT).ok()?;
+        cli_schedule::parse(&String::from_utf8_lossy(&out))
+    });
     {
         let mut snap = lock(&state.snapshot);
         snap.refreshing = false;
-        snap.cli_location = found.map(|c| c.program.to_string_lossy().to_string());
+        // The CLI itself, not the Node that runs it when it is an entry script.
+        snap.cli_location =
+            found.map(|c| c.prefix_args.first().map(PathBuf::from).unwrap_or(c.program).to_string_lossy().to_string());
+        snap.cli_schedule = cli_schedule;
         match result {
             Ok(summary) => {
                 snap.summary = Some(summary);
@@ -217,6 +229,10 @@ fn nudge_if_due<R: Runtime>(app: &AppHandle<R>) {
     }
     refresh_now(app);
     let snap = lock(&state.snapshot).clone();
+    // `ai-insights schedule` sends its own notification; never a second one from the app.
+    if !cli_schedule::app_nudges_allowed(snap.cli_schedule.as_ref()) {
+        return;
+    }
     let fresh = snap.fetched_at.is_some_and(|at| now_ms().saturating_sub(at) < 24 * 3600 * 1000);
     let Some(summary) = snap.summary.filter(|_| fresh) else { return };
     if let Some(message) = nudge::message(nudge.cadence, &summary, cfg!(target_os = "macos")) {

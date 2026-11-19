@@ -269,6 +269,25 @@ describe("ai-insights schedule weekly (Linux, systemd user session)", () => {
     expect(out).toContain("last run  not yet");
   });
 
+  it("status --json tells a tool (the desktop app) whether a schedule is on and when, without file paths", async () => {
+    expect(await runSchedule(["status", "--json"], deps())).toBe(0);
+    expect(JSON.parse(out)).toEqual({ schemaVersion: 1, active: false, system: null, cadence: null, hour: null, minute: null, weekday: null, when: null, nextRun: null, lastRun: null });
+    answers = ["yes"];
+    await runSchedule(["weekly", "--at", "18:30", "--day", "fri"], deps());
+    out = "";
+    expect(await runSchedule(["status", "--json"], deps({ stdoutTTY: false }))).toBe(0);
+    const status = JSON.parse(out);
+    expect(status).toMatchObject({ schemaVersion: 1, active: true, system: "systemd", cadence: "weekly", hour: 18, minute: 30, weekday: 5, when: "every Friday at 18:30", lastRun: null });
+    expect(new Date(status.nextRun).getDay()).toBe(5);
+    expect(out).not.toContain(user);
+    expect(out.endsWith("}\n")).toBe(true);
+  });
+
+  it("--json is only for status", async () => {
+    expect(await runSchedule(["weekly", "--json"], deps())).toBe(2);
+    expect(err).toContain("--json only works with status");
+  });
+
   it("--yes skips the question but never the terminal: piped, nothing is added even with --yes", async () => {
     expect(await runSchedule(["weekly", "--yes"], deps())).toBe(0);
     expect(await present(join(unitDir(), "ai-insights-schedule.timer"))).toBe(true);

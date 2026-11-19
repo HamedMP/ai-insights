@@ -39,7 +39,7 @@ export const SCHEDULE_HELP = `ai-insights schedule: refresh the report on a sche
 Usage
   ai-insights schedule daily|weekly|monthly [--at HH:MM] [--day mon..sun] [--with-cost] [--yes] [--dry-run]
   ai-insights schedule off      remove the scheduled job
-  ai-insights schedule status   show what is installed and when it runs next
+  ai-insights schedule status   show what is installed and when it runs next (--json for tools)
 
 Adds one job to this computer's own scheduler (a launchd agent on macOS, a systemd user timer on
 Linux) that keeps running after a restart. At the chosen time it reads your agent history here,
@@ -53,6 +53,7 @@ Options
   --with-cost    also show the estimated cost in the notification
   -y, --yes      add it without asking (still only at a terminal)
   --dry-run      show what it would add, change nothing
+  --json         status only: print it as JSON (schemaVersion 1; the desktop app reads it)
   -h, --help     show this help
 `;
 
@@ -108,11 +109,12 @@ interface ScheduleArgs {
   withCost: boolean;
   yes: boolean;
   dryRun: boolean;
+  json: boolean;
   help: boolean;
 }
 
 function parseScheduleArgs(argv: string[]): ScheduleArgs {
-  const args: ScheduleArgs = { verb: null, runCadence: null, hour: 9, minute: 0, weekday: 1, daySet: false, withCost: false, yes: false, dryRun: false, help: false };
+  const args: ScheduleArgs = { verb: null, runCadence: null, hour: 9, minute: 0, weekday: 1, daySet: false, withCost: false, yes: false, dryRun: false, json: false, help: false };
   for (let index = 0; index < argv.length; index += 1) {
     const raw = argv[index]!;
     const [flag, inline] = raw.startsWith("--") && raw.includes("=") ? [raw.slice(0, raw.indexOf("=")), raw.slice(raw.indexOf("=") + 1)] : [raw, undefined];
@@ -146,6 +148,9 @@ function parseScheduleArgs(argv: string[]): ScheduleArgs {
       case "--dry-run":
         args.dryRun = true;
         break;
+      case "--json":
+        args.json = true;
+        break;
       case "-h":
       case "--help":
         args.help = true;
@@ -162,6 +167,7 @@ function parseScheduleArgs(argv: string[]): ScheduleArgs {
     }
   }
   if (args.daySet && args.verb !== "weekly") throw new ScheduleUsageError("--day only works with weekly");
+  if (args.json && args.verb !== "status") throw new ScheduleUsageError("--json only works with status");
   return args;
 }
 
@@ -442,8 +448,35 @@ async function commandOff(deps: ScheduleDeps): Promise<number> {
   return ok ? 0 : 1;
 }
 
-async function commandStatus(deps: ScheduleDeps): Promise<number> {
+/**
+ * `schedule status --json`: whether a schedule is installed and when it runs, for tools such as the desktop app,
+ * which turns its own nudges off while one is active so nobody gets two notifications. Holds no file paths.
+ * Only launchd and systemd jobs are found; a crontab line or schtasks task the person added by hand is not.
+ */
+export function statusJson(installed: Pick<Installed, "system" | "spec" | "lastRun"> | null, now: Date): string {
+  const spec = installed?.spec ?? null;
+  const status = {
+    schemaVersion: 1,
+    active: installed !== null,
+    system: installed?.system ?? null,
+    cadence: spec?.cadence ?? null,
+    hour: spec?.hour ?? null,
+    minute: spec?.minute ?? null,
+    /** 0 = Sunday, as in `schedule weekly --day`; weekly only. */
+    weekday: spec?.cadence === "weekly" ? spec.weekday : null,
+    when: spec ? whenText(spec) : null,
+    nextRun: spec ? nextRun(spec, now).toISOString() : null,
+    lastRun: installed?.lastRun ?? null,
+  };
+  return `${JSON.stringify(status)}\n`;
+}
+
+async function commandStatus(deps: ScheduleDeps, json = false): Promise<number> {
   const installed = await findInstalled(deps);
+  if (json) {
+    deps.stdout(statusJson(installed, deps.now()));
+    return 0;
+  }
   if (!installed) {
     deps.stdout("No schedule is installed. Add one with: ai-insights schedule weekly\n");
     return 0;
@@ -523,7 +556,7 @@ export async function runSchedule(argv: string[], deps: ScheduleDeps): Promise<n
   }
   try {
     if (args.verb === "off") return await commandOff(deps);
-    if (args.verb === "status") return await commandStatus(deps);
+    if (args.verb === "status") return await commandStatus(deps, args.json);
     if (args.verb === "run") {
       if (!args.runCadence) {
         deps.stderr("ai-insights schedule run: needs daily, weekly or monthly (this is the scheduled job's own command)\n");

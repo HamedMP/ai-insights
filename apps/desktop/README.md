@@ -45,6 +45,12 @@ sends nothing. The schedule lives in `src-tauri/src/schedule.rs` (pure, tested w
 zone): a slot missed while the computer slept fires on wake within 12 hours, otherwise it is skipped, and
 changing the schedule never fires a slot that already passed.
 
+**Never two notifications.** `ai-insights schedule` (the CLI's own scheduled job) also notifies. With every
+refresh the app reads `ai-insights schedule status --json`; while that reports `active: true`, the app sends no
+nudges and Settings says "Scheduled notifications are already on (ai-insights schedule, every Monday at 09:00)"
+with `ai-insights schedule off` as the way to switch. The app never turns the CLI schedule off itself. An older
+CLI without `--json` counts as unknown, and the app's nudges work as before.
+
 "Open at login" uses the OS's own mechanism and is created only when switched on: a per-user LaunchAgent
 (`~/Library/LaunchAgents/AI Insights.plist`) on macOS, `~/.config/autostart/AI Insights.desktop` on Linux and
 an entry under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` on Windows. Switching it off removes
